@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@theme {
+  /* Marke – aus dem Agents-Gilt-Logo */
+  --color-gold: #d4a23c;
+  --color-gold-light: #e8c069;
+  --color-gold-dark: #b8842b;
+
+  /* Dunkle Töne (edel, fast schwarz – wie die Logo-Schrift) */
+  --color-ink: #0c0e14;
+  --color-ink-soft: #14171f;
+  --color-ink-card: #181b24;
+
+  /* Helle Töne */
+  --color-cream: #faf9f6;
+  --color-cream-dark: #efece4;
+  --color-line: #e6e2d8;
+
+  /* Fonts */
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-head), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Anker-Sprünge (z.B. #ablauf) unter der fixierten Navi absetzen */
+  scroll-padding-top: 5.5rem;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-gold);
+  color: #0c0e14;
+}
+
+/* Gold-Verlaufstext für Akzente */
+.text-gold-gradient {
+  background: linear-gradient(120deg, var(--color-gold-light), var(--color-gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Sanftes Glühen hinter dem Diamanten */
+.diamond-glow {
+  filter: drop-shadow(0 0 60px rgba(212, 162, 60, 0.28));
+}
+
+/* Endlose, sanfte Schwebe-Bewegung des Diamanten */
+@keyframes diamond-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+.diamond-float {
+  animation: diamond-float 7s ease-in-out infinite;
+}
+
+/* Barrierefreiheit: Wer „weniger Bewegung" eingestellt hat,
+   bekommt alles ruhig und ohne Dauer-Animationen.
+   (Die GSAP-Animationen sind selbst schon per matchMedia abgeschaltet.) */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .diamond-float {
+    animation: none;
+  }
+}
