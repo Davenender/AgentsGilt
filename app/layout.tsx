@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Sora } from "next/font/google";
 import "./globals.css";
+import { ChatWidget } from "@/components/ChatWidget";
 
 const inter = Inter({
   variable: "--font-body",
@@ -38,7 +39,10 @@ export default function RootLayout({
       lang="de"
       className={`${inter.variable} ${sora.variable} antialiased`}
     >
-      <body className="bg-cream text-ink font-sans">{children}</body>
+      <body className="bg-cream text-ink font-sans">
+        {children}
+        <ChatWidget />
+      </body>
     </html>
   );
 }

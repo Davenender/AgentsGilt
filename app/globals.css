@@ -64,6 +64,23 @@ body {
   animation: diamond-float 7s ease-in-out infinite;
 }
 
+/* Tipp-Punkte im Chat ("Lia schreibt …") */
+@keyframes chat-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.chat-dot {
+  animation: chat-dot 1.2s ease-in-out infinite;
+}
+
 /* Barrierefreiheit: Wer „weniger Bewegung" eingestellt hat,
    bekommt alles ruhig und ohne Dauer-Animationen.
    (Die GSAP-Animationen sind selbst schon per matchMedia abgeschaltet.) */

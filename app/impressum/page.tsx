@@ -17,24 +17,18 @@ export default function ImpressumPage() {
       </h1>
 
       <div className="mt-8 space-y-6 text-sm leading-relaxed text-ink-soft">
-        <p className="rounded-xl border border-line bg-cream-dark/40 p-4 text-ink">
-          ⚠️ <strong>Platzhalter</strong> – diese Angaben müssen vor dem
-          Live-Gang durch deine echten Daten ersetzt und (idealerweise) rechtlich
-          geprüft werden.
-        </p>
-
         <div>
           <h2 className="font-display text-lg font-bold text-ink">
             Angaben gemäß § 5 DDG (Digitale-Dienste-Gesetz)
           </h2>
           <p className="mt-3">
-            [Vorname Nachname]
+            David Hesse
             <br />
-            Agents Gilt
+            Agents Gilt (Einzelunternehmen)
             <br />
-            [Straße &amp; Hausnummer]
+            Lämmerspieler Straße 100
             <br />
-            [PLZ Ort]
+            63165 Mühlheim am Main
             <br />
             Deutschland
           </p>
@@ -45,17 +39,24 @@ export default function ImpressumPage() {
           <p className="mt-3">
             E-Mail: kontakt@agents-gilt.agency
             <br />
-            Telefon: [optional]
+            Telefon: +49 1609 8427943
+          </p>
+        </div>
+
+        <div>
+          <h2 className="font-display text-lg font-bold text-ink">Umsatzsteuer</h2>
+          <p className="mt-3">
+            Als Kleinunternehmer im Sinne von § 19 UStG wird keine Umsatzsteuer
+            ausgewiesen.
           </p>
         </div>
 
         <div>
           <h2 className="font-display text-lg font-bold text-ink">
-            Umsatzsteuer
+            Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV
           </h2>
           <p className="mt-3">
-            Als Kleinunternehmer im Sinne von § 19 UStG wird keine Umsatzsteuer
-            ausgewiesen.
+            David Hesse (Anschrift wie oben)
           </p>
         </div>
 
@@ -66,6 +67,18 @@ export default function ImpressumPage() {
           <p className="mt-3">
             Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren
             vor einer Verbraucherschlichtungsstelle teilzunehmen.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="font-display text-lg font-bold text-ink">Haftung für Inhalte</h2>
+          <p className="mt-3">
+            Als Diensteanbieter sind wir für eigene Inhalte auf diesen Seiten nach
+            den allgemeinen Gesetzen verantwortlich. Wir sind jedoch nicht
+            verpflichtet, übermittelte oder gespeicherte fremde Informationen zu
+            überwachen. Verpflichtungen zur Entfernung oder Sperrung der Nutzung
+            von Informationen nach den allgemeinen Gesetzen bleiben hiervon
+            unberührt.
           </p>
         </div>
       </div>
