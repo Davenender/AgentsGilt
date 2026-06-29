@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://agents-gilt.agency"),
   title: "Agents Gilt – KI-Lösungen für lokale Unternehmen",
   description:
-    "Agents Gilt baut moderne Websites, KI-Chatbots, Voice-Agenten und Automatisierungen für kleine und mittlere Unternehmen – einsatzbereit in Tagen.",
+    "Agents Gilt entwickelt moderne Websites, KI-Chatbots, Voice-Agenten und Automatisierungen für kleine und mittlere Unternehmen.",
   alternates: {
     canonical: "/",
   },
@@ -70,6 +70,15 @@ const jsonLd = {
   },
 };
 
+// Sagt Google, dass der Seitenname "Agents Gilt" lautet (statt der Domain).
+const siteJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Agents Gilt",
+  alternateName: "Agents Gilt Agency",
+  url: "https://agents-gilt.agency",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -81,6 +90,10 @@ export default function RootLayout({
       className={`${inter.variable} ${sora.variable} antialiased`}
     >
       <body className="bg-cream text-ink font-sans">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
