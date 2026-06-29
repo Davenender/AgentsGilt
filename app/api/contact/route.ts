@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,15 @@ const contactSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Rate-Limit gegen Spam/Missbrauch: max. 5 Anfragen / Stunde pro IP
+  const rl = rateLimit(`contact:${getClientIp(request)}`, 5, 60 * 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Zu viele Anfragen. Bitte versuch es später noch einmal." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
+    );
+  }
+
   let payload: unknown;
   try {
     payload = await request.json();

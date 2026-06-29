@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { AGENTS_GILT_SYSTEM_PROMPT } from "@/lib/chatbot-knowledge";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,24 @@ function jsonError(message: string, status: number) {
 }
 
 export async function POST(request: Request) {
+  // Rate-Limit gegen Missbrauch (Kosten): max. 30 Anfragen / 5 Min pro IP
+  const rl = rateLimit(`chat:${getClientIp(request)}`, 30, 5 * 60_000);
+  if (!rl.ok) {
+    return new Response(
+      JSON.stringify({
+        error:
+          "Zu viele Anfragen in kurzer Zeit. Bitte warte einen Moment – oder schreib uns über das Kontaktformular weiter unten.",
+      }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(rl.retryAfter),
+        },
+      },
+    );
+  }
+
   let payload: { messages?: ChatMessage[] };
   try {
     payload = await request.json();
