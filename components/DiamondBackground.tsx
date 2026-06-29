@@ -77,7 +77,7 @@ export function DiamondBackground() {
             className="diamond-float"
             style={{
               filter:
-                "brightness(calc(1 + var(--dg, 0) * 0.28)) saturate(calc(1 + var(--dg, 0) * 0.2)) drop-shadow(0 0 calc(46px + var(--dg, 0) * 82px) rgba(212, 162, 60, 0.5)) drop-shadow(0 0 calc(14px + var(--dg, 0) * 28px) rgba(240, 195, 95, 0.55))",
+                "brightness(calc(1 + var(--dg, 0) * 0.42)) saturate(calc(1 + var(--dg, 0) * 0.3)) drop-shadow(0 0 calc(70px + var(--dg, 0) * 170px) rgba(212, 162, 60, 0.65)) drop-shadow(0 0 calc(34px + var(--dg, 0) * 80px) rgba(235, 185, 85, 0.72)) drop-shadow(0 0 calc(12px + var(--dg, 0) * 28px) rgba(252, 214, 120, 0.85))",
             }}
           >
             <Image
