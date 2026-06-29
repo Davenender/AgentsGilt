@@ -189,7 +189,7 @@ export function HeroTrail() {
       let gt = 0;
       if (hasMouse) {
         const d = Math.hypot(mx - cx, my - cy);
-        gt = Math.max(0, 1 - d / (Math.min(W, H) * 0.5));
+        gt = Math.max(0, 1 - d / (Math.min(W, H) * 0.34));
       }
       glow += (gt - glow) * 0.08;
       hero.style.setProperty("--dg", glow.toFixed(3));
