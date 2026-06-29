@@ -30,3 +30,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# interne Übergabe-Doku – NUR lokal, NIEMALS committen (enthält private Infos)
+STATUS.md
