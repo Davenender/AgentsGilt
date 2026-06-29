@@ -11,7 +11,7 @@ export const site = {
   claimLine1: "KI-Lösungen,",
   claimLine2: "die dein Geschäft voranbringen.",
   heroSub:
-    "Wir bauen moderne Websites, Chatbots, Voice-Agenten und Automatisierungen für lokale Unternehmen – einsatzbereit in Tagen, nicht Monaten.",
+    "Wir bauen moderne Websites, Chatbots, Voice-Agenten und Automatisierungen für lokale Unternehmen.",
   heroCtaPrimary: "Projekt anfragen",
   heroCtaSecondary: "Leistungen ansehen",
   // WhatsApp-Business-Nummer – international, NUR Ziffern (ohne + und ohne
