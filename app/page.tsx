@@ -3,6 +3,7 @@ import { Hero } from "@/components/Hero";
 import { Services } from "@/components/Services";
 import { Process } from "@/components/Process";
 import { WhyUs } from "@/components/WhyUs";
+import { Credentials } from "@/components/Credentials";
 import { Contact } from "@/components/Contact";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
@@ -39,6 +40,7 @@ export default function Home() {
         <Services />
         <Process />
         <WhyUs />
+        <Credentials />
         <Contact />
       </main>
       <Footer />

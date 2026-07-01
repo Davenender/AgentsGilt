@@ -114,6 +114,34 @@ export const why = {
   ],
 };
 
+export const credentials = {
+  kicker: "Ausbildung & Weiterbildung",
+  headline: "Ausgebildet in Anthropics KI-Technologie.",
+  text: "Wir bilden uns direkt bei Anthropic weiter – dem Unternehmen hinter Claude, einer der führenden KIs weltweit. Diese Kurse haben wir abgeschlossen (klick auf ein Zertifikat, um es anzusehen):",
+  items: [
+    {
+      title: "AI Fluency: Framework & Foundations",
+      img: "/certificates/ai-fluency.png",
+      pdf: "/certificates/ai-fluency.pdf",
+    },
+    {
+      title: "Claude 101",
+      img: "/certificates/claude-101.png",
+      pdf: "/certificates/claude-101.pdf",
+    },
+    {
+      title: "Claude Code in Action",
+      img: "/certificates/claude-code.png",
+      pdf: "/certificates/claude-code.pdf",
+    },
+    {
+      title: "Model Context Protocol: Advanced Topics",
+      img: "/certificates/mcp-advanced.png",
+      pdf: "/certificates/mcp-advanced.pdf",
+    },
+  ],
+};
+
 export const contact = {
   kicker: "Kontakt",
   headline: "Lass uns über dein Projekt sprechen.",
