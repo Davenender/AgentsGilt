@@ -117,7 +117,7 @@ export const why = {
 export const credentials = {
   kicker: "Ausbildung & Weiterbildung",
   headline: "Ausgebildet in Anthropics KI-Technologie.",
-  text: "Wir bilden uns direkt bei Anthropic weiter – dem Unternehmen hinter Claude, einer der führenden KIs weltweit. Diese Kurse haben wir abgeschlossen (klick auf ein Zertifikat, um es anzusehen):",
+  text: "Wir bilden uns direkt bei Anthropic weiter – dem Unternehmen hinter Claude, einer der führenden KIs weltweit.",
   items: [
     {
       title: "AI Fluency: Framework & Foundations",

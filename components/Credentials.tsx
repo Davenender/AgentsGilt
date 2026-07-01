@@ -26,12 +26,12 @@ export function Credentials() {
 
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {credentials.items.map((item, i) => (
-            <Reveal key={item.title} delay={(i % 4) * 0.08}>
+            <Reveal key={item.title} delay={(i % 4) * 0.08} className="h-full">
               <a
                 href={item.pdf}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group block h-full overflow-hidden rounded-2xl border border-line bg-white transition duration-300 hover:-translate-y-1 hover:border-gold hover:shadow-xl"
+                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-white transition duration-300 hover:-translate-y-1 hover:border-gold hover:shadow-xl"
               >
                 <div className="relative aspect-[4/3] overflow-hidden bg-cream">
                   <Image
@@ -42,11 +42,11 @@ export function Credentials() {
                     className="object-cover transition duration-300 group-hover:scale-[1.03]"
                   />
                 </div>
-                <div className="p-5">
+                <div className="flex flex-1 flex-col p-5">
                   <h3 className="font-display text-base font-bold leading-snug text-ink">
                     {item.title}
                   </h3>
-                  <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-gold-dark">
+                  <span className="mt-auto pt-4 inline-flex items-center gap-1 text-sm font-semibold text-gold-dark">
                     Zertifikat ansehen
                     <span aria-hidden className="transition group-hover:translate-x-0.5">
                       →
