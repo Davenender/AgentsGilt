@@ -16,9 +16,9 @@ export function HeroContent() {
     if (!el) return;
 
     const mm = gsap.matchMedia();
-    // Intro-Animation nur an Maus-Geräten – auf dem Handy sind Überschrift & Buttons sofort statisch sichtbar.
+    // Intro-Animation nur auf großen Maus-Geräten – auf dem Handy sind Überschrift & Buttons sofort statisch sichtbar.
     mm.add(
-      "(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)",
+      "(min-width: 900px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)",
       () => {
       const ctx = gsap.context(() => {
         const tl = gsap.timeline({ defaults: { ease: "power4.out" } });

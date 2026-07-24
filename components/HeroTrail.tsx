@@ -18,8 +18,8 @@ export function HeroTrail() {
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // Auf Touch-Geräten (Handy/Tablet) kein Partikelfeld – ruhiger & schneller.
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    // Nur auf großen Maus-Geräten (Desktop) – auf Handy/Tablet kein Partikelfeld.
+    if (!window.matchMedia("(min-width: 900px) and (hover: hover) and (pointer: fine)").matches) return;
 
     const canvas = canvasRef.current;
     const hero = document.getElementById("top");
