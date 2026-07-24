@@ -21,8 +21,8 @@ export function DiamondBackground() {
   useEffect(() => {
     const mm = gsap.matchMedia();
 
-    // Scroll-Parallax (auch bei reduzierter Bewegung ok – sehr ruhig)
-    mm.add("(prefers-reduced-motion: no-preference)", () => {
+    // Scroll-Parallax nur an Maus-Geräten – auf dem Handy bleibt der Diamant ruhig/statisch
+    mm.add("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)", () => {
       const el = scrollLayer.current;
       if (!el) return;
       gsap.to(el, {

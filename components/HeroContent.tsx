@@ -16,7 +16,10 @@ export function HeroContent() {
     if (!el) return;
 
     const mm = gsap.matchMedia();
-    mm.add("(prefers-reduced-motion: no-preference)", () => {
+    // Intro-Animation nur an Maus-Geräten – auf dem Handy sind Überschrift & Buttons sofort statisch sichtbar.
+    mm.add(
+      "(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)",
+      () => {
       const ctx = gsap.context(() => {
         const tl = gsap.timeline({ defaults: { ease: "power4.out" } });
         tl.from(".hero-eyebrow", { y: 24, opacity: 0, duration: 0.8 })

@@ -17,8 +17,8 @@ export function Hero() {
 
       <HeroContent />
 
-      {/* Scroll-Hinweis */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/40">
+      {/* Scroll-Hinweis (Maus-Metapher – nur auf dem Computer zeigen) */}
+      <div className="absolute bottom-8 left-1/2 hidden -translate-x-1/2 text-white/40 sm:block">
         <div className="flex h-9 w-5 items-start justify-center rounded-full border border-white/25 p-1.5">
           <span className="h-2 w-1 animate-bounce rounded-full bg-white/50" />
         </div>
