@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Sora } from "next/font/google";
 import "./globals.css";
 import { ChatWidget } from "@/components/ChatWidget";
+import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({
   variable: "--font-body",
@@ -88,12 +89,8 @@ const jsonLd = {
   ],
   // Verknüpfte Profile
   sameAs: ["https://www.tiktok.com/@agents.gilt"],
-  openingHoursSpecification: {
-    "@type": "OpeningHoursSpecification",
-    dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    opens: "09:00",
-    closes: "18:00",
-  },
+  // Bewusst KEINE openingHoursSpecification – Kontakt läuft über Formular,
+  // E-Mail und WhatsApp; falsche Zeiten wären irreführend.
 };
 
 // Sagt Google, dass der Seitenname "Agents Gilt" lautet (statt der Domain).
@@ -126,6 +123,8 @@ export default function RootLayout({
         />
         {children}
         <ChatWidget />
+        {/* Cookiefreie, anonyme Besucherstatistik – kein Consent-Banner nötig */}
+        <Analytics />
       </body>
     </html>
   );
