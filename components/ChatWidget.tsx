@@ -204,7 +204,7 @@ export function ChatWidget() {
             <div className="flex items-center justify-between gap-3 border-b border-line bg-cream px-4 py-3.5">
               <div className="flex items-center gap-3">
                 <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-ink">
-                  <Image src="/logo-mark.png" alt="" width={24} height={24} className="h-6 w-6" />
+                  <Image src="/logo-mark.png" alt="" width={34} height={34} className="h-[34px] w-[34px]" />
                   <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-cream bg-green-500" />
                 </div>
                 <div className="leading-tight">
