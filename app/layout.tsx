@@ -51,14 +51,15 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "ProfessionalService",
+  "@id": "https://agents-gilt.agency",
   name: "Agents Gilt",
   image: "https://agents-gilt.agency/logo-full.png",
+  logo: "https://agents-gilt.agency/logo-full.png",
   url: "https://agents-gilt.agency",
   email: "kontakt@agents-gilt.agency",
   telephone: "+4916098427943",
   founder: "David Hesse",
   priceRange: "€€",
-  areaServed: "DE",
   description:
     "KI-Lösungen für lokale Unternehmen: moderne Websites, Chatbots, Voice-Agenten und Automatisierungen.",
   address: {
@@ -67,6 +68,31 @@ const jsonLd = {
     postalCode: "63165",
     addressLocality: "Mühlheim am Main",
     addressCountry: "DE",
+  },
+  // Einzugsgebiet – passend zum Google-Unternehmensprofil
+  areaServed: [
+    { "@type": "City", name: "Mühlheim am Main" },
+    { "@type": "City", name: "Offenbach am Main" },
+    { "@type": "City", name: "Frankfurt am Main" },
+    { "@type": "City", name: "Hanau" },
+  ],
+  // Fachgebiete – damit KI/Google sofort versteht, worum es geht
+  knowsAbout: [
+    "Künstliche Intelligenz",
+    "KI-Agenten",
+    "Chatbots",
+    "Voice-Agenten",
+    "Automatisierung",
+    "Webdesign",
+    "Website-Entwicklung",
+  ],
+  // Verknüpfte Profile
+  sameAs: ["https://www.tiktok.com/@agents.gilt"],
+  openingHoursSpecification: {
+    "@type": "OpeningHoursSpecification",
+    dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    opens: "09:00",
+    closes: "18:00",
   },
 };
 
