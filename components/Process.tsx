@@ -6,6 +6,8 @@ import { Reveal } from "./Reveal";
 
 // Muss zur Dauer von .step-fill in globals.css passen (aktuell 5s)
 const STEP_MS = 5000;
+// Kurzer Vorlauf, damit man die leere Zahl erst sieht, bevor sie sich füllt
+const START_DELAY_MS = 1000;
 
 /**
  * Ablauf-Schritte mit automatischem Durchlauf:
@@ -21,37 +23,47 @@ export function Process() {
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(false);
-  const sectionRef = useRef<HTMLElement>(null);
+  const [started, setStarted] = useState(false);
+  // Beobachtet wird die ZAHLEN-REIHE, nicht die ganze Sektion: die ist so hoch,
+  // dass sie schon als sichtbar gilt, wenn erst die Überschrift im Bild ist –
+  // der Durchlauf wäre dann schon halb vorbei, bevor man die Zahlen sieht.
+  const stepsRef = useRef<HTMLDivElement>(null);
 
-  // Nur laufen lassen, wenn die Sektion sichtbar ist
   useEffect(() => {
-    const el = sectionRef.current;
+    const el = stepsRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
       ([entry]) => setVisible(entry.isIntersecting),
-      { threshold: 0.25 },
+      { threshold: 0.45 },
     );
     io.observe(el);
     return () => io.disconnect();
   }, []);
 
+  // Beim Reinscrollen kurz warten, dann bei Schritt 1 starten
+  useEffect(() => {
+    if (!visible) {
+      setStarted(false);
+      setActive(0);
+      return;
+    }
+    const t = setTimeout(() => setStarted(true), START_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [visible]);
+
   // Weiterschalten zum nächsten Schritt
   useEffect(() => {
-    if (!visible || paused) return;
+    if (!started || paused) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const t = setTimeout(
       () => setActive((i) => (i + 1) % workflow.steps.length),
       STEP_MS,
     );
     return () => clearTimeout(t);
-  }, [active, visible, paused]);
+  }, [active, started, paused]);
 
   return (
-    <section
-      ref={sectionRef}
-      id="ablauf"
-      className="bg-ink py-24 text-white md:py-32"
-    >
+    <section id="ablauf" className="bg-ink py-24 text-white md:py-32">
       <div className="mx-auto max-w-6xl px-6">
         <div className="max-w-2xl">
           <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">
@@ -62,7 +74,10 @@ export function Process() {
           </h2>
         </div>
 
-        <div className="mt-16 grid gap-10 md:grid-cols-3 md:gap-8">
+        <div
+          ref={stepsRef}
+          className="mt-16 grid gap-10 md:grid-cols-3 md:gap-8"
+        >
           {workflow.steps.map((step, i) => {
             const isActive = i === active;
             return (
@@ -83,16 +98,16 @@ export function Process() {
                     <span
                       aria-hidden
                       // key erzwingt den Neustart der Füll-Animation bei jedem Wechsel
-                      key={`${step.no}-${isActive}-${paused}`}
+                      key={`${step.no}-${isActive}-${paused}-${started}`}
                       className={`absolute inset-0 text-[#f5cb52] ${
-                        isActive && !paused ? "step-fill" : ""
+                        isActive && !paused && started ? "step-fill" : ""
                       }`}
                       style={
-                        isActive
-                          ? paused
-                            ? { clipPath: "inset(0 0 0 0)" } // Hover: sofort ganz voll
-                            : undefined // läuft über .step-fill
-                          : { clipPath: "inset(0 100% 0 0)" } // inaktiv: leer
+                        isActive && paused
+                          ? { clipPath: "inset(0 0 0 0)" } // Hover: sofort ganz voll
+                          : isActive && started
+                            ? undefined // Füllung läuft über .step-fill
+                            : { clipPath: "inset(0 100% 0 0)" } // leer: inaktiv oder Vorlauf
                       }
                     >
                       {step.no}
