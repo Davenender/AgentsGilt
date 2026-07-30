@@ -64,6 +64,25 @@ body {
   animation: diamond-float 7s ease-in-out infinite;
 }
 
+/* Ablauf-Schritte: die Zahl füllt sich von links nach rechts mit hellem Gold */
+@keyframes step-fill {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.step-fill {
+  animation: step-fill 4s linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-fill {
+    animation: none;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
 /* Tipp-Punkte im Chat ("Lia schreibt …") */
 @keyframes chat-dot {
   0%,
