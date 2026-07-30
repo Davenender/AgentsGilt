@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { workflow } from "@/lib/content";
 import { Reveal } from "./Reveal";
 
-const STEP_MS = 4000;
+// Muss zur Dauer von .step-fill in globals.css passen (aktuell 5s)
+const STEP_MS = 5000;
 
 /**
  * Ablauf-Schritte mit automatischem Durchlauf:
@@ -83,7 +84,7 @@ export function Process() {
                       aria-hidden
                       // key erzwingt den Neustart der Füll-Animation bei jedem Wechsel
                       key={`${step.no}-${isActive}-${paused}`}
-                      className={`absolute inset-0 text-gold-light ${
+                      className={`absolute inset-0 text-[#f5cb52] ${
                         isActive && !paused ? "step-fill" : ""
                       }`}
                       style={
@@ -98,10 +99,21 @@ export function Process() {
                     </span>
                   </div>
 
-                  <h3 className="mt-3 font-display text-xl font-bold text-white">
+                  <h3
+                    className="mt-3 font-display text-xl font-bold text-white transition-all duration-700"
+                    style={
+                      isActive
+                        ? { textShadow: "0 0 18px rgba(255,255,255,0.38)" }
+                        : undefined
+                    }
+                  >
                     {step.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-white/65">
+                  <p
+                    className={`mt-3 text-sm leading-relaxed transition-colors duration-700 ${
+                      isActive ? "text-white/90" : "text-white/65"
+                    }`}
+                  >
                     {step.text}
                   </p>
                 </div>

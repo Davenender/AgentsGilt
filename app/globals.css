@@ -73,8 +73,9 @@ body {
     clip-path: inset(0 0 0 0);
   }
 }
+/* Dauer muss zu STEP_MS in components/Process.tsx passen (aktuell 5000 ms) */
 .step-fill {
-  animation: step-fill 4s linear forwards;
+  animation: step-fill 5s linear forwards;
 }
 @media (prefers-reduced-motion: reduce) {
   .step-fill {
