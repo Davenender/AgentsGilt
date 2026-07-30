@@ -86,6 +86,7 @@ export function DiamondBackground() {
               width={620}
               height={620}
               priority
+              data-diamond
               className="w-[72vw] max-w-[560px] select-none"
             />
           </div>

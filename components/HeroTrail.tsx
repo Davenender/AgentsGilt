@@ -29,6 +29,42 @@ export function HeroTrail() {
 
     let W = 0;
     let H = 0;
+
+    /**
+     * Kollisionsfläche des großen Diamanten – als echte RAUTE, nicht als Kreis.
+     * Die Maße werden am gerenderten Bild gemessen (nicht geschätzt), damit sie
+     * bei jeder Fenstergröße exakt zur sichtbaren Form passen.
+     */
+    // Die sichtbare Raute füllt nur ~51,7 % der Bilddatei (Rest ist transparenter Rand).
+    const DIAMOND_FILL = 0.517;
+    let dcx = 0; // Mittelpunkt X
+    let dcy = 0; // Mittelpunkt Y
+    let dHalfW = 0; // halbe Rauten-Breite (Spitze links/rechts)
+    let dHalfH = 0; // halbe Rauten-Höhe (Spitze oben/unten)
+
+    const measureDiamond = () => {
+      const el = document.querySelector<HTMLElement>("[data-diamond]");
+      const hr = hero.getBoundingClientRect();
+      if (el) {
+        const r = el.getBoundingClientRect();
+        dcx = r.left + r.width / 2 - hr.left;
+        dcy = r.top + r.height / 2 - hr.top;
+        dHalfW = (r.width * DIAMOND_FILL) / 2;
+        dHalfH = (r.height * DIAMOND_FILL) / 2;
+      } else {
+        // Fallback, falls das Bild (noch) nicht im DOM ist
+        const w = Math.min(window.innerWidth * 0.72, 560);
+        dcx = W / 2;
+        dcy = H / 2;
+        dHalfW = (w * DIAMOND_FILL) / 2;
+        dHalfH = dHalfW;
+      }
+    };
+
+    /** < 1 = innerhalb der Raute. Erweitert um den Partikelradius r. */
+    const diamondDepth = (x: number, y: number, r: number) =>
+      Math.abs(x - dcx) / (dHalfW + r) + Math.abs(y - dcy) / (dHalfH + r);
+
     const sizeCanvas = () => {
       const r = hero.getBoundingClientRect();
       W = r.width;
@@ -39,11 +75,13 @@ export function HeroTrail() {
       canvas.style.width = `${W}px`;
       canvas.style.height = `${H}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      measureDiamond();
     };
     sizeCanvas();
+    // Nachmessen, sobald das Logo-Bild final gelayoutet ist
+    const remeasure = window.setTimeout(measureDiamond, 400);
 
     const rand = (a: number, b: number) => a + Math.random() * (b - a);
-    const logoRadius = () => Math.min(W, H) * 0.16; // Kollisionskreis ums Logo
 
     type P = {
       x: number;
@@ -59,17 +97,15 @@ export function HeroTrail() {
     const COUNT = 26;
     const particles: P[] = [];
     for (let i = 0; i < COUNT; i++) {
-      const cx = W / 2;
-      const cy = H / 2;
-      const safe = logoRadius() + 40;
       let x = 0;
       let y = 0;
       let tries = 0;
+      // Nicht im Diamanten starten (inkl. etwas Abstand)
       do {
         x = rand(0, W);
         y = rand(0, H);
         tries++;
-      } while (Math.hypot(x - cx, y - cy) < safe && tries < 30);
+      } while (diamondDepth(x, y, 40) < 1 && tries < 30);
       particles.push({
         x,
         y,
@@ -113,7 +149,6 @@ export function HeroTrail() {
 
       const cx = W / 2;
       const cy = H / 2;
-      const lr = logoRadius();
       const damp = Math.pow(0.94, dt);
 
       for (const p of particles) {
@@ -156,18 +191,28 @@ export function HeroTrail() {
           p.vy = -Math.abs(p.vy);
         }
 
-        // Logo (Kreis in der Mitte) – abprallen
-        const ddx = p.x - cx;
-        const ddy = p.y - cy;
-        const dc = Math.hypot(ddx, ddy);
-        if (dc < lr + r && dc > 0.001) {
-          const nx = ddx / dc;
-          const ny = ddy / dc;
-          p.x = cx + nx * (lr + r);
-          p.y = cy + ny * (lr + r);
+        // Großer Diamant in der Mitte – als echte RAUTE abprallen
+        const ax = dHalfW + r;
+        const by = dHalfH + r;
+        const ddx = p.x - dcx;
+        const ddy = p.y - dcy;
+        const depth = Math.abs(ddx) / ax + Math.abs(ddy) / by;
+        if (depth < 1 && depth > 0.0001) {
+          // exakt auf die Rautenkante zurückschieben
+          const k = 1 / depth;
+          p.x = dcx + ddx * k;
+          p.y = dcy + ddy * k;
+          // Normale der getroffenen Schrägkante
+          let nx = (ddx >= 0 ? 1 : -1) / ax;
+          let ny = (ddy >= 0 ? 1 : -1) / by;
+          const nl = Math.hypot(nx, ny) || 1;
+          nx /= nl;
+          ny /= nl;
           const vdot = p.vx * nx + p.vy * ny;
-          p.vx -= 2 * vdot * nx;
-          p.vy -= 2 * vdot * ny;
+          if (vdot < 0) {
+            p.vx -= 2 * vdot * nx;
+            p.vy -= 2 * vdot * ny;
+          }
           p.vx *= 0.6;
           p.vy *= 0.6;
         }
@@ -202,6 +247,7 @@ export function HeroTrail() {
 
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(remeasure);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("resize", sizeCanvas);
       hero.removeEventListener("pointerleave", onLeave);
