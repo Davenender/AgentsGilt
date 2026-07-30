@@ -50,7 +50,7 @@ export function WhyUs() {
           alt=""
           width={900}
           height={900}
-          className="w-[min(92vw,860px)] opacity-[0.05]"
+          className="w-[min(88vw,620px)] opacity-[0.11]"
         />
       </div>
 
@@ -67,14 +67,16 @@ export function WhyUs() {
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {why.items.map((item, i) => (
             <Reveal key={item.title} delay={(i % 4) * 0.08} className="h-full">
-              <div className="group relative h-full overflow-hidden rounded-2xl border border-gold/25 bg-white/55 p-7 shadow-[0_2px_20px_-8px_rgba(184,132,43,0.25)] backdrop-blur-[3px] transition duration-500 ease-out hover:-translate-y-1.5 hover:border-gold/50 hover:shadow-[0_18px_40px_-14px_rgba(184,132,43,0.45)]">
-                {/* Goldener Glasverlauf: startet oben rechts EXAKT im Ton der
-                    Goldecke und wird nach unten links immer heller. */}
-                <div className="pointer-events-none absolute inset-0 origin-top-right scale-0 bg-[linear-gradient(215deg,_#b8842b_0%,_#cd9a3e_18%,_#e2b458_38%,_#eecf95_62%,_#f7e7c6_82%,_#fdf6e8_100%)] opacity-0 transition-all duration-[650ms] ease-out group-hover:scale-[1.7] group-hover:opacity-100" />
+              <div className="group relative h-full overflow-hidden rounded-2xl border border-gold/25 bg-white/40 p-7 shadow-[0_2px_20px_-8px_rgba(184,132,43,0.25)] backdrop-blur-[2px] transition duration-500 ease-out hover:-translate-y-1.5 hover:border-gold/50 hover:shadow-[0_18px_40px_-14px_rgba(184,132,43,0.45)]">
+                {/* Goldener Glasverlauf: startet oben rechts in GENAU der Farbe
+                    der Goldecke (#d4a23c) und wird nach unten links heller.
+                    Beide nutzen denselben Startwert – dadurch ist der Übergang
+                    von der Ecke in die Fläche nahtlos. */}
+                <div className="pointer-events-none absolute inset-0 origin-top-right scale-0 bg-[linear-gradient(215deg,_#d4a23c_0%,_#dbb055_16%,_#e7c584_42%,_#f1dcae_66%,_#f9edd4_86%,_#fdf8ee_100%)] opacity-0 transition-all duration-[650ms] ease-out group-hover:scale-[1.7] group-hover:opacity-100" />
 
-                {/* diagonale Goldecke (ohne Logo – bewusst schlicht) */}
+                {/* diagonale Goldecke – einfarbig im selben Ton wie der Verlauf */}
                 <div
-                  className="pointer-events-none absolute right-0 top-0 h-16 w-16 bg-[linear-gradient(135deg,_#e2b458,_#b8842b)] transition-transform duration-500 group-hover:scale-110"
+                  className="pointer-events-none absolute right-0 top-0 h-16 w-16 bg-[#d4a23c] transition-transform duration-500 group-hover:scale-110"
                   style={{ clipPath: "polygon(100% 0, 0 0, 100% 100%)" }}
                 />
 
