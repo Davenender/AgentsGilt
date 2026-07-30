@@ -35,8 +35,11 @@ export function HeroTrail() {
      * Die Maße werden am gerenderten Bild gemessen (nicht geschätzt), damit sie
      * bei jeder Fenstergröße exakt zur sichtbaren Form passen.
      */
-    // Die sichtbare Raute füllt nur ~51,7 % der Bilddatei (Rest ist transparenter Rand).
+    // Aus der Bilddatei gemessen: die sichtbare Raute füllt nur ~51,7 % und sitzt
+    // dabei leicht nach oben versetzt (Motivmitte bei 50,2 % / 47,4 % statt 50/50).
     const DIAMOND_FILL = 0.517;
+    const MOTIF_CX = 0.502;
+    const MOTIF_CY = 0.474;
     let dcx = 0; // Mittelpunkt X
     let dcy = 0; // Mittelpunkt Y
     let dHalfW = 0; // halbe Rauten-Breite (Spitze links/rechts)
@@ -47,8 +50,8 @@ export function HeroTrail() {
       const hr = hero.getBoundingClientRect();
       if (el) {
         const r = el.getBoundingClientRect();
-        dcx = r.left + r.width / 2 - hr.left;
-        dcy = r.top + r.height / 2 - hr.top;
+        dcx = r.left + r.width * MOTIF_CX - hr.left;
+        dcy = r.top + r.height * MOTIF_CY - hr.top;
         dHalfW = (r.width * DIAMOND_FILL) / 2;
         dHalfH = (r.height * DIAMOND_FILL) / 2;
       } else {
