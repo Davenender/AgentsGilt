@@ -20,10 +20,15 @@ const START_DELAY_MS = 1000;
  * wäre der Zyklus schon durch, bevor man überhaupt hinscrollt.
  */
 export function Process() {
+  // `active` ist der echte Stand des Durchlaufs, `hovered` nur eine kurze
+  // Vorschau per Maus. Der Hover verschiebt den Durchlauf bewusst NICHT:
+  // geht die Maus weg, läuft es dort weiter, wo es vorher stand.
   const [active, setActive] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState<number | null>(null);
   const [visible, setVisible] = useState(false);
   const [started, setStarted] = useState(false);
+  const paused = hovered !== null;
+  const shown = hovered ?? active;
   // Beobachtet wird die ZAHLEN-REIHE, nicht die ganze Sektion: die ist so hoch,
   // dass sie schon als sichtbar gilt, wenn erst die Überschrift im Bild ist –
   // der Durchlauf wäre dann schon halb vorbei, bevor man die Zahlen sieht.
@@ -79,15 +84,13 @@ export function Process() {
           className="mt-16 grid gap-10 md:grid-cols-3 md:gap-8"
         >
           {workflow.steps.map((step, i) => {
-            const isActive = i === active;
+            const isActive = i === shown;
+            const isHovered = hovered === i;
             return (
               <Reveal key={step.no} delay={i * 0.12}>
                 <div
-                  onMouseEnter={() => {
-                    setActive(i);
-                    setPaused(true);
-                  }}
-                  onMouseLeave={() => setPaused(false)}
+                  onMouseEnter={() => setHovered(i)}
+                  onMouseLeave={() => setHovered(null)}
                   className={`relative transition-opacity duration-700 ease-out ${
                     isActive ? "opacity-100" : "opacity-45"
                   }`}
@@ -98,16 +101,16 @@ export function Process() {
                     <span
                       aria-hidden
                       // key erzwingt den Neustart der Füll-Animation bei jedem Wechsel
-                      key={`${step.no}-${isActive}-${paused}-${started}`}
+                      key={`${step.no}-${isActive}-${isHovered}-${started}`}
                       className={`absolute inset-0 text-[#f5cb52] ${
                         isActive && !paused && started ? "step-fill" : ""
                       }`}
                       style={
-                        isActive && paused
+                        isHovered
                           ? { clipPath: "inset(0 0 0 0)" } // Hover: sofort ganz voll
-                          : isActive && started
+                          : isActive && !paused && started
                             ? undefined // Füllung läuft über .step-fill
-                            : { clipPath: "inset(0 100% 0 0)" } // leer: inaktiv oder Vorlauf
+                            : { clipPath: "inset(0 100% 0 0)" } // leer: inaktiv, Vorlauf oder anderer Hover
                       }
                     >
                       {step.no}
