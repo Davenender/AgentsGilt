@@ -50,7 +50,7 @@ export function WhyUs() {
           alt=""
           width={900}
           height={900}
-          className="w-[min(88vw,620px)] opacity-[0.11]"
+          className="w-[min(90vw,720px)] opacity-[0.12]"
         />
       </div>
 
@@ -72,11 +72,11 @@ export function WhyUs() {
                     der Goldecke (#d4a23c) und wird nach unten links heller.
                     Beide nutzen denselben Startwert – dadurch ist der Übergang
                     von der Ecke in die Fläche nahtlos. */}
-                <div className="pointer-events-none absolute inset-0 origin-top-right scale-0 bg-[linear-gradient(215deg,_#d4a23c_0%,_#dbb055_16%,_#e7c584_42%,_#f1dcae_66%,_#f9edd4_86%,_#fdf8ee_100%)] opacity-0 transition-all duration-[650ms] ease-out group-hover:scale-[1.7] group-hover:opacity-100" />
+                <div className="pointer-events-none absolute inset-0 origin-top-right scale-0 bg-[linear-gradient(215deg,_#cf9d37_0%,_#cf9d37_24%,_#d8ac52_40%,_#e5c384_62%,_#f0dbae_80%,_#faf2e2_100%)] opacity-0 transition-all duration-[650ms] ease-out group-hover:scale-[1.7] group-hover:opacity-100" />
 
                 {/* diagonale Goldecke – einfarbig im selben Ton wie der Verlauf */}
                 <div
-                  className="pointer-events-none absolute right-0 top-0 h-16 w-16 bg-[#d4a23c] transition-transform duration-500 group-hover:scale-110"
+                  className="pointer-events-none absolute right-0 top-0 h-16 w-16 bg-[#cf9d37] transition-transform duration-500 group-hover:scale-110"
                   style={{ clipPath: "polygon(100% 0, 0 0, 100% 100%)" }}
                 />
 
