@@ -1,10 +1,49 @@
+import Image from "next/image";
 import { why } from "@/lib/content";
 import { Reveal } from "./Reveal";
 
+/**
+ * Vorteils-Karten in warmweißer Glas-Optik:
+ *  - dezentes Logo-Wasserzeichen hinter dem Glas
+ *  - diagonale Goldecke mit Diamant-Symbol (bewusst OHNE Nummer, damit es sich
+ *    nicht mit dem nummerierten Ablauf-Bereich verwechselt)
+ *  - beim Hover wächst ein goldener Glasverlauf aus der Ecke über die Karte
+ *
+ * Der Hover-Teil läuft rein über CSS. Tailwind bindet `hover:` an
+ * `@media (hover: hover)` – auf Touch-Geräten passiert also nichts, dort
+ * bleiben die Karten ruhig und die Goldecke ist der sichtbare Akzent.
+ */
+
+const icons = [
+  // Schnell – Blitz
+  <path key="a" d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z" />,
+  // Modern – Chip / Technik
+  <g key="b">
+    <rect x="7" y="7" width="10" height="10" rx="2" />
+    <path d="M10 2v3M14 2v3M10 19v3M14 19v3M2 10h3M2 14h3M19 10h3M19 14h3" />
+  </g>,
+  // Persönlich – Person
+  <g key="c">
+    <circle cx="12" cy="8" r="3.5" />
+    <path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
+  </g>,
+  // Planbar – Kalender
+  <g key="d">
+    <rect x="3.5" y="5" width="17" height="16" rx="2.5" />
+    <path d="M3.5 10h17M8 3v4M16 3v4" />
+  </g>,
+];
+
 export function WhyUs() {
   return (
-    <section id="warum" className="bg-cream py-24 md:py-32">
-      <div className="mx-auto max-w-6xl px-6">
+    <section id="warum" className="relative overflow-hidden bg-cream py-24 md:py-32">
+      {/* sehr dezenter warmer Verlauf + Logo-Schimmer im Hintergrund */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_70%_15%,_rgba(212,162,60,0.10),_transparent_60%)]" />
+      <div className="pointer-events-none absolute -right-24 -top-20 hidden opacity-[0.045] blur-[3px] lg:block">
+        <Image src="/logo-mark.png" alt="" width={520} height={520} />
+      </div>
+
+      <div className="relative mx-auto max-w-6xl px-6">
         <div className="max-w-2xl">
           <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-dark">
             {why.kicker}
@@ -16,15 +55,49 @@ export function WhyUs() {
 
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {why.items.map((item, i) => (
-            <Reveal key={item.title} delay={(i % 4) * 0.08}>
-              <div className="h-full rounded-2xl border border-line bg-white p-7">
-                <div className="mb-4 h-1 w-10 rounded-full bg-gold" />
-                <h3 className="font-display text-lg font-bold text-ink">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-                  {item.text}
-                </p>
+            <Reveal key={item.title} delay={(i % 4) * 0.08} className="h-full">
+              <div className="group relative h-full overflow-hidden rounded-2xl border border-gold/25 bg-white/75 p-7 shadow-[0_2px_20px_-8px_rgba(184,132,43,0.25)] backdrop-blur-[2px] transition duration-500 ease-out hover:-translate-y-1.5 hover:border-gold/50 hover:shadow-[0_18px_40px_-14px_rgba(184,132,43,0.45)]">
+                {/* Logo-Wasserzeichen hinter dem Glas – wird beim Hover klarer */}
+                <div className="pointer-events-none absolute -bottom-10 -right-10 opacity-[0.055] blur-[1.5px] transition-opacity duration-500 group-hover:opacity-[0.11]">
+                  <Image src="/logo-mark.png" alt="" width={190} height={190} />
+                </div>
+
+                {/* goldener Glasverlauf, wächst diagonal aus der Ecke */}
+                <div className="pointer-events-none absolute inset-0 origin-top-right scale-0 bg-[linear-gradient(215deg,_rgba(226,180,88,0.95)_0%,_rgba(212,162,60,0.65)_38%,_rgba(212,162,60,0.18)_68%,_transparent_88%)] opacity-0 transition-all duration-[650ms] ease-out group-hover:scale-[1.6] group-hover:opacity-100" />
+
+                {/* diagonale Goldecke mit Diamant */}
+                <div
+                  className="pointer-events-none absolute right-0 top-0 h-16 w-16 bg-[linear-gradient(135deg,_#e2b458,_#b8842b)] transition-transform duration-500 group-hover:scale-110"
+                  style={{ clipPath: "polygon(100% 0, 0 0, 100% 100%)" }}
+                />
+                <Image
+                  src="/logo-mark.png"
+                  alt=""
+                  width={22}
+                  height={22}
+                  className="pointer-events-none absolute right-1.5 top-1.5 opacity-80 brightness-0 invert-[.15]"
+                />
+
+                {/* Inhalt */}
+                <div className="relative">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-8 w-8 text-gold-dark transition-colors duration-500 group-hover:text-ink"
+                  >
+                    {icons[i % icons.length]}
+                  </svg>
+                  <h3 className="mt-5 font-display text-lg font-bold text-ink">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-ink-soft transition-colors duration-500 group-hover:text-ink">
+                    {item.text}
+                  </p>
+                </div>
               </div>
             </Reveal>
           ))}
