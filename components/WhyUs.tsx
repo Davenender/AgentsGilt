@@ -37,10 +37,21 @@ const icons = [
 export function WhyUs() {
   return (
     <section id="warum" className="relative overflow-hidden bg-cream py-24 md:py-32">
-      {/* sehr dezenter warmer Verlauf + Logo-Schimmer im Hintergrund */}
+      {/* sehr dezenter warmer Verlauf */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_70%_15%,_rgba(212,162,60,0.10),_transparent_60%)]" />
-      <div className="pointer-events-none absolute -right-24 -top-20 hidden opacity-[0.045] blur-[3px] lg:block">
-        <Image src="/logo-mark.png" alt="" width={520} height={520} />
+
+      {/* EIN großes Logo fest im Hintergrund der ganzen Sektion – liegt hinter
+          Kicker, Überschrift und Karten. Bewegt sich bewusst NICHT mit, wenn
+          sich eine Karte beim Hover anhebt: die Karte gleitet wie eine
+          Glasscheibe darüber. */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <Image
+          src="/logo-mark.png"
+          alt=""
+          width={900}
+          height={900}
+          className="w-[min(92vw,860px)] opacity-[0.05]"
+        />
       </div>
 
       <div className="relative mx-auto max-w-6xl px-6">
@@ -56,26 +67,15 @@ export function WhyUs() {
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {why.items.map((item, i) => (
             <Reveal key={item.title} delay={(i % 4) * 0.08} className="h-full">
-              <div className="group relative h-full overflow-hidden rounded-2xl border border-gold/25 bg-white/75 p-7 shadow-[0_2px_20px_-8px_rgba(184,132,43,0.25)] backdrop-blur-[2px] transition duration-500 ease-out hover:-translate-y-1.5 hover:border-gold/50 hover:shadow-[0_18px_40px_-14px_rgba(184,132,43,0.45)]">
-                {/* Logo-Wasserzeichen hinter dem Glas – wird beim Hover klarer */}
-                <div className="pointer-events-none absolute -bottom-10 -right-10 opacity-[0.055] blur-[1.5px] transition-opacity duration-500 group-hover:opacity-[0.11]">
-                  <Image src="/logo-mark.png" alt="" width={190} height={190} />
-                </div>
+              <div className="group relative h-full overflow-hidden rounded-2xl border border-gold/25 bg-white/55 p-7 shadow-[0_2px_20px_-8px_rgba(184,132,43,0.25)] backdrop-blur-[3px] transition duration-500 ease-out hover:-translate-y-1.5 hover:border-gold/50 hover:shadow-[0_18px_40px_-14px_rgba(184,132,43,0.45)]">
+                {/* Goldener Glasverlauf: startet oben rechts EXAKT im Ton der
+                    Goldecke und wird nach unten links immer heller. */}
+                <div className="pointer-events-none absolute inset-0 origin-top-right scale-0 bg-[linear-gradient(215deg,_#b8842b_0%,_#cd9a3e_18%,_#e2b458_38%,_#eecf95_62%,_#f7e7c6_82%,_#fdf6e8_100%)] opacity-0 transition-all duration-[650ms] ease-out group-hover:scale-[1.7] group-hover:opacity-100" />
 
-                {/* goldener Glasverlauf, wächst diagonal aus der Ecke */}
-                <div className="pointer-events-none absolute inset-0 origin-top-right scale-0 bg-[linear-gradient(215deg,_rgba(226,180,88,0.95)_0%,_rgba(212,162,60,0.65)_38%,_rgba(212,162,60,0.18)_68%,_transparent_88%)] opacity-0 transition-all duration-[650ms] ease-out group-hover:scale-[1.6] group-hover:opacity-100" />
-
-                {/* diagonale Goldecke mit Diamant */}
+                {/* diagonale Goldecke (ohne Logo – bewusst schlicht) */}
                 <div
                   className="pointer-events-none absolute right-0 top-0 h-16 w-16 bg-[linear-gradient(135deg,_#e2b458,_#b8842b)] transition-transform duration-500 group-hover:scale-110"
                   style={{ clipPath: "polygon(100% 0, 0 0, 100% 100%)" }}
-                />
-                <Image
-                  src="/logo-mark.png"
-                  alt=""
-                  width={22}
-                  height={22}
-                  className="pointer-events-none absolute right-1.5 top-1.5 opacity-80 brightness-0 invert-[.15]"
                 />
 
                 {/* Inhalt */}
