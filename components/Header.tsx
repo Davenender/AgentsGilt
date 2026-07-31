@@ -85,7 +85,8 @@ export function Header() {
         <button
           onClick={() => setOpen((o) => !o)}
           className="md:hidden"
-          aria-label="Menü öffnen"
+          aria-label={open ? "Menü schließen" : "Menü öffnen"}
+          aria-expanded={open}
         >
           <div className="flex h-6 w-7 flex-col justify-center gap-[5px]">
             <span
@@ -101,28 +102,45 @@ export function Header() {
         </button>
       </div>
 
-      {/* Mobile-Menü */}
-      {open && (
-        <nav className="flex flex-col gap-1 border-t border-line bg-cream px-6 py-4 md:hidden">
-          {links.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              onClick={() => setOpen(false)}
-              className="py-2 text-base font-medium text-ink"
-            >
-              {l.label}
-            </a>
-          ))}
-          <a
-            href="#kontakt"
-            onClick={() => setOpen(false)}
-            className="mt-2 rounded-full bg-gold px-5 py-3 text-center text-sm font-semibold text-ink"
+      {/* Mobile-Menü – fährt von oben nach unten auf und zu.
+          Das Menü bleibt immer im DOM (kein {open && ...}), sonst könnte nur
+          das Öffnen animiert werden und das Schließen würde springen.
+          Die Höhe wird über grid-rows 0fr -> 1fr animiert: das ist der
+          zuverlässige Weg, auf eine unbekannte ("automatische") Höhe zu
+          animieren – mit max-height müsste man einen Fantasiewert raten.
+          `inert` nimmt die Links im geschlossenen Zustand aus der Tab-Reihenfolge. */}
+      <div
+        inert={!open}
+        className={`grid overflow-hidden transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none md:hidden ${
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <nav
+            className={`flex flex-col gap-1 border-t border-line bg-cream px-6 py-4 transition-opacity duration-200 motion-reduce:transition-none ${
+              open ? "opacity-100 delay-100" : "opacity-0"
+            }`}
           >
-            Projekt anfragen
-          </a>
-        </nav>
-      )}
+            {links.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={() => setOpen(false)}
+                className="py-2 text-base font-medium text-ink"
+              >
+                {l.label}
+              </a>
+            ))}
+            <a
+              href="#kontakt"
+              onClick={() => setOpen(false)}
+              className="mt-2 rounded-full bg-gold px-5 py-3 text-center text-sm font-semibold text-ink"
+            >
+              Projekt anfragen
+            </a>
+          </nav>
+        </div>
+      </div>
     </header>
   );
 }
