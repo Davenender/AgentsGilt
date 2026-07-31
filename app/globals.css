@@ -84,6 +84,39 @@ body {
   }
 }
 
+/* Schreib-Cursor in der "Was wir machen"-Sektion (components/IntroTypewriter.tsx).
+   Grundzustand: unsichtbar. Erst wenn GSAP die Klasse .type-caret dazusetzt,
+   blinkt er – so sieht man ohne JavaScript nie einen Cursor herumstehen. */
+.type-caret-base {
+  display: inline-block;
+  width: 0.055em;
+  height: 0.82em;
+  margin-left: 0.08em;
+  border-radius: 1px;
+  background: var(--color-gold);
+  vertical-align: -0.06em;
+  opacity: 0;
+}
+@keyframes type-caret {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+.type-caret {
+  animation: type-caret 1.05s step-end infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .type-caret {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* Tipp-Punkte im Chat ("Lia schreibt …") */
 @keyframes chat-dot {
   0%,

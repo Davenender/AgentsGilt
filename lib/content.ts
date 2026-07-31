@@ -8,7 +8,10 @@ export const site = {
   domain: "agentsgilt.com",
   email: "kontakt@agents-gilt.agency",
   // Claim im Hero
-  claimLine1: "KI-Lösungen,",
+  // Das Leerzeichen am Ende ist Absicht: optisch ändert es nichts (die zwei
+  // Zeilen stehen sowieso untereinander), aber beim Auslesen des Textes
+  // (Google, Screenreader, Copy-Paste) klebt sonst "KI-Lösungen,die" zusammen.
+  claimLine1: "KI-Lösungen, ",
   claimLine2: "die dein Geschäft voranbringen.",
   heroSub:
     "Wir bauen moderne Websites, Chatbots, Voice-Agenten und Automatisierungen für lokale Unternehmen.",

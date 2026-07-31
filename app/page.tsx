@@ -6,8 +6,7 @@ import { WhyUs } from "@/components/WhyUs";
 import { Credentials } from "@/components/Credentials";
 import { Contact } from "@/components/Contact";
 import { Footer } from "@/components/Footer";
-import { Reveal } from "@/components/Reveal";
-import { intro } from "@/lib/content";
+import { IntroTypewriter } from "@/components/IntroTypewriter";
 
 export default function Home() {
   return (
@@ -17,24 +16,18 @@ export default function Home() {
         <Hero />
 
         {/* Intro / Was wir machen */}
-        <section className="bg-white py-24 md:py-32">
-          <div className="mx-auto max-w-4xl px-6 text-center">
-            <Reveal>
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-dark">
-                {intro.kicker}
-              </span>
-            </Reveal>
-            <Reveal delay={0.08}>
-              <h2 className="mt-5 font-display text-3xl font-extrabold leading-tight text-ink sm:text-4xl md:text-5xl">
-                {intro.headline}
-              </h2>
-            </Reveal>
-            <Reveal delay={0.16}>
-              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-ink-soft sm:text-lg">
-                {intro.text}
-              </p>
-            </Reveal>
-          </div>
+        <section className="relative overflow-hidden bg-white py-24 md:py-32">
+          {/* Sehr weicher Gold-Schein hinter dem Text – füllt die Fläche,
+              ohne ein zusätzliches Element in die Sektion zu setzen. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 h-[540px] w-[920px] max-w-[135%] -translate-x-1/2 -translate-y-1/2"
+            style={{
+              background:
+                "radial-gradient(ellipse at center, rgba(212,162,60,0.14), rgba(212,162,60,0.05) 45%, transparent 70%)",
+            }}
+          />
+          <IntroTypewriter />
         </section>
 
         <Services />
