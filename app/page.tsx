@@ -16,7 +16,7 @@ export default function Home() {
         <Hero />
 
         {/* Intro / Was wir machen */}
-        <section className="relative overflow-hidden bg-white py-24 md:py-32">
+        <section className="relative overflow-hidden bg-cream py-24 md:py-32">
           {/* Sehr weicher Gold-Schein hinter dem Text – füllt die Fläche,
               ohne ein zusätzliches Element in die Sektion zu setzen. */}
           <div

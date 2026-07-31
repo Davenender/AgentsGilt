@@ -4,7 +4,7 @@ import { Reveal } from "./Reveal";
 
 export function Credentials() {
   return (
-    <section id="ausbildung" className="bg-white py-24 md:py-32">
+    <section id="ausbildung" className="bg-cream py-24 md:py-32">
       <div className="mx-auto max-w-6xl px-6">
         <div className="max-w-2xl">
           <Reveal>
