@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { INTRO_TYPING_STARTED } from "@/lib/events";
 
 interface Message {
   role: "user" | "assistant";
@@ -10,7 +11,12 @@ interface Message {
 
 const KONTAKT_MARKER = "[KONTAKT]";
 const STORAGE_DISMISSED = "ag-assistant-dismissed";
+// Wartezeit auf Seiten OHNE Startseiten-Aufbau (Impressum, Datenschutz)
 const BUBBLE_DELAY_MS = 10_000;
+// Wartezeit, nachdem die Schreibmaschinen-Animation losgelegt hat. Die läuft
+// rund 8 Sekunden – ploppt die Blase mittendrin auf, konkurrieren zwei
+// Bewegungen um dieselbe Aufmerksamkeit. Deshalb nicht kürzer machen.
+const BUBBLE_AFTER_INTRO_MS = 10_000;
 
 export function ChatWidget() {
   const [open, setOpen] = useState(false);
@@ -31,12 +37,34 @@ export function ChatWidget() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Aufmerksamkeits-Bubble nach kurzer Zeit (nur wenn nicht schon weggeklickt)
+  // Aufmerksamkeits-Bubble: Der Zähler startet erst, wenn in der Sektion
+  // "Was wir machen" die Schreibanimation losgeht (die meldet sich per
+  // Ereignis). Vorher wäre sie im Hero und würde dem "Projekt anfragen"-Button
+  // Aufmerksamkeit wegnehmen – und das ist die Aktion, die zählt. Der
+  // Chat-BUTTON selbst ist die ganze Zeit da, nur die Sprechblase wartet.
+  //
+  // Auf Seiten ohne diesen Aufbau (Impressum, Datenschutz) gibt es das
+  // Ereignis nicht, dort greift der feste Zeitgeber ab Seitenaufruf.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (sessionStorage.getItem(STORAGE_DISMISSED)) return;
-    const t = setTimeout(() => setBubble(true), BUBBLE_DELAY_MS);
-    return () => clearTimeout(t);
+
+    let timer: number | undefined;
+
+    // Die Startseite erkennt man am Hero – nur dort gibt es die Intro-Sektion.
+    if (!document.getElementById("top")) {
+      timer = window.setTimeout(() => setBubble(true), BUBBLE_DELAY_MS);
+      return () => window.clearTimeout(timer);
+    }
+
+    const onIntroStart = () => {
+      timer = window.setTimeout(() => setBubble(true), BUBBLE_AFTER_INTRO_MS);
+    };
+    window.addEventListener(INTRO_TYPING_STARTED, onIntroStart, { once: true });
+    return () => {
+      window.removeEventListener(INTRO_TYPING_STARTED, onIntroStart);
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {

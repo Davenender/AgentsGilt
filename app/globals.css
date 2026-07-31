@@ -84,6 +84,70 @@ body {
   }
 }
 
+/* Hero-Button "Leistungen ansehen": füllt sich beim Überfahren von unten nach
+   oben mit Gold und läuft beim Verlassen wieder zurück.
+   Richtung ändern: transform-origin auf "left" stellen und scaleY -> scaleX.
+
+   Nur an echten Maus-Geräten – auf dem Handy bliebe :hover nach dem Antippen
+   hängen und der Button wäre dauerhaft gold.
+
+   Der Text wird beim Überfahren dunkel, weil Weiß auf Gold kaum lesbar ist.
+   Die Verzögerung von 0.28s ist wichtig: Ohne sie wäre der Text schon dunkel,
+   während die Goldfüllung noch unten steht – dunkler Text auf dem dunklen
+   Hero-Hintergrund ist unsichtbar. */
+.btn-fill {
+  position: relative;
+  overflow: hidden;
+  transition: border-color 2s ease;
+}
+
+/* Die Goldfläche liegt ÜBER dem weißen Text und bringt ihre eigene Kopie des
+   Textes in Ink mit. Beide werden gemeinsam von unten nach oben freigelegt –
+   dadurch wechselt die Schriftfarbe exakt an der Goldkante mit, statt auf
+   einmal umzuspringen.
+
+   Die Schnittkante ist eine sehr breite, flache Ellipse (rx 140%): über die
+   Buttonbreite sieht man davon nur einen leicht gewölbten Ausschnitt, wie
+   Flüssigkeit in einem Glas. Bei Ruhe sitzt die Ellipse komplett unterhalb
+   des Buttons (Mittelpunkt bei 195%), beim Überfahren steigt sie auf 45%.
+
+   Tempo ändern: die 2s hier und in .btn-fill oben gleich halten. */
+.btn-fill__flood {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-gold);
+  color: var(--color-ink);
+  clip-path: ellipse(140% 90% at 50% 195%);
+  transition: clip-path 2s cubic-bezier(0.25, 1, 0.5, 1);
+  /* Legt die Grafikebene schon beim Laden an, statt erst beim Animationsstart.
+     Sonst rastert Chrome die Schrift in dem Moment neu und sie kann dabei um
+     einen Bruchteil eines Pixels verspringen – das sieht aus, als würde der
+     dunkle Text leicht gegen den weißen verrutschen. Unbedenklich, weil der
+     Body ohnehin auf Graustufen-Glättung steht (-webkit-font-smoothing). */
+  will-change: clip-path;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-fill:hover .btn-fill__flood,
+  .btn-fill:focus-visible .btn-fill__flood {
+    clip-path: ellipse(140% 90% at 50% 45%);
+  }
+  .btn-fill:hover,
+  .btn-fill:focus-visible {
+    border-color: var(--color-gold);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-fill,
+  .btn-fill__flood {
+    transition: none;
+  }
+}
+
 /* Schreib-Cursor in der "Was wir machen"-Sektion (components/IntroTypewriter.tsx).
    Grundzustand: unsichtbar. Erst wenn GSAP die Klasse .type-caret dazusetzt,
    blinkt er – so sieht man ohne JavaScript nie einen Cursor herumstehen. */

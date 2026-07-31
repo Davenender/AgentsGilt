@@ -13,8 +13,10 @@ export const site = {
   // (Google, Screenreader, Copy-Paste) klebt sonst "KI-Lösungen,die" zusammen.
   claimLine1: "KI-Lösungen, ",
   claimLine2: "die dein Geschäft voranbringen.",
+  // Beginnt bewusst NICHT mit "Wir bauen" – die Sektion direkt darunter fängt
+  // mit "Wir bauen in Stunden ..." an, das doppelte sich sonst.
   heroSub:
-    "Wir bauen moderne Websites, Chatbots, Voice-Agenten und Automatisierungen für lokale Unternehmen.",
+    "Moderne Websites, Chatbots, Voice-Agenten und Automatisierungen für lokale Unternehmen.",
   heroCtaPrimary: "Projekt anfragen",
   heroCtaSecondary: "Leistungen ansehen",
   // WhatsApp-Business-Nummer – international, NUR Ziffern (ohne + und ohne

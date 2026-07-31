@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { gsap } from "@/lib/gsap";
 import { Reveal } from "@/components/Reveal";
 import { intro } from "@/lib/content";
+import { INTRO_TYPING_STARTED } from "@/lib/events";
 
 /**
  * "Was wir machen" – die Überschrift schreibt sich selbst und korrigiert sich
@@ -91,6 +92,28 @@ export function IntroTypewriter() {
   const bodyRef = useRef<HTMLSpanElement>(null);
   const caretHeadRef = useRef<HTMLSpanElement>(null);
   const caretBodyRef = useRef<HTMLSpanElement>(null);
+
+  // Sagt anderen Komponenten Bescheid, dass die Sektion im Bild ist und hier
+  // gleich geschrieben wird (das ChatWidget hängt seinen Zähler daran).
+  //
+  // Läuft bewusst UNABHÄNGIG von GSAP: Bei "weniger Bewegung" wird gar nicht
+  // getippt, die Sprechblase soll aber trotzdem irgendwann kommen. Der
+  // Auslösepunkt (-20% unten) entspricht dem "top 80%" des ScrollTriggers
+  // weiter unten – wenn du den änderst, hier mitziehen.
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        io.disconnect();
+        window.dispatchEvent(new Event(INTRO_TYPING_STARTED));
+      },
+      { rootMargin: "0px 0px -20% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   useEffect(() => {
     const el = root.current;

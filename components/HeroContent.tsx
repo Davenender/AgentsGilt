@@ -69,9 +69,16 @@ export function HeroContent() {
         </a>
         <a
           href="#leistungen"
-          className="inline-flex w-full items-center justify-center rounded-full border border-white/25 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:w-auto"
+          className="btn-fill inline-flex w-full items-center justify-center rounded-full border border-white/25 px-7 py-3.5 text-sm font-semibold text-white sm:w-auto"
         >
           {site.heroCtaSecondary}
+          {/* Zweite Ebene: Goldfläche mit derselben Beschriftung in Ink. Sie
+              liegt über der weißen und wird beim Überfahren von unten nach oben
+              freigelegt – so wandert der Farbwechsel mit der Goldkante mit.
+              aria-hidden, damit Screenreader den Text nicht doppelt vorlesen. */}
+          <span className="btn-fill__flood" aria-hidden="true">
+            {site.heroCtaSecondary}
+          </span>
         </a>
       </div>
     </div>
