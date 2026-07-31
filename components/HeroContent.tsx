@@ -45,12 +45,22 @@ export function HeroContent() {
         Deine KI-Agentur für lokale Unternehmen
       </span>
 
-      <h1 className="mt-7 font-display text-4xl font-extrabold leading-[1.06] tracking-tight sm:text-6xl md:text-7xl">
+      {/* Laufweite bewusst nur leicht negativ (-0.01em statt tracking-tight
+          = -0.025em): Bei 72px klebten sonst enge Paare wie "ft" in Geschäft
+          und "ri" in voranbringen sichtbar zusammen. */}
+      <h1 className="mt-7 font-display text-4xl font-extrabold leading-[1.06] tracking-[-0.01em] sm:text-6xl md:text-7xl">
         <span className="block overflow-hidden pb-[0.12em]">
           <span className="hero-line block">{site.claimLine1}</span>
         </span>
         <span className="block overflow-hidden pb-[0.12em]">
-          <span className="hero-line block text-gold-gradient">
+          {/* pb + gleich großes negatives mb: Die Goldschrift entsteht über
+              einen Farbverlauf, der auf die Buchstabenform zugeschnitten wird
+              (.text-gold-gradient). Gezeichnet wird der Verlauf aber nur
+              innerhalb des Elementkastens – die Unterlänge des "g" in
+              "voranbringen" ragte darunter hinaus und blieb dort farblos, sah
+              also abgeschnitten aus. Das Polster vergrößert den Kasten nach
+              unten, das negative mb nimmt die Layout-Wirkung wieder zurück. */}
+          <span className="hero-line -mb-[0.09em] block pb-[0.09em] text-gold-gradient">
             {site.claimLine2}
           </span>
         </span>
