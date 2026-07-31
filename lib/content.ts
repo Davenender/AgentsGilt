@@ -1,11 +1,11 @@
 // =====================================================================
-// Zentrale Inhalts-Datei für agents-gilt.agency
+// Zentrale Inhalts-Datei für agentsgilt.com
 // Hier kannst du fast alle Texte der Website ändern, ohne Code anzufassen.
 // =====================================================================
 
 export const site = {
   name: "Agents Gilt",
-  domain: "agents-gilt.agency",
+  domain: "agentsgilt.com",
   email: "kontakt@agents-gilt.agency",
   // Claim im Hero
   claimLine1: "KI-Lösungen,",

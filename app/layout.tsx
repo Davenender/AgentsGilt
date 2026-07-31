@@ -16,7 +16,7 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://agents-gilt.agency"),
+  metadataBase: new URL("https://agentsgilt.com"),
   title: "Agents Gilt – KI-Lösungen für lokale Unternehmen",
   description:
     "Agents Gilt entwickelt moderne Websites, KI-Chatbots, Voice-Agenten und Automatisierungen für kleine und mittlere Unternehmen.",
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
       "Moderne Websites, Chatbots, Voice-Agenten und Automatisierungen – schnell gebaut mit KI.",
     locale: "de_DE",
     type: "website",
-    url: "https://agents-gilt.agency",
+    url: "https://agentsgilt.com",
     siteName: "Agents Gilt",
     images: [
       {
@@ -52,11 +52,11 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "ProfessionalService",
-  "@id": "https://agents-gilt.agency",
+  "@id": "https://agentsgilt.com",
   name: "Agents Gilt",
-  image: "https://agents-gilt.agency/logo-full.png",
-  logo: "https://agents-gilt.agency/logo-full.png",
-  url: "https://agents-gilt.agency",
+  image: "https://agentsgilt.com/logo-full.png",
+  logo: "https://agentsgilt.com/logo-full.png",
+  url: "https://agentsgilt.com",
   email: "kontakt@agents-gilt.agency",
   telephone: "+4916098427943",
   founder: "David Hesse",
@@ -99,7 +99,7 @@ const siteJsonLd = {
   "@type": "WebSite",
   name: "Agents Gilt",
   alternateName: "Agents Gilt Agency",
-  url: "https://agents-gilt.agency",
+  url: "https://agentsgilt.com",
 };
 
 export default function RootLayout({

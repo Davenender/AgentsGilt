@@ -7,7 +7,7 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: "/api/",
     },
-    sitemap: "https://agents-gilt.agency/sitemap.xml",
-    host: "https://agents-gilt.agency",
+    sitemap: "https://agentsgilt.com/sitemap.xml",
+    host: "https://agentsgilt.com",
   };
 }

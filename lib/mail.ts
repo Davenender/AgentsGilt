@@ -66,6 +66,6 @@ export function shell(title: string, body: string): string {
       <h1 style="font-size:24px;margin:0 0 20px;color:#0c0e14;">${escapeHtml(title)}</h1>
       ${body}
       <hr style="border:none;border-top:1px solid #efece4;margin:28px 0 16px;" />
-      <p style="font-size:12px;color:#8a8579;margin:0;">Agents Gilt · agents-gilt.agency · kontakt@agents-gilt.agency</p>
+      <p style="font-size:12px;color:#8a8579;margin:0;">Agents Gilt · agentsgilt.com · kontakt@agents-gilt.agency</p>
     </div></body></html>`;
 }
