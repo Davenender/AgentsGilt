@@ -26,7 +26,7 @@ export default function DatenschutzPage() {
             <br />
             Lämmerspieler Straße 100, 63165 Mühlheim am Main, Deutschland
             <br />
-            E-Mail: kontakt@agents-gilt.agency
+            E-Mail: kontakt@agentsgilt.com
           </p>
         </div>
 
@@ -107,7 +107,7 @@ export default function DatenschutzPage() {
           <p className="mt-3">
             Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung
             der Verarbeitung, Datenübertragbarkeit und Widerspruch. Wende dich dazu
-            an kontakt@agents-gilt.agency. Außerdem hast du ein Beschwerderecht bei
+            an kontakt@agentsgilt.com. Außerdem hast du ein Beschwerderecht bei
             einer Datenschutz-Aufsichtsbehörde.
           </p>
         </div>

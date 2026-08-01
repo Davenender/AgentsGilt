@@ -10,9 +10,9 @@ function getResend(): Resend | null {
 
 export function getMailEnv() {
   // MAIL_FROM muss eine Adresse auf einer in Resend verifizierten Domain sein,
-  // z.B. "Agents Gilt <kontakt@agents-gilt.agency>"
+  // z.B. "Agents Gilt <kontakt@agentsgilt.com>"
   const from = process.env.MAIL_FROM || "Agents Gilt <onboarding@resend.dev>";
-  const to = process.env.MAIL_TO || "kontakt@agents-gilt.agency";
+  const to = process.env.MAIL_TO || "kontakt@agentsgilt.com";
   return { from, to };
 }
 
@@ -66,6 +66,6 @@ export function shell(title: string, body: string): string {
       <h1 style="font-size:24px;margin:0 0 20px;color:#0c0e14;">${escapeHtml(title)}</h1>
       ${body}
       <hr style="border:none;border-top:1px solid #efece4;margin:28px 0 16px;" />
-      <p style="font-size:12px;color:#8a8579;margin:0;">Agents Gilt · agentsgilt.com · kontakt@agents-gilt.agency</p>
+      <p style="font-size:12px;color:#8a8579;margin:0;">Agents Gilt · agentsgilt.com · kontakt@agentsgilt.com</p>
     </div></body></html>`;
 }

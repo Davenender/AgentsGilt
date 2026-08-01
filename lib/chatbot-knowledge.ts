@@ -12,7 +12,7 @@ export const AGENTS_GILT_KNOWLEDGE = `
 - Name: Agents Gilt
 - Was: KI-Agentur für lokale Unternehmen und kleine/mittlere Betriebe (KMU)
 - Angebot: Wir bauen mit modernster KI digitale Lösungen, für die Agenturen sonst Wochen brauchen — einsatzbereit in Tagen, nicht Monaten.
-- Kontakt: kontakt@agents-gilt.agency · Website: agentsgilt.com · auch per WhatsApp erreichbar
+- Kontakt: kontakt@agentsgilt.com · Website: agentsgilt.com · auch per WhatsApp erreichbar
 - Stil: modern, persönlich, ehrlich, ein direkter Ansprechpartner statt Hotline
 
 ## Leistungen (das bieten wir an)
@@ -44,7 +44,7 @@ WICHTIG: Der genaue Preis hängt STARK von Umfang, Nutzung, Größe und den gew�
 
 ## Kontakt aufnehmen
 - Über das Kontaktformular auf dieser Seite (Bereich "Kontakt")
-- Per E-Mail an kontakt@agents-gilt.agency
+- Per E-Mail an kontakt@agentsgilt.com
 - Per WhatsApp (Button im Kontaktbereich)
 `.trim();
 

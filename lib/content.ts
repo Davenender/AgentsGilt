@@ -6,7 +6,7 @@
 export const site = {
   name: "Agents Gilt",
   domain: "agentsgilt.com",
-  email: "kontakt@agents-gilt.agency",
+  email: "kontakt@agentsgilt.com",
   // Claim im Hero
   // Das Leerzeichen am Ende ist Absicht: optisch ändert es nichts (die zwei
   // Zeilen stehen sowieso untereinander), aber beim Auslesen des Textes

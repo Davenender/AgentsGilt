@@ -37,7 +37,7 @@ export default function ImpressumPage() {
         <div>
           <h2 className="font-display text-lg font-bold text-ink">Kontakt</h2>
           <p className="mt-3">
-            E-Mail: kontakt@agents-gilt.agency
+            E-Mail: kontakt@agentsgilt.com
             <br />
             Telefon: +49 1609 8427943
           </p>
