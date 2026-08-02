@@ -82,11 +82,18 @@ export function Process() {
   useEffect(() => {
     if (staticAll) return;
     if (!visible) {
-      // Verlässt man die Sektion, beginnt beim nächsten Mal alles von vorn –
-      // inklusive der geschützten ersten Runde.
+      // Verlässt man die Sektion, startet der Durchlauf beim nächsten Mal
+      // wieder bei Schritt 1.
+      //
+      // `ersteRundeFertig` wird hier BEWUSST NICHT zurückgesetzt: Der Schutz
+      // gilt nur für die allererste vollständige Runde pro Seitenaufruf. Wer
+      // sie einmal gesehen hat, soll beim Zurückscrollen sofort mit der Maus
+      // auswählen können, statt erneut warten zu müssen.
+      //
+      // Wurde die Runde abgebrochen (weggescrollt, bevor sie durch war), ist
+      // das Merkmal noch false – dann läuft sie beim Zurückkommen von vorn.
       setStarted(false);
       setActive(0);
-      setErsteRundeFertig(false);
       return;
     }
     const t = setTimeout(() => setStarted(true), START_DELAY_MS);
