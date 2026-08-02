@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { workflow } from "@/lib/content";
 import { Reveal } from "./Reveal";
 
-// Muss zur Dauer von .step-fill in globals.css passen (aktuell 5s)
-const STEP_MS = 5000;
+// Muss zur Dauer von .step-fill in globals.css passen (aktuell 4s)
+const STEP_MS = 4000;
 // Kurzer Vorlauf, damit man die leere Zahl erst sieht, bevor sie sich füllt
-const START_DELAY_MS = 1000;
+const START_DELAY_MS = 500;
 
 /**
  * Ablauf-Schritte mit automatischem Durchlauf (nur auf großen Bildschirmen):
@@ -18,6 +18,11 @@ const START_DELAY_MS = 1000;
  *
  * Der Durchlauf startet erst, wenn die Sektion wirklich im Bild ist – sonst
  * wäre der Zyklus schon durch, bevor man überhaupt hinscrollt.
+ *
+ * ERSTE RUNDE IST GESCHÜTZT: Solange der erste komplette Durchlauf (1-2-3 und
+ * zurück auf 1) nicht fertig ist, wird der Hover ignoriert. Grund: Liegt der
+ * Mauszeiger beim Hereinscrollen zufällig schon über den Schritten, würde er
+ * den Durchlauf sofort anhalten – man bekäme die Animation nie zu sehen.
  *
  * AUF DEM HANDY (unter 768px) läuft KEIN Timer: dort stehen alle drei Schritte
  * sofort vollständig da – gefüllte Zahl, volle Deckkraft. Grund: Auf dem Handy
@@ -36,8 +41,12 @@ export function Process() {
   const [started, setStarted] = useState(false);
   // Handy oder "weniger Bewegung": kein Durchlauf, alles steht sofort voll da.
   const [staticAll, setStaticAll] = useState(false);
-  const paused = hovered !== null;
-  const shown = hovered ?? active;
+  // Erste Runde durch? Vorher wird der Hover bewusst ignoriert.
+  const [ersteRundeFertig, setErsteRundeFertig] = useState(false);
+  // Der Hover zählt erst nach der ersten Runde – vorher tut er nichts.
+  const hoverAktiv = ersteRundeFertig ? hovered : null;
+  const paused = hoverAktiv !== null;
+  const shown = hoverAktiv ?? active;
   // Beobachtet wird die ZAHLEN-REIHE, nicht die ganze Sektion: die ist so hoch,
   // dass sie schon als sichtbar gilt, wenn erst die Überschrift im Bild ist –
   // der Durchlauf wäre dann schon halb vorbei, bevor man die Zahlen sieht.
@@ -73,23 +82,34 @@ export function Process() {
   useEffect(() => {
     if (staticAll) return;
     if (!visible) {
+      // Verlässt man die Sektion, beginnt beim nächsten Mal alles von vorn –
+      // inklusive der geschützten ersten Runde.
       setStarted(false);
       setActive(0);
+      setErsteRundeFertig(false);
       return;
     }
     const t = setTimeout(() => setStarted(true), START_DELAY_MS);
     return () => clearTimeout(t);
   }, [visible, staticAll]);
 
-  // Weiterschalten zum nächsten Schritt
+  // Weiterschalten zum nächsten Schritt.
+  // Solange die erste Runde läuft, ignoriert der Durchlauf den Hover (`paused`)
+  // – erst danach kann man ihn mit der Maus anhalten.
   useEffect(() => {
-    if (staticAll || !started || paused) return;
-    const t = setTimeout(
-      () => setActive((i) => (i + 1) % workflow.steps.length),
-      STEP_MS,
-    );
+    if (staticAll || !started) return;
+    if (ersteRundeFertig && paused) return;
+
+    const t = setTimeout(() => {
+      const naechster = (active + 1) % workflow.steps.length;
+      setActive(naechster);
+      // Zurück auf Schritt 1 = eine volle Runde ist durch, ab jetzt zählt
+      // der Hover. (Bewusst NICHT in der setActive-Funktion: React darf die
+      // doppelt ausführen, Nebenwirkungen gehören da nicht hinein.)
+      if (naechster === 0) setErsteRundeFertig(true);
+    }, STEP_MS);
     return () => clearTimeout(t);
-  }, [active, started, paused, staticAll]);
+  }, [active, started, paused, staticAll, ersteRundeFertig]);
 
   return (
     <section id="ablauf" className="bg-ink py-24 text-white md:py-32">
@@ -108,7 +128,10 @@ export function Process() {
           className="mt-16 grid gap-10 md:grid-cols-3 md:gap-8"
         >
           {workflow.steps.map((step, i) => {
-            const isHovered = hovered === i;
+            // hoverAktiv statt hovered: Während der geschützten ersten Runde
+            // ist hoverAktiv immer null, dadurch leuchtet auch die Zahl unter
+            // der Maus nicht auf.
+            const isHovered = hoverAktiv === i;
             // Auf dem Handy sind alle Schritte gleichzeitig "aktiv".
             const isActive = staticAll || i === shown;
             // Zahl komplett gefüllt (ohne Lauf-Animation)

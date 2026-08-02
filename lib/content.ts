@@ -123,26 +123,69 @@ export const credentials = {
   kicker: "Ausbildung & Weiterbildung",
   headline: "Ausgebildet in Anthropics KI-Technologie.",
   text: "Wir bilden uns direkt bei Anthropic weiter – dem Unternehmen hinter Claude, einer der führenden KIs weltweit.",
+  // Pro Kurs liegen zwei Zertifikate übereinander wie zwei Buchseiten – das
+  // erste liegt vorne, das zweite blättert beim Überfahren nach vorne.
+  // Reihenfolge hier = Reihenfolge im Stapel.
   items: [
     {
       title: "AI Fluency: Framework & Foundations",
-      img: "/certificates/ai-fluency.png",
-      pdf: "/certificates/ai-fluency.pdf",
+      certs: [
+        {
+          name: "David Hesse",
+          img: "/certificates/ai-fluency.png",
+          pdf: "/certificates/ai-fluency.pdf",
+        },
+        {
+          name: "Mijo Schulz",
+          img: "/certificates/ai-fluency-mijo.png",
+          pdf: "/certificates/ai-fluency-mijo.pdf",
+        },
+      ],
     },
     {
       title: "Claude 101",
-      img: "/certificates/claude-101.png",
-      pdf: "/certificates/claude-101.pdf",
+      certs: [
+        {
+          name: "David Hesse",
+          img: "/certificates/claude-101.png",
+          pdf: "/certificates/claude-101.pdf",
+        },
+        {
+          name: "Mijo Schulz",
+          img: "/certificates/claude-101-mijo.png",
+          pdf: "/certificates/claude-101-mijo.pdf",
+        },
+      ],
     },
     {
       title: "Claude Code in Action",
-      img: "/certificates/claude-code.png",
-      pdf: "/certificates/claude-code.pdf",
+      certs: [
+        {
+          name: "David Hesse",
+          img: "/certificates/claude-code.png",
+          pdf: "/certificates/claude-code.pdf",
+        },
+        {
+          name: "Mijo Schulz",
+          img: "/certificates/claude-code-mijo.png",
+          pdf: "/certificates/claude-code-mijo.pdf",
+        },
+      ],
     },
     {
       title: "Model Context Protocol: Advanced Topics",
-      img: "/certificates/mcp-advanced.png",
-      pdf: "/certificates/mcp-advanced.pdf",
+      certs: [
+        {
+          name: "David Hesse",
+          img: "/certificates/mcp-advanced.png",
+          pdf: "/certificates/mcp-advanced.pdf",
+        },
+        {
+          name: "Mijo Schulz",
+          img: "/certificates/mcp-advanced-mijo.png",
+          pdf: "/certificates/mcp-advanced-mijo.pdf",
+        },
+      ],
     },
   ],
 };

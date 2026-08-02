@@ -1,10 +1,13 @@
-import Image from "next/image";
 import { credentials } from "@/lib/content";
+import { CertificateCard } from "./CertificateCard";
 import { Reveal } from "./Reveal";
 
 export function Credentials() {
   return (
-    <section id="ausbildung" className="bg-cream py-24 md:py-32">
+    // overflow-x-clip: Beim Wechsel fährt die vordere Karte fast eine ganze
+    // Kartenbreite nach links. Bei der ersten Karte reicht der Platz bis zum
+    // Fensterrand nicht – ohne das Beschneiden entstünde seitliches Scrollen.
+    <section id="ausbildung" className="overflow-x-clip bg-cream py-24 md:py-32">
       <div className="mx-auto max-w-6xl px-6">
         <div className="max-w-2xl">
           <Reveal>
@@ -24,36 +27,19 @@ export function Credentials() {
           </Reveal>
         </div>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Deutlich größere Abstände als sonst: Hinter jeder Karte liegt eine
+            zweite. Im Ruhezustand ragt sie nach RECHTS heraus, beim Wechsel
+            fährt die vordere nach LINKS raus – beides zusammen braucht Platz,
+            sonst überlappen benachbarte Stapel. Nachgemessen: bei gap-20
+            bleiben in beiden Zuständen über 20px Luft. */}
+        <div className="mt-14 grid gap-14 sm:grid-cols-2 lg:grid-cols-4 lg:gap-20">
           {credentials.items.map((item, i) => (
             <Reveal key={item.title} delay={(i % 4) * 0.08} className="h-full">
-              <a
-                href={item.pdf}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-white transition duration-300 hover:-translate-y-1 hover:border-gold hover:shadow-xl"
-              >
-                <div className="relative aspect-[4/3] overflow-hidden bg-cream">
-                  <Image
-                    src={item.img}
-                    alt={`Zertifikat: ${item.title}`}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                    className="object-cover transition duration-300 group-hover:scale-[1.03]"
-                  />
-                </div>
-                <div className="flex flex-1 flex-col p-5">
-                  <h3 className="font-display text-base font-bold leading-snug text-ink">
-                    {item.title}
-                  </h3>
-                  <span className="mt-auto pt-4 inline-flex items-center gap-1 text-sm font-semibold text-gold-dark">
-                    Zertifikat ansehen
-                    <span aria-hidden className="transition group-hover:translate-x-0.5">
-                      →
-                    </span>
-                  </span>
-                </div>
-              </a>
+              <CertificateCard
+                title={item.title}
+                certs={item.certs}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+              />
             </Reveal>
           ))}
         </div>
