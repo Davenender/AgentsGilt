@@ -43,10 +43,15 @@ export async function POST(request: Request) {
   // Der Endpunkt ist öffentlich erreichbar. Ohne diese Prüfung könnte jeder
   // Mails auslösen. Solange kein Secret gesetzt ist, laufen wir offen weiter,
   // damit ein vergessenes Env-Var nicht stillschweigend alle Anrufe verschluckt.
+  //
+  // Vapi schickt das Secret je nach eingestellter Credential-Art anders: mal als
+  // eigener Header, mal als Bearer-Token. Wir akzeptieren beide Wege, damit die
+  // Einstellung in Vapi frei wählbar bleibt.
   const expected = process.env.VAPI_SECRET;
   if (expected) {
-    const got = request.headers.get("x-vapi-secret");
-    if (got !== expected) {
+    const headerSecret = request.headers.get("x-vapi-secret");
+    const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    if (headerSecret !== expected && bearer !== expected) {
       console.warn("[vapi] Aufruf mit falschem oder fehlendem Secret abgewiesen");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
