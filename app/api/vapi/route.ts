@@ -23,9 +23,60 @@ interface VapiPayload {
     startedAt?: string;
     customer?: { number?: string };
     call?: { id?: string; type?: string; customer?: { number?: string } };
-    analysis?: { summary?: string; structuredData?: Record<string, unknown> };
+    analysis?: {
+      summary?: string;
+      structuredData?: Record<string, unknown>;
+      structuredOutputs?: Record<string, unknown>;
+    };
+    // Neuere Vapi-Fassungen legen die extrahierten Felder auch außerhalb von
+    // "analysis" ab. Welcher Ort benutzt wird, hängt von der Dashboard-Version
+    // ab — wir schauen deshalb an allen bekannten Stellen nach.
+    structuredOutputs?: Record<string, unknown>;
+    structuredData?: Record<string, unknown>;
     artifact?: { transcript?: string };
   };
+}
+
+/**
+ * Zieht die extrahierten Felder aus dem Bericht. Vapi hat den Ort im Laufe der
+ * Zeit mehrfach verschoben, deshalb der Reihe nach durchprobieren.
+ *
+ * Die Werte können bei "structuredOutputs" als {name, value}-Objekte kommen
+ * statt als flache Werte — beides wird zu "Name: Wert" vereinheitlicht.
+ */
+function collectFields(msg: VapiPayload["message"]): Record<string, string> {
+  const sources = [
+    msg?.analysis?.structuredData,
+    msg?.analysis?.structuredOutputs,
+    msg?.structuredOutputs,
+    msg?.structuredData,
+  ];
+
+  const out: Record<string, string> = {};
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+    for (const [key, raw] of Object.entries(source)) {
+      if (raw === null || raw === undefined || raw === "") continue;
+
+      let label = key;
+      let value: unknown = raw;
+
+      // Form {name: "Anrufer", value: "David Hesse"} oder {value: ...}
+      if (typeof raw === "object" && !Array.isArray(raw)) {
+        const obj = raw as Record<string, unknown>;
+        if ("value" in obj) {
+          value = obj.value;
+          if (typeof obj.name === "string" && obj.name.trim()) label = obj.name;
+        }
+      }
+      if (value === null || value === undefined || value === "") continue;
+
+      const text =
+        typeof value === "object" ? JSON.stringify(value) : String(value);
+      if (text.trim() && !out[label]) out[label] = text.trim();
+    }
+  }
+  return out;
 }
 
 function row(label: string, value: string): string {
@@ -83,7 +134,13 @@ export async function POST(request: Request) {
   );
   const duration = formatDuration(msg?.durationSeconds);
   const endedReason = msg?.endedReason || "";
-  const structured = msg?.analysis?.structuredData;
+  const fields = collectFields(msg);
+
+  // Damit bei einer Änderung auf Vapi-Seite nachvollziehbar bleibt, was
+  // tatsächlich ankommt — sichtbar in den Vercel-Logs, nicht in der Mail.
+  console.log(
+    `[vapi] Bericht von ${number}: ${Object.keys(fields).length} extrahierte Felder (${Object.keys(fields).join(", ") || "keine"})`,
+  );
 
   const zeit = msg?.startedAt
     ? new Date(msg.startedAt).toLocaleString("de-DE", {
@@ -99,13 +156,25 @@ export async function POST(request: Request) {
 
   const { to } = getMailEnv();
 
-  const structuredRows =
-    structured && typeof structured === "object"
-      ? Object.entries(structured)
-          .filter(([, v]) => v !== null && v !== undefined && v !== "")
-          .map(([k, v]) => row(k, String(v)))
-          .join("")
-      : "";
+  // Vapi liefert die extrahierten Felder als freies Objekt. Kurze Werte passen
+  // in die Tabelle oben (Name, Termin, Rückrufnummer), längere sind meist ganze
+  // Sätze — die kommen als eigener Absatz, sonst quetscht sich Fließtext in
+  // eine Tabellenzelle.
+  const structuredEntries = Object.entries(fields);
+
+  const structuredRows = structuredEntries
+    .filter(([, v]) => String(v).length <= 120)
+    .map(([k, v]) => row(k, String(v)))
+    .join("");
+
+  const structuredBlocks = structuredEntries
+    .filter(([, v]) => String(v).length > 120)
+    .map(
+      ([k, v]) =>
+        `<p style="margin:20px 0 6px;font-weight:600;">${escapeHtml(k)}:</p>
+         <p style="background:#faf9f6;padding:14px 16px;border-radius:10px;white-space:pre-wrap;margin:0;">${escapeHtml(String(v))}</p>`,
+    )
+    .join("");
 
   await sendMail({
     to,
@@ -124,8 +193,11 @@ export async function POST(request: Request) {
         summary
           ? `<p style="margin:20px 0 6px;font-weight:600;">Zusammenfassung:</p>
              <p style="background:#faf9f6;padding:14px 16px;border-radius:10px;white-space:pre-wrap;margin:0;">${escapeHtml(summary)}</p>`
-          : `<p style="margin:20px 0 0;color:#8a8579;">Keine Zusammenfassung vorhanden.</p>`
+          : structuredBlocks
+            ? ""
+            : `<p style="margin:20px 0 0;color:#8a8579;">Keine Zusammenfassung vorhanden.</p>`
       }
+      ${structuredBlocks}
       ${
         transcript
           ? `<p style="margin:24px 0 6px;font-weight:600;">Gesprächsverlauf:</p>
