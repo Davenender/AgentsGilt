@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 
@@ -80,6 +81,77 @@ function collectFields(msg: VapiPayload["message"]): Record<string, string> {
   return out;
 }
 
+/**
+ * Erzeugt die Zusammenfassung selbst aus dem Transkript.
+ *
+ * Vapi bietet dafür zwar "Structured Outputs" an, schickt sie aber nicht im
+ * End-of-Call-Bericht mit (nachgewiesen: "0 extrahierte Felder", obwohl im
+ * Dashboard vorhanden). Statt auf einen Fix zu warten, fassen wir selbst
+ * zusammen — das Transkript liegt uns ja vor.
+ *
+ * Scheitert der Aufruf, geht die Mail trotzdem raus, nur eben ohne
+ * Zusammenfassung. Ein Anruf darf niemals wegen der Kür verloren gehen.
+ */
+async function summarize(
+  transcript: string,
+): Promise<{ summary: string; fields: Record<string, string> }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey || !transcript.trim()) return { summary: "", fields: {} };
+
+  try {
+    const anthropic = new Anthropic({ apiKey });
+    const res = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 500,
+      system: `Du wertest Telefonate aus, die ein KI-Assistent für die Agentur "Agents Gilt" entgegengenommen hat.
+
+Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, ohne Markdown und ohne Erklärung:
+{"anrufer":"","betrieb":"","rueckrufnummer":"","terminwunsch":"","zusammenfassung":""}
+
+- anrufer: Vor- und Nachname, falls genannt
+- betrieb: Art und Name des Betriebs, falls genannt
+- rueckrufnummer: genannte Rückrufnummer, nur Ziffern und Leerzeichen
+- terminwunsch: vereinbarter oder gewünschter Termin mit Datum und Uhrzeit
+- zusammenfassung: zwei bis drei Sätze auf Deutsch, sachlich als Notiz für einen Kollegen
+
+Felder, zu denen im Gespräch nichts gesagt wurde, bleiben leer. Erfinde nichts.
+Beachte: Die Spracherkennung schreibt den Firmennamen oft falsch ("Agent Skilled", "AgentsGate") — das ist immer "Agents Gilt" und kein Hinweis auf den Anrufer.`,
+      messages: [{ role: "user", content: transcript.slice(0, 12000) }],
+    });
+
+    const text = res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+
+    // Das Modell antwortet gelegentlich mit Code-Zaun drumherum.
+    const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+    const parsed = JSON.parse(json) as Record<string, unknown>;
+
+    const pick = (key: string) => {
+      const v = parsed[key];
+      return typeof v === "string" ? v.trim() : "";
+    };
+
+    const fields: Record<string, string> = {};
+    const map: Array<[string, string]> = [
+      ["Anrufer", "anrufer"],
+      ["Betrieb", "betrieb"],
+      ["Rückrufnummer", "rueckrufnummer"],
+      ["Terminwunsch", "terminwunsch"],
+    ];
+    for (const [label, key] of map) {
+      const value = pick(key);
+      if (value) fields[label] = value;
+    }
+
+    return { summary: pick("zusammenfassung"), fields };
+  } catch (err) {
+    console.error("[vapi] Zusammenfassung fehlgeschlagen:", err);
+    return { summary: "", fields: {} };
+  }
+}
+
 function row(label: string, value: string): string {
   return `<tr><td style="padding:8px 0;color:#8a8579;width:150px;vertical-align:top;">${escapeHtml(label)}</td><td style="padding:8px 0;font-weight:600;">${escapeHtml(value)}</td></tr>`;
 }
@@ -128,7 +200,7 @@ export async function POST(request: Request) {
 
   const number =
     msg?.customer?.number || msg?.call?.customer?.number || "unbekannt";
-  const summary = msg?.analysis?.summary || msg?.summary || "";
+  const summaryFromVapi = msg?.analysis?.summary || msg?.summary || "";
   const transcript = (msg?.artifact?.transcript || msg?.transcript || "").slice(
     0,
     MAX_TRANSCRIPT_CHARS,
@@ -136,6 +208,16 @@ export async function POST(request: Request) {
   const duration = formatDuration(msg?.durationSeconds);
   const endedReason = msg?.endedReason || "";
   const fields = collectFields(msg);
+
+  // Vapi liefert die Felder derzeit nicht mit — dann selbst zusammenfassen.
+  let summary = summaryFromVapi;
+  if (Object.keys(fields).length === 0 || !summary) {
+    const eigen = await summarize(transcript);
+    if (!summary) summary = eigen.summary;
+    for (const [k, v] of Object.entries(eigen.fields)) {
+      if (!fields[k]) fields[k] = v;
+    }
+  }
 
   // Damit bei einer Änderung auf Vapi-Seite nachvollziehbar bleibt, was
   // tatsächlich ankommt — sichtbar in den Vercel-Logs, nicht in der Mail.
