@@ -206,8 +206,8 @@ export function Contact() {
 
               {prefilled && (
                 <p className="-mt-2 text-xs leading-relaxed text-[#b4534a]">
-                  Wir haben deine Angaben aus dem Chat übernommen — stimmen Name
-                  und E-Mail so? Gerne kurz prüfen, bevor du absendest.
+                  Wir haben Angaben aus dem Chat übernommen — bitte überprüfe
+                  diese nochmal auf Fehler.
                 </p>
               )}
 

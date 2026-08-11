@@ -33,12 +33,16 @@ const GREETING: Message = {
 };
 
 // Einstiegsfragen. Vor einem leeren Eingabefeld zu sitzen ist die größte
-// Hürde — ein Klick ist leichter als ein erster Satz. Bewusst die drei
-// Fragen, die erfahrungsgemäß sowieso kommen.
+// Hürde — ein Klick ist leichter als ein erster Satz.
+//
+// Bewusst nur Fragen, die der Assistent aus seinem Wissen wirklich beantworten
+// kann und bei denen sich eine Rückfrage anbietet. Nach dem Preis wird hier
+// nicht gefragt: Darauf darf er keine Zahl nennen, das wäre eine Sackgasse
+// direkt zu Beginn.
 const STARTER_QUESTIONS = [
   "Was macht ihr genau?",
-  "Was kostet das?",
-  "Wie lange dauert so ein Projekt?",
+  "Wie läuft die Zusammenarbeit ab?",
+  "Was braucht ihr von mir?",
 ];
 
 /**
@@ -469,13 +473,13 @@ export function ChatWidget() {
               {/* Einstiegsfragen — nur solange der Besucher noch nichts
                   gefragt hat. Danach wären sie nur im Weg. */}
               {messages.length === 1 && !streaming && (
-                <div className="mt-4 space-y-2">
+                <div className="mt-3 flex flex-col items-end gap-1.5">
                   {STARTER_QUESTIONS.map((q) => (
                     <button
                       key={q}
                       type="button"
                       onClick={() => sendMessage(q)}
-                      className="block w-full rounded-2xl border border-line bg-white px-4 py-2.5 text-left text-sm text-ink-soft transition-colors hover:border-gold hover:text-ink"
+                      className="rounded-2xl border border-line/50 bg-white/70 px-3 py-1.5 text-right text-xs text-ink-soft/80 transition-colors hover:border-gold/60 hover:text-ink"
                     >
                       {q}
                     </button>
