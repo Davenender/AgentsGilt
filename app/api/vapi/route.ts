@@ -61,13 +61,14 @@ function collectFields(msg: VapiPayload["message"]): Record<string, string> {
       let label = key;
       let value: unknown = raw;
 
-      // Form {name: "Anrufer", value: "David Hesse"} oder {value: ...}
+      // Vapi verpackt jedes Feld als {name, result} und benutzt eine UUID als
+      // Schlüssel — die UUID taugt nicht als Überschrift, der Name schon.
+      // Ältere Fassungen benutzen "value" statt "result", beides abfangen.
       if (typeof raw === "object" && !Array.isArray(raw)) {
         const obj = raw as Record<string, unknown>;
-        if ("value" in obj) {
-          value = obj.value;
-          if (typeof obj.name === "string" && obj.name.trim()) label = obj.name;
-        }
+        if ("result" in obj) value = obj.result;
+        else if ("value" in obj) value = obj.value;
+        if (typeof obj.name === "string" && obj.name.trim()) label = obj.name;
       }
       if (value === null || value === undefined || value === "") continue;
 
