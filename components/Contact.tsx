@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { contact, services, site } from "@/lib/content";
+import { PREFILL_CONTACT, type PrefillContactDetail } from "@/lib/events";
 
 type Status = "idle" | "sending" | "success" | "error";
 
@@ -11,6 +12,14 @@ export function Contact() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string>("");
   const [service, setService] = useState<string>("");
+  const [name, setName] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [company, setCompany] = useState<string>("");
+  const [message, setMessage] = useState<string>("");
+  // Wurden Felder aus dem Chat übernommen? Dann bitten wir um eine kurze
+  // Sichtprüfung – im Chat vertippt man sich schnell, und eine falsche
+  // E-Mail-Adresse merkt sonst niemand.
+  const [prefilled, setPrefilled] = useState(false);
 
   // Auf Klick einer Leistungs-Karte reagieren: passende Leistung vorauswählen.
   useEffect(() => {
@@ -21,6 +30,23 @@ export function Contact() {
     window.addEventListener("ag:select-service", onSelect as EventListener);
     return () =>
       window.removeEventListener("ag:select-service", onSelect as EventListener);
+  }, []);
+
+  // Angaben aus dem Chat übernehmen. Nur leere Felder füllen – was der Besucher
+  // hier schon selbst getippt hat, ist verlässlicher als das aus dem Chat.
+  useEffect(() => {
+    const onPrefill = (e: Event) => {
+      const d = (e as CustomEvent<PrefillContactDetail>).detail;
+      if (!d) return;
+      if (d.name) setName((v) => v || d.name!);
+      if (d.email) setEmail((v) => v || d.email!);
+      if (d.company) setCompany((v) => v || d.company!);
+      if (d.message) setMessage((v) => v || d.message!);
+      setPrefilled(true);
+    };
+    window.addEventListener(PREFILL_CONTACT, onPrefill as EventListener);
+    return () =>
+      window.removeEventListener(PREFILL_CONTACT, onPrefill as EventListener);
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -54,6 +80,11 @@ export function Contact() {
       setStatus("success");
       form.reset();
       setService("");
+      setName("");
+      setEmail("");
+      setCompany("");
+      setMessage("");
+      setPrefilled(false);
     } catch {
       setError("Verbindung fehlgeschlagen. Bitte versuch es später erneut.");
       setStatus("error");
@@ -108,6 +139,8 @@ export function Contact() {
                     name="name"
                     required
                     maxLength={120}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     className={inputClass}
                     placeholder="Dein Name"
                   />
@@ -118,6 +151,8 @@ export function Contact() {
                     type="email"
                     required
                     maxLength={160}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className={inputClass}
                     placeholder="du@firma.de"
                   />
@@ -128,6 +163,8 @@ export function Contact() {
                 <input
                   name="company"
                   maxLength={160}
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
                   className={inputClass}
                   placeholder="Optional"
                 />
@@ -156,6 +193,8 @@ export function Contact() {
                   required
                   maxLength={3000}
                   rows={5}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
                   className={`${inputClass} resize-none`}
                   placeholder={
                     isOther
@@ -164,6 +203,13 @@ export function Contact() {
                   }
                 />
               </Field>
+
+              {prefilled && (
+                <p className="-mt-2 text-xs leading-relaxed text-[#b4534a]">
+                  Wir haben deine Angaben aus dem Chat übernommen — stimmen Name
+                  und E-Mail so? Gerne kurz prüfen, bevor du absendest.
+                </p>
+              )}
 
               {status === "error" && (
                 <p className="text-sm font-medium text-red-600">{error}</p>

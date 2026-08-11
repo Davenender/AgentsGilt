@@ -2,7 +2,12 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { INTRO_TYPING_STARTED } from "@/lib/events";
+import {
+  INTRO_TYPING_STARTED,
+  PREFILL_CONTACT,
+  type PrefillContactDetail,
+} from "@/lib/events";
+import { site } from "@/lib/content";
 
 interface Message {
   role: "user" | "assistant";
@@ -10,7 +15,88 @@ interface Message {
 }
 
 const KONTAKT_MARKER = "[KONTAKT]";
+// Der Assistent hängt hier Angaben an, die der Besucher im Gespräch genannt
+// hat. Sie werden nie angezeigt, sondern nur ins Kontaktformular übernommen.
+const DATEN_REGEX = /\[DATEN\]([\s\S]*?)\[\/DATEN\]/;
 const STORAGE_DISMISSED = "ag-assistant-dismissed";
+// Der Verlauf überlebt einen Seitenwechsel (Impressum, Datenschutz) und ein
+// versehentliches Neuladen. Bewusst sessionStorage: Beim Schließen des Tabs
+// soll nichts zurückbleiben.
+const STORAGE_MESSAGES = "ag-assistant-messages";
+const STORAGE_PREFILL = "ag-assistant-prefill";
+const MAX_STORED_MESSAGES = 30;
+
+const GREETING: Message = {
+  role: "assistant",
+  content:
+    "Hey! 👋 Ich bin der KI-Assistent von Agents Gilt. Bei Fragen zu unseren Leistungen helfe ich dir gern weiter!",
+};
+
+/**
+ * Entfernt die Steuer-Marker aus dem Antworttext. Läuft auch währenddessen
+ * beim Streamen, wo ein Marker erst halb angekommen sein kann ("[DAT",
+ * "[DATEN]{\"na") — der Besucher soll davon nie ein Zeichen sehen.
+ */
+function stripMarkers(text: string): string {
+  let out = text.replace(DATEN_REGEX, "").replace(KONTAKT_MARKER, "");
+
+  // Angefangener Daten-Block: alles ab dort abschneiden.
+  const datenStart = out.indexOf("[DATEN]");
+  if (datenStart !== -1) out = out.slice(0, datenStart);
+
+  // Angefangene eckige Klammer am Ende (z.B. "[KONT") – die gehört zu einem
+  // Marker, der gleich vollständig wird.
+  const lastOpen = out.lastIndexOf("[");
+  if (lastOpen !== -1 && !out.slice(lastOpen).includes("]")) {
+    out = out.slice(0, lastOpen);
+  }
+
+  return out.trimEnd();
+}
+
+/**
+ * Liest die Angaben aus dem [DATEN]-Marker. Der Inhalt kommt aus einem
+ * Sprachmodell, ist also nicht garantiert gültiges JSON — deshalb still
+ * scheitern statt den Chat abbrechen.
+ */
+function parseDaten(text: string): PrefillContactDetail | null {
+  const match = text.match(DATEN_REGEX);
+  if (!match) return null;
+  try {
+    const raw: unknown = JSON.parse(match[1].trim());
+    if (!raw || typeof raw !== "object") return null;
+    const obj = raw as Record<string, unknown>;
+    const out: PrefillContactDetail = {};
+    for (const key of ["name", "email", "company", "message"] as const) {
+      const value = obj[key];
+      if (typeof value === "string" && value.trim()) {
+        out[key] = value.trim().slice(0, 500);
+      }
+    }
+    return Object.keys(out).length > 0 ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadMessages(): Message[] {
+  if (typeof window === "undefined") return [GREETING];
+  try {
+    const raw = sessionStorage.getItem(STORAGE_MESSAGES);
+    if (!raw) return [GREETING];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return [GREETING];
+    return parsed.filter(
+      (m): m is Message =>
+        !!m &&
+        typeof m === "object" &&
+        ((m as Message).role === "user" || (m as Message).role === "assistant") &&
+        typeof (m as Message).content === "string",
+    );
+  } catch {
+    return [GREETING];
+  }
+}
 // Wartezeit auf Seiten OHNE Startseiten-Aufbau (Impressum, Datenschutz)
 const BUBBLE_DELAY_MS = 10_000;
 // Wartezeit, nachdem die Schreibmaschinen-Animation losgelegt hat. Die läuft
@@ -21,21 +107,42 @@ const BUBBLE_AFTER_INTRO_MS = 10_000;
 export function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [bubble, setBubble] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hey! 👋 Ich bin der KI-Assistent von Agents Gilt. Bei Fragen zu unseren Leistungen helfe ich dir gern weiter!",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showContact, setShowContact] = useState(false);
+  const [prefill, setPrefill] = useState<PrefillContactDetail | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Verlauf erst nach dem ersten Rendern laden. Server und Client müssen beim
+  // ersten Durchgang dasselbe ausgeben, sonst meckert React über abweichendes
+  // HTML — sessionStorage gibt es auf dem Server aber nicht.
+  useEffect(() => {
+    setMessages(loadMessages());
+    try {
+      const raw = sessionStorage.getItem(STORAGE_PREFILL);
+      if (raw) setPrefill(JSON.parse(raw) as PrefillContactDetail);
+    } catch {
+      /* kaputter Eintrag – dann eben ohne */
+    }
+  }, []);
+
+  // Verlauf sichern. Die Begrüßung allein ist nichts wert, die entsteht neu.
+  useEffect(() => {
+    if (typeof window === "undefined" || messages.length <= 1) return;
+    try {
+      sessionStorage.setItem(
+        STORAGE_MESSAGES,
+        JSON.stringify(messages.slice(-MAX_STORED_MESSAGES)),
+      );
+    } catch {
+      /* Speicher voll oder gesperrt – der Chat läuft trotzdem weiter */
+    }
+  }, [messages]);
 
   // Aufmerksamkeits-Bubble: Der Zähler startet erst, wenn in der Sektion
   // "Was wir machen" die Schreibanimation losgeht (die meldet sich per
@@ -98,6 +205,18 @@ export function ChatWidget() {
   function goToContact() {
     setOpen(false);
     if (typeof window === "undefined") return;
+
+    // Was der Besucher im Chat schon genannt hat, muss er im Formular nicht
+    // noch einmal tippen. Das Formular kennzeichnet die Felder als "bitte
+    // prüfen" — im Chat vertippt man sich schnell.
+    if (prefill && Object.keys(prefill).length > 0) {
+      window.dispatchEvent(
+        new CustomEvent<PrefillContactDetail>(PREFILL_CONTACT, {
+          detail: prefill,
+        }),
+      );
+    }
+
     const el = document.getElementById("kontakt");
     if (el) {
       el.scrollIntoView({ behavior: "smooth" });
@@ -147,7 +266,7 @@ export function ChatWidget() {
             if (data.error) throw new Error(data.error);
             if (data.text) {
               fullText += data.text;
-              setStreamText(fullText.replace(KONTAKT_MARKER, "").trimEnd());
+              setStreamText(stripMarkers(fullText));
             }
           } catch (parseErr) {
             if (parseErr instanceof Error && parseErr.message) throw parseErr;
@@ -156,10 +275,25 @@ export function ChatWidget() {
       }
 
       const wantsContact = fullText.includes(KONTAKT_MARKER);
-      const clean = fullText.replace(KONTAKT_MARKER, "").trim();
+      const clean = stripMarkers(fullText).trim();
       setMessages((m) => [...m, { role: "assistant", content: clean }]);
       setStreamText("");
       if (wantsContact) setShowContact(true);
+
+      const gathered = parseDaten(fullText);
+      if (gathered) {
+        // Zusammenführen statt ersetzen: Nennt jemand erst den Namen und
+        // später die E-Mail, sollen am Ende beide im Formular stehen.
+        setPrefill((prev) => {
+          const merged = { ...(prev ?? {}), ...gathered };
+          try {
+            sessionStorage.setItem(STORAGE_PREFILL, JSON.stringify(merged));
+          } catch {
+            /* nicht schlimm – dann eben nur für diese Seite */
+          }
+          return merged;
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
       setStreamText("");
@@ -280,18 +414,38 @@ export function ChatWidget() {
                 )}
               </div>
 
-              {/* Kontakt-Button, wenn Lia nicht weiterweiß */}
+              {/* Zwei Wege zum Kontakt, sobald der Assistent nicht weiterhilft:
+                  anrufen (schnellste Antwort) oder Anfrage schicken. */}
               {showContact && !streaming && (
-                <button
-                  type="button"
-                  onClick={goToContact}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink transition-transform hover:scale-[1.02]"
-                >
-                  Kontakt aufnehmen
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </button>
+                <div className="mt-4 space-y-2">
+                  <a
+                    href={`tel:${site.phone}`}
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink transition-transform hover:scale-[1.02]"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M2.5 5.5c0-1.1.9-2 2-2h2.2c.9 0 1.7.6 1.9 1.5l.7 2.6c.2.7 0 1.5-.6 2l-1.3 1.1a13 13 0 0 0 5.9 5.9l1.1-1.3c.5-.6 1.3-.8 2-.6l2.6.7c.9.2 1.5 1 1.5 1.9v2.2c0 1.1-.9 2-2 2A17.5 17.5 0 0 1 2.5 5.5Z"
+                      />
+                    </svg>
+                    Jetzt anrufen
+                  </a>
+                  <button
+                    type="button"
+                    onClick={goToContact}
+                    className="flex w-full items-center justify-center gap-2 rounded-full border border-line bg-white px-5 py-3 text-sm font-semibold text-ink-soft transition-colors hover:border-gold hover:text-ink"
+                  >
+                    Anfrage schicken
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  </button>
+                  <p className="pt-0.5 text-center text-[10px] leading-relaxed text-ink-soft">
+                    Am Telefon nimmt unser KI-Assistent ab und macht direkt einen
+                    Termin aus.
+                  </p>
+                </div>
               )}
             </div>
 

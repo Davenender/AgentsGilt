@@ -79,7 +79,49 @@ export default function DatenschutzPage() {
 
         <div>
           <h2 className="font-display text-lg font-bold text-ink">
-            5. WhatsApp-Kontakt
+            5. Telefonischer KI-Assistent (Voice-Agent)
+          </h2>
+          <p className="mt-3">
+            Rufst du unsere Telefonnummer an, nimmt zunächst ein KI-gestützter
+            Telefonassistent das Gespräch entgegen. Er weist zu Beginn des
+            Gesprächs darauf hin, dass es sich um eine KI handelt. Du kannst
+            jederzeit verlangen, mit einem Menschen zu sprechen; das Gespräch wird
+            dann weitergeleitet.
+          </p>
+          <p className="mt-3">
+            Dabei werden verarbeitet: deine Rufnummer, der Zeitpunkt und die Dauer
+            des Anrufs sowie die Inhalte des Gesprächs. Das gesprochene Wort wird
+            zur Verarbeitung in Text umgewandelt, eine Antwort erzeugt und wieder
+            als Sprache ausgegeben. Nennst du uns dabei Angaben wie Namen,
+            Rufnummer oder einen Terminwunsch, verarbeiten wir diese zur
+            Bearbeitung deines Anliegens.
+          </p>
+          <p className="mt-3">
+            Eingesetzte Dienstleister als Auftragsverarbeiter: Twilio Inc. (USA)
+            für die Telefonie sowie Vapi Labs, Inc. (USA) für den Betrieb des
+            Sprachassistenten; dabei kommen Dienste zur Spracherkennung,
+            Sprachausgabe und Sprachverarbeitung zum Einsatz. Eine Übermittlung in
+            die USA erfolgt auf Grundlage der EU-Standardvertragsklauseln.
+          </p>
+          <p className="mt-3">
+            Nach dem Gespräch erhalten wir eine Zusammenfassung sowie eine
+            Textfassung des Gesprächs per E-Mail, damit wir dein Anliegen
+            bearbeiten und dich zurückrufen können. Eine Tonaufzeichnung des
+            Gesprächs erfolgt nicht.
+          </p>
+          <p className="mt-3">
+            Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Durchführung
+            vorvertraglicher Maßnahmen auf deine Anfrage hin) sowie Art. 6 Abs. 1
+            lit. f DSGVO (berechtigtes Interesse an einer durchgehenden
+            Erreichbarkeit). Die Daten werden gelöscht, sobald sie für die
+            Bearbeitung nicht mehr erforderlich sind. Bitte teile am Telefon keine
+            sensiblen oder besonders schützenswerten personenbezogenen Daten mit.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="font-display text-lg font-bold text-ink">
+            6. WhatsApp-Kontakt
           </h2>
           <p className="mt-3">
             Wenn du den WhatsApp-Button nutzt, wirst du zu WhatsApp (Meta Platforms
@@ -91,7 +133,7 @@ export default function DatenschutzPage() {
 
         <div>
           <h2 className="font-display text-lg font-bold text-ink">
-            6. Keine Tracking-Cookies
+            7. Keine Tracking-Cookies
           </h2>
           <p className="mt-3">
             Diese Website setzt keine Analyse- oder Marketing-Cookies und nutzt kein
@@ -102,7 +144,7 @@ export default function DatenschutzPage() {
 
         <div>
           <h2 className="font-display text-lg font-bold text-ink">
-            7. Deine Rechte
+            8. Deine Rechte
           </h2>
           <p className="mt-3">
             Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung

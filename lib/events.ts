@@ -11,3 +11,23 @@
  *            Sprechblase, damit sie nicht mitten in die Schreibanimation platzt)
  */
 export const INTRO_TYPING_STARTED = "ag:intro-typing-started";
+
+/**
+ * Trägt Angaben, die der Besucher im Chat genannt hat, ins Kontaktformular ein,
+ * damit er sie nicht ein zweites Mal tippen muss.
+ *
+ * Sender:    components/ChatWidget.tsx (beim Klick auf "Anfrage schicken")
+ * Empfänger: components/Contact.tsx
+ *
+ * Wichtig: Die Angaben stammen aus einem gesprochenen/getippten Chat und können
+ * Tippfehler enthalten. Das Formular weist den Besucher deshalb sichtbar darauf
+ * hin, die Felder noch einmal zu prüfen.
+ */
+export const PREFILL_CONTACT = "ag:prefill-contact";
+
+export interface PrefillContactDetail {
+  name?: string;
+  email?: string;
+  company?: string;
+  message?: string;
+}

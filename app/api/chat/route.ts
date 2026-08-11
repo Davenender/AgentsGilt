@@ -92,8 +92,8 @@ export async function POST(request: Request) {
     async start(controller) {
       try {
         const apiStream = anthropic.messages.stream({
-          model: "claude-sonnet-4-5",
-          max_tokens: 600,
+          model: "claude-sonnet-5",
+          max_tokens: 700,
           system: AGENTS_GILT_SYSTEM_PROMPT,
           messages: safeMessages,
         });
