@@ -183,7 +183,7 @@ export async function POST(request: Request) {
       "Neuer Anruf beim Voice-Agent",
       `
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
-        ${row("Anrufer", number)}
+        ${row("Rufnummer", number)}
         ${row("Zeitpunkt", zeit)}
         ${row("Dauer", duration)}
         ${endedReason ? row("Ende", endedReason) : ""}
