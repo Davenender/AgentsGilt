@@ -58,7 +58,7 @@ const jsonLd = {
   logo: "https://agentsgilt.com/logo-full.png",
   url: "https://agentsgilt.com",
   email: "kontakt@agentsgilt.com",
-  telephone: "+4916098427943",
+  telephone: "+4961089694027",
   founder: "David Hesse",
   priceRange: "€€",
   description:

@@ -34,6 +34,9 @@ export function Footer() {
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-gold">
               Kontakt & Recht
             </span>
+            <a href={`tel:${site.phone}`} className="hover:text-white">
+              {site.phoneDisplay}
+            </a>
             <a href={`mailto:${site.email}`} className="hover:text-white">
               {site.email}
             </a>

@@ -39,7 +39,7 @@ export default function ImpressumPage() {
           <p className="mt-3">
             E-Mail: kontakt@agentsgilt.com
             <br />
-            Telefon: +49 1609 8427943
+            Telefon: +49 6108 9694027
           </p>
         </div>
 

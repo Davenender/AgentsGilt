@@ -32,6 +32,15 @@ const GREETING: Message = {
     "Hey! 👋 Ich bin der KI-Assistent von Agents Gilt. Bei Fragen zu unseren Leistungen helfe ich dir gern weiter!",
 };
 
+// Einstiegsfragen. Vor einem leeren Eingabefeld zu sitzen ist die größte
+// Hürde — ein Klick ist leichter als ein erster Satz. Bewusst die drei
+// Fragen, die erfahrungsgemäß sowieso kommen.
+const STARTER_QUESTIONS = [
+  "Was macht ihr genau?",
+  "Was kostet das?",
+  "Wie lange dauert so ein Projekt?",
+];
+
 /**
  * Entfernt die Steuer-Marker aus dem Antworttext. Läuft auch währenddessen
  * beim Streamen, wo ein Marker erst halb angekommen sein kann ("[DAT",
@@ -117,6 +126,13 @@ export function ChatWidget() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Der pagehide-Handler wird einmal registriert und sieht deshalb nur den
+  // Anfangszustand. Über diese Referenz kommt er an die aktuellen Daten.
+  const stateRef = useRef<{
+    messages: Message[];
+    contacted: boolean;
+    sent: boolean;
+  }>({ messages: [], contacted: false, sent: false });
 
   // Verlauf erst nach dem ersten Rendern laden. Server und Client müssen beim
   // ersten Durchgang dasselbe ausgeben, sonst meckert React über abweichendes
@@ -131,8 +147,43 @@ export function ChatWidget() {
     }
   }, []);
 
+  // Gespräch an uns schicken, wenn der Besucher die Seite verlässt. sendBeacon
+  // läuft auch dann noch durch, wenn der Tab schon zugeht — ein normales fetch
+  // würde abgebrochen. "pagehide" ist zuverlässiger als "beforeunload",
+  // besonders auf dem iPhone.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const send = () => {
+      const state = stateRef.current;
+      if (state.sent) return;
+      if (state.messages.filter((m) => m.role === "user").length < 2) return;
+      state.sent = true;
+      try {
+        navigator.sendBeacon?.(
+          "/api/chat-log",
+          new Blob(
+            [
+              JSON.stringify({
+                messages: state.messages,
+                contacted: state.contacted,
+              }),
+            ],
+            { type: "application/json" },
+          ),
+        );
+      } catch {
+        /* wenn es nicht klappt, ist der Chat trotzdem gelaufen */
+      }
+    };
+
+    window.addEventListener("pagehide", send);
+    return () => window.removeEventListener("pagehide", send);
+  }, []);
+
   // Verlauf sichern. Die Begrüßung allein ist nichts wert, die entsteht neu.
   useEffect(() => {
+    stateRef.current.messages = messages;
     if (typeof window === "undefined" || messages.length <= 1) return;
     try {
       sessionStorage.setItem(
@@ -204,6 +255,7 @@ export function ChatWidget() {
 
   function goToContact() {
     setOpen(false);
+    stateRef.current.contacted = true;
     if (typeof window === "undefined") return;
 
     // Was der Besucher im Chat schon genannt hat, muss er im Formular nicht
@@ -225,8 +277,8 @@ export function ChatWidget() {
     }
   }
 
-  async function sendMessage() {
-    const text = input.trim();
+  async function sendMessage(preset?: string) {
+    const text = (preset ?? input).trim();
     if (!text || streaming) return;
 
     const next: Message[] = [...messages, { role: "user", content: text }];
@@ -414,6 +466,23 @@ export function ChatWidget() {
                 )}
               </div>
 
+              {/* Einstiegsfragen — nur solange der Besucher noch nichts
+                  gefragt hat. Danach wären sie nur im Weg. */}
+              {messages.length === 1 && !streaming && (
+                <div className="mt-4 space-y-2">
+                  {STARTER_QUESTIONS.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => sendMessage(q)}
+                      className="block w-full rounded-2xl border border-line bg-white px-4 py-2.5 text-left text-sm text-ink-soft transition-colors hover:border-gold hover:text-ink"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Zwei Wege zum Kontakt, sobald der Assistent nicht weiterhilft:
                   anrufen (schnellste Antwort) oder Anfrage schicken. */}
               {showContact && !streaming && (
@@ -465,7 +534,7 @@ export function ChatWidget() {
                 />
                 <button
                   type="button"
-                  onClick={sendMessage}
+                  onClick={() => sendMessage()}
                   disabled={streaming || !input.trim()}
                   aria-label="Senden"
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold text-ink transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40"

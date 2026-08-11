@@ -227,6 +227,28 @@ export function Contact() {
                 <p className="mb-3 text-center text-xs text-ink-soft">
                   Oder direkt:
                 </p>
+                {/* Telefon zuerst und über die volle Breite: Wer anruft, ist
+                    weiter als jemand, der ein Formular ausfüllt. */}
+                <a
+                  href={`tel:${site.phone}`}
+                  className="mb-3 flex items-center justify-center gap-2 rounded-full bg-gold px-4 py-3 text-sm font-semibold text-ink transition-transform hover:scale-[1.02]"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    className="h-4 w-4"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M2.5 5.5c0-1.1.9-2 2-2h2.2c.9 0 1.7.6 1.9 1.5l.7 2.6c.2.7 0 1.5-.6 2l-1.3 1.1a13 13 0 0 0 5.9 5.9l1.1-1.3c.5-.6 1.3-.8 2-.6l2.6.7c.9.2 1.5 1 1.5 1.9v2.2c0 1.1-.9 2-2 2A17.5 17.5 0 0 1 2.5 5.5Z"
+                    />
+                  </svg>
+                  {site.phoneDisplay}
+                </a>
                 <div className="grid grid-cols-2 gap-3">
                   <a
                     href={`mailto:${site.email}`}

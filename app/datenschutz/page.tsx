@@ -75,6 +75,14 @@ export default function DatenschutzPage() {
             Beantwortung von Anfragen). Eine Übermittlung in die USA erfolgt auf
             Grundlage der EU-Standardvertragsklauseln.
           </p>
+          <p className="mt-3">
+            Damit wir erkennen, welche Fragen häufig gestellt werden und wo
+            unsere Antworten nicht weiterhelfen, wird der Gesprächsverlauf beim
+            Verlassen der Seite an uns übermittelt und dort ausgewertet. Dabei
+            werden keine Daten an Dritte weitergegeben, die über die oben
+            genannten Dienstleister hinausgehen. Die Verläufe werden gelöscht,
+            sobald sie für diesen Zweck nicht mehr erforderlich sind.
+          </p>
         </div>
 
         <div>
