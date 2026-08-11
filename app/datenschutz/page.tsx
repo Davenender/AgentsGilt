@@ -112,10 +112,22 @@ export default function DatenschutzPage() {
             die USA erfolgt auf Grundlage der EU-Standardvertragsklauseln.
           </p>
           <p className="mt-3">
-            Nach dem Gespräch erhalten wir eine Zusammenfassung sowie eine
-            Textfassung des Gesprächs per E-Mail, damit wir dein Anliegen
-            bearbeiten und dich zurückrufen können. Eine Tonaufzeichnung des
-            Gesprächs erfolgt nicht.
+            Das Gespräch wird aufgezeichnet. Darauf weisen wir dich zu Beginn
+            des Telefonats ausdrücklich hin, bevor du dein Anliegen schilderst.
+            Setzt du das Gespräch nach diesem Hinweis fort, verstehen wir das
+            als Einwilligung in die Aufzeichnung (Art. 6 Abs. 1 lit. a DSGVO).
+            Möchtest du das nicht, sag es einfach — dann brechen wir die
+            Aufzeichnung ab und du kannst uns stattdessen per E-Mail erreichen.
+            Eine bereits erteilte Einwilligung kannst du jederzeit für die
+            Zukunft widerrufen; melde dich dazu an kontakt@agentsgilt.com.
+          </p>
+          <p className="mt-3">
+            Die Aufzeichnung dient dazu, dein Anliegen korrekt zu erfassen und
+            die Qualität unseres Assistenten zu verbessern. Zusätzlich erhalten
+            wir nach dem Gespräch eine Zusammenfassung sowie eine Textfassung
+            per E-Mail, damit wir dein Anliegen bearbeiten und dich zurückrufen
+            können. Aufzeichnungen werden gelöscht, sobald sie für diese Zwecke
+            nicht mehr erforderlich sind.
           </p>
           <p className="mt-3">
             Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Durchführung
