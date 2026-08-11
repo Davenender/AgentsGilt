@@ -42,6 +42,12 @@ export function Contact() {
       if (d.email) setEmail((v) => v || d.email!);
       if (d.company) setCompany((v) => v || d.company!);
       if (d.message) setMessage((v) => v || d.message!);
+      // Nur übernehmen, wenn der Wert wirklich im Dropdown existiert —
+      // sonst stünde dort ein Eintrag, den man nicht wieder auswählen kann.
+      if (d.service) {
+        const erlaubt = [...services.map((s) => s.title), OTHER];
+        if (erlaubt.includes(d.service)) setService((v) => v || d.service!);
+      }
       setPrefilled(true);
     };
     window.addEventListener(PREFILL_CONTACT, onPrefill as EventListener);
@@ -227,8 +233,8 @@ export function Contact() {
                 <p className="mb-3 text-center text-xs text-ink-soft">
                   Oder direkt:
                 </p>
-                {/* Telefon zuerst und über die volle Breite: Wer anruft, ist
-                    weiter als jemand, der ein Formular ausfüllt. */}
+                {/* Nur Telefon und WhatsApp: Die E-Mail wäre doppelt gemoppelt,
+                    weil das Formular darüber ohnehin als Mail bei uns landet. */}
                 <a
                   href={`tel:${site.phone}`}
                   className="mb-3 flex items-center justify-center gap-2 rounded-full bg-gold px-4 py-3 text-sm font-semibold text-ink transition-transform hover:scale-[1.02]"
@@ -249,29 +255,12 @@ export function Contact() {
                   </svg>
                   {site.phoneDisplay}
                 </a>
-                <div className="grid grid-cols-2 gap-3">
-                  <a
-                    href={`mailto:${site.email}`}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-line bg-cream px-4 py-3 text-sm font-medium text-ink-soft transition-colors hover:border-gold hover:text-ink"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      className="h-4 w-4"
-                      aria-hidden
-                    >
-                      <rect x="3" y="5" width="18" height="14" rx="2" />
-                      <path d="m3 7 9 6 9-6" />
-                    </svg>
-                    E-Mail
-                  </a>
+                <div>
                   <a
                     href={`https://wa.me/${site.whatsappNumber}?text=${encodeURIComponent(site.whatsappMessage)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-line bg-cream px-4 py-3 text-sm font-medium text-ink-soft transition-colors hover:border-[#25D366] hover:text-ink"
+                    className="flex w-full items-center justify-center gap-2 rounded-full border border-line bg-cream px-4 py-3 text-sm font-medium text-ink-soft transition-colors hover:border-[#25D366] hover:text-ink"
                   >
                     <svg
                       viewBox="0 0 24 24"

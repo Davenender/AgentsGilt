@@ -29,5 +29,8 @@ export interface PrefillContactDetail {
   name?: string;
   email?: string;
   company?: string;
+  /** Muss exakt einem Eintrag aus `services` in lib/content.ts entsprechen
+   *  (oder "Sonstiges"), sonst greift die Vorauswahl im Dropdown nicht. */
+  service?: string;
   message?: string;
 }

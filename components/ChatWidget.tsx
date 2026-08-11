@@ -80,7 +80,13 @@ function parseDaten(text: string): PrefillContactDetail | null {
     if (!raw || typeof raw !== "object") return null;
     const obj = raw as Record<string, unknown>;
     const out: PrefillContactDetail = {};
-    for (const key of ["name", "email", "company", "message"] as const) {
+    for (const key of [
+      "name",
+      "email",
+      "company",
+      "service",
+      "message",
+    ] as const) {
       const value = obj[key];
       if (typeof value === "string" && value.trim()) {
         out[key] = value.trim().slice(0, 500);
@@ -347,6 +353,15 @@ export function ChatWidget() {
           } catch {
             /* nicht schlimm – dann eben nur für diese Seite */
           }
+          // Sofort ans Formular geben, nicht erst beim Klick auf "Anfrage
+          // schicken" — viele scrollen selbst dorthin, statt den Knopf zu
+          // benutzen. Das Formular überschreibt dabei nichts, was der
+          // Besucher schon selbst getippt hat.
+          window.dispatchEvent(
+            new CustomEvent<PrefillContactDetail>(PREFILL_CONTACT, {
+              detail: merged,
+            }),
+          );
           return merged;
         });
       }
