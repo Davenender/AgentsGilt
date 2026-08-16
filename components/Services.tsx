@@ -1,6 +1,7 @@
 import { services } from "@/lib/content";
 import { Reveal } from "./Reveal";
 import { ServiceCard } from "./ServiceCard";
+import { ServiceProgress } from "./ServiceProgress";
 
 export function Services() {
   return (
@@ -25,6 +26,8 @@ export function Services() {
           ))}
         </div>
       </div>
+
+      <ServiceProgress count={services.length} />
     </section>
   );
 }

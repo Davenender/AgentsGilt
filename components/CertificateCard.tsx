@@ -45,10 +45,11 @@ type Props = {
 const VORNE = { x: 0, y: 0, rot: 0, z: 0, hell: 1 };
 const HINTEN_RECHTS = { x: 12, y: -6, rot: 6, z: -150, hell: 0.94 };
 const HINTEN_LINKS = { x: -12, y: -6, rot: -6, z: -150, hell: 0.94 };
-// Auf dem Handy liegt die hintere Karte deutlicher versetzt – dort gibt es
-// keinen Mauszeiger, der auf sie aufmerksam macht, also muss sie von selbst
-// klar erkennbar sein.
-const HINTEN_RECHTS_MOBIL = { x: 20, y: -9, rot: 8, z: -170, hell: 0.94 };
+// Auf dem Handy liegt die hintere Karte etwas deutlicher versetzt – dort gibt
+// es keinen Mauszeiger, der auf sie aufmerksam macht, also muss sie von selbst
+// erkennbar sein. Mehr als 12 % geht nicht: Bei 375 px Bildschirmbreite ragte
+// die Karte sonst über den rechten Rand hinaus (gemessen: 33 px zu weit).
+const HINTEN_RECHTS_MOBIL = { x: 12, y: -8, rot: 6, z: -170, hell: 0.94 };
 
 // Ab wo das Umschalten auslöst: rechtes Drittel
 const AUSLOESER = 2 / 3;
@@ -290,11 +291,13 @@ export function CertificateCard({ title, certs, sizes }: Props) {
           className="object-cover"
         />
       </div>
-      <div className="flex flex-1 flex-col p-5">
-        <h3 className="font-display text-base font-bold leading-snug text-ink">
+      <div className="flex flex-1 flex-col p-4 sm:p-5">
+        {/* Auf dem Handy kleiner: Kurstitel wie "Model Context Protocol:
+            Advanced Topics" brauchten bei 16 px vier Zeilen. */}
+        <h3 className="font-display text-sm font-bold leading-snug text-ink sm:text-base">
           {title}
         </h3>
-        <span className="mt-1 text-sm text-ink-soft">{cert.name}</span>
+        <span className="mt-1 text-xs text-ink-soft sm:text-sm">{cert.name}</span>
         <span className="mt-auto inline-flex w-fit items-center gap-1 pt-4 text-sm font-semibold text-gold-dark">
           Zertifikat ansehen
           <span aria-hidden className="transition group-hover:translate-x-0.5">
@@ -361,9 +364,17 @@ export function CertificateCard({ title, certs, sizes }: Props) {
         <button
           type="button"
           onClick={() => umschaltenRef.current?.()}
-          aria-label={`Zwischen den Zertifikaten von ${erste.name} und ${zweite.name} wechseln`}
+          aria-label={
+            zweiteVorne
+              ? `Zurück zum Zertifikat von ${erste.name}`
+              : `Zertifikat von ${zweite.name} anzeigen`
+          }
           className="pointer-events-auto absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gold/40 bg-ink/85 text-gold shadow-lg backdrop-blur-sm transition active:scale-95"
         >
+          {/* Der Pfeil dreht sich beim Umschalten um 180 Grad: Liegt die zweite
+              Karte vorne, zeigt er nach links und sagt damit "zurück". Die
+              Drehung ist animiert, damit der Zusammenhang sichtbar wird —
+              ein hart umspringendes Symbol würde man leicht übersehen. */}
           <svg
             width="20"
             height="20"
@@ -374,6 +385,9 @@ export function CertificateCard({ title, certs, sizes }: Props) {
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"
+            className={`transition-transform duration-500 ease-out motion-reduce:transition-none ${
+              zweiteVorne ? "rotate-180" : ""
+            }`}
           >
             <path d="M9 6l6 6-6 6" />
           </svg>

@@ -85,7 +85,13 @@ export function ServiceCard({
   };
 
   return (
-    <div style={{ perspective: 1000 }} className="h-full">
+    // data-service-index: Anker für die Punkte-Leiste auf dem Handy, die
+    // mitzählt, bei welcher Leistung man gerade ist.
+    <div
+      style={{ perspective: 1000 }}
+      className="h-full"
+      data-service-index={index}
+    >
       <div
         ref={cardRef}
         role="button"

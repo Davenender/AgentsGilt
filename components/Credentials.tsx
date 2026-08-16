@@ -16,7 +16,10 @@ export function Credentials() {
             </span>
           </Reveal>
           <Reveal delay={0.08}>
-            <h2 className="mt-4 font-display text-3xl font-extrabold leading-tight text-ink sm:text-4xl md:text-5xl">
+            {/* Auf dem Handy eine Stufe kleiner als die übrigen Überschriften:
+                "Ausgebildet in Anthropics KI-Technologie." ist lang und
+                drängte sich bei 30 px zu sehr in den Vordergrund. */}
+            <h2 className="mt-4 font-display text-2xl font-extrabold leading-tight text-ink sm:text-4xl md:text-5xl">
               {credentials.headline}
             </h2>
           </Reveal>
@@ -32,7 +35,10 @@ export function Credentials() {
             fährt die vordere nach LINKS raus – beides zusammen braucht Platz,
             sonst überlappen benachbarte Stapel. Nachgemessen: bei gap-20
             bleiben in beiden Zuständen über 20px Luft. */}
-        <div className="mt-14 grid gap-14 sm:grid-cols-2 lg:grid-cols-4 lg:gap-20">
+        {/* pr-8 auf dem Handy: Die hintere Karte liegt nach rechts versetzt und
+            braucht dort Platz — ohne den Abstand ragt sie aus dem Bildschirm.
+            Ab sm gibt es mehrere Spalten, dann ist ohnehin Luft. */}
+        <div className="mt-14 grid gap-14 pr-8 sm:grid-cols-2 sm:pr-0 lg:grid-cols-4 lg:gap-20">
           {credentials.items.map((item, i) => (
             <Reveal key={item.title} delay={(i % 4) * 0.08} className="h-full">
               <CertificateCard
