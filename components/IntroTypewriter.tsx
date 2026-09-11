@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { gsap } from "@/lib/gsap";
 import { Reveal } from "@/components/Reveal";
 import { intro } from "@/lib/content";
-import { INTRO_TYPING_STARTED } from "@/lib/events";
+import { INTRO_TYPING_DONE, INTRO_TYPING_STARTED } from "@/lib/events";
 
 /**
  * "Was wir machen" – die Überschrift schreibt sich selbst und korrigiert sich
@@ -108,6 +108,12 @@ export function IntroTypewriter() {
         if (!entry.isIntersecting) return;
         io.disconnect();
         window.dispatchEvent(new Event(INTRO_TYPING_STARTED));
+        // Bei "weniger Bewegung" wird nicht getippt, der fertige Text steht
+        // sofort da. Dann ist die Animation im selben Moment auch schon vorbei
+        // — sonst würde der Empfänger vergeblich auf ihr Ende warten.
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          window.dispatchEvent(new Event(INTRO_TYPING_DONE));
+        }
       },
       { rootMargin: "0px 0px -20% 0px" },
     );
@@ -274,6 +280,7 @@ export function IntroTypewriter() {
             .call(() => {
               heading.style.minHeight = "";
               para.style.minHeight = "";
+              window.dispatchEvent(new Event(INTRO_TYPING_DONE));
             });
         }, el);
       };

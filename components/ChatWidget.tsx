@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import {
+  INTRO_TYPING_DONE,
   INTRO_TYPING_STARTED,
   PREFILL_CONTACT,
   type PrefillContactDetail,
@@ -118,10 +119,16 @@ function loadMessages(): Message[] {
 }
 // Wartezeit auf Seiten OHNE Startseiten-Aufbau (Impressum, Datenschutz)
 const BUBBLE_DELAY_MS = 10_000;
-// Wartezeit, nachdem die Schreibmaschinen-Animation losgelegt hat. Die läuft
-// rund 8 Sekunden – ploppt die Blase mittendrin auf, konkurrieren zwei
-// Bewegungen um dieselbe Aufmerksamkeit. Deshalb nicht kürzer machen.
-const BUBBLE_AFTER_INTRO_MS = 10_000;
+// Wartezeit, nachdem die Schreibmaschinen-Animation FERTIG getippt hat. Kurz
+// genug, dass der Besucher die Sektion noch vor Augen hat; lang genug, dass die
+// Blase nicht auf dem letzten Buchstaben sitzt und zwei Bewegungen um dieselbe
+// Aufmerksamkeit konkurrieren.
+const BUBBLE_AFTER_TYPING_MS = 2_000;
+// Sicherheitsnetz, gerechnet ab dem Moment, in dem die Sektion ins Bild kommt.
+// Greift, falls die Animation sich nie fertig meldet (GSAP bricht ab, Tab läuft
+// im Hintergrund und hält die Zeitleiste an). Muss deutlich über der
+// Tippdauer liegen – die beträgt bei den jetzigen Texten rund 8,5 Sekunden.
+const BUBBLE_FALLBACK_MS = 14_000;
 
 export function ChatWidget() {
   const [open, setOpen] = useState(false);
@@ -205,14 +212,18 @@ export function ChatWidget() {
     }
   }, [messages]);
 
-  // Aufmerksamkeits-Bubble: Der Zähler startet erst, wenn in der Sektion
-  // "Was wir machen" die Schreibanimation losgeht (die meldet sich per
-  // Ereignis). Vorher wäre sie im Hero und würde dem "Projekt anfragen"-Button
-  // Aufmerksamkeit wegnehmen – und das ist die Aktion, die zählt. Der
-  // Chat-BUTTON selbst ist die ganze Zeit da, nur die Sprechblase wartet.
+  // Aufmerksamkeits-Bubble: Sie erscheint kurz nachdem in der Sektion
+  // "Was wir machen" die Schreibanimation zu Ende getippt hat – beide
+  // Zeitpunkte meldet die Sektion selbst per Ereignis. Vorher wäre die Blase
+  // im Hero und würde dem "Projekt anfragen"-Button Aufmerksamkeit wegnehmen,
+  // und das ist die Aktion, die zählt. Der Chat-BUTTON selbst ist die ganze
+  // Zeit da, nur die Sprechblase wartet.
   //
-  // Auf Seiten ohne diesen Aufbau (Impressum, Datenschutz) gibt es das
-  // Ereignis nicht, dort greift der feste Zeitgeber ab Seitenaufruf.
+  // Bewusst an das ECHTE Ende der Animation gehängt statt an eine feste Zahl:
+  // Wie lange getippt wird, hängt an der Länge der Texte in `content.ts`.
+  //
+  // Auf Seiten ohne diesen Aufbau (Impressum, Datenschutz) gibt es die
+  // Ereignisse nicht, dort greift der feste Zeitgeber ab Seitenaufruf.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (sessionStorage.getItem(STORAGE_DISMISSED)) return;
@@ -225,12 +236,20 @@ export function ChatWidget() {
       return () => window.clearTimeout(timer);
     }
 
+    // Sektion ist im Bild: erst mal nur das Sicherheitsnetz spannen.
     const onIntroStart = () => {
-      timer = window.setTimeout(() => setBubble(true), BUBBLE_AFTER_INTRO_MS);
+      timer = window.setTimeout(() => setBubble(true), BUBBLE_FALLBACK_MS);
+    };
+    // Fertig getippt: Netz wieder einholen und die kurze Wartezeit starten.
+    const onIntroDone = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setBubble(true), BUBBLE_AFTER_TYPING_MS);
     };
     window.addEventListener(INTRO_TYPING_STARTED, onIntroStart, { once: true });
+    window.addEventListener(INTRO_TYPING_DONE, onIntroDone, { once: true });
     return () => {
       window.removeEventListener(INTRO_TYPING_STARTED, onIntroStart);
+      window.removeEventListener(INTRO_TYPING_DONE, onIntroDone);
       window.clearTimeout(timer);
     };
   }, []);
