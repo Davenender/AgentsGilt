@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { sendDiscord } from "@/lib/discord";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 
 export const runtime = "nodejs";
@@ -258,6 +259,25 @@ export async function POST(request: Request) {
          <p style="background:#faf9f6;padding:14px 16px;border-radius:10px;white-space:pre-wrap;margin:0;">${escapeHtml(String(v))}</p>`,
     )
     .join("");
+
+  // Zusätzlich in den Discord-Kanal #anrufe. Läuft vor der Mail und scheitert
+  // still (sendDiscord wirft nie), damit weder die Mail noch Discord vom jeweils
+  // anderen abhängen. Das Transkript bleibt bewusst nur in der Mail.
+  await sendDiscord(process.env.DISCORD_WEBHOOK_ANRUFE, {
+    title: `Neuer Anruf von ${number}`,
+    description: summary || "Keine Zusammenfassung vorhanden.",
+    fields: [
+      ...structuredEntries.map(([k, v]) => ({
+        name: k,
+        value: String(v),
+        inline: String(v).length <= 40,
+      })),
+      { name: "Zeitpunkt", value: zeit, inline: true },
+      { name: "Dauer", value: duration, inline: true },
+      ...(endedReason ? [{ name: "Ende", value: endedReason, inline: true }] : []),
+    ],
+    footer: "Voice-Agent · Details und Gesprächsverlauf in der Mail",
+  });
 
   await sendMail({
     to,
