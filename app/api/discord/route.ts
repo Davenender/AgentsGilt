@@ -4,7 +4,6 @@ import {
   applyAction,
   callComponents,
   CALL_CUSTOM_ID_PREFIX,
-  parseAllowedIds,
   type CallAction,
   type EmbedLike,
 } from "@/lib/discord-calls";
@@ -20,7 +19,9 @@ export const runtime = "nodejs";
 // Env-Vars (Vercel, Production):
 //   DISCORD_PUBLIC_KEY        Public Key der Anwendung (prüft, dass der Aufruf von Discord kommt)
 //   DISCORD_BOT_TOKEN         Token des Bots (legt Fäden an)
-//   DISCORD_ALLOWED_USER_IDS  Discord-Nutzer-IDs, die Anrufe übernehmen dürfen, kommagetrennt
+//
+// Wer klicken darf, regelt der Server selbst: Der Bot ist privat und nur auf
+// dem eigenen Server, die Knöpfe stehen in einem Kanal, den nur das Team sieht.
 
 interface Interaction {
   type: number;
@@ -75,11 +76,6 @@ export async function POST(request: Request) {
 
   const user = interaction.member?.user;
   if (!user) return ephemeral("Das geht nur im Server, nicht per Direktnachricht.");
-
-  const allowed = parseAllowedIds(process.env.DISCORD_ALLOWED_USER_IDS);
-  if (!allowed.has(user.id)) {
-    return ephemeral("Anrufe übernehmen dürfen nur die Kolleginnen und Kollegen im Kundenkontakt.");
-  }
 
   const embed = interaction.message?.embeds?.[0];
   if (!embed) return ephemeral("Diese Meldung ist nicht mehr aktuell.");

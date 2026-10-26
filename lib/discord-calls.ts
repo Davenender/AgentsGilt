@@ -158,12 +158,3 @@ export function openEmbed(embed: EmbedLike): EmbedLike {
   };
 }
 
-/** Nutzer-IDs aus der Env-Var (kommagetrennt). Leer = niemand darf. */
-export function parseAllowedIds(raw: string | undefined): Set<string> {
-  return new Set(
-    (raw ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
-  );
-}
