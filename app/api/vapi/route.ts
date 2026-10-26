@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
-import { sendDiscord } from "@/lib/discord";
+import { buildEmbed, postWithBot, sendDiscord } from "@/lib/discord";
+import { callComponents, openEmbed } from "@/lib/discord-calls";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 
 export const runtime = "nodejs";
@@ -263,7 +264,7 @@ export async function POST(request: Request) {
   // Zusätzlich in den Discord-Kanal #anrufe. Läuft vor der Mail und scheitert
   // still (sendDiscord wirft nie), damit weder die Mail noch Discord vom jeweils
   // anderen abhängen. Das Transkript bleibt bewusst nur in der Mail.
-  await sendDiscord(process.env.DISCORD_WEBHOOK_ANRUFE, {
+  const discordEmbed = {
     title: `Neuer Anruf von ${number}`,
     description: summary || "Keine Zusammenfassung vorhanden.",
     fields: [
@@ -277,7 +278,19 @@ export async function POST(request: Request) {
       ...(endedReason ? [{ name: "Ende", value: endedReason, inline: true }] : []),
     ],
     footer: "Voice-Agent · Details und Gesprächsverlauf in der Mail",
-  });
+  };
+
+  // Mit Bot: Meldung mit Knöpfen (Übernehmen, Termin nicht möglich, Erledigt).
+  // Ohne Bot oder wenn er scheitert: wie bisher über den Webhook, ohne Knöpfe.
+  const mitKnoepfen = await postWithBot(
+    process.env.DISCORD_BOT_TOKEN,
+    process.env.DISCORD_CHANNEL_ANRUFE,
+    {
+      embeds: [openEmbed(buildEmbed(discordEmbed))],
+      components: callComponents("open"),
+    },
+  );
+  if (!mitKnoepfen) await sendDiscord(process.env.DISCORD_WEBHOOK_ANRUFE, discordEmbed);
 
   await sendMail({
     to,
