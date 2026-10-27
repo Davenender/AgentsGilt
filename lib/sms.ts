@@ -58,12 +58,12 @@ export async function sendSms(to: string, body: string): Promise<SmsResult> {
 }
 
 export function smsBestaetigung(termin: string): string {
-  return `Wie eben telefonisch besprochen: Ihr Termin am ${termin} ist bestätigt. Wir freuen uns auf das Gespräch!`;
+  return `Ihr Termin am ${termin} ist bestätigt. Wir freuen uns auf das Gespräch!`;
 }
 
 export function smsVorschlag(termin: string, link: string, mitWunsch: boolean): string {
   const anfang = mitWunsch
     ? `Ihr Wunschtermin passt bei uns leider nicht. Wir schlagen ${termin} vor.`
-    : `Wie eben telefonisch besprochen: Wir schlagen ${termin} für ein Gespräch vor.`;
+    : `Wir schlagen Ihnen ${termin} für ein Gespräch vor.`;
   return `${anfang} Passt das? Antwort hier:\n${link}\n\nOder per Anruf unter +49 6108 9694027`;
 }
