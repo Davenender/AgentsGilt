@@ -89,6 +89,18 @@ export function kanalName(nr: string): string {
   return nr.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 }
 
+const CHECKLIST = [
+  "Angebot raus",
+  "Vertrag unterschrieben",
+  "AVV unterschrieben",
+  "Anzahlung erhalten",
+  "Material erhalten",
+  "Abnahme erfolgt",
+  "Live / Übergeben",
+];
+
+const euro = (v: string) => (v ? `${Number(v).toLocaleString("de-DE")} €` : "");
+
 /** "2026-10-30" -> "30.10.2026", "2026-10-30T14:00:00.000+01:00" -> "30.10.2026, 14:00 Uhr". */
 function datum(v: string): string {
   const m = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
@@ -118,10 +130,18 @@ export function kundenKarte(k: Kunde): EmbedLike {
   add("Zuständig", w("Zuständig"));
   add("Zeit gesamt", stunden(w("Gesamtstunden")));
   add("Zahlungsstatus", w("Zahlungsstatus"));
+  add("Setup-Preis", euro(w("Setup-Preis (€)")));
+  add("Retainer pro Monat", euro(w("Retainer (€/Monat)")));
+  add("Quelle", w("Quelle"));
   add("E-Mail", w("E-Mail"));
   add("Telefon", w("Telefon"));
   add("Nächster Termin", datum(w("Nächstes Follow-up")));
   add("Nächster Schritt", w("Nächster Schritt"), false);
+  fields.push({
+    name: "Checkliste",
+    value: CHECKLIST.map((c) => `${wert(k.props[c]) === "ja" ? "✅" : "⬜"} ${c}`).join("\n"),
+    inline: false,
+  });
   if (k.url) fields.push({ name: "Notion", value: `[Kundenseite öffnen](${k.url})`, inline: false });
 
   return {
@@ -145,7 +165,17 @@ export function aenderungen(alt: EmbedLike | null, neu: EmbedLike): string[] {
   for (const [name, value] of n) {
     if (OHNE_MELDUNG.has(name)) continue;
     const before = a.get(name) ?? "";
-    if (before !== value) out.push(`**${name}:** ${before || "leer"} → ${value}`);
+    if (before === value) continue;
+    if (name === "Checkliste") {
+      // Pro Punkt eine Zeile: nur was sich wirklich geändert hat.
+      const lines = (t: string) => new Map(t.split("\n").map((l) => [l.slice(2), l.slice(0, 1)]));
+      const la = lines(before);
+      for (const [item, mark] of lines(value)) {
+        if (la.get(item) !== mark) out.push(`${mark} **${item}**`);
+      }
+    } else {
+      out.push(`**${name}:** ${before || "leer"} → ${value}`);
+    }
   }
   // Felder, die jetzt leer sind
   for (const [name, before] of a) {
