@@ -109,13 +109,20 @@ function datum(v: string): string {
   return m[4] && !(m[4] === "00" && m[5] === "00") ? `${tag}, ${m[4]}:${m[5]} Uhr` : tag;
 }
 
+/** Die Formel liefert 0 bis 1 oder 0 bis 100, beides wird zu "29 %". */
+const prozent = (v: string) => {
+  if (v === "") return "";
+  const n = Number(v);
+  return `${Math.round(n <= 1 ? n * 100 : n)} %`;
+};
+
 const stunden = (v: string) =>
   v === "" ? "" : `${Number(v).toLocaleString("de-DE", { maximumFractionDigits: 1 })} h`;
 
 export const CARD_MARKER = "Kundenkarte";
 
 /** Felder, die sich ständig ändern und deshalb keine eigene Zeile im Kanal bekommen. */
-const OHNE_MELDUNG = new Set(["Zeit gesamt", "Notion"]);
+const OHNE_MELDUNG = new Set(["Zeit gesamt", "Fortschritt", "Notion"]);
 
 /** Baut die Karte, die im Kundenkanal steht und bei Änderungen überschrieben wird. */
 export function kundenKarte(k: Kunde): EmbedLike {
@@ -128,6 +135,7 @@ export function kundenKarte(k: Kunde): EmbedLike {
   add("Status", w("Status"));
   add("Angebot", w("Angebot"));
   add("Zuständig", w("Zuständig"));
+  add("Fortschritt", prozent(w("Fortschritt (%)")));
   add("Zeit gesamt", stunden(w("Gesamtstunden")));
   add("Zahlungsstatus", w("Zahlungsstatus"));
   add("Setup-Preis", euro(w("Setup-Preis (€)")));
