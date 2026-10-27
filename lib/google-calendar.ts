@@ -1,5 +1,5 @@
 import { createSign } from "node:crypto";
-import { berlinNow, parseDatum } from "@/lib/termin";
+import { berlinNow, formatTermin, parseDatum } from "@/lib/termin";
 
 // Stellt den vorläufigen Kalendereintrag um, wenn ein Termin bestätigt wird.
 //
@@ -90,6 +90,7 @@ interface CalEvent {
   summary?: string;
   start?: { dateTime?: string };
   end?: { dateTime?: string };
+  extendedProperties?: { private?: Record<string, string> };
 }
 
 async function call<T>(token: string, path: string, init?: RequestInit): Promise<T | null> {
@@ -133,6 +134,7 @@ const HAND = "bitte von Hand ändern";
 export async function bestaetigeKalender(
   wunschLabel: string | undefined,
   bestaetigtLabel: string,
+  meta?: { messageId: string; ownerId?: string },
 ): Promise<KalenderErgebnis> {
   if (!calendarConfigured()) {
     return { geaendert: false, text: `Eintrag „${MARKER}“ im Kalender auf diesen Termin ändern` };
@@ -171,6 +173,18 @@ export async function bestaetigeKalender(
 
     const titel = ev.summary!.replace(new RegExp(`${MARKER}\\s*[—–-]\\s*`), "").trim();
     const body: Record<string, unknown> = { summary: titel };
+    // Merkt sich, zu welchem Anruf der Termin gehört und wer ihn hat, damit der
+    // Bot später in #termine erinnern kann. "0" = Erinnerung noch nicht gesendet.
+    if (meta) {
+      body.extendedProperties = {
+        private: {
+          agMsg: meta.messageId,
+          agOwner: meta.ownerId ?? "",
+          agR24: "0",
+          agR1: "0",
+        },
+      };
+    }
 
     const verschieben = neu.datum !== wunsch.datum || neu.zeit !== wunsch.zeit;
     if (verschieben) {
@@ -277,4 +291,84 @@ export async function pruefeFrei(
     console.error("[kalender] Prüfung fehlgeschlagen:", err);
     return { belegt: false };
   }
+}
+
+// ------------------------------------------------------------- Erinnerungen
+
+export interface Erinnerung {
+  eventId: string;
+  art: "tag" | "stunde";
+  /** Titel ohne "Erstgespräch — ", z.B. "Max Test, Test GmbH" */
+  wer: string;
+  /** "heute", "morgen" oder das Datum */
+  wann: string;
+  /** "Mi, 28.10., 14:00 Uhr" */
+  label: string;
+  ownerId?: string;
+  messageId?: string;
+}
+
+/**
+ * Bestätigte Termine der nächsten 25 Stunden, für die eine Erinnerung fällig ist:
+ * "tag" (zwischen 24 und 3 Stunden vorher) und "stunde" (in der letzten Stunde).
+ * Was zu kurzfristig bestätigt wurde, bekommt nur die Stunden-Erinnerung.
+ */
+export async function holeErinnerungen(now = new Date()): Promise<Erinnerung[]> {
+  if (!calendarConfigured()) return [];
+  const token = await accessToken();
+  if (!token) return [];
+  const calId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID!);
+
+  const list = await call<{ items?: CalEvent[] }>(
+    token,
+    `/calendars/${calId}/events?singleEvents=true&orderBy=startTime&timeZone=Europe%2FBerlin&maxResults=50` +
+      `&timeMin=${encodeURIComponent(new Date(now.getTime() - 10 * 60_000).toISOString())}` +
+      `&timeMax=${encodeURIComponent(new Date(now.getTime() + 25 * 3600_000).toISOString())}`,
+  );
+
+  const heute = berlinNow(now);
+  const out: Erinnerung[] = [];
+  for (const e of list?.items ?? []) {
+    const priv = e.extendedProperties?.private;
+    if (!priv?.agMsg || !e.start?.dateTime || e.summary?.includes(MARKER)) continue;
+
+    const minuten = (Date.parse(e.start.dateTime) - now.getTime()) / 60_000;
+    let art: Erinnerung["art"] | null = null;
+    if (minuten <= 60 && minuten > -10 && priv.agR1 !== "1") art = "stunde";
+    else if (minuten <= 1440 && minuten > 180 && priv.agR24 !== "1") art = "tag";
+    if (!art) continue;
+
+    const [y, m, d] = e.start.dateTime.slice(0, 10).split("-").map(Number);
+    const label = formatTermin({ year: y, month: m, day: d, hour: Number(e.start.dateTime.slice(11, 13)), minute: Number(e.start.dateTime.slice(14, 16)) });
+    const tage = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(heute.year, heute.month - 1, heute.day)) / 86400000);
+
+    out.push({
+      eventId: e.id,
+      art,
+      wer: (e.summary ?? "Termin").replace(/^Erstgespräch\s*[—–-]\s*/, ""),
+      wann: tage <= 0 ? "heute" : "morgen",
+      label,
+      ownerId: priv.agOwner || undefined,
+      messageId: priv.agMsg,
+    });
+  }
+  return out;
+}
+
+/** Hakt eine Erinnerung ab (oder nimmt den Haken zurück, wenn das Senden scheitert). */
+export async function markiereErinnert(
+  eventId: string,
+  art: "tag" | "stunde",
+  gesendet: boolean,
+): Promise<boolean> {
+  const token = await accessToken();
+  if (!token) return false;
+  const calId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID!);
+  const res = await call<CalEvent>(token, `/calendars/${calId}/events/${eventId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      extendedProperties: { private: { [art === "tag" ? "agR24" : "agR1"]: gesendet ? "1" : "0" } },
+    }),
+  });
+  return Boolean(res);
 }

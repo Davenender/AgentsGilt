@@ -144,6 +144,11 @@ export function currentOwner(embed: EmbedLike): string | undefined {
   return fieldValue(embed, OWNER_FIELD);
 }
 
+/** Discord-Kennung des Bearbeiters. Er steht als Erwähnung (<@123>) im Feld "Bearbeiter". */
+export function ownerId(embed: EmbedLike): string | undefined {
+  return currentOwner(embed)?.match(/<@!?(\d+)>/)?.[1];
+}
+
 /**
  * Der Termin, um den es gerade geht: was der Kunde sich zuletzt gewünscht hat,
  * sonst der letzte Vorschlag, sonst der Wunsch aus dem Anruf.

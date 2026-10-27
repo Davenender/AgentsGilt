@@ -13,6 +13,7 @@ import {
   currentAppointment,
   hasWish,
   originalWish,
+  ownerId,
   PROPOSAL_MODAL_PREFIX,
   proposalModal,
   proposedByUs,
@@ -130,6 +131,9 @@ export async function POST(request: Request) {
   const user = interaction.member?.user;
   if (!user) return ephemeral("Das geht nur im Server, nicht per Direktnachricht.");
   const who = interaction.member?.nick || user.global_name || user.username || "Unbekannt";
+  // Im Feld "Bearbeiter" steht eine Erwähnung: zeigt den Namen an, und der Bot
+  // kann die Person später für Terminerinnerungen markieren.
+  const ownerTag = `<@${user.id}>`;
   const customId = interaction.data?.custom_id ?? "";
   const token = process.env.DISCORD_BOT_TOKEN;
   const channelId = interaction.channel_id ?? process.env.DISCORD_CHANNEL_ANRUFE;
@@ -181,7 +185,7 @@ export async function POST(request: Request) {
         return;
       }
       console.log(`[discord] Terminvorschlag per SMS von ${who}`);
-      const updated = proposedByUs(embed, eingabe.text, who, time);
+      const updated = proposedByUs(embed, eingabe.text, ownerTag, time);
       await editInteractionOriginal(appId, itoken, {
         embeds: [updated],
         components: callComponents("proposed"),
@@ -203,7 +207,7 @@ export async function POST(request: Request) {
   const state = stateOf(embed);
 
   if (action === "claim" || action === "done") {
-    const { embed: updated, state: next } = applyAction(embed, action, who, uhrzeit());
+    const { embed: updated, state: next } = applyAction(embed, action, ownerTag, uhrzeit());
     console.log(`[discord] Anruf-Knopf "${action}" von ${who}`);
     // 7 = die bestehende Nachricht aktualisieren
     return NextResponse.json({
@@ -255,9 +259,12 @@ export async function POST(request: Request) {
       return;
     }
     console.log(`[discord] Termin bestätigt per SMS von ${who}`);
-    const kal = await bestaetigeKalender(originalWish(embed), termin);
+    const kal = await bestaetigeKalender(originalWish(embed), termin, {
+      messageId,
+      ownerId: ownerId(embed) ?? user.id,
+    });
     await editInteractionOriginal(appId, itoken, {
-      embeds: [confirmedByUs(embed, termin, who, time, kal.text)],
+      embeds: [confirmedByUs(embed, termin, ownerTag, time, kal.text)],
       components: callComponents("confirmed"),
     });
   });

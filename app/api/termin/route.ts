@@ -5,6 +5,7 @@ import {
   confirmedByCustomer,
   customerWish,
   originalWish,
+  ownerId,
   OWNER_FIELD,
 } from "@/lib/discord-calls";
 import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
@@ -64,7 +65,10 @@ export async function POST(request: Request) {
   const time = uhrzeit();
 
   if (body.action === "accept") {
-    const kal = await bestaetigeKalender(originalWish(v.embed), v.termin);
+    const kal = await bestaetigeKalender(originalWish(v.embed), v.termin, {
+      messageId: v.messageId,
+      ownerId: ownerId(v.embed),
+    });
     const ok = await editMessage(token, channelId, v.messageId, {
       embeds: [confirmedByCustomer(v.embed, time, kal.text)],
       components: callComponents("confirmed"),

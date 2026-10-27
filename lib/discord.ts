@@ -197,6 +197,64 @@ export async function followupPrivate(
   }
 }
 
+const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
+
+/** Link zu einer Nachricht im Server. */
+export function messageLink(channelId: string, messageId: string): string {
+  return `https://discord.com/channels/${GUILD_ID}/${channelId}/${messageId}`;
+}
+
+let channelCache = new Map<string, string>();
+
+/** Findet einen Textkanal des Servers über seinen Namen (z.B. "termine"). */
+export async function findChannelId(
+  token: string | undefined,
+  name: string,
+): Promise<string | null> {
+  if (!token) return null;
+  const cached = channelCache.get(name);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`${API}/guilds/${GUILD_ID}/channels`, {
+      headers: botHeaders(token),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      console.error(`[discord] Kanäle lesen fehlgeschlagen: HTTP ${res.status}`);
+      return null;
+    }
+    const all = (await res.json()) as { id: string; name: string; type: number }[];
+    channelCache = new Map(all.filter((c) => c.type === 0).map((c) => [c.name, c.id]));
+    return channelCache.get(name) ?? null;
+  } catch (err) {
+    console.error("[discord] Kanäle lesen fehlgeschlagen:", err);
+    return null;
+  }
+}
+
+/** Schreibt eine Nachricht in einen Kanal und markiert nur die genannten Personen. */
+export async function postText(
+  token: string | undefined,
+  channelId: string,
+  content: string,
+  pingUserIds: string[] = [],
+): Promise<boolean> {
+  if (!token) return false;
+  try {
+    const res = await fetch(`${API}/channels/${channelId}/messages`, {
+      method: "POST",
+      headers: botHeaders(token),
+      body: JSON.stringify({ content, allowed_mentions: { parse: [], users: pingUserIds } }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) console.error(`[discord] Nachricht senden fehlgeschlagen: HTTP ${res.status}`);
+    return res.ok;
+  } catch (err) {
+    console.error("[discord] Nachricht senden fehlgeschlagen:", err);
+    return false;
+  }
+}
+
 export async function sendDiscord(
   webhookUrl: string | undefined,
   embed: DiscordEmbed,

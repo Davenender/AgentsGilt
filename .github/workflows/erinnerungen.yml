@@ -1,0 +1,16 @@
+name: Terminerinnerungen
+
+# Stößt alle 10 Minuten tagsüber (UTC 05:00 bis 17:50, also 6 bis 19 Uhr
+# Berliner Zeit) die Erinnerungen in #termine an. GitHub führt geplante
+# Läufe manchmal mit Verspätung aus; eine Erinnerung kommt dann entsprechend später.
+on:
+  schedule:
+    - cron: "*/10 5-17 * * *"
+  workflow_dispatch:
+
+jobs:
+  erinnern:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Erinnerungen abrufen
+        run: curl -fsS --max-time 60 -X POST https://agentsgilt.com/api/erinnerungen
