@@ -21,7 +21,7 @@ import {
   type CallAction,
   type EmbedLike,
 } from "@/lib/discord-calls";
-import { bestaetigeKalender } from "@/lib/google-calendar";
+import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 
@@ -166,6 +166,15 @@ export async function POST(request: Request) {
     const time = uhrzeit();
 
     after(async () => {
+      const frei = await pruefeFrei(eingabe.text, originalWish(embed));
+      if (frei.belegt) {
+        await followupPrivate(
+          appId,
+          itoken,
+          `${eingabe.text} ist im Kalender schon belegt („${frei.womit}“). Es wurde keine SMS gesendet. Bitte einen anderen Termin vorschlagen.`,
+        );
+        return;
+      }
       const res = await sendSms(bereit.mobile, text);
       if (!res.ok) {
         await followupPrivate(appId, itoken, `Die SMS konnte nicht gesendet werden (${res.reason}). Es wurde nichts geändert.`);
@@ -228,6 +237,18 @@ export async function POST(request: Request) {
   const time = uhrzeit();
 
   after(async () => {
+    // Hat der Kunde einen anderen Termin als im Anruf gewünscht, vorher prüfen, ob er frei ist.
+    if (termin !== originalWish(embed)) {
+      const frei = await pruefeFrei(termin, originalWish(embed));
+      if (frei.belegt) {
+        await followupPrivate(
+          appId,
+          itoken,
+          `${termin} ist im Kalender schon belegt („${frei.womit}“). Es wurde keine SMS gesendet. Bitte einen anderen Termin vorschlagen.`,
+        );
+        return;
+      }
+    }
     const res = await sendSms(bereit.mobile, smsBestaetigung(termin));
     if (!res.ok) {
       await followupPrivate(appId, itoken, `Die SMS konnte nicht gesendet werden (${res.reason}). Es wurde nichts geändert.`);

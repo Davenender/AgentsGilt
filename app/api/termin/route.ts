@@ -7,7 +7,7 @@ import {
   originalWish,
   OWNER_FIELD,
 } from "@/lib/discord-calls";
-import { bestaetigeKalender } from "@/lib/google-calendar";
+import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { terminAusEingabe } from "@/lib/termin";
 import { ladeVorschlag } from "@/lib/termin-kunde";
@@ -77,6 +77,15 @@ export async function POST(request: Request) {
   if (body.action === "wish") {
     const eingabe = terminAusEingabe(String(body.datum ?? ""), String(body.uhrzeit ?? ""));
     if (!eingabe.ok) return NextResponse.json({ error: eingabe.fehler }, { status: 400 });
+
+    // Gleich sagen, wenn der Wunsch schon vergeben ist (ohne zu verraten, wer dort einen Termin hat).
+    const frei = await pruefeFrei(eingabe.text, originalWish(v.embed));
+    if (frei.belegt) {
+      return NextResponse.json(
+        { error: "Zu dieser Zeit sind wir leider nicht frei. Bitte wählen Sie eine andere Zeit." },
+        { status: 409 },
+      );
+    }
 
     const ok = await editMessage(token, channelId, v.messageId, {
       embeds: [customerWish(v.embed, eingabe.text, time)],

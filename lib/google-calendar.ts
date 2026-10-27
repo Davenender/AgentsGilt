@@ -222,3 +222,59 @@ export async function bestaetigeKalender(
     return { geaendert: false, text: `Kalender nicht erreichbar, ${HAND}` };
   }
 }
+
+export interface FreiErgebnis {
+  /** true = im Kalender steht zu dieser Zeit schon etwas anderes */
+  belegt: boolean;
+  /** Titel des Termins, der im Weg steht */
+  womit?: string;
+}
+
+/**
+ * Prüft, ob ein Termin (60 Minuten) im Kalender frei ist. Der vorläufige
+ * Eintrag zum ursprünglichen Wunsch zählt nicht, er gehört ja zu diesem Anruf.
+ * Ist der Kalender nicht eingerichtet oder nicht erreichbar, gilt der Termin
+ * als nicht belegt, damit der Ablauf nicht daran hängt.
+ */
+export async function pruefeFrei(
+  terminLabel: string,
+  wunschLabel?: string,
+): Promise<FreiErgebnis> {
+  if (!calendarConfigured()) return { belegt: false };
+  const neu = labelZuDatumUndZeit(terminLabel);
+  if (!neu) return { belegt: false };
+  const wunsch = wunschLabel ? labelZuDatumUndZeit(wunschLabel) : null;
+
+  try {
+    const token = await accessToken();
+    if (!token) return { belegt: false };
+    const calId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID!);
+    const day = Date.parse(`${neu.datum}T12:00:00Z`);
+    const list = await call<{ items?: CalEvent[] }>(
+      token,
+      `/calendars/${calId}/events?singleEvents=true&timeZone=Europe%2FBerlin&maxResults=50` +
+        `&timeMin=${encodeURIComponent(new Date(day - 36 * 3600_000).toISOString())}` +
+        `&timeMax=${encodeURIComponent(new Date(day + 36 * 3600_000).toISOString())}`,
+    );
+    if (!list) return { belegt: false };
+
+    // Uhrzeiten als "naive" Berliner Zeit vergleichen (Zone steht schon in den Antworten).
+    const naive = (x?: string) => (x ? Date.parse(`${x.slice(0, 19)}Z`) : NaN);
+    const start = Date.parse(`${neu.datum}T${neu.zeit}:00Z`);
+    const ende = start + 60 * 60_000;
+
+    const im_weg = (list.items ?? []).find((e) => {
+      if (!e.start?.dateTime) return false; // ganztägige Einträge ignorieren
+      const eigener =
+        wunsch &&
+        e.summary?.includes(MARKER) &&
+        e.start.dateTime.startsWith(`${wunsch.datum}T${wunsch.zeit}`);
+      if (eigener) return false;
+      return naive(e.start.dateTime) < ende && naive(e.end?.dateTime) > start;
+    });
+    return im_weg ? { belegt: true, womit: im_weg.summary ?? "Termin" } : { belegt: false };
+  } catch (err) {
+    console.error("[kalender] Prüfung fehlgeschlagen:", err);
+    return { belegt: false };
+  }
+}
