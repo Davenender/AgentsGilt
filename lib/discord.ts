@@ -255,6 +255,102 @@ export async function postText(
   }
 }
 
+/** Legt einen Textkanal in einer Kategorie an. */
+export async function createTextChannel(
+  token: string | undefined,
+  name: string,
+  parentId: string | null,
+  topic?: string,
+): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const res = await fetch(`${API}/guilds/${GUILD_ID}/channels`, {
+      method: "POST",
+      headers: botHeaders(token),
+      body: JSON.stringify({
+        name,
+        type: 0,
+        ...(parentId ? { parent_id: parentId } : {}),
+        ...(topic ? { topic: topic.slice(0, 1024) } : {}),
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) {
+      console.error(`[discord] Kanal anlegen fehlgeschlagen: HTTP ${res.status}`);
+      return null;
+    }
+    const ch = (await res.json()) as { id: string; name: string };
+    channelCache.set(ch.name, ch.id);
+    return ch.id;
+  } catch (err) {
+    console.error("[discord] Kanal anlegen fehlgeschlagen:", err);
+    return null;
+  }
+}
+
+/** Findet eine Kategorie über ihren Namen (Groß-/Kleinschreibung egal). */
+export async function findCategoryId(
+  token: string | undefined,
+  name: string,
+): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const res = await fetch(`${API}/guilds/${GUILD_ID}/channels`, {
+      headers: botHeaders(token),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const all = (await res.json()) as { id: string; name: string; type: number }[];
+    return all.find((c) => c.type === 4 && c.name.toLowerCase() === name.toLowerCase())?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Die letzten Nachrichten eines Kanals, neueste zuerst. */
+export async function listMessages(
+  token: string | undefined,
+  channelId: string,
+  limit = 100,
+): Promise<{ id: string; author: { bot?: boolean }; embeds: EmbedLike[] }[]> {
+  if (!token) return [];
+  try {
+    const res = await fetch(`${API}/channels/${channelId}/messages?limit=${limit}`, {
+      headers: botHeaders(token),
+      cache: "no-store",
+      signal: AbortSignal.timeout(6000),
+    });
+    return res.ok ? await res.json() : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Schickt ein Embed in einen Kanal und gibt die Nachrichten-ID zurück. */
+export async function postEmbed(
+  token: string | undefined,
+  channelId: string,
+  embed: unknown,
+): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const res = await fetch(`${API}/channels/${channelId}/messages`, {
+      method: "POST",
+      headers: botHeaders(token),
+      body: JSON.stringify({ embeds: [embed], allowed_mentions: NO_MENTIONS }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) {
+      console.error(`[discord] Embed senden fehlgeschlagen: HTTP ${res.status}`);
+      return null;
+    }
+    return ((await res.json()) as { id: string }).id;
+  } catch (err) {
+    console.error("[discord] Embed senden fehlgeschlagen:", err);
+    return null;
+  }
+}
+
 export async function sendDiscord(
   webhookUrl: string | undefined,
   embed: DiscordEmbed,
