@@ -12,6 +12,7 @@ import {
   confirmedByUs,
   currentAppointment,
   hasWish,
+  originalWish,
   PROPOSAL_MODAL_PREFIX,
   proposalModal,
   proposedByUs,
@@ -20,6 +21,7 @@ import {
   type CallAction,
   type EmbedLike,
 } from "@/lib/discord-calls";
+import { bestaetigeKalender } from "@/lib/google-calendar";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 
@@ -232,8 +234,9 @@ export async function POST(request: Request) {
       return;
     }
     console.log(`[discord] Termin bestätigt per SMS von ${who}`);
+    const kal = await bestaetigeKalender(originalWish(embed), termin);
     await editInteractionOriginal(appId, itoken, {
-      embeds: [confirmedByUs(embed, termin, who, time)],
+      embeds: [confirmedByUs(embed, termin, who, time, kal.text)],
       components: callComponents("confirmed"),
     });
   });

@@ -55,6 +55,7 @@ export const PROPOSAL_FIELD = "Aktueller Vorschlag";
 export const CUSTOMER_FIELD = "Kundenwunsch";
 export const FIXED_FIELD = "Bestätigter Termin";
 export const CALENDAR_FIELD = "Kalender";
+const DEFAULT_CALENDAR_TEXT = "Eintrag „VORLÄUFIG“ im Kalender auf diesen Termin ändern";
 
 /** Den Zustand liest man an der Farbe ab. Unbekannte Farbe zählt als offen. */
 export function stateOf(embed: EmbedLike): CallState {
@@ -154,6 +155,11 @@ export function currentAppointment(embed: EmbedLike): string | undefined {
   return fieldValue(embed, WISH_FIELD);
 }
 
+/** Der ursprüngliche Wunsch aus dem Anruf (so steht der vorläufige Eintrag im Kalender). */
+export function originalWish(embed: EmbedLike): string | undefined {
+  return fieldValue(embed, WISH_FIELD);
+}
+
 /** Gab es schon einen Terminwunsch aus dem Gespräch? Steuert den Ton der SMS. */
 export function hasWish(embed: EmbedLike): boolean {
   return Boolean(fieldValue(embed, WISH_FIELD)?.trim());
@@ -217,13 +223,19 @@ export function applyAction(
 }
 
 /** Nach "Termin bestätigen": SMS ist raus. */
-export function confirmedByUs(embed: EmbedLike, termin: string, who: string, time: string) {
+export function confirmedByUs(
+  embed: EmbedLike,
+  termin: string,
+  who: string,
+  time: string,
+  kalender = DEFAULT_CALENDAR_TEXT,
+) {
   return transition(embed, "confirmed", {
     status: `Termin bestätigt um ${time}, SMS an den Kunden gesendet`,
     owner: currentOwner(embed) ?? who,
     set: {
       [FIXED_FIELD]: termin,
-      [CALENDAR_FIELD]: "Eintrag „VORLÄUFIG“ im Kalender auf diesen Termin ändern",
+      [CALENDAR_FIELD]: kalender,
     },
   });
 }
@@ -239,13 +251,13 @@ export function proposedByUs(embed: EmbedLike, termin: string, who: string, time
 }
 
 /** Der Kunde hat über den Link zugesagt. */
-export function confirmedByCustomer(embed: EmbedLike, time: string) {
+export function confirmedByCustomer(embed: EmbedLike, time: string, kalender = DEFAULT_CALENDAR_TEXT) {
   const termin = fieldValue(embed, PROPOSAL_FIELD) ?? "";
   return transition(embed, "confirmed", {
     status: `Kunde hat den Vorschlag bestätigt um ${time}`,
     set: {
       [FIXED_FIELD]: termin,
-      [CALENDAR_FIELD]: "Eintrag „VORLÄUFIG“ im Kalender auf diesen Termin ändern",
+      [CALENDAR_FIELD]: kalender,
     },
   });
 }

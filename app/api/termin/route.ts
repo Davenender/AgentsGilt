@@ -4,8 +4,10 @@ import {
   callComponents,
   confirmedByCustomer,
   customerWish,
+  originalWish,
   OWNER_FIELD,
 } from "@/lib/discord-calls";
+import { bestaetigeKalender } from "@/lib/google-calendar";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { terminAusEingabe } from "@/lib/termin";
 import { ladeVorschlag } from "@/lib/termin-kunde";
@@ -62,8 +64,9 @@ export async function POST(request: Request) {
   const time = uhrzeit();
 
   if (body.action === "accept") {
+    const kal = await bestaetigeKalender(originalWish(v.embed), v.termin);
     const ok = await editMessage(token, channelId, v.messageId, {
-      embeds: [confirmedByCustomer(v.embed, time)],
+      embeds: [confirmedByCustomer(v.embed, time, kal.text)],
       components: callComponents("confirmed"),
     });
     if (!ok) return NextResponse.json({ error: "Das hat leider nicht geklappt. Bitte rufen Sie uns an." }, { status: 502 });
