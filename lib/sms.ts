@@ -18,9 +18,14 @@ export function smsConfigured(): boolean {
 }
 
 export async function sendSms(to: string, body: string): Promise<SmsResult> {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
+  // Beim Kopieren aus der Twilio-Konsole rutschen leicht Leerzeichen mit.
+  const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const token = process.env.TWILIO_AUTH_TOKEN?.trim();
   if (!sid || !token) return { ok: false, reason: "not-configured" };
+  if (!sid.startsWith("AC")) {
+    console.error(`[sms] TWILIO_ACCOUNT_SID beginnt mit "${sid.slice(0, 2)}" statt "AC"`);
+    return { ok: false, reason: "TWILIO_ACCOUNT_SID muss mit AC beginnen" };
+  }
 
   try {
     const res = await fetch(
