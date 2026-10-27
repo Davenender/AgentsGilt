@@ -113,7 +113,7 @@ export default function TerminAntwort({
                 required
                 min="09:00"
                 max="17:00"
-                step={1800}
+                step={300}
                 value={uhrzeit}
                 onChange={(e) => setUhrzeit(e.target.value)}
                 className="mt-1 block rounded-xl border border-line bg-white px-3 py-2 text-ink"

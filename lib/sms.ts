@@ -65,5 +65,5 @@ export function smsVorschlag(termin: string, link: string, mitWunsch: boolean): 
   const anfang = mitWunsch
     ? `Ihr Wunschtermin passt bei uns leider nicht. Wir schlagen ${termin} vor.`
     : `Wie eben telefonisch besprochen: Wir schlagen ${termin} für ein Gespräch vor.`;
-  return `${anfang} Passt das? Antwort hier: ${link} oder per Anruf unter +49 6108 9694027`;
+  return `${anfang} Passt das? Antwort hier:\n${link}\n\nOder per Anruf unter +49 6108 9694027`;
 }

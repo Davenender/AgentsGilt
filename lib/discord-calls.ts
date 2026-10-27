@@ -117,7 +117,7 @@ export function proposalModal(messageId: string) {
     title: "Terminvorschlag per SMS",
     components: [
       input("datum", "Datum", "28.10."),
-      input("uhrzeit", "Uhrzeit (Beginn 9 bis 17 Uhr)", "10:00"),
+      input("uhrzeit", "Uhrzeit (Beginn 9 bis 17 Uhr)", "10:30"),
     ],
   };
 }

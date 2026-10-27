@@ -78,9 +78,12 @@ export function parseDatum(
   return { year: y, month: m, day: d };
 }
 
-/** Liest "10:00", "10.30", "10" oder "10 Uhr". */
+/** Liest "10:00", "10.30", "10 30", "1030", "10", "10 Uhr" oder "10 Uhr 15". */
 export function parseUhrzeit(raw: string): { hour: number; minute: number } | null {
-  const m = raw.trim().match(/^(\d{1,2})(?:[:.](\d{2}))?\s*(?:uhr)?$/i);
+  const s = raw.trim().toLowerCase().replace(/\s+/g, " ");
+  const m =
+    s.match(/^(\d{1,2})\s?uhr\s?(\d{1,2})$/) ??
+    s.match(/^(\d{1,2})(?:[:. ]?(\d{2}))?\s?(?:uhr)?$/);
   if (!m) return null;
   const hour = Number(m[1]);
   const minute = m[2] ? Number(m[2]) : 0;

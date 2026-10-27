@@ -56,6 +56,9 @@ export async function POST(request: Request) {
   const channelId = process.env.DISCORD_CHANNEL_ANRUFE;
   const owner = v.embed.fields?.find((f) => f.name === OWNER_FIELD)?.value;
   const wer = owner ? ` (${owner})` : "";
+  // Name des Anrufers mit in die Antwort, damit klar ist, zu welchem Anruf sie gehört.
+  const anrufer = v.embed.fields?.find((f) => f.name === "Anrufer")?.value;
+  const kunde = anrufer ? `Der Kunde ${anrufer}` : "Der Kunde";
   const time = uhrzeit();
 
   if (body.action === "accept") {
@@ -64,7 +67,7 @@ export async function POST(request: Request) {
       components: callComponents("confirmed"),
     });
     if (!ok) return NextResponse.json({ error: "Das hat leider nicht geklappt. Bitte rufen Sie uns an." }, { status: 502 });
-    await replyTo(token, channelId, v.messageId, `✅ Der Kunde hat den Termin bestätigt: ${v.termin}${wer}`);
+    await replyTo(token, channelId, v.messageId, `✅ ${kunde} hat den Termin bestätigt: ${v.termin}${wer}`);
     return NextResponse.json({ ok: true, termin: v.termin });
   }
 
@@ -77,7 +80,7 @@ export async function POST(request: Request) {
       components: callComponents("customer_alt"),
     });
     if (!ok) return NextResponse.json({ error: "Das hat leider nicht geklappt. Bitte rufen Sie uns an." }, { status: 502 });
-    await replyTo(token, channelId, v.messageId, `🕒 Der Kunde wünscht stattdessen: ${eingabe.text}${wer}`);
+    await replyTo(token, channelId, v.messageId, `🕒 ${kunde} wünscht stattdessen: ${eingabe.text}${wer}`);
     return NextResponse.json({ ok: true, termin: eingabe.text });
   }
 
