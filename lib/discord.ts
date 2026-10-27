@@ -1,4 +1,5 @@
 import { createPublicKey, verify } from "node:crypto";
+import type { EmbedLike } from "@/lib/discord-calls";
 
 // Meldungen in den Discord-Server schicken, über einen Webhook pro Kanal.
 // Die Webhook-Adresse ist ein Geheimnis (wer sie kennt, kann in den Kanal
@@ -79,36 +80,120 @@ export async function postWithBot(
   }
 }
 
-/** Öffnet einen Faden an einer Nachricht (für den neuen Terminvorschlag). */
-export async function createThread(
+const NO_MENTIONS = { parse: [] as string[] };
+
+function botHeaders(token: string) {
+  return { "Content-Type": "application/json", Authorization: `Bot ${token}` };
+}
+
+/** Liest eine Nachricht aus dem Kanal (für die Kundenseite). */
+export async function getMessage(
   token: string | undefined,
-  channelId: string,
+  channelId: string | undefined,
   messageId: string,
-  name: string,
+): Promise<{ id: string; embeds: EmbedLike[] } | null> {
+  if (!token || !channelId) return null;
+  try {
+    const res = await fetch(`${API}/channels/${channelId}/messages/${messageId}`, {
+      headers: botHeaders(token),
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as { id: string; embeds: EmbedLike[] };
+  } catch (err) {
+    console.error("[discord] Nachricht lesen fehlgeschlagen:", err);
+    return null;
+  }
+}
+
+/** Ändert Embed und Knöpfe einer bestehenden Nachricht. */
+export async function editMessage(
+  token: string | undefined,
+  channelId: string | undefined,
+  messageId: string,
+  body: { embeds: unknown[]; components: unknown[] },
 ): Promise<boolean> {
-  if (!token) return false;
+  if (!token || !channelId) return false;
+  try {
+    const res = await fetch(`${API}/channels/${channelId}/messages/${messageId}`, {
+      method: "PATCH",
+      headers: botHeaders(token),
+      body: JSON.stringify({ ...body, allowed_mentions: NO_MENTIONS }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) console.error(`[discord] Nachricht ändern fehlgeschlagen: HTTP ${res.status}`);
+    return res.ok;
+  } catch (err) {
+    console.error("[discord] Nachricht ändern fehlgeschlagen:", err);
+    return false;
+  }
+}
+
+/** Schreibt eine kurze Antwort unter die Meldung, damit der Kanal aufleuchtet. */
+export async function replyTo(
+  token: string | undefined,
+  channelId: string | undefined,
+  messageId: string,
+  content: string,
+): Promise<void> {
+  if (!token || !channelId) return;
+  try {
+    const res = await fetch(`${API}/channels/${channelId}/messages`, {
+      method: "POST",
+      headers: botHeaders(token),
+      body: JSON.stringify({
+        content,
+        message_reference: { message_id: messageId, fail_if_not_exists: false },
+        allowed_mentions: NO_MENTIONS,
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) console.error(`[discord] Antwort fehlgeschlagen: HTTP ${res.status}`);
+  } catch (err) {
+    console.error("[discord] Antwort fehlgeschlagen:", err);
+  }
+}
+
+/** Ändert die Nachricht, unter der ein Knopf gedrückt wurde (nach verzögerter Antwort). */
+export async function editInteractionOriginal(
+  applicationId: string,
+  interactionToken: string,
+  body: { embeds: unknown[]; components: unknown[] },
+): Promise<boolean> {
   try {
     const res = await fetch(
-      `${API}/channels/${channelId}/messages/${messageId}/threads`,
+      `${API}/webhooks/${applicationId}/${interactionToken}/messages/@original`,
       {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bot ${token}`,
-        },
-        body: JSON.stringify({ name: name.slice(0, 100), auto_archive_duration: 1440 }),
-        // Discord erwartet die Antwort auf einen Knopfdruck binnen 3 Sekunden.
-        signal: AbortSignal.timeout(1500),
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, allowed_mentions: NO_MENTIONS }),
+        signal: AbortSignal.timeout(8000),
       },
     );
-    if (!res.ok) {
-      console.error(`[discord] Faden konnte nicht angelegt werden: HTTP ${res.status}`);
-      return false;
-    }
-    return true;
+    if (!res.ok) console.error(`[discord] Original ändern fehlgeschlagen: HTTP ${res.status}`);
+    return res.ok;
   } catch (err) {
-    console.error("[discord] Faden konnte nicht angelegt werden:", err);
+    console.error("[discord] Original ändern fehlgeschlagen:", err);
     return false;
+  }
+}
+
+/** Nachricht, die nur der sieht, der geklickt hat (nach verzögerter Antwort). */
+export async function followupPrivate(
+  applicationId: string,
+  interactionToken: string,
+  content: string,
+): Promise<void> {
+  try {
+    await fetch(`${API}/webhooks/${applicationId}/${interactionToken}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, flags: 64 }),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    console.error("[discord] Rückmeldung fehlgeschlagen:", err);
   }
 }
 

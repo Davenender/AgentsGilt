@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { buildEmbed, postWithBot, sendDiscord } from "@/lib/discord";
 import { callComponents, openEmbed } from "@/lib/discord-calls";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
+import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
 
 export const runtime = "nodejs";
 
@@ -96,6 +97,7 @@ function collectFields(msg: VapiPayload["message"]): Record<string, string> {
  */
 async function summarize(
   transcript: string,
+  callDate: string,
 ): Promise<{ summary: string; fields: Record<string, string> }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey || !transcript.trim()) return { summary: "", fields: {} };
@@ -104,16 +106,18 @@ async function summarize(
     const anthropic = new Anthropic({ apiKey });
     const res = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 500,
+      max_tokens: 700,
       system: `Du wertest Telefonate aus, die ein KI-Assistent für die Agentur "Agents Gilt" entgegengenommen hat.
 
 Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, ohne Markdown und ohne Erklärung:
-{"anrufer":"","betrieb":"","rueckrufnummer":"","terminwunsch":"","zusammenfassung":""}
+{"anrufer":"","betrieb":"","rueckrufnummer":"","terminwunsch":"","termin_datum":"","termin_uhrzeit":"","zusammenfassung":""}
 
 - anrufer: Vor- und Nachname, falls genannt
 - betrieb: Art und Name des Betriebs, falls genannt
 - rueckrufnummer: genannte Rückrufnummer, nur Ziffern und Leerzeichen
-- terminwunsch: vereinbarter oder gewünschter Termin mit Datum und Uhrzeit
+- terminwunsch: vereinbarter oder gewünschter Termin mit Datum und Uhrzeit, als Text
+- termin_datum: das Datum dieses Termins als JJJJ-MM-TT. Heute ist der ${callDate}; rechne "morgen", "Freitag" oder "am 23." von diesem Datum aus um. Leer, wenn kein Termin genannt wurde.
+- termin_uhrzeit: die Uhrzeit dieses Termins als HH:MM (24 Stunden), leer wenn keine genannt wurde
 - zusammenfassung: zwei bis drei Sätze auf Deutsch, sachlich als Notiz für einen Kollegen
 
 Felder, zu denen im Gespräch nichts gesagt wurde, bleiben leer. Erfinde nichts.
@@ -136,6 +140,14 @@ Beachte: Die Spracherkennung schreibt den Firmennamen oft falsch ("Agent Skilled
     };
 
     const fields: Record<string, string> = {};
+
+    // Den Termin einheitlich als "Mi, 28.10., 10:00 Uhr" ausgeben, damit er sich
+    // direkt in die SMS an den Kunden einsetzen lässt. Klappt das nicht, bleibt
+    // der freie Text aus dem Gespräch stehen.
+    const datum = parseDatum(pick("termin_datum"));
+    const uhr = parseUhrzeit(pick("termin_uhrzeit"));
+    if (datum && uhr) parsed.terminwunsch = formatTermin({ ...datum, ...uhr });
+
     const map: Array<[string, string]> = [
       ["Anrufer", "anrufer"],
       ["Betrieb", "betrieb"],
@@ -214,7 +226,12 @@ export async function POST(request: Request) {
   // Vapi liefert die Felder derzeit nicht mit — dann selbst zusammenfassen.
   let summary = summaryFromVapi;
   if (Object.keys(fields).length === 0 || !summary) {
-    const eigen = await summarize(transcript);
+    const eigen = await summarize(
+      transcript,
+      (msg?.startedAt ? new Date(msg.startedAt) : new Date()).toLocaleDateString("sv-SE", {
+        timeZone: "Europe/Berlin",
+      }),
+    );
     if (!summary) summary = eigen.summary;
     for (const [k, v] of Object.entries(eigen.fields)) {
       if (!fields[k]) fields[k] = v;

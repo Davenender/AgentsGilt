@@ -130,6 +130,18 @@ export default function DatenschutzPage() {
             nicht mehr erforderlich sind.
           </p>
           <p className="mt-3">
+            Vereinbarst du am Telefon einen Termin, schicken wir dir an deine
+            Handynummer eine SMS mit der Bestätigung oder einem anderen
+            Terminvorschlag. Ein Vorschlag enthält einen Link auf agentsgilt.com,
+            über den du ihn annehmen oder einen anderen Termin wünschen kannst.
+            Für den SMS-Versand nutzen wir Twilio Inc. (USA) als
+            Auftragsverarbeiter. Damit wir dein Anliegen im Team abstimmen
+            können, legen wir Name, Rückrufnummer, Terminwunsch und eine kurze
+            Zusammenfassung des Gesprächs in einem internen, nur für unser Team
+            sichtbaren Kanal bei Discord Inc. (USA) ab. Auch hier erfolgt die
+            Übermittlung in die USA auf Grundlage der EU-Standardvertragsklauseln.
+          </p>
+          <p className="mt-3">
             Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Durchführung
             vorvertraglicher Maßnahmen auf deine Anfrage hin) sowie Art. 6 Abs. 1
             lit. f DSGVO (berechtigtes Interesse an einer durchgehenden

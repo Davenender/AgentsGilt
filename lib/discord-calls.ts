@@ -1,15 +1,28 @@
+import { isGermanMobile, toE164 } from "@/lib/termin";
+
 // Zustand und Knöpfe der Anruf-Meldungen in Discord.
 //
-// Der Zustand eines Anrufs (offen, übernommen, Termin nicht möglich, erledigt)
-// steht in der Nachricht selbst: als Feld "Status" und "Bearbeiter" im Embed
-// plus der Farbe. So braucht es keine Datenbank, und jeder sieht sofort, wie
-// es um einen Anruf steht.
+// Der Zustand eines Anrufs steht in der Nachricht selbst: als Farbe des Embeds
+// und als Felder "Status", "Bearbeiter" usw. So braucht es keine Datenbank,
+// und jeder sieht sofort, wie es um einen Anruf steht.
+//
+// Ablauf: Offen -> Übernommen -> (Termin bestätigen -> Bestätigt)
+//                              oder (Neuer Termin vorgeschlagen -> Kunde antwortet
+//                                    per Link: bestätigt, oder wünscht anderen Termin)
+//         Erledigt geht jederzeit (z.B. wenn nur zurückgerufen wurde).
 
-export type CallState = "open" | "claimed" | "nodate" | "done";
+export type CallState =
+  | "open"
+  | "claimed"
+  | "proposed"
+  | "customer_alt"
+  | "confirmed"
+  | "done";
 
-export type CallAction = "claim" | "nodate" | "done";
+export type CallAction = "claim" | "confirm" | "propose" | "done";
 
 export const CALL_CUSTOM_ID_PREFIX = "call:";
+export const PROPOSAL_MODAL_PREFIX = "call:proposal:";
 
 export interface EmbedField {
   name: string;
@@ -29,27 +42,31 @@ export interface EmbedLike {
 const STATE_COLOR: Record<CallState, number> = {
   open: 0xd4a23c, // Gold, wie das Logo
   claimed: 0x3b82f6, // Blau
-  nodate: 0xf97316, // Orange
-  done: 0x22c55e, // Grün
-};
-
-const STATE_LABEL: Record<CallState, string> = {
-  open: "Offen",
-  claimed: "Übernommen",
-  nodate: "Termin nicht möglich",
-  done: "Erledigt",
+  proposed: 0xf97316, // Orange: wartet auf den Kunden
+  customer_alt: 0xa855f7, // Violett: Kunde wünscht etwas anderes
+  confirmed: 0x22c55e, // Grün: Termin steht
+  done: 0x6b7280, // Grau: abgeschlossen
 };
 
 export const STATUS_FIELD = "Status";
 export const OWNER_FIELD = "Bearbeiter";
+export const WISH_FIELD = "Terminwunsch";
+export const PROPOSAL_FIELD = "Aktueller Vorschlag";
+export const CUSTOMER_FIELD = "Kundenwunsch";
+export const FIXED_FIELD = "Bestätigter Termin";
+export const CALENDAR_FIELD = "Kalender";
+
+/** Den Zustand liest man an der Farbe ab. Unbekannte Farbe zählt als offen. */
+export function stateOf(embed: EmbedLike): CallState {
+  const found = (Object.keys(STATE_COLOR) as CallState[]).find(
+    (s) => STATE_COLOR[s] === embed.color,
+  );
+  return found ?? "open";
+}
 
 /** Knöpfe, die zum jeweiligen Zustand passen (Discord: Action Row mit Buttons). */
 export function callComponents(state: CallState) {
-  const button = (
-    label: string,
-    action: CallAction,
-    style: 1 | 2 | 3 | 4,
-  ) => ({
+  const button = (label: string, action: CallAction, style: 1 | 2 | 3 | 4) => ({
     type: 2,
     label,
     style,
@@ -58,35 +75,51 @@ export function callComponents(state: CallState) {
 
   switch (state) {
     case "open":
-      return [
-        {
-          type: 1,
-          components: [
-            button("Übernehmen", "claim", 3),
-            button("Termin nicht möglich", "nodate", 4),
-          ],
-        },
-      ];
+      return [{ type: 1, components: [button("Übernehmen", "claim", 3)] }];
     case "claimed":
+    case "proposed":
+    case "customer_alt":
       return [
         {
           type: 1,
           components: [
-            button("Zurückgerufen / Erledigt", "done", 1),
-            button("Termin nicht möglich", "nodate", 4),
+            button("Termin bestätigen (SMS)", "confirm", 3),
+            button("Anderen Termin vorschlagen", "propose", 1),
+            button("Erledigt", "done", 2),
           ],
         },
       ];
-    case "nodate":
-      return [
-        {
-          type: 1,
-          components: [button("Neuer Termin steht / Erledigt", "done", 1)],
-        },
-      ];
+    case "confirmed":
     case "done":
       return [];
   }
+}
+
+/** Das kleine Fenster, in dem man Datum und Uhrzeit eines Vorschlags eingibt. */
+export function proposalModal(messageId: string) {
+  const input = (id: string, label: string, placeholder: string) => ({
+    type: 1,
+    components: [
+      {
+        type: 4,
+        custom_id: id,
+        label,
+        style: 1,
+        placeholder,
+        required: true,
+        min_length: 1,
+        max_length: 12,
+      },
+    ],
+  });
+  return {
+    custom_id: `${PROPOSAL_MODAL_PREFIX}${messageId}`,
+    title: "Terminvorschlag per SMS",
+    components: [
+      input("datum", "Datum", "28.10."),
+      input("uhrzeit", "Uhrzeit (Beginn 9 bis 17 Uhr)", "10:00"),
+    ],
+  };
 }
 
 /** Setzt ein Feld (legt es an, falls es fehlt) und lässt die anderen unberührt. */
@@ -102,51 +135,127 @@ function withField(
   return list;
 }
 
+function fieldValue(embed: EmbedLike, name: string): string | undefined {
+  return embed.fields?.find((f) => f.name === name)?.value;
+}
+
 export function currentOwner(embed: EmbedLike): string | undefined {
-  return embed.fields?.find((f) => f.name === OWNER_FIELD)?.value;
+  return fieldValue(embed, OWNER_FIELD);
 }
 
 /**
- * Baut das Embed nach einem Knopfdruck neu.
- * "who" ist der Anzeigename, "time" die Uhrzeit des Klicks (schon formatiert).
+ * Der Termin, um den es gerade geht: was der Kunde sich zuletzt gewünscht hat,
+ * sonst der letzte Vorschlag, sonst der Wunsch aus dem Anruf.
  */
+export function currentAppointment(embed: EmbedLike): string | undefined {
+  const state = stateOf(embed);
+  if (state === "customer_alt") return fieldValue(embed, CUSTOMER_FIELD);
+  if (state === "proposed") return fieldValue(embed, PROPOSAL_FIELD);
+  return fieldValue(embed, WISH_FIELD);
+}
+
+/** Gab es schon einen Terminwunsch aus dem Gespräch? Steuert den Ton der SMS. */
+export function hasWish(embed: EmbedLike): boolean {
+  return Boolean(fieldValue(embed, WISH_FIELD)?.trim());
+}
+
+/**
+ * Handynummer des Kunden für die SMS: erst die genannte Rückrufnummer, dann die
+ * Nummer, von der er angerufen hat (steht im Titel). Festnetz zählt nicht.
+ */
+export function resolveMobile(embed: EmbedLike): { mobile: string | null; seen: string[] } {
+  const raw: string[] = [];
+  const callback = fieldValue(embed, "Rückrufnummer");
+  if (callback) raw.push(callback);
+  const inTitle = embed.title?.match(/\+?\d[\d\s()-]{7,}\d/)?.[0];
+  if (inTitle) raw.push(inTitle);
+
+  const numbers = raw.map(toE164).filter((n): n is string => Boolean(n));
+  return { mobile: numbers.find(isGermanMobile) ?? null, seen: numbers };
+}
+
+interface Change {
+  status: string;
+  owner?: string;
+  set?: Record<string, string>;
+  remove?: string[];
+}
+
+/** Baut das Embed für einen neuen Zustand. */
+export function transition(embed: EmbedLike, to: CallState, change: Change): EmbedLike {
+  let fields = withField(embed.fields, STATUS_FIELD, change.status);
+  if (change.owner) fields = withField(fields, OWNER_FIELD, change.owner);
+  for (const [name, value] of Object.entries(change.set ?? {})) {
+    fields = withField(fields, name, value);
+  }
+  if (change.remove?.length) {
+    fields = fields.filter((f) => !change.remove!.includes(f.name));
+  }
+  return { ...embed, color: STATE_COLOR[to], fields };
+}
+
+/** Übernehmen und Erledigt: ohne SMS, sofort. */
 export function applyAction(
   embed: EmbedLike,
-  action: CallAction,
+  action: "claim" | "done",
   who: string,
   time: string,
 ): { embed: EmbedLike; state: CallState } {
-  let state: CallState;
-  let status: string;
-  let owner: string | undefined;
-
-  switch (action) {
-    case "claim":
-      state = "claimed";
-      status = `${STATE_LABEL.claimed} um ${time}`;
-      owner = who;
-      break;
-    case "nodate":
-      state = "nodate";
-      status = `${STATE_LABEL.nodate}, gemeldet um ${time}. Neuer Termin wird gesucht (siehe Faden).`;
-      // Wer den Anruf schon hat, bleibt Bearbeiter, sonst trägt sich der
-      // Meldende ein, damit jemand zuständig ist.
-      owner = currentOwner(embed) ?? who;
-      break;
-    case "done":
-      state = "done";
-      status = `${STATE_LABEL.done} um ${time}`;
-      owner = currentOwner(embed) ?? who;
-      break;
+  if (action === "claim") {
+    return {
+      embed: transition(embed, "claimed", { status: `Übernommen um ${time}`, owner: who }),
+      state: "claimed",
+    };
   }
-
-  let fields = withField(embed.fields, STATUS_FIELD, status);
-  if (owner) fields = withField(fields, OWNER_FIELD, owner);
-
   return {
-    embed: { ...embed, color: STATE_COLOR[state], fields },
-    state,
+    embed: transition(embed, "done", {
+      status: `Erledigt um ${time}`,
+      owner: currentOwner(embed) ?? who,
+    }),
+    state: "done",
   };
+}
+
+/** Nach "Termin bestätigen": SMS ist raus. */
+export function confirmedByUs(embed: EmbedLike, termin: string, who: string, time: string) {
+  return transition(embed, "confirmed", {
+    status: `Termin bestätigt um ${time}, SMS an den Kunden gesendet`,
+    owner: currentOwner(embed) ?? who,
+    set: {
+      [FIXED_FIELD]: termin,
+      [CALENDAR_FIELD]: "Eintrag „VORLÄUFIG“ im Kalender auf diesen Termin ändern",
+    },
+  });
+}
+
+/** Nach einem Vorschlag per SMS: wartet auf den Kunden. */
+export function proposedByUs(embed: EmbedLike, termin: string, who: string, time: string) {
+  return transition(embed, "proposed", {
+    status: `Vorschlag per SMS gesendet um ${time}, wartet auf die Antwort des Kunden`,
+    owner: currentOwner(embed) ?? who,
+    set: { [PROPOSAL_FIELD]: termin },
+    remove: [CUSTOMER_FIELD],
+  });
+}
+
+/** Der Kunde hat über den Link zugesagt. */
+export function confirmedByCustomer(embed: EmbedLike, time: string) {
+  const termin = fieldValue(embed, PROPOSAL_FIELD) ?? "";
+  return transition(embed, "confirmed", {
+    status: `Kunde hat den Vorschlag bestätigt um ${time}`,
+    set: {
+      [FIXED_FIELD]: termin,
+      [CALENDAR_FIELD]: "Eintrag „VORLÄUFIG“ im Kalender auf diesen Termin ändern",
+    },
+  });
+}
+
+/** Der Kunde wünscht über den Link einen anderen Termin. */
+export function customerWish(embed: EmbedLike, termin: string, time: string) {
+  return transition(embed, "customer_alt", {
+    status: `Kunde wünscht einen anderen Termin (gemeldet um ${time})`,
+    set: { [CUSTOMER_FIELD]: termin },
+  });
 }
 
 /** Anfangszustand einer neuen Meldung. */
@@ -154,7 +263,6 @@ export function openEmbed(embed: EmbedLike): EmbedLike {
   return {
     ...embed,
     color: STATE_COLOR.open,
-    fields: withField(embed.fields, STATUS_FIELD, STATE_LABEL.open),
+    fields: withField(embed.fields, STATUS_FIELD, "Offen"),
   };
 }
-
