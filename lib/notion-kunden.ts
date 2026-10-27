@@ -76,9 +76,10 @@ export function parseKunde(payload: unknown): Kunde | null {
 
   const titleProp = Object.values(props).find((p) => p?.type === "title");
   const name = wert(titleProp);
-  let nr = wert(props["KND-Nr."]) || null;
+  let nr = wert(props["KND-Nr."]).match(/^KND-\d{3,}$/) ? wert(props["KND-Nr."]) : null;
   if (!nr) {
-    const id = Number(wert(props["Kunden-ID"]));
+    // Die Kunden-ID kommt als "2" oder mit Vorsilbe als "KND-2".
+    const id = Number(wert(props["Kunden-ID"]).match(/(\d+)$/)?.[1]);
     if (Number.isFinite(id) && id > 0) nr = `KND-${String(id).padStart(3, "0")}`;
   }
   return { nr, name, url: page?.url, props };
