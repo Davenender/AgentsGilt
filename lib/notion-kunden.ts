@@ -43,6 +43,10 @@ export function wert(p: NotionProp | undefined): string {
       const d = p.date as { start?: string; end?: string } | null;
       return d?.start ? (d.end ? `${d.start} bis ${d.end}` : d.start) : "";
     }
+    case "rollup": {
+      const r = p.rollup as { type?: string; number?: number | null } | null;
+      return r?.type === "number" && r.number !== null && r.number !== undefined ? String(r.number) : "";
+    }
     case "email":
     case "phone_number":
     case "url":
@@ -85,19 +89,21 @@ export function kanalName(nr: string): string {
   return nr.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 }
 
-const CHECKLIST = [
-  "Angebot raus",
-  "Vertrag unterschrieben",
-  "AVV unterschrieben",
-  "Anzahlung erhalten",
-  "Material erhalten",
-  "Abnahme erfolgt",
-  "Live / Übergeben",
-];
+/** "2026-10-30" -> "30.10.2026", "2026-10-30T14:00:00.000+01:00" -> "30.10.2026, 14:00 Uhr". */
+function datum(v: string): string {
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return v;
+  const tag = `${m[3]}.${m[2]}.${m[1]}`;
+  return m[4] && !(m[4] === "00" && m[5] === "00") ? `${tag}, ${m[4]}:${m[5]} Uhr` : tag;
+}
 
-const euro = (v: string) => (v ? `${Number(v).toLocaleString("de-DE")} €` : "");
+const stunden = (v: string) =>
+  v === "" ? "" : `${Number(v).toLocaleString("de-DE", { maximumFractionDigits: 1 })} h`;
 
 export const CARD_MARKER = "Kundenkarte";
+
+/** Felder, die sich ständig ändern und deshalb keine eigene Zeile im Kanal bekommen. */
+const OHNE_MELDUNG = new Set(["Zeit gesamt", "Notion"]);
 
 /** Baut die Karte, die im Kundenkanal steht und bei Änderungen überschrieben wird. */
 export function kundenKarte(k: Kunde): EmbedLike {
@@ -110,20 +116,12 @@ export function kundenKarte(k: Kunde): EmbedLike {
   add("Status", w("Status"));
   add("Angebot", w("Angebot"));
   add("Zuständig", w("Zuständig"));
-  add("Fortschritt", w("Fortschritt (%)") ? `${Math.round(Number(w("Fortschritt (%)")) * (Number(w("Fortschritt (%)")) <= 1 ? 100 : 1))} %` : "");
+  add("Zeit gesamt", stunden(w("Gesamtstunden")));
+  add("Zahlungsstatus", w("Zahlungsstatus"));
   add("E-Mail", w("E-Mail"));
   add("Telefon", w("Telefon"));
-  add("Quelle", w("Quelle"));
-  add("Setup-Preis", euro(w("Setup-Preis (€)")));
-  add("Retainer pro Monat", euro(w("Retainer (€/Monat)")));
-  add("Zahlungsstatus", w("Zahlungsstatus"));
-  add("Nächstes Follow-up", w("Nächstes Follow-up"));
+  add("Nächster Termin", datum(w("Nächstes Follow-up")));
   add("Nächster Schritt", w("Nächster Schritt"), false);
-  fields.push({
-    name: "Checkliste",
-    value: CHECKLIST.map((c) => `${wert(k.props[c]) === "ja" ? "✅" : "⬜"} ${c}`).join("\n"),
-    inline: false,
-  });
   if (k.url) fields.push({ name: "Notion", value: `[Kundenseite öffnen](${k.url})`, inline: false });
 
   return {
@@ -145,25 +143,13 @@ export function aenderungen(alt: EmbedLike | null, neu: EmbedLike): string[] {
   const out: string[] = [];
 
   for (const [name, value] of n) {
-    if (name === "Notion") continue;
+    if (OHNE_MELDUNG.has(name)) continue;
     const before = a.get(name) ?? "";
-    if (before === value) continue;
-
-    if (name === "Checkliste") {
-      const lines = (s: string) => new Map(s.split("\n").map((l) => [l.slice(2), l.slice(0, 1)]));
-      const la = lines(before);
-      for (const [item, mark] of lines(value)) {
-        if (la.get(item) !== mark) out.push(`${mark} **${item}**`);
-      }
-    } else if (name === "Fortschritt") {
-      continue; // folgt aus der Checkliste, würde nur doppelt melden
-    } else {
-      out.push(`**${name}:** ${before || "leer"} → ${value}`);
-    }
+    if (before !== value) out.push(`**${name}:** ${before || "leer"} → ${value}`);
   }
   // Felder, die jetzt leer sind
   for (const [name, before] of a) {
-    if (!n.has(name) && name !== "Notion" && name !== "Fortschritt") out.push(`**${name}:** ${before} → leer`);
+    if (!n.has(name) && !OHNE_MELDUNG.has(name)) out.push(`**${name}:** ${before} → leer`);
   }
   return out;
 }
