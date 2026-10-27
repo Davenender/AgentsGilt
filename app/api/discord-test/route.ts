@@ -47,7 +47,11 @@ export async function POST(request: Request) {
               { name: "Betrieb", value: "Test GmbH", inline: true },
               // Test-SMS gehen an Davids Handynummer (steht auch auf der Website).
               { name: "Rückrufnummer", value: "+49 160 98427943", inline: true },
-              { name: "Terminwunsch", value: naechsterWerktag(), inline: true },
+              {
+                name: "Terminwunsch",
+                value: new URL(request.url).searchParams.get("wunsch") || naechsterWerktag(),
+                inline: true,
+              },
             ],
             footer: "Test · kein echter Anruf",
           }),
