@@ -127,7 +127,7 @@ function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: s
 
   if (action === "claim") {
     after(async () => {
-      await postText(token, channel, `${FOR_CUSTOMER} **${who}** ist jetzt für dich da.`);
+      await postText(token, channel, `${FOR_CUSTOMER} **${who}** Du bist jetzt mit einem Mitarbeiter verbunden und kannst direkt schreiben.`);
     });
     return NextResponse.json({
       type: 7,
