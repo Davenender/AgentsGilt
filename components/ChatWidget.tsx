@@ -870,7 +870,6 @@ export function ChatWidget() {
                   onKeyDown={handleKey}
                   placeholder={ticket && !ticket.closed ? "Schreib dem Team …" : "Frag mich etwas…"}
                   rows={1}
-                  disabled={streaming}
                   className="flex-1 resize-none rounded-2xl border border-line bg-cream/50 px-4 py-2.5 text-sm text-ink placeholder:text-ink-soft/60 focus:border-gold focus:outline-none disabled:opacity-60"
                   style={{ maxHeight: "120px" }}
                 />
