@@ -42,6 +42,8 @@ export function stateOf(embed: EmbedLike): LeadState {
 
 /** Der letzte Fehler von Discord, für die Rückmeldung an den, der /lead ausgeführt hat. */
 export let letzterFehler = "";
+/** Warum das Anlegen eines Kanals mit Rechten nicht klappte (nur für die Fehlersuche). */
+export let kanalInfo = "";
 
 function headers(token: string) {
   return { "Content-Type": "application/json", Authorization: `Bot ${token}` };
@@ -119,10 +121,12 @@ async function ensureChannel(token: string, name: string): Promise<string | null
         : "Merkzettel des Bots (abgelehnte Firmen). Nicht löschen.";
 
   const base = { name, type: 0, topic, ...(parent ? { parent_id: parent } : {}) };
-  const created =
-    (await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, { ...base, permission_overwrites: overwrites })) ??
+  let created = await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, { ...base, permission_overwrites: overwrites });
+  if (!created) {
+    kanalInfo = `Rechte setzen: ${letzterFehler}`;
     // Ohne das Recht, Berechtigungen zu setzen: Kanal wenigstens ohne Einschränkungen anlegen.
-    (await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, base));
+    created = await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, base);
+  }
   if (!created) return null;
 
   if (name === CH_KARTEN) {
