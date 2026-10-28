@@ -77,8 +77,6 @@ interface Role {
 }
 
 const READ = String(1024 + 65536); // ansehen + Verlauf
-const NO_WRITE = String(2048 + 64); // schreiben + reagieren
-const ALL = String(1024 + 2048 + 65536 + 16384 + 32768); // Bot: nur, was er selbst hat (mehr darf er nicht vergeben)
 
 export const USAGE_TEXT =
   "**So legst du eine Lead-Karte an**\n" +
@@ -86,49 +84,41 @@ export const USAGE_TEXT =
   "Der Bot liest die Seite, fasst sie zusammen und legt hier eine Karte an. Danach stimmt ihr mit **Passt** oder **Passt nicht** ab, zwei gleiche Stimmen entscheiden.\n" +
   "Hier im Kanal kann man nur Knöpfe klicken, nicht schreiben. Hinweis: Nur kontaktieren, wenn es rechtlich zulässig ist (Kaltakquise).";
 
-/** Legt den Kanal an, falls er fehlt. Karten und Ablage: nur lesen. Speicher: nur David. */
+/**
+ * Legt den Kanal an, falls er fehlt. Er landet in der Kategorie AUTOMATISCH: Dort darf der
+ * Bot schreiben, und das Team kann (wie bei #anrufe) nur lesen und klicken. Der Bot darf in
+ * diesem Server keine eigenen Kanalrechte vergeben, deshalb erbt der Kanal sie von der Kategorie.
+ * Den Merkzettel sieht zusätzlich nur David.
+ */
 async function ensureChannel(token: string, name: string): Promise<string | null> {
   const existing = await findChannelId(token, name);
   if (existing) return existing;
 
-  const parent = await findCategoryId(token, "TEAM");
-  const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
-  const team = roles.find((r) => r.name === "Team");
-  const bot = roles.find((r) => r.name === "Agents Gilt");
-  // Der Bot selbst (als Nutzer), damit er sich nie aussperrt, auch wenn der Rollenname nicht passt.
-  const me = await call<{ id: string }>(token, "GET", "/users/@me");
-  const botSelf = me ? [{ id: me.id, type: 1, allow: ALL, deny: "0" }] : [];
-
-  const overwrites =
-    name === CH_SPEICHER
-      ? [
-          { id: GUILD_ID, type: 0, allow: "0", deny: "1024" },
-          { id: OWNER_ID, type: 1, allow: READ, deny: "0" },
-          ...botSelf,
-          ...(bot ? [{ id: bot.id, type: 0, allow: ALL, deny: "0" }] : []),
-        ]
-      : [
-          { id: GUILD_ID, type: 0, allow: "0", deny: "1024" },
-          ...(team ? [{ id: team.id, type: 0, allow: READ, deny: NO_WRITE }] : []),
-          ...botSelf,
-          ...(bot ? [{ id: bot.id, type: 0, allow: ALL, deny: "0" }] : []),
-        ];
+  const parent = (await findCategoryId(token, "AUTOMATISCH")) ?? (await findCategoryId(token, "TEAM"));
   const topic =
     name === CH_KARTEN
       ? "Neue Unternehmen: mit /lead <link> anlegen, hier abstimmen."
       : name === CH_ABLAGE
         ? "Abgeschlossene Leads (Kein Interesse)."
         : "Merkzettel des Bots (abgelehnte Firmen). Nicht löschen.";
-
-  const base = { name, type: 0, topic, ...(parent ? { parent_id: parent } : {}) };
-  let created = await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, { ...base, permission_overwrites: overwrites });
+  const created = await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, {
+    name,
+    type: 0,
+    topic,
+    ...(parent ? { parent_id: parent } : {}),
+  });
   if (!created) {
-    kanalInfo = `Rechte setzen: ${letzterFehler}`;
-    // Ohne das Recht, Berechtigungen zu setzen: Kanal wenigstens ohne Einschränkungen anlegen.
-    created = await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, base);
+    kanalInfo = `Anlegen: ${letzterFehler}`;
+    return null;
   }
-  if (!created) return null;
 
+  if (name === CH_SPEICHER) {
+    // Nur David darf den Merkzettel sehen. Verbieten darf der Bot, ohne selbst alles zu haben.
+    const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
+    const team = roles.find((r) => r.name === "Team");
+    if (team) await call(token, "PUT", `/channels/${created.id}/permissions/${team.id}`, { type: 0, allow: "0", deny: "1024" });
+    await call(token, "PUT", `/channels/${created.id}/permissions/${OWNER_ID}`, { type: 1, allow: READ, deny: "0" });
+  }
   if (name === CH_KARTEN) {
     const msg = await call<{ id: string }>(token, "POST", `/channels/${created.id}/messages`, {
       content: USAGE_TEXT,
