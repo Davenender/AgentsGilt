@@ -25,10 +25,13 @@ import {
 } from "@/lib/discord-calls";
 import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
+import { handleLeadButton, handleLeadCommand } from "@/lib/lead-handlers";
 import { closeTicketChannel, FOR_CUSTOMER, SHOW_NAMES, ticketComponents } from "@/lib/support";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 
 export const runtime = "nodejs";
+// /lead liest Webseiten und lässt sie auswerten, das dauert länger als ein Knopfdruck.
+export const maxDuration = 60;
 
 // Discord ruft diese Adresse bei jedem Knopfdruck unter einer Anruf-Meldung auf
 // und wenn jemand das Fenster für einen Terminvorschlag abschickt.
@@ -54,6 +57,8 @@ interface Interaction {
   application_id?: string;
   channel_id?: string;
   data?: {
+    name?: string;
+    options?: { name: string; value?: unknown }[];
     custom_id?: string;
     components?: { components?: { custom_id: string; value?: string }[] }[];
   };
@@ -207,8 +212,8 @@ export async function POST(request: Request) {
   // 1 = PING (Discord prüft damit die Adresse)
   if (interaction.type === 1) return NextResponse.json({ type: 1 });
 
-  // 3 = Klick auf einen Knopf, 5 = abgeschicktes Fenster
-  if (interaction.type !== 3 && interaction.type !== 5) return NextResponse.json({ ok: true });
+  // 2 = Befehl (/lead), 3 = Klick auf einen Knopf, 5 = abgeschicktes Fenster
+  if (interaction.type !== 2 && interaction.type !== 3 && interaction.type !== 5) return NextResponse.json({ ok: true });
 
   const user = interaction.member?.user;
   if (!user) return ephemeral("Das geht nur im Server, nicht per Direktnachricht.");
@@ -220,6 +225,8 @@ export async function POST(request: Request) {
   const token = process.env.DISCORD_BOT_TOKEN;
   const channelId = interaction.channel_id ?? process.env.DISCORD_CHANNEL_ANRUFE;
 
+  if (interaction.type === 2) return handleLeadCommand(interaction, token, who);
+  if (customId.startsWith("lead:")) return handleLeadButton(interaction, token, who);
   if (customId.startsWith("ticket:")) return handleTicket(interaction, who, ownerTag, token);
 
   // ---------------------------------------------------- Fenster abgeschickt
