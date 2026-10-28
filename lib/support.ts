@@ -213,6 +213,13 @@ export function ticketComponents(state: "open" | "claimed" | "closed") {
 
 // ------------------------------------------------------------------ Nachrichten
 
+/** Anzeigenamen im Chat der Besucher, unabhängig vom Discord-Namen (nach Discord-Nutzer-ID). */
+export const SHOW_NAMES: Record<string, string> = {
+  "806859236768088114": "David",
+  "523479048727560205": "Jakob",
+  "1363529531939492133": "Mijo",
+};
+
 export interface Relayed {
   id: string;
   von: string;
@@ -222,7 +229,7 @@ export interface Relayed {
 interface DiscordMessage {
   id: string;
   content: string;
-  author: { bot?: boolean; global_name?: string | null; username?: string };
+  author: { id?: string; bot?: boolean; global_name?: string | null; username?: string };
 }
 
 /** Ob das Ticket geschlossen ist (der Kanal heißt dann "geschlossen-ticket-…"). */
@@ -269,7 +276,11 @@ export async function relayMessages(
         continue;
       }
       if (text.startsWith("//")) continue;
-      out.push({ id: m.id, von: "Agents Gilt", text: await korrigiere(clip(text, 1500)) });
+      out.push({
+        id: m.id,
+        von: SHOW_NAMES[m.author.id ?? ""] ?? "Team",
+        text: await korrigiere(clip(text, 1500)),
+      });
     }
   }
   const last = sorted.length ? sorted[sorted.length - 1].id : after;

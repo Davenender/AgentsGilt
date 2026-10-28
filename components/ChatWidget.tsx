@@ -458,8 +458,7 @@ export function ChatWidget() {
       setMessages((m) => [
         ...m,
         {
-          role: "team",
-          von: "Agents Gilt",
+          role: "assistant",
           content: `Danke, ${hName.trim()}! Ich habe dein Anliegen an unser Team übergeben. Hier im Chat antwortet dir bald ein Mitarbeiter. Du kannst in der Zwischenzeit gern weiterschreiben.`,
         },
       ]);
