@@ -31,6 +31,7 @@ const KONTAKT_MARKER = "[KONTAKT]";
 // Beschwerde) oder der Besucher einen Menschen verlangt.
 const MITARBEITER_MARKER = "[MITARBEITER]";
 const STORAGE_TICKET = "ag-support-ticket";
+const STORAGE_LEFT = "ag-support-left";
 // Der Assistent hängt hier Angaben an, die der Besucher im Gespräch genannt
 // hat. Sie werden nie angezeigt, sondern nur ins Kontaktformular übernommen.
 const DATEN_REGEX = /\[DATEN\]([\s\S]*?)\[\/DATEN\]/;
@@ -195,7 +196,19 @@ export function ChatWidget() {
     }
     try {
       const raw = sessionStorage.getItem(STORAGE_TICKET);
-      if (raw) setTicket(JSON.parse(raw) as Ticket);
+      if (raw) {
+        const t = JSON.parse(raw) as Ticket;
+        setTicket(t);
+        // Seite wurde nur neu geladen oder gewechselt: dem Team sagen, dass der Besucher wieder da ist.
+        if (sessionStorage.getItem(STORAGE_LEFT) && !t.closed) {
+          sessionStorage.removeItem(STORAGE_LEFT);
+          void fetch("/api/support", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "presence", state: "back", token: t.token }),
+          }).catch(() => {});
+        }
+      }
     } catch {
       /* kein laufender Support-Chat */
     }
@@ -278,6 +291,21 @@ export function ChatWidget() {
     if (typeof window === "undefined") return;
 
     const send = () => {
+      const t = ticketRef.current;
+      if (t && !t.closed) {
+        // Support-Chat läuft: dem Team melden, dass der Besucher weg ist.
+        try {
+          sessionStorage.setItem(STORAGE_LEFT, "1");
+          navigator.sendBeacon?.(
+            "/api/support",
+            new Blob([JSON.stringify({ action: "presence", state: "left", token: t.token })], {
+              type: "application/json",
+            }),
+          );
+        } catch {
+          /* nicht schlimm */
+        }
+      }
       const state = stateRef.current;
       if (state.sent) return;
       if (ticketRef.current) return; // Support-Chats gehen bereits an das Team

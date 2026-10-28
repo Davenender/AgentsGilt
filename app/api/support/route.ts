@@ -5,6 +5,7 @@ import {
   checkTicketToken,
   openTicket,
   postFromVisitor,
+  postPresence,
   relayMessages,
   ticketClosed,
 } from "@/lib/support";
@@ -99,6 +100,19 @@ export async function POST(request: Request) {
 
     const ok = await postFromVisitor(bot, channelId, msg);
     return ok ? NextResponse.json({ ok: true }) : fehler("Die Nachricht ist nicht angekommen.", 502);
+  }
+
+  // ------------------------------------------------- Besucher geht / kommt zurück
+  if (body.action === "presence") {
+    const channelId = checkTicketToken(text(body.token, 100));
+    if (!channelId) return fehler("Ungültig", 401);
+    const state = body.state === "left" ? "left" : body.state === "back" ? "back" : null;
+    if (!state) return fehler("Ungültige Anfrage", 400);
+    const rl = rateLimit(`support-presence:${channelId}`, 10, 5 * 60_000);
+    if (!rl.ok) return NextResponse.json({ ok: true });
+    if ((await ticketClosed(bot, channelId)) !== false) return NextResponse.json({ ok: true });
+    await postPresence(bot, channelId, state);
+    return NextResponse.json({ ok: true });
   }
 
   return fehler("Ungültige Anfrage", 400);

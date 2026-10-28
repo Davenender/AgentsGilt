@@ -205,8 +205,8 @@ export function ticketComponents(state: "open" | "claimed" | "closed") {
       type: 1,
       components:
         state === "open"
-          ? [button("Übernehmen", "claim", 3), button("Antworten", "reply", 1), button("Ticket schließen", "close", 2)]
-          : [button("Antworten", "reply", 1), button("Ticket schließen", "close", 2)],
+          ? [button("Übernehmen", "claim", 3), button("Ticket schließen", "close", 2)]
+          : [button("Ticket schließen", "close", 2)],
     },
   ];
 }
@@ -291,6 +291,19 @@ export async function relayMessages(
 export async function postFromVisitor(token: string, channelId: string, text: string): Promise<boolean> {
   const res = await call(token, "POST", `/channels/${channelId}/messages`, {
     content: `🗨️ **Besucher:** ${clip(text, 1500)}`,
+    allowed_mentions: { parse: [] },
+  });
+  return Boolean(res);
+}
+
+/** Hinweis an das Team, wenn der Besucher den Chat verlässt bzw. wieder da ist. */
+export async function postPresence(token: string, channelId: string, state: "left" | "back"): Promise<boolean> {
+  const content =
+    state === "left"
+      ? "❗ **Der Besucher hat den Chat verlassen.** Antworten kommen bei ihm nicht mehr an. Nimm bei Bedarf über den angegebenen Kontakt (E-Mail oder Telefon, siehe oben) Verbindung auf."
+      : "✅ Der Besucher ist wieder im Chat.";
+  const res = await call(token, "POST", `/channels/${channelId}/messages`, {
+    content,
     allowed_mentions: { parse: [] },
   });
   return Boolean(res);
