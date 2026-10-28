@@ -80,7 +80,7 @@ const READ = String(1024 + 65536); // ansehen + Verlauf
 
 export const USAGE_TEXT =
   "**So legst du eine Lead-Karte an**\n" +
-  "Schreib in irgendeinem Kanal `/lead` und füge den Link der Firmenwebsite ein, zum Beispiel `/lead link: www.beispiel.de`.\n" +
+  "Schreib im Kanal **#lead-befehle** `/lead` und füge den Link der Firmenwebsite ein, zum Beispiel `/lead link: www.beispiel.de`. Nur dort funktioniert der Befehl.\n" +
   "Der Bot liest die Seite, fasst sie zusammen und legt hier eine Karte an. Danach stimmt ihr mit **Passt** oder **Passt nicht** ab, zwei gleiche Stimmen entscheiden.\n" +
   "Hier im Kanal kann man nur Knöpfe klicken, nicht schreiben. Hinweis: Nur kontaktieren, wenn es rechtlich zulässig ist (Kaltakquise).";
 
