@@ -71,9 +71,14 @@ function ephemeral(content: string) {
 
 const DEFERRED_UPDATE = { type: 6 };
 
+// Anzeigenamen für Besucher (David kann seinen Server-Spitznamen selbst nicht ändern).
+const SHOW_NAMES: Record<string, string> = { "806859236768088114": "David" };
+
 /** Support-Tickets (Kategorie SUPPORT): Übernehmen, Antworten, Schließen. */
-function handleTicket(i: Interaction, who: string, ownerTag: string, token: string | undefined) {
+function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: string | undefined) {
   const id = i.data?.custom_id ?? "";
+  // So heißen die Leute im Chat der Besucher, unabhängig vom Discord-Namen.
+  const who = SHOW_NAMES[i.member?.user?.id ?? ""] ?? whoRaw;
   const channel = i.channel_id;
   if (!channel) return ephemeral("Der Kanal ist nicht bekannt.");
 

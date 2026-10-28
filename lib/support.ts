@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { linkSecret } from "@/lib/termin";
 
@@ -258,7 +259,7 @@ export async function relayMessages(
       const named = body.match(/^\*\*(.+?)\*\*:?\s*([\s\S]*)$/);
       out.push(
         named && named[2]
-          ? { id: m.id, von: named[1], text: named[2].trim() }
+          ? { id: m.id, von: named[1], text: await korrigiere(named[2].trim()) }
           : { id: m.id, von: "Agents Gilt", text: body.replace(/\*\*/g, "") },
       );
     } else {
@@ -268,7 +269,7 @@ export async function relayMessages(
         continue;
       }
       if (text.startsWith("//")) continue;
-      out.push({ id: m.id, von: "Agents Gilt", text: clip(text, 1500) });
+      out.push({ id: m.id, von: "Agents Gilt", text: await korrigiere(clip(text, 1500)) });
     }
   }
   const last = sorted.length ? sorted[sorted.length - 1].id : after;
@@ -284,9 +285,55 @@ export async function postFromVisitor(token: string, channelId: string, text: st
   return Boolean(res);
 }
 
+export const ARCHIVE_CATEGORY = "ARCHIV";
+
+/** Benennt das Ticket in "geschlossen-…" um und schiebt es in die Kategorie ARCHIV (ganz unten). */
 export async function closeTicketChannel(token: string, channelId: string): Promise<void> {
   const ch = await call<Channel>(token, "GET", `/channels/${channelId}`);
-  if (ch && !ch.name.startsWith("geschlossen-")) {
-    await call(token, "PATCH", `/channels/${channelId}`, { name: `geschlossen-${ch.name}` });
+  if (!ch) return;
+
+  const channels = await guildChannels(token);
+  let archive = channels.find(
+    (c) => c.type === 4 && c.name.toLowerCase() === ARCHIVE_CATEGORY.toLowerCase(),
+  )?.id;
+  if (!archive) {
+    archive = (await call<Channel>(token, "POST", `/guilds/${GUILD_ID}/channels`, {
+      name: ARCHIVE_CATEGORY,
+      type: 4,
+    }))?.id;
+  }
+
+  await call(token, "PATCH", `/channels/${channelId}`, {
+    name: ch.name.startsWith("geschlossen-") ? ch.name : `geschlossen-${ch.name}`,
+    ...(archive ? { parent_id: archive } : {}),
+  });
+}
+
+// ------------------------------------------------------------ Rechtschreibung
+
+const KORREKTUR_PROMPT = `Du bekommst eine kurze Chat-Nachricht eines Mitarbeiters an einen Kunden. Korrigiere NUR Rechtschreibung, Groß- und Kleinschreibung und Kommas nach der neuen deutschen Rechtschreibung. Ändere keine Wörter, keinen Inhalt, keine Reihenfolge und nicht den Ton (Du/Sie bleibt, Umgangssprache bleibt). Emojis, Zahlen, Links, Namen und Zeilenumbrüche bleiben unverändert. Ist die Nachricht schon korrekt, gib sie unverändert zurück. Antworte ausschließlich mit der korrigierten Nachricht, ohne Erklärung und ohne Anführungszeichen.`;
+
+/** Glättet eine Antwort des Teams, bevor der Besucher sie sieht. Bei jedem Problem bleibt der Originaltext. */
+export async function korrigiere(text: string): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey || text.length < 3 || text.length > 1500) return text;
+  try {
+    const res = await new Anthropic({ apiKey, timeout: 6000, maxRetries: 0 }).messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 800,
+      system: KORREKTUR_PROMPT,
+      messages: [{ role: "user", content: text }],
+    });
+    const out = res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim();
+    // Eine Korrektur darf den Text nicht stark verändern, sonst gilt sie als Fehlgriff.
+    if (!out || out.length > text.length * 1.3 + 10 || out.length < text.length * 0.7 - 10) return text;
+    return out;
+  } catch (err) {
+    console.error("[support] Korrektur fehlgeschlagen:", err);
+    return text;
   }
 }
