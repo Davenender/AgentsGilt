@@ -69,6 +69,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: res.ok, status: res.status, body: (await res.text()).slice(0, 300) });
   }
 
+  if (action === "perm") {
+    const ch = await findChannelId(token, "willkommen");
+    const roles = (await (await fetch(`${API}/guilds/${GUILD}/roles`, { headers: h })).json()) as { id: string; name: string }[];
+    const bot = roles.find((r) => r.name === "Agents Gilt");
+    if (!ch || !bot) return NextResponse.json({ error: "Kanal oder Rolle fehlt" }, { status: 404 });
+    const res = await fetch(`${API}/channels/${ch}/permissions/${bot.id}`, {
+      method: "PUT",
+      headers: h,
+      body: JSON.stringify({ type: 0, allow: String(1024 + 2048 + 65536 + 16384 + 32768), deny: "0" }),
+    });
+    return NextResponse.json({ status: res.status, body: res.ok ? "" : (await res.text()).slice(0, 200) });
+  }
+
   if (action === "willkommen") {
     const ch = await findChannelId(token, "willkommen");
     if (!ch) return NextResponse.json({ error: "Kanal willkommen fehlt" }, { status: 404 });
