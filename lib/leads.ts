@@ -15,7 +15,7 @@ export const OWNER_ID = "806859236768088114"; // David: darf Karten löschen
 export const CH_KARTEN = "leads";
 export const CH_ABLAGE = "lead-ablage";
 export const CH_SPEICHER = "lead-speicher";
-export const NEEDED = 1; // TEMPORÄR zum Testen (soll 2 sein)
+export const NEEDED = 2; // so viele gleiche Stimmen entscheiden
 
 export type LeadState = "vote" | "confirm" | "accepted" | "active" | "archived";
 
