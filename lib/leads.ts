@@ -216,11 +216,18 @@ export async function loescheNachricht(token: string, channelId: string, message
   return (await call(token, "DELETE", `/channels/${channelId}/messages/${messageId}`)) !== null;
 }
 
-export async function postKarte(token: string, channelId: string, embed: EmbedLike, components: unknown[]): Promise<string | null> {
+export async function postKarte(
+  token: string,
+  channelId: string,
+  embed: EmbedLike,
+  components: unknown[],
+  ping?: { content: string; roleId: string },
+): Promise<string | null> {
   const msg = await call<{ id: string }>(token, "POST", `/channels/${channelId}/messages`, {
+    ...(ping ? { content: ping.content } : {}),
     embeds: [embed],
     components,
-    allowed_mentions: { parse: [] },
+    allowed_mentions: ping ? { parse: [], roles: [ping.roleId] } : { parse: [] },
   });
   return msg?.id ?? null;
 }
@@ -262,7 +269,13 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…`
 // Nichts von der fremden Seite soll in Discord Erwähnungen oder Kanalverweise auslösen.
 const sauber = (s: string) => s.replace(/@/g, "@​").replace(/<(#|@|:)/g, "<​$1");
 
-export function kartenEmbed(a: Analyse, url: string, domain: string, von: string): EmbedLike {
+/** Die Rolle Team (für die Benachrichtigung bei neuen Karten). */
+export async function teamRolle(token: string): Promise<string | null> {
+  const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
+  return roles.find((r) => r.name === "Team")?.id ?? null;
+}
+
+export function kartenEmbed(a: Analyse, url: string, domain: string): EmbedLike {
   const fields: EmbedLike["fields"] = [
     { name: "Branche", value: sauber(a.branche ?? "nicht gefunden"), inline: true },
     { name: "Telefon", value: sauber(a.telefon ?? "nicht gefunden"), inline: true },
@@ -285,7 +298,7 @@ export function kartenEmbed(a: Analyse, url: string, domain: string, von: string
     description: `${sauber(clip(a.zusammenfassung, 700))}\n\n🔗 ${url}`,
     color: COLOR.vote,
     fields,
-    footer: { text: `lead:${domain}${SEP}angelegt von ${von}${SEP}${FOOTER_HINWEIS}` },
+    footer: { text: `lead:${domain}${SEP}${FOOTER_HINWEIS}` },
   };
 }
 
@@ -357,9 +370,9 @@ export function statusWort(e: EmbedLike): string {
   return STATUS_WORD.find((w) => v.startsWith(w)) ?? "Offen";
 }
 
-export function mitStatus(e: EmbedLike, status: string, von: string, zeit: string, state: LeadState = "accepted"): EmbedLike {
+export function mitStatus(e: EmbedLike, status: string, zeit: string, state: LeadState = "accepted"): EmbedLike {
   const fields = (e.fields ?? []).filter((f) => f.name !== F_STATUS);
-  fields.push({ name: F_STATUS, value: `${status} · ${von} · ${zeit}`, inline: false });
+  fields.push({ name: F_STATUS, value: `${status} · ${zeit}`, inline: false });
   return { ...e, color: COLOR[state], fields };
 }
 
@@ -369,8 +382,8 @@ export function mitNotion(e: EmbedLike, nr: string | null, seite: string): Embed
   return { ...e, fields };
 }
 
-export function archiviert(e: EmbedLike, von: string, zeit: string): EmbedLike {
-  return mitStatus({ ...e, fields: (e.fields ?? []).filter((f) => f.name !== F_HINT) }, "Kein Interesse", von, zeit, "archived");
+export function archiviert(e: EmbedLike, zeit: string): EmbedLike {
+  return mitStatus({ ...e, fields: (e.fields ?? []).filter((f) => f.name !== F_HINT) }, "Kein Interesse", zeit, "archived");
 }
 
 // ------------------------------------------------------------------- Knöpfe

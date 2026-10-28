@@ -232,20 +232,20 @@ export async function analysiere(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { ok: false, fehler: "Die Auswertung ist nicht eingerichtet (ANTHROPIC_API_KEY fehlt bei Vercel)." };
 
+  // Die Startseite und die übliche Impressum-Adresse gleichzeitig laden, das spart Zeit.
+  const impressumRaten = ladeSeite(new URL("/impressum", url).toString());
   const start = await ladeSeite(url);
   if (!start) return { ok: false, fehler: "Die Seite konnte ich nicht öffnen oder lesen. Bitte den Link prüfen." };
 
   let rawHtml = start.html;
-  const seiten: { url: string; text: string }[] = [{ url: start.url, text: zuText(start.html).slice(0, 5000) }];
-  const subs = unterseiten(start.html, start.url);
-  if (!subs.some((s) => /impressum|imprint/i.test(s))) {
-    subs.push(new URL("/impressum", start.url).toString());
-  }
-  const geladen = await Promise.all(subs.slice(0, 3).map((u) => ladeSeite(u)));
-  for (const p of geladen) {
+  const seiten: { url: string; text: string }[] = [{ url: start.url, text: zuText(start.html).slice(0, 3500) }];
+  const geraten = await impressumRaten;
+  const subs = unterseiten(start.html, start.url).filter((u) => !geraten || u !== geraten.url);
+  const weitere = await Promise.all(subs.slice(0, 2).map((u) => ladeSeite(u)));
+  for (const p of [geraten, ...weitere]) {
     if (!p || seiten.some((s) => s.url === p.url)) continue;
     rawHtml += "\n" + p.html;
-    seiten.push({ url: p.url, text: zuText(p.html).slice(0, 4000) });
+    seiten.push({ url: p.url, text: zuText(p.html).slice(0, 2500) });
   }
 
   const alleText = seiten.map((s) => s.text).join("\n");
@@ -262,7 +262,7 @@ export async function analysiere(
   try {
     const res = await new Anthropic({ apiKey, timeout: 40_000, maxRetries: 1 }).messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 900,
+      max_tokens: 700,
       system: PROMPT,
       messages: [{ role: "user", content: `<seiten>\n${inhalt}\n</seiten>` }],
     });

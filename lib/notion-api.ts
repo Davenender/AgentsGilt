@@ -25,7 +25,6 @@ export async function legeKundenZeileAn(input: {
   analyse: Analyse;
   url: string;
   domain: string;
-  von: string;
 }): Promise<{ ok: true; seite: string; nr: string | null } | { ok: false; fehler: string }> {
   const token = process.env.NOTION_TOKEN?.trim();
   if (!token) return { ok: false, fehler: "Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel)." };
@@ -38,7 +37,7 @@ export async function legeKundenZeileAn(input: {
     Quelle: { select: { name: "Sonstiges" } },
     Erstkontakt: { date: { start: heute } },
     "Domain / Anbieter": { rich_text: text(input.domain, 200) },
-    "Nächster Schritt": { rich_text: text(`Erstkontakt aufnehmen (Lead von ${input.von})`, 200) },
+    "Nächster Schritt": { rich_text: text("Erstkontakt aufnehmen", 200) },
   };
   if (a.email) properties["E-Mail"] = { email: a.email };
   if (a.telefon) properties["Telefon"] = { phone_number: a.telefon };

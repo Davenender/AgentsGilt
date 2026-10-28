@@ -225,8 +225,8 @@ export async function POST(request: Request) {
   const token = process.env.DISCORD_BOT_TOKEN;
   const channelId = interaction.channel_id ?? process.env.DISCORD_CHANNEL_ANRUFE;
 
-  if (interaction.type === 2) return handleLeadCommand(interaction, token, who);
-  if (customId.startsWith("lead:")) return handleLeadButton(interaction, token, who);
+  if (interaction.type === 2) return handleLeadCommand(interaction, token);
+  if (customId.startsWith("lead:")) return handleLeadButton(interaction, token);
   if (customId.startsWith("ticket:")) return handleTicket(interaction, who, ownerTag, token);
 
   // ---------------------------------------------------- Fenster abgeschickt

@@ -23,6 +23,7 @@ import {
   statusWort,
   stateOf,
   stimme,
+  teamRolle,
   vergissAbgelehnt,
 } from "@/lib/leads";
 import { legeKundenZeileAn, notionConfigured } from "@/lib/notion-api";
@@ -62,7 +63,7 @@ const kanalLink = (channelId: string, messageId: string) =>
 
 // ----------------------------------------------------------------- /lead
 
-export function handleLeadCommand(i: LeadInteraction, token: string | undefined, who: string) {
+export function handleLeadCommand(i: LeadInteraction, token: string | undefined) {
   const appId = i.application_id;
   const itoken = i.token;
   const user = i.member?.user;
@@ -130,8 +131,15 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
         await setzeAntwort(appId, itoken, "⚠️ Den Kanal #leads konnte ich nicht anlegen. Bitte die Rechte des Bots prüfen.");
         return;
       }
-      const embed = kartenEmbed(res.analyse, res.url, res.domain, who);
-      const id = await postKarte(token, kanal, embed, leadComponents("vote"));
+      const embed = kartenEmbed(res.analyse, res.url, res.domain);
+      const rolle = await teamRolle(token);
+      const id = await postKarte(
+        token,
+        kanal,
+        embed,
+        leadComponents("vote"),
+        rolle ? { content: `<@&${rolle}> Neuer Lead: **${res.analyse.firma.replace(/[*_~`|>@]/g, "")}** – jetzt abstimmen`, roleId: rolle } : undefined,
+      );
       if (!id) {
         await setzeAntwort(appId, itoken, `⚠️ Die Karte konnte ich nicht anlegen. Bitte nochmal versuchen. (${letzterFehler.slice(0, 150)} | ${kanalInfo.slice(0, 250)})`);
         return;
@@ -153,7 +161,7 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
 
 // ---------------------------------------------------------------- Knöpfe
 
-export function handleLeadButton(i: LeadInteraction, token: string | undefined, who: string) {
+export function handleLeadButton(i: LeadInteraction, token: string | undefined) {
   const user = i.member?.user;
   const embed = i.message?.embeds?.[0];
   const messageId = i.message?.id;
@@ -193,18 +201,17 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined, 
   if (state !== "accepted") return ephemeral("Der Status lässt sich erst nach der Annahme setzen.");
   const st = action.slice(3);
   const zeit = uhrzeit();
-  const tag = `<@${user.id}>`;
 
   if (st === "open" || st === "work" || st === "contacted") {
     const wort = st === "open" ? "Offen" : st === "work" ? "In Arbeit" : "Kontaktiert";
-    return update(mitStatus(embed, wort, tag, zeit), leadComponents("accepted", wort));
+    return update(mitStatus(embed, wort, zeit), leadComponents("accepted", wort));
   }
 
   if (st === "nointerest") {
     after(async () => {
       const ablage = await ablageKanal(token);
       if (!ablage) return;
-      const id = await postKarte(token, ablage, archiviert(embed, tag, zeit), []);
+      const id = await postKarte(token, ablage, archiviert(embed, zeit), []);
       if (id) await loescheNachricht(token, channelId, messageId);
     });
     return NextResponse.json(DEFERRED_UPDATE);
@@ -238,12 +245,12 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined, 
         begruendung: passtZu?.includes(" – ") ? passtZu.split(" – ").slice(1).join(" – ") : null,
       };
       const url = embed.description?.match(/🔗\s*(\S+)/)?.[1] ?? `https://${domain}`;
-      const res = await legeKundenZeileAn({ analyse, url, domain, von: who });
+      const res = await legeKundenZeileAn({ analyse, url, domain });
       if (!res.ok) {
         await postKarteHinweis(token, channelId, messageId, `⚠️ Lead aktiv hat nicht geklappt: ${res.fehler}`);
         return;
       }
-      const neu = mitNotion(mitStatus(embed, "Lead aktiv", tag, zeit, "active"), res.nr, res.seite);
+      const neu = mitNotion(mitStatus(embed, "Lead aktiv", zeit, "active"), res.nr, res.seite);
       await aendereKarte(token, channelId, messageId, neu, leadComponents("active"));
     });
     return NextResponse.json(DEFERRED_UPDATE);
