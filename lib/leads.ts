@@ -40,6 +40,9 @@ export function stateOf(embed: EmbedLike): LeadState {
 
 // ------------------------------------------------------------------ Discord
 
+/** Der letzte Fehler von Discord, für die Rückmeldung an den, der /lead ausgeführt hat. */
+export let letzterFehler = "";
+
 function headers(token: string) {
   return { "Content-Type": "application/json", Authorization: `Bot ${token}` };
 }
@@ -54,7 +57,9 @@ async function call<T>(token: string, method: string, path: string, body?: unkno
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) {
-      console.error(`[lead] ${method} ${path.split("?")[0]} -> HTTP ${res.status}`);
+      const text = await res.text().catch(() => "");
+      letzterFehler = `HTTP ${res.status} ${text.slice(0, 300)}`;
+      console.error(`[lead] ${method} ${path.split("?")[0]} -> ${letzterFehler}`);
       return null;
     }
     return res.status === 204 ? ({} as T) : ((await res.json()) as T);

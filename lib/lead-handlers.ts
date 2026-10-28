@@ -3,6 +3,7 @@ import type { EmbedLike } from "@/lib/discord-calls";
 import { analysiere, domainKey, normalizeUrl } from "@/lib/lead-analyse";
 import {
   ablageKanal,
+  letzterFehler,
   ablehnungAbbrechen,
   aendereKarte,
   archiviert,
@@ -131,7 +132,7 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
       const embed = kartenEmbed(res.analyse, res.url, res.domain, who);
       const id = await postKarte(token, kanal, embed, leadComponents("vote"));
       if (!id) {
-        await setzeAntwort(appId, itoken, "⚠️ Die Karte konnte ich nicht anlegen. Bitte nochmal versuchen.");
+        await setzeAntwort(appId, itoken, `⚠️ Die Karte konnte ich nicht anlegen. Bitte nochmal versuchen. (${letzterFehler.slice(0, 200)})`);
         return;
       }
       const luecke = !res.analyse.telefon && !res.analyse.email;
