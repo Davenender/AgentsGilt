@@ -11,11 +11,26 @@ import {
 import { site } from "@/lib/content";
 
 interface Message {
-  role: "user" | "assistant";
+  // "team" sind Antworten eines Mitarbeiters aus dem Support-Chat.
+  role: "user" | "assistant" | "team";
   content: string;
+  von?: string;
+}
+
+// Ein laufender Support-Chat: der Schlüssel des Tickets und die letzte Nachricht,
+// die der Besucher schon gesehen hat.
+interface Ticket {
+  token: string;
+  after: string;
+  nummer: string;
+  closed?: boolean;
 }
 
 const KONTAKT_MARKER = "[KONTAKT]";
+// Der Assistent setzt ihn, wenn er nicht weiterkommt (Preis, Sonderwunsch,
+// Beschwerde) oder der Besucher einen Menschen verlangt.
+const MITARBEITER_MARKER = "[MITARBEITER]";
+const STORAGE_TICKET = "ag-support-ticket";
 // Der Assistent hängt hier Angaben an, die der Besucher im Gespräch genannt
 // hat. Sie werden nie angezeigt, sondern nur ins Kontaktformular übernommen.
 const DATEN_REGEX = /\[DATEN\]([\s\S]*?)\[\/DATEN\]/;
@@ -52,7 +67,10 @@ const STARTER_QUESTIONS = [
  * "[DATEN]{\"na") — der Besucher soll davon nie ein Zeichen sehen.
  */
 function stripMarkers(text: string): string {
-  let out = text.replace(DATEN_REGEX, "").replace(KONTAKT_MARKER, "");
+  let out = text
+    .replace(DATEN_REGEX, "")
+    .replace(KONTAKT_MARKER, "")
+    .replace(MITARBEITER_MARKER, "");
 
   // Angefangener Daten-Block: alles ab dort abschneiden.
   const datenStart = out.indexOf("[DATEN]");
@@ -110,7 +128,9 @@ function loadMessages(): Message[] {
       (m): m is Message =>
         !!m &&
         typeof m === "object" &&
-        ((m as Message).role === "user" || (m as Message).role === "assistant") &&
+        ((m as Message).role === "user" ||
+          (m as Message).role === "assistant" ||
+          (m as Message).role === "team") &&
         typeof (m as Message).content === "string",
     );
   } catch {
@@ -140,11 +160,22 @@ export function ChatWidget() {
   const [error, setError] = useState<string | null>(null);
   const [showContact, setShowContact] = useState(false);
   const [prefill, setPrefill] = useState<PrefillContactDetail | null>(null);
+  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [handoff, setHandoff] = useState(false);
+  const [hName, setHName] = useState("");
+  const [hKontakt, setHKontakt] = useState("");
+  const [hFrage, setHFrage] = useState("");
+  const [hHoney, setHHoney] = useState("");
+  const [hBusy, setHBusy] = useState(false);
+  const [hError, setHError] = useState<string | null>(null);
+  const [unread, setUnread] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // Der pagehide-Handler wird einmal registriert und sieht deshalb nur den
   // Anfangszustand. Über diese Referenz kommt er an die aktuellen Daten.
+  const openRef = useRef(false);
+  const ticketRef = useRef<Ticket | null>(null);
   const stateRef = useRef<{
     messages: Message[];
     contacted: boolean;
@@ -162,7 +193,82 @@ export function ChatWidget() {
     } catch {
       /* kaputter Eintrag – dann eben ohne */
     }
+    try {
+      const raw = sessionStorage.getItem(STORAGE_TICKET);
+      if (raw) setTicket(JSON.parse(raw) as Ticket);
+    } catch {
+      /* kein laufender Support-Chat */
+    }
   }, []);
+
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
+
+  // Ticket merken, damit der Support-Chat einen Seitenwechsel übersteht.
+  useEffect(() => {
+    ticketRef.current = ticket;
+    try {
+      if (ticket) sessionStorage.setItem(STORAGE_TICKET, JSON.stringify(ticket));
+    } catch {
+      /* nicht schlimm */
+    }
+  }, [ticket]);
+
+  // Antworten des Teams abholen, solange ein Support-Chat läuft. Offen alle
+  // paar Sekunden, im geschlossenen Fenster seltener.
+  useEffect(() => {
+    if (!ticket || ticket.closed) return;
+    let stop = false;
+    let timer: number | undefined;
+
+    const tick = async () => {
+      const t = ticketRef.current;
+      if (!t || t.closed) return;
+      try {
+        const res = await fetch(
+          `/api/support?t=${encodeURIComponent(t.token)}&after=${encodeURIComponent(t.after)}`,
+          { cache: "no-store" },
+        );
+        if (res.ok) {
+          const data = (await res.json()) as {
+            messages?: { text: string; von: string }[];
+            last?: string;
+            closed?: boolean;
+          };
+          const neu: Message[] = (data.messages ?? []).map((x) => ({
+            role: "team",
+            content: x.text,
+            von: x.von,
+          }));
+          if (data.closed) {
+            neu.push({
+              role: "team",
+              von: "Agents Gilt",
+              content:
+                "Der Chat wurde vom Team beendet. Bei weiteren Fragen schreib einfach eine neue Nachricht.",
+            });
+          }
+          if (neu.length > 0) {
+            setMessages((m) => [...m, ...neu]);
+            if (!openRef.current) setUnread(true);
+          }
+          setTicket((cur) =>
+            cur ? { ...cur, after: data.last ?? cur.after, closed: data.closed || cur.closed } : cur,
+          );
+        }
+      } catch {
+        /* beim nächsten Durchgang nochmal */
+      }
+      if (!stop) timer = window.setTimeout(tick, openRef.current ? 4000 : 15000);
+    };
+
+    timer = window.setTimeout(tick, 2500);
+    return () => {
+      stop = true;
+      window.clearTimeout(timer);
+    };
+  }, [ticket?.token, ticket?.closed]);
 
   // Gespräch an uns schicken, wenn der Besucher die Seite verlässt. sendBeacon
   // läuft auch dann noch durch, wenn der Tab schon zugeht — ein normales fetch
@@ -174,6 +280,7 @@ export function ChatWidget() {
     const send = () => {
       const state = stateRef.current;
       if (state.sent) return;
+      if (ticketRef.current) return; // Support-Chats gehen bereits an das Team
       if (state.messages.filter((m) => m.role === "user").length < 2) return;
       state.sent = true;
       try {
@@ -182,7 +289,7 @@ export function ChatWidget() {
           new Blob(
             [
               JSON.stringify({
-                messages: state.messages,
+                messages: state.messages.filter((m) => m.role !== "team"),
                 contacted: state.contacted,
               }),
             ],
@@ -268,6 +375,7 @@ export function ChatWidget() {
 
   function openChat() {
     setOpen(true);
+    setUnread(false);
     setBubble(false);
     if (typeof window !== "undefined") {
       sessionStorage.setItem(STORAGE_DISMISSED, "1");
@@ -306,9 +414,91 @@ export function ChatWidget() {
     }
   }
 
+  function openHandoff() {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    setHName((v) => v || prefill?.name || "");
+    setHKontakt((v) => v || prefill?.email || "");
+    setHFrage((v) => v || prefill?.message || lastUser?.content || "");
+    setHError(null);
+    setHandoff(true);
+    setShowContact(false);
+  }
+
+  async function submitHandoff(e: React.FormEvent) {
+    e.preventDefault();
+    if (hBusy) return;
+    setHBusy(true);
+    setHError(null);
+    try {
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "open",
+          name: hName,
+          kontakt: hKontakt,
+          frage: hFrage,
+          website: hHoney,
+          verlauf: messages
+            .filter((m) => m.role === "user" || m.role === "assistant")
+            .slice(-8),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        token?: string;
+        after?: string;
+        nummer?: string;
+      };
+      if (!res.ok || !data.token || !data.after) {
+        throw new Error(data.error || "Das hat leider nicht geklappt.");
+      }
+      setTicket({ token: data.token, after: data.after, nummer: data.nummer ?? "" });
+      setHandoff(false);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "team",
+          von: "Agents Gilt",
+          content: `Danke, ${hName.trim()}! Ich habe dein Anliegen an unser Team übergeben. Hier im Chat antwortet dir bald ein Mitarbeiter. Du kannst in der Zwischenzeit gern weiterschreiben.`,
+        },
+      ]);
+    } catch (err) {
+      setHError(err instanceof Error ? err.message : "Unbekannter Fehler");
+    } finally {
+      setHBusy(false);
+    }
+  }
+
+  async function sendSupport(text: string) {
+    const t = ticketRef.current;
+    if (!t) return;
+    setMessages((m) => [...m, { role: "user", content: text }]);
+    setInput("");
+    setError(null);
+    try {
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", token: t.token, text }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string; closed?: boolean };
+        if (data.closed) setTicket((cur) => (cur ? { ...cur, closed: true } : cur));
+        throw new Error(data.error || "Die Nachricht ist nicht angekommen.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+    }
+  }
+
   async function sendMessage(preset?: string) {
     const text = (preset ?? input).trim();
     if (!text || streaming) return;
+    if (ticket && !ticket.closed) {
+      await sendSupport(text);
+      return;
+    }
 
     const next: Message[] = [...messages, { role: "user", content: text }];
     setMessages(next);
@@ -321,7 +511,9 @@ export function ChatWidget() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({
+          messages: next.filter((m) => m.role === "user" || m.role === "assistant"),
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -355,7 +547,8 @@ export function ChatWidget() {
         }
       }
 
-      const wantsContact = fullText.includes(KONTAKT_MARKER);
+      const wantsContact =
+        fullText.includes(KONTAKT_MARKER) || fullText.includes(MITARBEITER_MARKER);
       const clean = stripMarkers(fullText).trim();
       setMessages((m) => [...m, { role: "assistant", content: clean }]);
       setStreamText("");
@@ -440,6 +633,9 @@ export function ChatWidget() {
             height={32}
             className="relative h-8 w-8"
           />
+          {unread && (
+            <span className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full border-2 border-white bg-red-500" />
+          )}
         </button>
       )}
 
@@ -464,7 +660,7 @@ export function ChatWidget() {
                     Agents Gilt
                   </div>
                   <div className="text-[11px] uppercase tracking-wider text-ink-soft">
-                    KI-Assistent
+                    {ticket && !ticket.closed ? "Support-Chat mit dem Team" : "KI-Assistent"}
                   </div>
                 </div>
               </div>
@@ -484,7 +680,7 @@ export function ChatWidget() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto bg-cream/30 px-4 py-5">
               <div className="space-y-3">
                 {messages.map((m, i) => (
-                  <Bubble key={i} role={m.role} content={m.content} />
+                  <Bubble key={i} role={m.role} content={m.content} von={m.von} />
                 ))}
                 {streaming && streamText && <Bubble role="assistant" content={streamText} />}
                 {streaming && !streamText && (
@@ -523,11 +719,18 @@ export function ChatWidget() {
 
               {/* Zwei Wege zum Kontakt, sobald der Assistent nicht weiterhilft:
                   anrufen (schnellste Antwort) oder Anfrage schicken. */}
-              {showContact && !streaming && (
+              {showContact && !streaming && (!ticket || ticket.closed) && (
                 <div className="mt-4 space-y-2">
+                  <button
+                    type="button"
+                    onClick={openHandoff}
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink transition-transform hover:scale-[1.02]"
+                  >
+                    Mit einem Mitarbeiter chatten
+                  </button>
                   <a
                     href={`tel:${site.phone}`}
-                    className="flex w-full items-center justify-center gap-2 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink transition-transform hover:scale-[1.02]"
+                    className="flex w-full items-center justify-center gap-2 rounded-full border border-line bg-white px-5 py-3 text-sm font-semibold text-ink-soft transition-colors hover:border-gold hover:text-ink"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                       <path
@@ -554,6 +757,80 @@ export function ChatWidget() {
                   </p>
                 </div>
               )}
+
+              {/* Übergabe an einen Mitarbeiter */}
+              {handoff && !ticket && (
+                <form
+                  onSubmit={submitHandoff}
+                  className="mt-4 space-y-2.5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-line"
+                >
+                  <p className="text-sm font-semibold text-ink">Mit einem Mitarbeiter sprechen</p>
+                  <p className="text-xs leading-relaxed text-ink-soft">
+                    Wir übergeben dein Anliegen an unser Team. Es antwortet dir bald hier im Chat.
+                    Falls du die Seite verlässt, melden wir uns über den Kontakt, den du angibst.
+                  </p>
+                  <input
+                    value={hName}
+                    onChange={(e) => setHName(e.target.value)}
+                    placeholder="Dein Name"
+                    required
+                    maxLength={80}
+                    className="w-full rounded-xl border border-line bg-cream/50 px-3 py-2 text-sm text-ink focus:border-gold focus:outline-none"
+                  />
+                  <input
+                    value={hKontakt}
+                    onChange={(e) => setHKontakt(e.target.value)}
+                    placeholder="E-Mail oder Telefonnummer"
+                    required
+                    maxLength={120}
+                    className="w-full rounded-xl border border-line bg-cream/50 px-3 py-2 text-sm text-ink focus:border-gold focus:outline-none"
+                  />
+                  <textarea
+                    value={hFrage}
+                    onChange={(e) => setHFrage(e.target.value)}
+                    placeholder="Worum geht es?"
+                    required
+                    rows={3}
+                    maxLength={1000}
+                    className="w-full resize-none rounded-xl border border-line bg-cream/50 px-3 py-2 text-sm text-ink focus:border-gold focus:outline-none"
+                  />
+                  {/* Köder für einfache Bots: Menschen sehen das Feld nicht. */}
+                  <input
+                    value={hHoney}
+                    onChange={(e) => setHHoney(e.target.value)}
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    className="absolute -left-[9999px] h-0 w-0 opacity-0"
+                    name="website"
+                  />
+                  <p className="text-[10px] leading-relaxed text-ink-soft">
+                    Mit dem Absenden wird dein Anliegen samt Chatverlauf an unser Team übergeben
+                    (siehe{" "}
+                    <a href="/datenschutz" className="underline">
+                      Datenschutz
+                    </a>
+                    ).
+                  </p>
+                  {hError && <p className="text-xs text-red-700">{hError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={hBusy}
+                      className="flex-1 rounded-full bg-gold px-4 py-2.5 text-sm font-semibold text-ink transition hover:scale-[1.02] disabled:opacity-60"
+                    >
+                      {hBusy ? "Wird übergeben …" : "Verbinden"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHandoff(false)}
+                      className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink-soft hover:border-gold"
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
 
             {/* Eingabe */}
@@ -564,7 +841,7 @@ export function ChatWidget() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKey}
-                  placeholder="Frag mich etwas…"
+                  placeholder={ticket && !ticket.closed ? "Schreib dem Team …" : "Frag mich etwas…"}
                   rows={1}
                   disabled={streaming}
                   className="flex-1 resize-none rounded-2xl border border-line bg-cream/50 px-4 py-2.5 text-sm text-ink placeholder:text-ink-soft/60 focus:border-gold focus:outline-none disabled:opacity-60"
@@ -583,7 +860,16 @@ export function ChatWidget() {
                 </button>
               </div>
               <div className="mt-2 text-center text-[10px] text-ink-soft">
-                Agents Gilt ist eine KI · für ein konkretes Angebot am besten kurz Kontakt aufnehmen
+                {ticket && !ticket.closed ? (
+                  <>Du schreibst mit unserem Team · Antworten erscheinen hier im Chat</>
+                ) : (
+                  <>
+                    Agents Gilt ist eine KI ·{" "}
+                    <button type="button" onClick={openHandoff} className="underline hover:text-ink">
+                      mit einem Mitarbeiter sprechen
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -593,7 +879,15 @@ export function ChatWidget() {
   );
 }
 
-function Bubble({ role, content }: { role: "user" | "assistant"; content: string }) {
+function Bubble({
+  role,
+  content,
+  von,
+}: {
+  role: "user" | "assistant" | "team";
+  content: string;
+  von?: string;
+}) {
   const isUser = role === "user";
   return (
     <div className={`flex items-end gap-2 ${isUser ? "justify-end" : ""}`}>
@@ -602,9 +896,16 @@ function Bubble({ role, content }: { role: "user" | "assistant"; content: string
         className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
           isUser
             ? "rounded-br-sm bg-ink text-white"
-            : "rounded-bl-sm bg-white text-ink ring-1 ring-line"
+            : role === "team"
+              ? "rounded-bl-sm bg-gold/15 text-ink ring-1 ring-gold/40"
+              : "rounded-bl-sm bg-white text-ink ring-1 ring-line"
         }`}
       >
+        {role === "team" && von && (
+          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gold-dark">
+            {von}
+          </div>
+        )}
         {content}
       </div>
     </div>

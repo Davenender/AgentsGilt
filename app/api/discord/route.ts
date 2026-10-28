@@ -3,6 +3,7 @@ import {
   editInteractionOriginal,
   followupPrivate,
   getMessage,
+  postText,
   verifyDiscordSignature,
 } from "@/lib/discord";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/lib/discord-calls";
 import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
+import { closeTicketChannel, FOR_CUSTOMER, ticketComponents } from "@/lib/support";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 
 export const runtime = "nodejs";
@@ -68,6 +70,83 @@ function ephemeral(content: string) {
 }
 
 const DEFERRED_UPDATE = { type: 6 };
+
+/** Support-Tickets (Kategorie SUPPORT): Übernehmen, Antworten, Schließen. */
+function handleTicket(i: Interaction, who: string, ownerTag: string, token: string | undefined) {
+  const id = i.data?.custom_id ?? "";
+  const channel = i.channel_id;
+  if (!channel) return ephemeral("Der Kanal ist nicht bekannt.");
+
+  // Fenster "Antworten" abgeschickt
+  if (i.type === 5) {
+    const text = i.data?.components?.[0]?.components?.[0]?.value?.trim();
+    if (!text) return ephemeral("Die Nachricht war leer.");
+    after(async () => {
+      await postText(token, channel, `${FOR_CUSTOMER} **${who}:** ${text.slice(0, 1500)}`);
+    });
+    return ephemeral("Gesendet. Der Besucher sieht die Antwort gleich im Chat.");
+  }
+
+  const embed = i.message?.embeds?.[0];
+  const action = id.slice("ticket:".length);
+  const setStatus = (status: string, color: number): EmbedLike => ({
+    ...(embed ?? {}),
+    color,
+    fields: (embed?.fields ?? []).map((f) => (f.name === "Status" ? { ...f, value: status } : f)),
+  });
+  const time = uhrzeit();
+
+  if (action === "reply") {
+    return NextResponse.json({
+      type: 9,
+      data: {
+        custom_id: "ticket:reply",
+        title: "Antwort an den Besucher",
+        components: [
+          {
+            type: 1,
+            components: [
+              { type: 4, custom_id: "text", label: "Nachricht", style: 2, required: true, max_length: 1500 },
+            ],
+          },
+        ],
+      },
+    });
+  }
+
+  if (!embed) return ephemeral("Diese Meldung ist nicht mehr aktuell.");
+
+  if (action === "claim") {
+    after(async () => {
+      await postText(token, channel, `${FOR_CUSTOMER} **${who}** ist jetzt für dich da.`);
+    });
+    return NextResponse.json({
+      type: 7,
+      data: {
+        embeds: [setStatus(`Übernommen von ${ownerTag} um ${time}`, 0x3b82f6)],
+        components: ticketComponents("claimed"),
+        allowed_mentions: { parse: [] },
+      },
+    });
+  }
+
+  if (action === "close") {
+    after(async () => {
+      await closeTicketChannel(token!, channel);
+      await postText(token, channel, `🔒 Ticket geschlossen von ${who}.`);
+    });
+    return NextResponse.json({
+      type: 7,
+      data: {
+        embeds: [setStatus(`Geschlossen von ${ownerTag} um ${time}`, 0x6b7280)],
+        components: ticketComponents("closed"),
+        allowed_mentions: { parse: [] },
+      },
+    });
+  }
+
+  return NextResponse.json({ ok: true });
+}
 
 function uhrzeit(): string {
   return new Date().toLocaleTimeString("de-DE", {
@@ -137,6 +216,8 @@ export async function POST(request: Request) {
   const customId = interaction.data?.custom_id ?? "";
   const token = process.env.DISCORD_BOT_TOKEN;
   const channelId = interaction.channel_id ?? process.env.DISCORD_CHANNEL_ANRUFE;
+
+  if (customId.startsWith("ticket:")) return handleTicket(interaction, who, ownerTag, token);
 
   // ---------------------------------------------------- Fenster abgeschickt
   if (interaction.type === 5) {

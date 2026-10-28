@@ -83,6 +83,19 @@ export default function DatenschutzPage() {
             genannten Dienstleister hinausgehen. Die Verläufe werden gelöscht,
             sobald sie für diesen Zweck nicht mehr erforderlich sind.
           </p>
+          <p className="mt-3">
+            Möchtest du im Chat mit einem Mitarbeiter sprechen, gibst du dafür
+            freiwillig deinen Namen, eine E-Mail-Adresse oder Telefonnummer und
+            dein Anliegen an. Diese Angaben und der bisherige Chatverlauf werden
+            an unser Team übergeben und dort in einem internen, nur für unser
+            Team sichtbaren Kanal bei Discord Inc. (USA) bearbeitet; zusätzlich
+            erhalten wir eine E-Mail über die Anfrage. Deine Antworten und
+            unsere Rückfragen laufen über diesen Kanal. Rechtsgrundlage ist
+            Art. 6 Abs. 1 lit. b DSGVO (Beantwortung deiner Anfrage). Die Daten
+            werden gelöscht, sobald dein Anliegen erledigt ist und keine
+            Aufbewahrungspflichten entgegenstehen. Die Übermittlung in die USA
+            erfolgt auf Grundlage der EU-Standardvertragsklauseln.
+          </p>
         </div>
 
         <div>
