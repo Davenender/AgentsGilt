@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { USAGE_TEXT } from "@/lib/leads";
-import { findChannelId, postText } from "@/lib/discord";
+import { findChannelId } from "@/lib/discord";
 
 export const runtime = "nodejs";
 
@@ -72,9 +72,20 @@ export async function POST(request: Request) {
   if (action === "willkommen") {
     const ch = await findChannelId(token, "willkommen");
     if (!ch) return NextResponse.json({ error: "Kanal willkommen fehlt" }, { status: 404 });
-    const a = await postText(token, ch, ANLEITUNG_1);
-    const b = await postText(token, ch, ANLEITUNG_2);
-    return NextResponse.json({ ok: a && b });
+    const out: unknown[] = [];
+    for (const [title, text] of [
+      ["Anleitung: Support-Chat auf der Website", ANLEITUNG_1],
+      ["Anleitung: Lead-Karten (neue Unternehmen vorschlagen)", ANLEITUNG_2],
+    ]) {
+      const body = text.split("\n").slice(2).join("\n");
+      const res = await fetch(`${API}/channels/${ch}/messages`, {
+        method: "POST",
+        headers: h,
+        body: JSON.stringify({ embeds: [{ title: `📖 ${title}`, description: body, color: 0xd4a23c }], allowed_mentions: { parse: [] } }),
+      });
+      out.push({ status: res.status, body: res.ok ? "" : (await res.text()).slice(0, 200) });
+    }
+    return NextResponse.json({ ok: out.every((o) => (o as { status: number }).status === 200), out });
   }
 
   void USAGE_TEXT;
