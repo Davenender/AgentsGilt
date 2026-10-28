@@ -69,6 +69,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: res.ok, status: res.status, body: (await res.text()).slice(0, 300) });
   }
 
+  if (action === "reset-leads") {
+    const all = (await (await fetch(`${API}/guilds/${GUILD}/channels`, { headers: h })).json()) as { id: string; name: string; type: number }[];
+    const out: string[] = [];
+    for (const c of all.filter((c) => c.type === 0 && ["leads", "lead-ablage", "lead-speicher"].includes(c.name))) {
+      const r = await fetch(`${API}/channels/${c.id}`, { method: "DELETE", headers: h });
+      out.push(`${c.name}: ${r.status}`);
+    }
+    return NextResponse.json({ out });
+  }
+
   if (action === "perm") {
     const ch = await findChannelId(token, "willkommen");
     const roles = (await (await fetch(`${API}/guilds/${GUILD}/roles`, { headers: h })).json()) as { id: string; name: string }[];

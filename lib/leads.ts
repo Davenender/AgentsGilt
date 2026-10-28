@@ -93,17 +93,22 @@ async function ensureChannel(token: string, name: string): Promise<string | null
   const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
   const team = roles.find((r) => r.name === "Team");
   const bot = roles.find((r) => r.name === "Agents Gilt");
+  // Der Bot selbst (als Nutzer), damit er sich nie aussperrt, auch wenn der Rollenname nicht passt.
+  const me = await call<{ id: string }>(token, "GET", "/users/@me");
+  const botSelf = me ? [{ id: me.id, type: 1, allow: ALL, deny: "0" }] : [];
 
   const overwrites =
     name === CH_SPEICHER
       ? [
           { id: GUILD_ID, type: 0, allow: "0", deny: "1024" },
           { id: OWNER_ID, type: 1, allow: READ, deny: "0" },
+          ...botSelf,
           ...(bot ? [{ id: bot.id, type: 0, allow: ALL, deny: "0" }] : []),
         ]
       : [
           { id: GUILD_ID, type: 0, allow: "0", deny: "1024" },
           ...(team ? [{ id: team.id, type: 0, allow: READ, deny: NO_WRITE }] : []),
+          ...botSelf,
           ...(bot ? [{ id: bot.id, type: 0, allow: ALL, deny: "0" }] : []),
         ];
   const topic =
