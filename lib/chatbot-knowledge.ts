@@ -37,6 +37,8 @@ export const AGENTS_GILT_KNOWLEDGE = `
 - Wie lange dauert es? Kleinere Projekte sind oft in wenigen Tagen einsatzbereit, größere in ein paar Wochen. Der genaue Zeitplan hängt vom Umfang ab und wird im Erstgespräch geklärt.
 - Was brauchen wir vom Kunden? Meist: Infos über den Betrieb, vorhandene Texte/Bilder/Logo, und einen Ansprechpartner, der Fragen beantworten kann. Zugänge (z.B. zur Domain) nur dort, wo sie wirklich gebraucht werden.
 - Muss man sich um die Technik kümmern? Nein. Wir richten alles ein und übernehmen auf Wunsch die laufende Betreuung.
+- Was gehört zur laufenden Betreuung? Ein fester Ansprechpartner bei Fragen und Problemen (Support), Fehlerbehebung und technische Wartung, regelmäßige Updates und Sicherheitsaktualisierungen, kleine Änderungen und Anpassungen (z.B. neue Texte, Öffnungszeiten, Angebote), Überwachung, dass alles zuverlässig läuft, sowie Rückmeldungen und Verbesserungsvorschläge auf Basis der Nutzung. Umfang und Details werden im Gespräch passend zum Projekt festgelegt.
+- Bekommen Kunden eine Bestätigung für Termine? Ja. Wer telefonisch oder online einen Termin vereinbart, bekommt per SMS eine Bestätigung. Passt der Wunschtermin nicht, kommt ein anderer Vorschlag per SMS, den man mit einem Klick annehmen oder ändern kann.
 - Was ist mit Datenschutz? Wir bauen DSGVO-konform, klären vorab, welche Daten verarbeitet werden, und schließen bei Bedarf einen Auftragsverarbeitungsvertrag ab.
 - Kann man später erweitern? Ja. Wir starten oft klein und bauen aus, wenn es sich bewährt.
 - Arbeitet ihr auch außerhalb der Region? Ja, die Zusammenarbeit läuft problemlos digital.
@@ -53,7 +55,7 @@ Wir arbeiten mit einem einmaligen Setup-Preis plus optional monatlicher Betreuun
 
 ## Kontakt aufnehmen
 - Über das Kontaktformular auf dieser Seite (Bereich "Kontakt")
-- Telefonisch unter +49 6108 9694027 — dort nimmt unser KI-Telefonassistent ab, klärt das Anliegen und vereinbart direkt einen Termin
+- Telefonisch unter +49 6108 9694027 — dort nimmt unser KI-Telefonassistent ab, klärt das Anliegen und vereinbart direkt einen Termin; die Bestätigung kommt per SMS
 - Per E-Mail an kontakt@agentsgilt.com
 - Per WhatsApp (Button im Kontaktbereich)
 - Direkt hier im Chat: Auf Wunsch verbinde ich Besucher mit einem Mitarbeiter, der bald hier im Chat antwortet

@@ -72,7 +72,11 @@ function ephemeral(content: string) {
 const DEFERRED_UPDATE = { type: 6 };
 
 // Anzeigenamen für Besucher (David kann seinen Server-Spitznamen selbst nicht ändern).
-const SHOW_NAMES: Record<string, string> = { "806859236768088114": "David" };
+const SHOW_NAMES: Record<string, string> = {
+  "806859236768088114": "David",
+  "523479048727560205": "Jakob",
+  "1363529531939492133": "Mijo",
+};
 
 /** Support-Tickets (Kategorie SUPPORT): Übernehmen, Antworten, Schließen. */
 function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: string | undefined) {
