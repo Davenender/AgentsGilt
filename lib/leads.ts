@@ -275,7 +275,7 @@ export async function teamRolle(token: string): Promise<string | null> {
   return roles.find((r) => r.name === "Team")?.id ?? null;
 }
 
-export function kartenEmbed(a: Analyse, url: string, domain: string): EmbedLike {
+export function kartenEmbed(a: Analyse, url: string, domain: string, von: string): EmbedLike {
   const fields: EmbedLike["fields"] = [
     { name: "Branche", value: sauber(a.branche ?? "nicht gefunden"), inline: true },
     { name: "Telefon", value: sauber(a.telefon ?? "nicht gefunden"), inline: true },
@@ -298,7 +298,7 @@ export function kartenEmbed(a: Analyse, url: string, domain: string): EmbedLike 
     description: `${sauber(clip(a.zusammenfassung, 700))}\n\n🔗 ${url}`,
     color: COLOR.vote,
     fields,
-    footer: { text: `lead:${domain}${SEP}${FOOTER_HINWEIS}` },
+    footer: { text: `lead:${domain}${SEP}angelegt von ${von}${SEP}${FOOTER_HINWEIS}` },
   };
 }
 

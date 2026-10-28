@@ -26,6 +26,7 @@ import {
   teamRolle,
   vergissAbgelehnt,
 } from "@/lib/leads";
+import { SHOW_NAMES } from "@/lib/support";
 import { legeKundenZeileAn, notionConfigured } from "@/lib/notion-api";
 
 // Befehle /lead und /lead-delete und die Knöpfe unter den Lead-Karten.
@@ -63,7 +64,7 @@ const kanalLink = (channelId: string, messageId: string) =>
 
 // ----------------------------------------------------------------- /lead
 
-export function handleLeadCommand(i: LeadInteraction, token: string | undefined) {
+export function handleLeadCommand(i: LeadInteraction, token: string | undefined, who: string) {
   const appId = i.application_id;
   const itoken = i.token;
   const user = i.member?.user;
@@ -131,7 +132,7 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined)
         await setzeAntwort(appId, itoken, "⚠️ Den Kanal #leads konnte ich nicht anlegen. Bitte die Rechte des Bots prüfen.");
         return;
       }
-      const embed = kartenEmbed(res.analyse, res.url, res.domain);
+      const embed = kartenEmbed(res.analyse, res.url, res.domain, SHOW_NAMES[user.id] ?? who);
       const rolle = await teamRolle(token);
       const id = await postKarte(
         token,
