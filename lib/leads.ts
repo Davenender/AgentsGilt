@@ -76,7 +76,7 @@ interface Role {
 
 const READ = String(1024 + 65536); // ansehen + Verlauf
 const NO_WRITE = String(2048 + 64); // schreiben + reagieren
-const ALL = String(1024 + 2048 + 65536 + 16384 + 32768 + 8192); // Bot: inkl. Nachrichten verwalten
+const ALL = String(1024 + 2048 + 65536 + 16384 + 32768); // Bot: nur, was er selbst hat (mehr darf er nicht vergeben)
 
 export const USAGE_TEXT =
   "**So legst du eine Lead-Karte an**\n" +
