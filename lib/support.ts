@@ -327,10 +327,27 @@ export async function closeTicketChannel(token: string, channelId: string): Prom
     }))?.id;
   }
 
-  await call(token, "PATCH", `/channels/${channelId}`, {
+  const base = {
     name: ch.name.startsWith("geschlossen-") ? ch.name : `geschlossen-${ch.name}`,
     ...(archive ? { parent_id: archive } : {}),
+  };
+
+  // Archivierte Tickets bleiben für das Team lesbar, aber nicht mehr beschreibbar.
+  const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
+  const team = roles.find((r) => r.name === "Team");
+  const bot = roles.find((r) => r.name === "Agents Gilt");
+  const READ_ONLY_ALLOW = String(1024 + 65536); // ansehen + Verlauf
+  const SEND_DENY = String(2048 + 64); // senden + Reaktionen
+  const done = await call(token, "PATCH", `/channels/${channelId}`, {
+    ...base,
+    permission_overwrites: [
+      { id: GUILD_ID, type: 0, allow: "0", deny: VIEW },
+      ...(team ? [{ id: team.id, type: 0, allow: READ_ONLY_ALLOW, deny: SEND_DENY }] : []),
+      ...(bot ? [{ id: bot.id, type: 0, allow: ALLOW, deny: "0" }] : []),
+    ],
   });
+  // Ohne das Recht, Berechtigungen zu setzen, wenigstens umbenennen und verschieben.
+  if (!done) await call(token, "PATCH", `/channels/${channelId}`, base);
 }
 
 // ------------------------------------------------------------ Rechtschreibung
