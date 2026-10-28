@@ -15,7 +15,21 @@ interface Message {
   role: "user" | "assistant" | "team";
   content: string;
   von?: string;
+  // Gehört nicht ins Gespräch mit dem KI-Assistenten (Support-Chat, Hinweise).
+  // Sonst glaubt er z.B., die Übergabe an einen Mitarbeiter laufe noch.
+  noAi?: boolean;
 }
+
+/** Der Verlauf, den der KI-Assistent sehen darf. */
+function aiHistory(messages: Message[]) {
+  return messages
+    .filter((m) => (m.role === "user" || m.role === "assistant") && !m.noAi)
+    .map((m) => ({ role: m.role, content: m.content }));
+}
+
+// Verlangt der Besucher ausdrücklich einen Menschen, zeigen wir den Knopf
+// sofort, auch falls der Assistent den Marker vergisst.
+const WANTS_HUMAN = /mitarbeiter|mensch|echte[nr]? person|jemand(en)? vom team|support/i;
 
 // Ein laufender Support-Chat: der Schlüssel des Tickets und die letzte Nachricht,
 // die der Besucher schon gesehen hat.
@@ -256,10 +270,10 @@ export function ChatWidget() {
           }));
           if (data.closed) {
             neu.push({
-              role: "team",
-              von: "Agents Gilt",
+              role: "assistant",
+              noAi: true,
               content:
-                "Der Chat wurde vom Team beendet. Bei weiteren Fragen schreib einfach eine neue Nachricht.",
+                "Der Chat mit dem Team wurde beendet. Bei weiteren Fragen helfe ich dir wieder gern, oder du verbindest dich erneut mit einem Mitarbeiter.",
             });
           }
           if (neu.length > 0) {
@@ -467,9 +481,7 @@ export function ChatWidget() {
           kontakt: hKontakt,
           frage: hFrage,
           website: hHoney,
-          verlauf: messages
-            .filter((m) => m.role === "user" || m.role === "assistant")
-            .slice(-8),
+          verlauf: aiHistory(messages).slice(-8),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -487,6 +499,7 @@ export function ChatWidget() {
         ...m,
         {
           role: "assistant",
+          noAi: true,
           content: `Danke, ${hName.trim()}! Ich habe dein Anliegen an unser Team übergeben. Hier im Chat antwortet dir bald ein Mitarbeiter. Du kannst in der Zwischenzeit gern weiterschreiben.`,
         },
       ]);
@@ -500,7 +513,7 @@ export function ChatWidget() {
   async function sendSupport(text: string) {
     const t = ticketRef.current;
     if (!t) return;
-    setMessages((m) => [...m, { role: "user", content: text }]);
+    setMessages((m) => [...m, { role: "user", content: text, noAi: true }]);
     setInput("");
     setError(null);
     try {
@@ -539,7 +552,7 @@ export function ChatWidget() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: next.filter((m) => m.role === "user" || m.role === "assistant"),
+          messages: aiHistory(next),
         }),
       });
       if (!res.ok) {
@@ -579,7 +592,7 @@ export function ChatWidget() {
       const clean = stripMarkers(fullText).trim();
       setMessages((m) => [...m, { role: "assistant", content: clean }]);
       setStreamText("");
-      if (wantsContact) setShowContact(true);
+      if (wantsContact || WANTS_HUMAN.test(text)) setShowContact(true);
 
       const gathered = parseDaten(fullText);
       if (gathered) {
@@ -786,7 +799,7 @@ export function ChatWidget() {
               )}
 
               {/* Übergabe an einen Mitarbeiter */}
-              {handoff && !ticket && (
+              {handoff && (!ticket || ticket.closed) && (
                 <form
                   onSubmit={submitHandoff}
                   className="mt-4 space-y-2.5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-line"

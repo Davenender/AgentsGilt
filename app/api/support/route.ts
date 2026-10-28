@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     // Verstecktes Feld: Menschen lassen es leer, einfache Bots füllen es aus.
     if (text(body.website, 100)) return NextResponse.json({ ok: true });
 
-    const rl = rateLimit(`support-open:${ip}`, 3, 60 * 60_000);
+    const rl = rateLimit(`support-open:${ip}`, 5, 60 * 60_000);
     if (!rl.ok) {
       return fehler("Du hast schon mehrere Anfragen geschickt. Bitte schreib uns kurz über das Kontaktformular.", 429);
     }
