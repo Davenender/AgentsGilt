@@ -26,6 +26,7 @@ import {
 import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
 import { handleLeadButton, handleLeadCommand } from "@/lib/lead-handlers";
+import { OWNER_ID } from "@/lib/leads";
 import { closeTicketChannel, FOR_CUSTOMER, SHOW_NAMES, ticketComponents } from "@/lib/support";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 
@@ -156,6 +157,16 @@ function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: s
   return NextResponse.json({ ok: true });
 }
 
+/** Anruf-Karten: Nur der Bearbeiter (oder David) darf weiterarbeiten. Gibt den Hinweistext zurück, wenn nicht. */
+function nurBearbeiter(embed: EmbedLike, userId: string): string | null {
+  if (userId === OWNER_ID) return null;
+  const owner = ownerId(embed);
+  if (owner === userId) return null;
+  return owner
+    ? `Diesen Anruf hat <@${owner}> übernommen. Erst wenn sie/er ihn freigibt, kannst du ihn übernehmen und bearbeiten.`
+    : "Übernimm den Anruf zuerst mit dem Knopf „Übernehmen“.";
+}
+
 function uhrzeit(): string {
   return new Date().toLocaleTimeString("de-DE", {
     hour: "2-digit",
@@ -248,6 +259,8 @@ export async function POST(request: Request) {
     if (!embed) return ephemeral("Diese Meldung ist nicht mehr aktuell.");
     const state = stateOf(embed);
     if (state === "confirmed" || state === "done") return ephemeral("Dieser Anruf ist schon abgeschlossen.");
+    const verboten = nurBearbeiter(embed, user.id);
+    if (verboten) return ephemeral(verboten);
 
     const bereit = bereitFuerSms(embed);
     if ("fehler" in bereit) return ephemeral(bereit.fehler);
@@ -290,14 +303,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
   const action = customId.slice(CALL_CUSTOM_ID_PREFIX.length) as CallAction;
-  if (!["claim", "confirm", "propose", "done"].includes(action)) return NextResponse.json({ ok: true });
+  if (!["claim", "confirm", "propose", "done", "release"].includes(action)) return NextResponse.json({ ok: true });
 
   const embed = interaction.message?.embeds?.[0];
   const messageId = interaction.message?.id;
   if (!embed || !messageId) return ephemeral("Diese Meldung ist nicht mehr aktuell.");
   const state = stateOf(embed);
 
-  if (action === "claim" || action === "done") {
+  if (action === "claim") {
+    const aktuell = ownerId(embed);
+    if (aktuell && aktuell !== user.id) {
+      return ephemeral(`Diesen Anruf hat schon <@${aktuell}> übernommen. Erst wenn sie/er ihn freigibt, kannst du ihn übernehmen.`);
+    }
+  } else {
+    // Alles andere (bestätigen, vorschlagen, erledigt, freigeben) nur für den Bearbeiter (oder David).
+    const verboten = nurBearbeiter(embed, user.id);
+    if (verboten) return ephemeral(verboten);
+  }
+
+  if (action === "claim" || action === "done" || action === "release") {
     const { embed: updated, state: next } = applyAction(embed, action, ownerTag, uhrzeit());
     console.log(`[discord] Anruf-Knopf "${action}" von ${who}`);
     // 7 = die bestehende Nachricht aktualisieren
@@ -305,7 +329,7 @@ export async function POST(request: Request) {
       type: 7,
       data: {
         embeds: [updated],
-        components: callComponents(next),
+        components: callComponents(next, action !== "release"),
         allowed_mentions: { parse: [] },
       },
     });

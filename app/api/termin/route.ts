@@ -93,7 +93,7 @@ export async function POST(request: Request) {
 
     const ok = await editMessage(token, channelId, v.messageId, {
       embeds: [customerWish(v.embed, eingabe.text, time)],
-      components: callComponents("customer_alt"),
+      components: callComponents("customer_alt", Boolean(ownerId(v.embed))),
     });
     if (!ok) return NextResponse.json({ error: "Das hat leider nicht geklappt. Bitte rufen Sie uns an." }, { status: 502 });
     await replyTo(token, channelId, v.messageId, `🕒 ${kunde} wünscht stattdessen: ${eingabe.text}${wer}`);

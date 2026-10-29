@@ -19,7 +19,7 @@ export type CallState =
   | "confirmed"
   | "done";
 
-export type CallAction = "claim" | "confirm" | "propose" | "done";
+export type CallAction = "claim" | "confirm" | "propose" | "done" | "release";
 
 export const CALL_CUSTOM_ID_PREFIX = "call:";
 export const PROPOSAL_MODAL_PREFIX = "call:proposal:";
@@ -66,7 +66,7 @@ export function stateOf(embed: EmbedLike): CallState {
 }
 
 /** Knöpfe, die zum jeweiligen Zustand passen (Discord: Action Row mit Buttons). */
-export function callComponents(state: CallState) {
+export function callComponents(state: CallState, hasOwner = true) {
   const button = (label: string, action: CallAction, style: 1 | 2 | 3 | 4) => ({
     type: 2,
     label,
@@ -80,6 +80,8 @@ export function callComponents(state: CallState) {
     case "claimed":
     case "proposed":
     case "customer_alt":
+      // Ohne Bearbeiter (nach "Freigeben") kann nur wieder übernommen werden.
+      if (!hasOwner) return [{ type: 1, components: [button("Übernehmen", "claim", 3)] }];
       return [
         {
           type: 1,
@@ -87,6 +89,7 @@ export function callComponents(state: CallState) {
             button("Termin bestätigen (SMS)", "confirm", 3),
             button("Anderen Termin vorschlagen", "propose", 1),
             button("Erledigt", "done", 2),
+            button("Freigeben", "release", 2),
           ],
         },
       ];
@@ -205,18 +208,30 @@ export function transition(embed: EmbedLike, to: CallState, change: Change): Emb
   return { ...embed, color: STATE_COLOR[to], fields };
 }
 
-/** Übernehmen und Erledigt: ohne SMS, sofort. */
+/** Übernehmen, Freigeben und Erledigt: ohne SMS, sofort. */
 export function applyAction(
   embed: EmbedLike,
-  action: "claim" | "done",
+  action: "claim" | "done" | "release",
   who: string,
   time: string,
 ): { embed: EmbedLike; state: CallState } {
+  const state = stateOf(embed);
   if (action === "claim") {
+    // Wartet schon ein Vorschlag oder ein Kundenwunsch, bleibt dieser Zustand erhalten (nur der Bearbeiter ändert sich).
+    if (state === "proposed" || state === "customer_alt") {
+      return { embed: transition(embed, state, { status: fieldValue(embed, STATUS_FIELD) ?? "Übernommen", owner: who }), state };
+    }
     return {
       embed: transition(embed, "claimed", { status: `Übernommen um ${time}`, owner: who }),
       state: "claimed",
     };
+  }
+  if (action === "release") {
+    const status =
+      state === "proposed" || state === "customer_alt"
+        ? (fieldValue(embed, STATUS_FIELD) ?? "Freigegeben")
+        : `Freigegeben um ${time}, wartet auf eine neue Übernahme`;
+    return { embed: transition(embed, state, { status, remove: [OWNER_FIELD] }), state };
   }
   return {
     embed: transition(embed, "done", {
