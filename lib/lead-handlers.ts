@@ -212,6 +212,11 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
   // ---- Status nach der Annahme
   if (!action.startsWith("st:")) return NextResponse.json({ ok: true });
   if (state !== "accepted") return ephemeral("Der Status lässt sich erst nach der Annahme setzen.");
+  // Ist der Lead übernommen, darf nur der Übernehmende (oder David) die Status-Knöpfe benutzen.
+  const besitzer = besitzerId(embed);
+  if (besitzer && besitzer !== user.id && user.id !== OWNER_ID) {
+    return ephemeral(`Diesen Lead hat <@${besitzer}> übernommen. Erst wenn sie/er ihn freigibt, kannst du ihn bearbeiten.`);
+  }
   const st = action.slice(3);
   const zeit = uhrzeit();
 
