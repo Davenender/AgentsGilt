@@ -11,6 +11,7 @@ import {
   twimlEnde,
   twimlKlingeln,
   twimlWeiter,
+  wirklichVerbunden,
 } from "@/lib/rufgruppe";
 
 export const runtime = "nodejs";
@@ -69,21 +70,25 @@ async function handle(request: Request) {
   if (aktion === "annahme") return twiml(twimlAnnahme(feld("Digits")));
   if (aktion === "ende") {
     const status = feld("DialCallStatus");
-    if (status && status !== "completed" && status !== "answered") {
+    const dauer = Number(feld("DialCallDuration") ?? 0) || 0;
+    const verbunden = wirklichVerbunden(status, dauer);
+    if (!verbunden) {
       const grund =
         status === "no-answer"
           ? "Niemand hat abgenommen."
           : status === "canceled"
             ? "Der Anrufer hat vorher aufgelegt."
-            : `Technisches Problem (${status}).`;
+            : status === "completed" || status === "answered"
+              ? "Ein Handy hat abgenommen (vermutlich Mailbox oder Anruffilter), aber niemand hat die 1 gedrückt."
+              : `Technisches Problem (${status}).`;
       const nr = feld("From");
       const eigene = absender().replace("+", "");
       const anrufer = nr && !nr.replace("+", "").startsWith(eigene.slice(0, 6)) ? ` (${nr})` : "";
       await meldeInDiscord(
-        `📵 **Durchstellen hat nicht geklappt:** Ein Anrufer${anrufer} wollte einen Mitarbeiter. ${grund} Er hat die Ansage gehört. Bitte zurückrufen (Nummer in der Anrufkarte).`,
+        `📵 **Durchstellen hat nicht geklappt:** Ein Anrufer${anrufer} wollte einen Mitarbeiter. ${grund} Bitte zurückrufen (Nummer in der Anrufkarte).`,
       );
     }
-    return twiml(twimlEnde(status));
+    return twiml(twimlEnde(verbunden));
   }
   return NextResponse.json({ error: "Unbekannte Aktion" }, { status: 400 });
 }

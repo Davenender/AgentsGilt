@@ -133,12 +133,24 @@ export function twimlAnnahme(digits: string | null): string {
   if (digits === "1") return xml(""); // leer = Anruf wird verbunden
   if (digits) return xml("<Hangup/>");
   return xml(
-    `<Gather numDigits="1" timeout="8" action="${esc(adresse("annahme"))}" method="POST"><Say language="de-DE" voice="Polly.Vicki">${esc(ANNAHME_TEXT)}</Say></Gather><Hangup/>`,
+    `<Gather numDigits="1" timeout="6" action="${esc(adresse("annahme"))}" method="POST"><Say language="de-DE" voice="Polly.Vicki">${esc(ANNAHME_TEXT)}</Say></Gather><Hangup/>`,
   );
 }
 
-export function twimlEnde(dialStatus: string | null): string {
-  if (dialStatus === "completed" || dialStatus === "answered") return xml("<Hangup/>");
+/** Kürzer als das gilt ein "beendetes" Gespräch nicht als echtes (Mailbox/Anruffilter hat abgenommen, niemand drückte die 1). */
+export const MIN_GESPRAECH_SEKUNDEN = 20;
+
+/**
+ * Hat jemand wirklich angenommen? Twilio meldet "completed", auch wenn eine Mailbox oder der
+ * iPhone-Anruffilter abgenommen hat und die Abfrage "Taste 1" danach ohne Eingabe auflegte.
+ * Solche Anrufe dauern nur wenige Sekunden (Abfrage höchstens ~12 s).
+ */
+export function wirklichVerbunden(dialStatus: string | null, dauerSekunden: number): boolean {
+  return (dialStatus === "completed" || dialStatus === "answered") && dauerSekunden >= MIN_GESPRAECH_SEKUNDEN;
+}
+
+export function twimlEnde(verbunden: boolean): string {
+  if (verbunden) return xml("<Hangup/>");
   return xml(`<Say language="de-DE" voice="Polly.Vicki">${esc(ANSAGE)}</Say><Hangup/>`);
 }
 
