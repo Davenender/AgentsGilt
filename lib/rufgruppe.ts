@@ -10,7 +10,7 @@ import { linkSecret, toE164 } from "@/lib/termin";
 // in #anrufe.
 //
 // Einstellungen (Vercel, Production):
-//   RUFGRUPPE_NUMMERN   Handynummern des Teams, durch Komma getrennt
+//   RUFGRUPPE_NUMMERN   Handynummern des Teams, durch Komma getrennt (weitere: RUFGRUPPE_NUMMERN_2)
 //   RUFGRUPPE_ABSENDER  Nummer, die auf den Handys erscheint (Standard +49 6108 9694027)
 //   RUFGRUPPE_ZEITEN    optional, z.B. "Mo-Fr 15:00-20:00; Sa-So 10:00-18:00"
 //                       (ohne Angabe: immer)
@@ -24,7 +24,8 @@ export const ANNAHME_TEXT = "Anruf von Agents Gilt. Drücken Sie die 1, um das G
 const SITE = process.env.SITE_URL || "https://agentsgilt.com";
 
 export function nummern(): string[] {
-  return (process.env.RUFGRUPPE_NUMMERN ?? "")
+  // Zweite Variable für weitere Nummern, falls die erste nicht mehr einsehbar ist.
+  return `${process.env.RUFGRUPPE_NUMMERN ?? ""},${process.env.RUFGRUPPE_NUMMERN_2 ?? ""}`
     .split(/[,;\n]/)
     .map((n) => toE164(n.trim()))
     .filter((n): n is string => Boolean(n));
