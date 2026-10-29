@@ -3,6 +3,8 @@ import type { EmbedLike } from "@/lib/discord-calls";
 import { analysiere, domainKey, normalizeUrl } from "@/lib/lead-analyse";
 import {
   ablageKanal,
+  besitzerId,
+  mitBesitzer,
   kanalInfo,
   letzterFehler,
   ablehnungAbbrechen,
@@ -197,6 +199,16 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
     return NextResponse.json(DEFERRED_UPDATE);
   }
 
+  // ---- Übernehmen / Freigeben: wer ruft bei diesem Lead an?
+  if (action === "take") {
+    if (state !== "accepted") return ephemeral("Übernehmen geht erst, wenn die Karte angenommen ist.");
+    const aktuell = besitzerId(embed);
+    const wort = statusWort(embed);
+    if (!aktuell) return update(mitBesitzer(embed, user.id), leadComponents("accepted", wort, user.id));
+    if (aktuell === user.id || user.id === OWNER_ID) return update(mitBesitzer(embed, null), leadComponents("accepted", wort, null));
+    return ephemeral(`Diesen Lead hat schon <@${aktuell}> übernommen. Freigeben kann nur sie/er (oder David).`);
+  }
+
   // ---- Status nach der Annahme
   if (!action.startsWith("st:")) return NextResponse.json({ ok: true });
   if (state !== "accepted") return ephemeral("Der Status lässt sich erst nach der Annahme setzen.");
@@ -205,7 +217,7 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
 
   if (st === "open" || st === "work" || st === "contacted") {
     const wort = st === "open" ? "Offen" : st === "work" ? "In Arbeit" : "Kontaktiert";
-    return update(mitStatus(embed, wort, zeit), leadComponents("accepted", wort));
+    return update(mitStatus(embed, wort, zeit), leadComponents("accepted", wort, besitzerId(embed)));
   }
 
   if (st === "nointerest") {

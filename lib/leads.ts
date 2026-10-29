@@ -32,6 +32,7 @@ export const F_NO = "👎 Passt nicht";
 export const F_STATUS = "Status";
 export const F_NOTION = "Notion";
 const F_HINT = "Hinweis";
+export const F_OWNER = "Übernommen von";
 
 export function stateOf(embed: EmbedLike): LeadState {
   const found = (Object.keys(COLOR) as LeadState[]).find((s) => COLOR[s] === embed.color);
@@ -376,6 +377,24 @@ export function mitStatus(e: EmbedLike, status: string, zeit: string, state: Lea
   return { ...e, color: COLOR[state], fields };
 }
 
+/** Discord-ID dessen, der den Lead übernommen hat (steht als Erwähnung <@id> auf der Karte). */
+export function besitzerId(e: EmbedLike): string | null {
+  return fieldValue(e, F_OWNER)?.match(/<@!?(\d+)>/)?.[1] ?? null;
+}
+
+/** Trägt den Übernehmenden auf der Karte ein (id = null: wieder freigeben). */
+export function mitBesitzer(e: EmbedLike, id: string | null): EmbedLike {
+  const fields = (e.fields ?? []).filter((f) => f.name !== F_OWNER);
+  if (id) {
+    // direkt vor "Status" einfügen, damit die Reihenfolge stabil bleibt
+    const i = fields.findIndex((f) => f.name === F_STATUS);
+    const feld = { name: F_OWNER, value: `<@${id}>`, inline: false };
+    if (i >= 0) fields.splice(i, 0, feld);
+    else fields.push(feld);
+  }
+  return { ...e, fields };
+}
+
 export function mitNotion(e: EmbedLike, nr: string | null, seite: string): EmbedLike {
   const fields = (e.fields ?? []).filter((f) => f.name !== F_NOTION);
   fields.push({ name: F_NOTION, value: `${nr ? `${nr} · ` : ""}${seite ? `[In Notion öffnen](${seite})` : "angelegt"}`, inline: false });
@@ -395,7 +414,7 @@ const button = (label: string, id: string, style: 1 | 2 | 3 | 4) => ({
   custom_id: `lead:${id}`,
 });
 
-export function leadComponents(state: LeadState, status = "Offen") {
+export function leadComponents(state: LeadState, status = "Offen", besitzer: string | null = null) {
   switch (state) {
     case "vote":
       return [{ type: 1, components: [button("Passt", "yes", 3), button("Passt nicht", "no", 4)] }];
@@ -410,7 +429,12 @@ export function leadComponents(state: LeadState, status = "Offen") {
         ...(status === "Kontaktiert" ? [button("Lead aktiv", "st:active", 3)] : []),
         button("Kein Interesse", "st:nointerest", 4),
       ];
-      return [{ type: 1, components: row }];
+      // Zweite Zeile (die erste ist mit fünf Knöpfen voll): wer ruft an?
+      const nehmen = besitzer ? button("Freigeben", "take", 2) : button("Übernehmen", "take", 1);
+      return [
+        { type: 1, components: row },
+        { type: 1, components: [nehmen] },
+      ];
     }
     default:
       return [];
