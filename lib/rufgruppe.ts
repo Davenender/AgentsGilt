@@ -3,8 +3,9 @@ import { findChannelId, postText } from "@/lib/discord";
 import { linkSecret, toE164 } from "@/lib/termin";
 
 // Rufgruppe: Verlangt ein Anrufer beim KI-Assistenten ausdrücklich einen Mitarbeiter,
-// holt unser Server den laufenden Anruf bei Twilio aus der Verbindung mit Vapi heraus
-// und lässt die Handys des Teams gleichzeitig klingeln. Wer abnimmt, muss zusätzlich
+// leitet Vapi (Weiterleitungs-Werkzeug) auf eine zweite Twilio-Nummer weiter, deren
+// Voice-Adresse hierher zeigt (/api/rufgruppe?a=ring). Dort klingeln die Handys des Teams
+// gleichzeitig. Wer abnimmt, muss zusätzlich
 // die 1 drücken (damit weder eine Mailbox noch der iPhone-Anruffilter den Anruf
 // "annehmen"). Nimmt niemand an, hört der Anrufer eine Ansage, und der Bot meldet es
 // in #anrufe.
@@ -118,32 +119,20 @@ export function twimlEnde(dialStatus: string | null): string {
 
 // --------------------------------------------------------------------- Twilio
 
-/** Leitet den laufenden Anruf (weg von Vapi) auf unsere Rufgruppe um. */
-export async function leiteUm(callSid: string): Promise<{ ok: true } | { ok: false; grund: string }> {
-  const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
+/**
+ * Prüft die Signatur, mit der Twilio jeden Aufruf unterschreibt (X-Twilio-Signature):
+ * HMAC-SHA1 über Adresse plus alle Formularfelder, geschlüsselt mit dem Auth-Token.
+ */
+export function twilioSignaturOk(url: string, params: Record<string, string>, signature: string | null): boolean {
   const token = process.env.TWILIO_AUTH_TOKEN?.trim();
-  if (!sid || !token) return { ok: false, grund: "Twilio-Zugang fehlt" };
-  if (!/^CA[0-9a-f]{32}$/i.test(callSid)) return { ok: false, grund: "Anruf-ID von Twilio fehlt" };
-  try {
-    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls/${callSid}.json`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ Url: adresse("ring"), Method: "POST" }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { code?: number; message?: string };
-      console.error(`[rufgruppe] Umleiten fehlgeschlagen: HTTP ${res.status}, Code ${err.code ?? "?"}: ${err.message ?? ""}`);
-      return { ok: false, grund: `Twilio ${res.status}${err.code ? ` / ${err.code}` : ""}` };
-    }
-    return { ok: true };
-  } catch (err) {
-    console.error("[rufgruppe] Umleiten fehlgeschlagen:", err);
-    return { ok: false, grund: "Verbindung zu Twilio fehlgeschlagen" };
-  }
+  if (!token || !signature) return false;
+  const daten = Object.keys(params)
+    .sort()
+    .reduce((acc, k) => acc + k + params[k], url);
+  const erwartet = createHmac("sha1", token).update(daten, "utf8").digest("base64");
+  const a = Buffer.from(erwartet);
+  const b = Buffer.from(signature);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export async function meldeInDiscord(text: string): Promise<void> {

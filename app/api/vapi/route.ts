@@ -1,9 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { buildEmbed, postWithBot, sendDiscord } from "@/lib/discord";
 import { callComponents, openEmbed } from "@/lib/discord-calls";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
-import { imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/lib/rufgruppe";
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
 
 export const runtime = "nodejs";
@@ -18,12 +17,6 @@ export const runtime = "nodejs";
 
 const MAX_TRANSCRIPT_CHARS = 6000;
 
-interface ToolCall {
-  id?: string;
-  name?: string;
-  function?: { name?: string };
-}
-
 interface VapiPayload {
   message?: {
     type?: string;
@@ -37,12 +30,7 @@ interface VapiPayload {
       id?: string;
       type?: string;
       customer?: { number?: string };
-      phoneCallProvider?: string;
-      phoneCallProviderId?: string;
     };
-    // Aufruf eines Werkzeugs durch den Assistenten (z.B. "mitarbeiter_verbinden")
-    toolCallList?: ToolCall[];
-    toolCalls?: ToolCall[];
     analysis?: {
       summary?: string;
       structuredData?: Record<string, unknown>;
@@ -220,44 +208,6 @@ export async function POST(request: Request) {
 
   const msg = payload?.message;
   const type = msg?.type;
-
-  // Der Assistent ruft das Werkzeug "mitarbeiter_verbinden" auf, wenn ein Anrufer
-  // ausdrücklich einen Menschen verlangt: Wir holen den Anruf zu Twilio und lassen
-  // die Handys des Teams klingeln (lib/rufgruppe.ts).
-  if (type === "tool-calls") {
-    const calls = msg?.toolCallList ?? msg?.toolCalls ?? [];
-    const results = calls.map((c) => {
-      const name = c.name ?? c.function?.name ?? "";
-      const toolCallId = c.id ?? "";
-      if (!/mitarbeiter|rufgruppe/i.test(name)) return { toolCallId, result: "Unbekanntes Werkzeug." };
-
-      if (nummern().length === 0) {
-        return { toolCallId, result: "Das Durchstellen ist gerade nicht eingerichtet. Sag dem Anrufer, dass sich jemand aus dem Team zurückmeldet." };
-      }
-      if (!imZeitfenster()) {
-        return {
-          toolCallId,
-          result:
-            "Außerhalb der Zeiten, zu denen durchgestellt wird. Sag dem Anrufer freundlich, dass gerade niemand durchgestellt werden kann und sich das Team zurückmeldet. Frage nach dem Anliegen und der Rückrufnummer, falls noch nicht geschehen.",
-        };
-      }
-      const sid = msg?.call?.phoneCallProviderId ?? "";
-      if (!sid) {
-        console.error("[rufgruppe] Keine Twilio-Anruf-ID im Aufruf, Weiterleitung nicht möglich");
-        return { toolCallId, result: "Das Durchstellen hat technisch nicht geklappt. Sag dem Anrufer, dass sich jemand aus dem Team zurückmeldet." };
-      }
-      // Kurz warten, damit der Assistent "Ich verbinde Sie" noch zu Ende sprechen kann.
-      after(async () => {
-        await new Promise((r) => setTimeout(r, 3000));
-        const res = await leiteUm(sid);
-        if (!res.ok) {
-          await meldeInDiscord(`⚠️ Durchstellen an die Rufgruppe ist fehlgeschlagen (${res.grund}). Der Anrufer wartet möglicherweise noch beim Assistenten.`);
-        }
-      });
-      return { toolCallId, result: "Der Anruf wird jetzt an das Team weitergegeben. Sag nur noch kurz: Einen Moment bitte, ich verbinde Sie." };
-    });
-    return NextResponse.json({ results });
-  }
 
   // Vapi schickt viele Ereignisse (status-update, speech-update, ...). Uns
   // interessiert nur der Abschlussbericht. Alles andere mit 200 quittieren,
