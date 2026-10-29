@@ -7,15 +7,19 @@ import {
   schluesselOk,
   twilioSignaturOk,
   twimlAnnahme,
+  twimlEingang,
   twimlEnde,
   twimlKlingeln,
+  twimlWeiter,
 } from "@/lib/rufgruppe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Twilio ruft diese Adresse für die Rufgruppe auf:
-//   ?a=ring     eingehender Anruf auf der Rufgruppen-Nummer (Voice-Adresse bei Twilio)
+//   ?a=eingang  jeder neue Anruf auf +49 6108 9694027 (Voice-Adresse bei Twilio): an Vapi weiterreichen
+//   ?a=weiter   wenn die Verbindung zum Assistenten zu Ende ist
+//   ?a=ring     Anrufer wurde zum Team umgeleitet: die Handys klingeln
 //   ?a=annahme  läuft auf dem Handy dessen, der abgenommen hat (Taste 1)
 //   ?a=ende     wenn das Klingeln zu Ende ist
 // Berechtigt ist, wer eine gültige Twilio-Signatur mitschickt (oder den Schlüssel in der
@@ -45,6 +49,14 @@ async function handle(request: Request) {
     `[rufgruppe] ${aktion} von=${feld("From") ?? "-"} status=${feld("DialCallStatus") ?? feld("CallStatus") ?? "-"} dauer=${feld("DialCallDuration") ?? "-"}`,
   );
 
+  if (aktion === "eingang") return twiml(twimlEingang());
+  if (aktion === "weiter") {
+    const status = feld("DialCallStatus");
+    if (status && status !== "completed" && status !== "answered") {
+      await meldeInDiscord(`⚠️ **Der KI-Assistent war nicht erreichbar** (Status ${status}). Der Anrufer${feld("From") ? ` (${feld("From")})` : ""} wurde direkt zum Team durchgestellt.`);
+    }
+    return twiml(twimlWeiter(status));
+  }
   if (aktion === "ring") {
     if (!imZeitfenster()) {
       await meldeInDiscord("📵 **Ein Anrufer wollte einen Mitarbeiter**, aber gerade ist keine Zeit für das Durchstellen. Er hat die Ansage gehört. Bitte zurückrufen (Nummer in der Anrufkarte).");
