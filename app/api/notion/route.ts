@@ -16,6 +16,7 @@ import {
   kundenKarte,
   parseKunde,
 } from "@/lib/notion-kunden";
+import { holeKundenNr } from "@/lib/notion-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,13 @@ function keyOk(given: string | null): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/** Seiten-ID aus dem Webhook, falls keine Adresse mitkommt. */
+function pageId(payload: unknown): string | null {
+  const root = payload as { id?: unknown; data?: { id?: unknown } } | undefined;
+  const id = root?.data?.id ?? root?.id;
+  return typeof id === "string" ? id : null;
+}
+
 async function verarbeite(request: Request): Promise<{ res: NextResponse; protokoll?: string }> {
   if (!process.env.NOTION_WEBHOOK_KEY) {
     console.error("[notion] NOTION_WEBHOOK_KEY fehlt");
@@ -68,6 +76,10 @@ async function verarbeite(request: Request): Promise<{ res: NextResponse; protok
       res: NextResponse.json({ error: "Keine Seite erkannt" }, { status: 422 }),
       protokoll: `⚠️ Notion hat etwas geschickt, aber keine Seite war erkennbar (Schlüssel: ${keys.join(", ") || "keine"}).`,
     };
+  }
+  if (!kunde.nr) {
+    // Der Webhook liefert die Nummer nicht immer mit: direkt bei Notion nachschlagen.
+    kunde.nr = await holeKundenNr(kunde.url ?? pageId(payload));
   }
   if (!kunde.nr) {
     console.error("[notion] Keine Kunden-Nr. in der Seite");

@@ -97,3 +97,30 @@ export async function legeKundenZeileAn(input: {
     return { ok: false, fehler: "Notion war nicht erreichbar. Bitte gleich nochmal versuchen." };
   }
 }
+
+/**
+ * Schlägt die Kunden-Nr. einer Seite direkt bei Notion nach. Der Webhook liefert sie
+ * manchmal nicht mit (z.B. wenn nur ein anderes Feld geändert wurde).
+ * Akzeptiert die Seiten-Adresse oder die Seiten-ID.
+ */
+export async function holeKundenNr(seite: string | undefined | null): Promise<string | null> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const id = (seite ?? "").replace(/-/g, "").match(/([0-9a-f]{32})(?:[?#].*)?$/i)?.[1];
+  if (!token || !id) return null;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/pages/${id}`, {
+      headers: { Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const page = (await res.json()) as {
+      properties?: Record<string, { formula?: { string?: string | null }; unique_id?: { prefix?: string | null; number?: number } }>;
+    };
+    const f = page.properties?.["KND-Nr."]?.formula?.string;
+    if (f && /^KND-\d{3,}$/.test(f)) return f;
+    const n = page.properties?.["Kunden-ID"]?.unique_id?.number;
+    return n && n > 0 ? `KND-${String(n).padStart(3, "0")}` : null;
+  } catch {
+    return null;
+  }
+}
