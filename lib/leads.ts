@@ -139,6 +139,7 @@ interface Msg {
   content: string;
   author: { bot?: boolean };
   embeds: EmbedLike[];
+  components?: { components?: { custom_id?: string }[] }[];
 }
 
 async function alleNachrichten(token: string, channelId: string, max = 300): Promise<Msg[]> {
@@ -439,4 +440,22 @@ export function leadComponents(state: LeadState, status = "Offen", besitzer: str
     default:
       return [];
   }
+}
+
+/** Einmalig: rüstet angenommene Karten, die noch keinen Knopf "Übernehmen" haben, damit nach. */
+export async function ruesteKnoepfeNach(token: string): Promise<{ geprueft: number; geaendert: number }> {
+  const ch = await findChannelId(token, CH_KARTEN);
+  if (!ch) return { geprueft: 0, geaendert: 0 };
+  let geprueft = 0;
+  let geaendert = 0;
+  for (const m of await alleNachrichten(token, ch)) {
+    const embed = m.embeds?.[0];
+    if (!m.author.bot || !embed || !cardDomain(m)) continue;
+    geprueft++;
+    if (stateOf(embed) !== "accepted") continue;
+    const hatKnopf = m.components?.some((r) => r.components?.some((c) => c.custom_id === "lead:take"));
+    if (hatKnopf) continue;
+    if (await aendereKarte(token, ch, m.id, embed, leadComponents("accepted", statusWort(embed), besitzerId(embed)))) geaendert++;
+  }
+  return { geprueft, geaendert };
 }
