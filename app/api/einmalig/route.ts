@@ -21,3 +21,20 @@ export async function GET(request: Request) {
   const msgs = (await res.json()) as { id: string; author: { bot?: boolean }; content: string; embeds: unknown[]; pinned?: boolean }[];
   return NextResponse.json(msgs.reverse().map((m) => ({ id: m.id, bot: m.author.bot, pinned: m.pinned, content: m.content, embeds: m.embeds })));
 }
+
+// Ändert den Text (description) einer Karte, Titel und Farbe bleiben.
+export async function POST(request: Request) {
+  if (!erlaubt(request)) return NextResponse.json({ error: "Nicht erlaubt" }, { status: 401 });
+  const { id, description } = (await request.json()) as { id: string; description: string };
+  if (!id || !description || description.length > 4000) return NextResponse.json({ error: "Ungültig" }, { status: 400 });
+  const alt = await fetch(`${API}/channels/${KANAL}/messages/${id}`, { headers: kopf() });
+  const msg = (await alt.json()) as { embeds?: { title?: string; color?: number }[] };
+  const e = msg.embeds?.[0];
+  if (!e) return NextResponse.json({ error: "Keine Karte" }, { status: 404 });
+  const res = await fetch(`${API}/channels/${KANAL}/messages/${id}`, {
+    method: "PATCH",
+    headers: kopf(),
+    body: JSON.stringify({ embeds: [{ title: e.title, color: e.color, description }] }),
+  });
+  return NextResponse.json({ ok: res.ok, status: res.status });
+}
