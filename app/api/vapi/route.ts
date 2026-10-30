@@ -5,7 +5,7 @@ import { callComponents, openEmbed } from "@/lib/discord-calls";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { findeAnruf, imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/lib/rufgruppe";
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
-import { firmaZurNummer, offenerVorschlag } from "@/lib/anrufer";
+import { firmaZurNummer, aktuelleKarte } from "@/lib/anrufer";
 import { kundeSagtZu, kundeWuenscht } from "@/lib/termin-antwort";
 
 export const runtime = "nodejs";
@@ -246,30 +246,39 @@ export async function POST(request: Request) {
 
         // Wiedererkennen: nur ein Hinweis, wer anrufen könnte. Nie als Tatsache behandeln.
         if (name === "anrufer_erkennen") {
-          const [firma, offen] = await Promise.all([firmaZurNummer(kunde), offenerVorschlag(kunde)]);
-          if (!firma && !offen) {
+          const [firma, karte] = await Promise.all([firmaZurNummer(kunde), aktuelleKarte(kunde)]);
+          if (!firma && !karte) {
             return { toolCallId, result: "Die Nummer ist nicht zugeordnet. Behandle den Anruf wie von einem Unbekannten und nenne keine Namen." };
           }
-          const wer = firma ? `Die Nummer gehört zur Firma „${firma}“.` : "Die Nummer ist bekannt, aber keiner Firma zugeordnet.";
           return {
             toolCallId,
             result:
-              `${wer}${offen ? " Es wartet ein Terminvorschlag auf eine Antwort." : ""} ` +
-              `Das ist nur ein Hinweis, es kann auch jemand anderes anrufen. ` +
-              `${firma ? `Frage kurz: „Rufen Sie wegen ${firma} an?“` : "Frage kurz, ob der Anruf wegen eines Terminvorschlags ist."} ` +
-              `Nenne keine Personennamen. Terminangaben erst nach einem klaren Ja.`,
+              (firma
+                ? `Die Nummer gehört vermutlich zur Firma „${firma}“. Begrüße kurz und frage: „Rufen Sie wegen ${firma} an?“ `
+                : "Die Nummer ist bekannt, aber keiner Firma zugeordnet. Begrüße ganz normal. ") +
+              "Das ist nur ein Hinweis, es kann auch jemand anderes anrufen. Nenne keine Personennamen. " +
+              (karte
+                ? "Es gibt einen Termin zu dieser Nummer. Erwähne ihn NICHT von dir aus. Nur wenn der Anrufer nach dem Termin fragt, rufe terminvorschlag mit aktion „abfragen“ auf."
+                : ""),
           };
         }
 
-        // Terminvorschlag: abfragen, zusagen oder anderen Wunsch melden (wie der Link in der SMS).
+        // Termin zur Nummer: nur auf Wunsch des Anrufers abfragen; ändern geht nur als Wunsch, das Team bestätigt.
         if (name === "terminvorschlag") {
           const a = argumente(c);
-          const v = await offenerVorschlag(kunde);
-          if (!v) return { toolCallId, result: "Für diese Nummer wartet kein Terminvorschlag. Sag, dass sich das Team wegen des Termins meldet, und nimm das Anliegen auf." };
+          const v = await aktuelleKarte(kunde);
+          if (!v) return { toolCallId, result: "Zu dieser Nummer gibt es keinen Termin. Sag, dass sich das Team meldet, und nimm das Anliegen auf." };
           if (a.aktion === "abfragen") {
-            return { toolCallId, result: `Der vorgeschlagene Termin ist: ${v.termin}. Frage, ob er passt.` };
+            if (!v.termin) return { toolCallId, result: "Es ist noch kein Termin festgelegt. Sag, dass sich das Team mit einem Terminvorschlag meldet." };
+            return {
+              toolCallId,
+              result: v.fest
+                ? `Der Termin steht fest: ${v.termin}. Nenne ihn.`
+                : `Der Termin ${v.termin} ist noch nicht endgültig bestätigt, das Team bestätigt ihn. Nenne ihn mit diesem Hinweis.`,
+            };
           }
           if (a.aktion === "zusagen") {
+            if (v.state !== "proposed") return { toolCallId, result: "Hier ist nichts zu bestätigen, das macht das Team. Sag das freundlich." };
             const r = await kundeSagtZu(v, "telefon");
             return { toolCallId, result: r.ok ? `Der Termin ${r.termin} ist bestätigt. Bedanke dich kurz.` : `Das hat nicht geklappt (${r.fehler}). Sag, dass sich das Team meldet.` };
           }
@@ -278,7 +287,7 @@ export async function POST(request: Request) {
             return {
               toolCallId,
               result: r.ok
-                ? `Der Wunsch ${r.termin} ist notiert. Sag, dass das Team den Termin bestätigt.`
+                ? `Der Wunsch ${r.termin} ist notiert. Sag, dass das Team ihn prüft und bestätigt.`
                 : `Nicht übernommen: ${r.fehler} Frage nach einer anderen Zeit oder sag, dass sich das Team meldet.`,
             };
           }

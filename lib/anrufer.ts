@@ -1,5 +1,5 @@
 import { listMessages } from "@/lib/discord";
-import { PROPOSAL_FIELD, stateOf, type EmbedLike } from "@/lib/discord-calls";
+import { CUSTOMER_FIELD, FIXED_FIELD, PROPOSAL_FIELD, WISH_FIELD, stateOf, type EmbedLike } from "@/lib/discord-calls";
 import { toE164 } from "@/lib/termin";
 import type { Vorschlag } from "@/lib/termin-kunde";
 
@@ -75,11 +75,28 @@ function nummernDerKarte(embed: EmbedLike): (string | null)[] {
   return [schluessel(rueck), schluessel(imTitel)];
 }
 
+/** Der Termin, um den es auf der Karte gerade geht, und ob er schon feststeht. */
+function terminDerKarte(embed: EmbedLike): { termin: string; fest: boolean } {
+  const f = (name: string) => embed.fields?.find((x) => x.name === name)?.value?.trim() ?? "";
+  switch (stateOf(embed)) {
+    case "confirmed":
+      return { termin: f(FIXED_FIELD), fest: true };
+    case "proposed":
+      return { termin: f(PROPOSAL_FIELD), fest: false };
+    case "customer_alt":
+      return { termin: f(CUSTOMER_FIELD), fest: false };
+    default:
+      return { termin: f(WISH_FIELD), fest: false };
+  }
+}
+
 /**
- * Der Terminvorschlag, der für diese Nummer gerade auf eine Antwort wartet
- * (Karte in #anrufe im Zustand "proposed"). Bei mehreren: der neueste.
+ * Die neueste noch nicht erledigte Anruf-Karte zu dieser Nummer (Rückrufnummer oder
+ * Anrufernummer). `fest` sagt, ob das Team den Termin schon bestätigt hat.
  */
-export async function offenerVorschlag(nummer: string | null | undefined): Promise<Geladen | null> {
+export async function aktuelleKarte(
+  nummer: string | null | undefined,
+): Promise<(Geladen & { fest: boolean }) | null> {
   const key = schluessel(nummer);
   const channel = process.env.DISCORD_CHANNEL_ANRUFE;
   if (!key || !channel) return null;
@@ -87,11 +104,10 @@ export async function offenerVorschlag(nummer: string | null | undefined): Promi
   const nachrichten = await listMessages(process.env.DISCORD_BOT_TOKEN, channel, 100);
   for (const m of nachrichten) {
     const embed = m.embeds?.[0];
-    if (!embed || stateOf(embed) !== "proposed") continue;
+    if (!embed || stateOf(embed) === "done") continue;
     if (!nummernDerKarte(embed).includes(key)) continue;
-    const termin = embed.fields?.find((f) => f.name === PROPOSAL_FIELD)?.value ?? "";
-    if (!termin) continue;
-    return { ok: true, messageId: m.id, embed, state: "proposed", termin };
+    const { termin, fest } = terminDerKarte(embed);
+    return { ok: true, messageId: m.id, embed, state: stateOf(embed), termin, fest };
   }
   return null;
 }
