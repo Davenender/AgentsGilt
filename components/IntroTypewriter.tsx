@@ -340,6 +340,10 @@ export function IntroTypewriter() {
         <span ref={bodyRef}>{intro.text}</span>
         <span ref={caretBodyRef} aria-hidden="true" className="type-caret-base" />
       </p>
+
+      <Reveal delay={0.4}>
+        <p className="mx-auto mt-5 max-w-2xl text-xs text-ink-soft/60">{intro.fussnote}</p>
+      </Reveal>
     </div>
   );
 }
