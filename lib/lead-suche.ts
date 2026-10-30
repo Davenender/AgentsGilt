@@ -1,7 +1,8 @@
-import { randomInt } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import type { EmbedLike } from "@/lib/discord-calls";
 import { analysiere, domainKey, type Analyse } from "@/lib/lead-analyse";
 import { findChannelId } from "@/lib/discord";
+import { linkSecret } from "@/lib/termin";
 import { alleNachrichten, call, CH_ABLAGE, CH_KARTEN, CH_SPEICHER, sucheSpeicherKanal, SEP } from "@/lib/leads";
 
 // Lead-Suche: Der Bot findet Firmen über Google Maps (Places API (New)), das Team wählt in
@@ -22,6 +23,8 @@ export const CODE_MIN = 15;
 export const TREFFER = 5;
 export const MAX_BRANCHEN = 4;
 export const STANDARD_ORT = "Mühlheim am Main";
+export const STANDARD_LAT = 50.1080582;
+export const STANDARD_LON = 8.8467138;
 
 const TAG_MS = 24 * 60 * 60 * 1000;
 
@@ -191,13 +194,13 @@ export const STANDARD: Einstellungen = {
   minAnzahl: 3,
 };
 
-interface Ort {
+export interface Ort {
   lat: number;
   lon: number;
   name: string;
 }
 
-async function geocode(ort: string): Promise<Ort | null> {
+export async function geocode(ort: string): Promise<Ort | null> {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(ort)}&format=json&limit=1&countrycodes=de,at,ch`,
@@ -220,6 +223,8 @@ interface Platz {
   bewertung: number | null;
   anzahl: number;
   km: number;
+  lat: number;
+  lon: number;
   maps: string | null;
   branche: string;
 }
@@ -347,6 +352,8 @@ export async function sucheFirmen(token: string, e: Einstellungen): Promise<Such
           bewertung: p.rating ?? null,
           anzahl: p.userRatingCount ?? 0,
           km: Math.round(abstand * 10) / 10,
+          lat: p.location.latitude,
+          lon: p.location.longitude,
           maps: p.googleMapsUri ?? null,
           branche: b,
         });
@@ -484,3 +491,38 @@ export function zusatzFelder(t: Treffer): NonNullable<EmbedLike["fields"]> {
 }
 
 export { merkeGesehen };
+
+
+// ------------------------------------------------------------------- Karte
+
+const SITE = process.env.SITE_URL || "https://agentsgilt.com";
+
+const sig = (d: string) => {
+  const secret = linkSecret();
+  return secret ? createHmac("sha256", secret).update(`lead-karte:${d}`).digest("hex").slice(0, 20) : "";
+};
+
+export function karteSigOk(d: string, k: string | null): boolean {
+  const erwartet = sig(d);
+  if (!erwartet || !k) return false;
+  const a = Buffer.from(erwartet);
+  const b = Buffer.from(k);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Adresse unseres Kartenbilds. Der Zustand steckt (signiert) in der Adresse und bleibt so unsichtbar. */
+export function karteUrl(daten: unknown): string {
+  const d = Buffer.from(JSON.stringify(daten), "utf8").toString("base64url");
+  return `${SITE}/api/lead-suche/karte?d=${d}&k=${sig(d)}`;
+}
+
+export function leseKarteUrl(url: string | undefined): Record<string, unknown> | null {
+  try {
+    const u = new URL(url ?? "");
+    const d = u.searchParams.get("d");
+    if (!d || !karteSigOk(d, u.searchParams.get("k"))) return null;
+    return JSON.parse(Buffer.from(d, "base64url").toString("utf8")) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
