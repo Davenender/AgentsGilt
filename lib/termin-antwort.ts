@@ -69,7 +69,7 @@ export async function kundeWuenscht(v: Geladen, datum: string, zeit: string): Pr
 
   const ok = await editMessage(token, channelId, v.messageId, {
     embeds: [customerWish(v.embed, eingabe.text, uhrzeit())],
-    components: callComponents("customer_alt", Boolean(ownerId(v.embed))),
+    components: callComponents("customer_alt", Boolean(ownerId(v.embed)), v.embed),
   });
   if (!ok) return { ok: false, status: 502, fehler: "Das hat leider nicht geklappt. Bitte rufen Sie uns an." };
   await replyTo(token, channelId, v.messageId, `🕒 ${kunde} wünscht stattdessen: ${eingabe.text}${bearbeiter}`);

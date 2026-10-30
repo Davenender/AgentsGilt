@@ -18,12 +18,14 @@ import {
   PROPOSAL_MODAL_PREFIX,
   proposalModal,
   proposedByUs,
+  proposedWithoutSms,
   resolveMobile,
   stateOf,
   type CallAction,
   type EmbedLike,
 } from "@/lib/discord-calls";
 import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
+import { rueckrufKonfiguriert, starteRueckruf } from "@/lib/rueckruf";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
 import { handleLeadButton, handleLeadCommand } from "@/lib/lead-handlers";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
@@ -191,7 +193,7 @@ function bereitFuerSms(embed: EmbedLike): { mobile: string } | { fehler: string 
   if (!mobile) {
     return {
       fehler: seen.length
-        ? `Unter ${seen.join(" / ")} geht keine SMS, das ist keine Handynummer. Bitte den Kunden anrufen.`
+        ? `Unter ${seen.join(" / ")} geht keine SMS, das ist keine Handynummer. ${rueckrufKonfiguriert() ? "Nutze den Knopf „Per Rückruf klären“ oder ruf den Kunden an." : "Bitte den Kunden anrufen."}`
         : "In der Meldung steht keine Rufnummer. Bitte den Kunden anrufen.",
     };
   }
@@ -265,6 +267,27 @@ export async function POST(request: Request) {
     const verboten = nurBearbeiter(embed, user.id);
     if (verboten) return ephemeral(verboten);
 
+    // Festnetz: keine SMS möglich. Der Vorschlag wird auf der Karte gespeichert, geklärt wird per Rückruf.
+    if (!resolveMobile(embed).mobile && rueckrufKonfiguriert()) {
+      const appId = interaction.application_id;
+      const itoken = interaction.token;
+      if (!appId || !itoken) return ephemeral("Discord hat keine Antwortadresse mitgeschickt.");
+      const time = uhrzeit();
+      after(async () => {
+        const frei = await pruefeFrei(eingabe.text, originalWish(embed));
+        if (frei.belegt) {
+          await followupPrivate(appId, itoken, `${eingabe.text} ist im Kalender schon belegt („${frei.womit}“). Es wurde nichts gespeichert. Bitte einen anderen Termin vorschlagen.`);
+          return;
+        }
+        const updated = proposedWithoutSms(embed, eingabe.text, ownerTag, time);
+        await editInteractionOriginal(appId, itoken, {
+          embeds: [updated],
+          components: callComponents("proposed", true, updated),
+        });
+      });
+      return NextResponse.json(DEFERRED_UPDATE);
+    }
+
     const bereit = bereitFuerSms(embed);
     if ("fehler" in bereit) return ephemeral(bereit.fehler);
 
@@ -306,7 +329,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
   const action = customId.slice(CALL_CUSTOM_ID_PREFIX.length) as CallAction;
-  if (!["claim", "confirm", "propose", "done", "release"].includes(action)) return NextResponse.json({ ok: true });
+  if (!["claim", "confirm", "propose", "done", "release", "callback"].includes(action)) return NextResponse.json({ ok: true });
 
   const embed = interaction.message?.embeds?.[0];
   const messageId = interaction.message?.id;
@@ -332,13 +355,38 @@ export async function POST(request: Request) {
       type: 7,
       data: {
         embeds: [updated],
-        components: callComponents(next, action !== "release"),
+        components: callComponents(next, action !== "release", updated),
         allowed_mentions: { parse: [] },
       },
     });
   }
 
   if (state === "confirmed" || state === "done") return ephemeral("Dieser Anruf ist schon abgeschlossen.");
+
+  if (action === "callback") {
+    const appId = interaction.application_id;
+    const itoken = interaction.token;
+    if (!appId || !itoken) return ephemeral("Discord hat keine Antwortadresse mitgeschickt.");
+    if (!rueckrufKonfiguriert()) {
+      return ephemeral("Der Rückruf ist noch nicht eingerichtet (VAPI_API_KEY und VAPI_RUECKRUF_ASSISTANT fehlen bei Vercel).");
+    }
+    if (!currentAppointment(embed)) {
+      return ephemeral("In der Meldung steht kein Termin. Bitte erst über „Anderen Termin vorschlagen“ einen Termin eintragen.");
+    }
+    after(async () => {
+      const res = await starteRueckruf(messageId, embed);
+      if (!res.ok) {
+        await followupPrivate(appId, itoken, res.fehler);
+        return;
+      }
+      console.log(`[discord] Rückruf per KI gestartet von ${who}`);
+      await editInteractionOriginal(appId, itoken, {
+        embeds: [res.embed],
+        components: callComponents(stateOf(res.embed), Boolean(ownerId(res.embed)), res.embed),
+      });
+    });
+    return NextResponse.json(DEFERRED_UPDATE);
+  }
 
   // 9 = Fenster öffnen
   if (action === "propose") {

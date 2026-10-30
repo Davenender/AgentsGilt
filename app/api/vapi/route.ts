@@ -6,6 +6,7 @@ import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { findeAnruf, imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/lib/rufgruppe";
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
 import { ergaenzeKarte } from "@/lib/anruf-karte";
+import { karteZuAnruf, RUECKRUF_WERKZEUGE, rueckrufWerkzeug, verarbeiteRueckrufEnde } from "@/lib/rueckruf";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,19 @@ const MAX_TRANSCRIPT_CHARS = 6000;
 interface ToolCall {
   id?: string;
   name?: string;
-  function?: { name?: string };
+  function?: { name?: string; arguments?: unknown };
+  arguments?: unknown;
+}
+
+/** Vapi schickt die Argumente mal als Objekt, mal als JSON-Text. */
+function argumente(c: ToolCall): Record<string, string> {
+  const raw = c.function?.arguments ?? c.arguments;
+  try {
+    const o = typeof raw === "string" ? JSON.parse(raw || "{}") : raw;
+    return o && typeof o === "object" ? (o as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
 }
 
 interface VapiPayload {
@@ -38,6 +51,8 @@ interface VapiPayload {
       id?: string;
       type?: string;
       customer?: { number?: string };
+      metadata?: Record<string, unknown>;
+      assistantOverrides?: { variableValues?: Record<string, unknown>; metadata?: Record<string, unknown> };
     };
     // Aufruf eines Werkzeugs durch den Assistenten (z.B. "mitarbeiter_verbinden")
     toolCallList?: ToolCall[];
@@ -231,6 +246,11 @@ export async function POST(request: Request) {
         const name = c.name ?? c.function?.name ?? "";
         const toolCallId = c.id ?? "";
 
+        // Werkzeuge des Rückruf-Assistenten (ruft Kunden an, siehe lib/rueckruf.ts)
+        if (RUECKRUF_WERKZEUGE.has(name)) {
+          return { toolCallId, result: await rueckrufWerkzeug(name, argumente(c), msg?.call) };
+        }
+
         if (!/mitarbeiter|rufgruppe/i.test(name)) return { toolCallId, result: "Unbekanntes Werkzeug." };
 
         if (nummern().length === 0) {
@@ -269,6 +289,19 @@ export async function POST(request: Request) {
   // sonst versucht Vapi es immer wieder neu.
   if (type !== "end-of-call-report") {
     return NextResponse.json({ ok: true, ignored: type ?? "unbekannt" });
+  }
+
+  // Ende eines Rückruf-Anrufs des KI-Assistenten: gehört zur Karte, keine neue Meldung und keine Mail.
+  if (msg?.call?.type === "outboundPhoneCall" || msg?.call?.assistantOverrides?.variableValues?.karte) {
+    const karte = await karteZuAnruf(msg?.call);
+    if (karte) {
+      await verarbeiteRueckrufEnde(karte, {
+        endedReason: msg?.endedReason,
+        summary: msg?.analysis?.summary || msg?.summary,
+        durationSeconds: msg?.durationSeconds,
+      });
+      return NextResponse.json({ ok: true, rueckruf: true });
+    }
   }
 
   const number =

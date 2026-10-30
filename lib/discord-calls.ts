@@ -19,7 +19,7 @@ export type CallState =
   | "confirmed"
   | "done";
 
-export type CallAction = "claim" | "confirm" | "propose" | "done" | "release";
+export type CallAction = "claim" | "confirm" | "propose" | "done" | "release" | "callback";
 
 export const CALL_CUSTOM_ID_PREFIX = "call:";
 export const PROPOSAL_MODAL_PREFIX = "call:proposal:";
@@ -55,6 +55,7 @@ export const PROPOSAL_FIELD = "Aktueller Vorschlag";
 export const CUSTOMER_FIELD = "Kundenwunsch";
 export const FIXED_FIELD = "Bestätigter Termin";
 export const CALENDAR_FIELD = "Kalender";
+export const RUECKRUF_FIELD = "Rückruf";
 const DEFAULT_CALENDAR_TEXT = "Eintrag „VORLÄUFIG“ im Kalender auf diesen Termin ändern";
 
 /** Den Zustand liest man an der Farbe ab. Unbekannte Farbe zählt als offen. */
@@ -65,8 +66,13 @@ export function stateOf(embed: EmbedLike): CallState {
   return found ?? "open";
 }
 
+/** Der Rückruf-Knopf erscheint erst, wenn der Rückruf-Agent in Vapi und bei Vercel eingerichtet ist. */
+function rueckrufKonfiguriert(): boolean {
+  return Boolean(process.env.VAPI_API_KEY?.trim() && process.env.VAPI_RUECKRUF_ASSISTANT?.trim());
+}
+
 /** Knöpfe, die zum jeweiligen Zustand passen (Discord: Action Row mit Buttons). */
-export function callComponents(state: CallState, hasOwner = true) {
+export function callComponents(state: CallState, hasOwner = true, embed?: EmbedLike) {
   const button = (label: string, action: CallAction, style: 1 | 2 | 3 | 4) => ({
     type: 2,
     label,
@@ -88,6 +94,10 @@ export function callComponents(state: CallState, hasOwner = true) {
           components: [
             button("Termin bestätigen (SMS)", "confirm", 3),
             button("Anderen Termin vorschlagen", "propose", 1),
+            // Geht keine SMS (Festnetz), ruft stattdessen der KI-Rückruf-Agent an.
+            ...(embed && rueckrufKonfiguriert() && !resolveMobile(embed).mobile
+              ? [button("Per Rückruf klären", "callback", 1)]
+              : []),
             button("Erledigt", "done", 2),
             button("Freigeben", "release", 2),
           ],
@@ -127,7 +137,7 @@ export function proposalModal(messageId: string) {
 }
 
 /** Setzt ein Feld (legt es an, falls es fehlt) und lässt die anderen unberührt. */
-function withField(
+export function withField(
   fields: EmbedField[] | undefined,
   name: string,
   value: string,
@@ -297,4 +307,25 @@ export function openEmbed(embed: EmbedLike): EmbedLike {
     color: STATE_COLOR.open,
     fields: withField(embed.fields, STATUS_FIELD, "Offen"),
   };
+}
+
+/** Vorschlag gespeichert, aber ohne SMS (Festnetz): geklärt wird per Rückruf. */
+export function proposedWithoutSms(embed: EmbedLike, termin: string, who: string, time: string) {
+  return transition(embed, "proposed", {
+    status: `Vorschlag gespeichert um ${time}, keine SMS möglich: per Rückruf klären`,
+    owner: currentOwner(embed) ?? who,
+    set: { [PROPOSAL_FIELD]: termin },
+    remove: [CUSTOMER_FIELD],
+  });
+}
+
+/** Der Kunde hat beim Rückruf des KI-Assistenten zugesagt. */
+export function confirmedByCallback(embed: EmbedLike, termin: string, time: string, kalender = DEFAULT_CALENDAR_TEXT) {
+  return transition(embed, "confirmed", {
+    status: `Kunde hat den Termin beim Rückruf bestätigt um ${time}`,
+    set: {
+      [FIXED_FIELD]: termin,
+      [CALENDAR_FIELD]: kalender,
+    },
+  });
 }

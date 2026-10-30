@@ -3,7 +3,9 @@ import {
   callComponents,
   OWNER_FIELD,
   ownerId,
+  RUECKRUF_FIELD,
   stateOf,
+  withField,
   type EmbedLike,
 } from "@/lib/discord-calls";
 import { toE164 } from "@/lib/termin";
@@ -24,7 +26,7 @@ function nummernDerKarte(embed: EmbedLike): (string | null)[] {
 }
 
 /** Die neueste noch offene Karte zu dieser Nummer (Rückrufnummer oder Anrufernummer). */
-async function offeneKarte(nummer: string) {
+export async function offeneKarteZuNummer(nummer: string, passt: (embed: EmbedLike) => boolean = () => true) {
   const key = schluessel(nummer);
   const channel = process.env.DISCORD_CHANNEL_ANRUFE;
   if (!key || !channel) return null;
@@ -35,7 +37,7 @@ async function offeneKarte(nummer: string) {
     if (!embed) continue;
     const state = stateOf(embed);
     if (state === "done" || state === "confirmed") continue;
-    if (!nummernDerKarte(embed).includes(key)) continue;
+    if (!nummernDerKarte(embed).includes(key) || !passt(embed)) continue;
     return { messageId: m.id, embed, state };
   }
   return null;
@@ -49,7 +51,7 @@ export async function ergaenzeKarte(
   nummer: string,
   info: { zeit: string; zusammenfassung: string; felder: [string, string][] },
 ): Promise<boolean> {
-  const karte = await offeneKarte(nummer);
+  const karte = await offeneKarteZuNummer(nummer);
   if (!karte) return false;
   const fields = karte.embed.fields ?? [];
   if (fields.length >= 24) return false;
@@ -60,15 +62,20 @@ export async function ergaenzeKarte(
   ].join("\n");
   const value = zeilen.length > 1000 ? `${zeilen.slice(0, 997)}...` : zeilen;
 
+  // Wartet noch ein geplanter Rückruf der KI, ist er überflüssig: der Kunde hat sich selbst gemeldet.
+  const geplant = fields.some((f) => f.name === RUECKRUF_FIELD && f.value.includes("Geplant:"));
   const embed: EmbedLike = {
     ...karte.embed,
-    fields: [...fields, { name: `📞 Erneuter Anruf (${info.zeit})`, value, inline: false }],
+    fields: [
+      ...(geplant ? withField(fields, RUECKRUF_FIELD, "📞 Der Kunde hat selbst angerufen, kein weiterer Rückruf geplant.") : fields),
+      { name: `📞 Erneuter Anruf (${info.zeit})`, value, inline: false },
+    ],
   };
   const token = process.env.DISCORD_BOT_TOKEN;
   const channel = process.env.DISCORD_CHANNEL_ANRUFE;
   const ok = await editMessage(token, channel, karte.messageId, {
     embeds: [embed],
-    components: callComponents(karte.state, Boolean(ownerId(karte.embed))),
+    components: callComponents(karte.state, Boolean(ownerId(karte.embed)), embed),
   });
   if (!ok) return false;
   const bearbeiter = karte.embed.fields?.find((f) => f.name === OWNER_FIELD)?.value;
