@@ -193,10 +193,9 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
         await setzeAntwort(appId, itoken, "Aussortieren darf nur, wer den Lead übernommen hat (oder David).");
         return;
       }
-      const domain = domainOfCard(karte);
-      if (domain) await merkeAbgelehnt(token, domain, karte.title ?? domain);
+      // Nur die Karte wegnehmen: Die Firma wird NICHT gesperrt und lässt sich später wieder anlegen.
       await loescheNachricht(token, channelId, ziel);
-      await setzeAntwort(appId, itoken, `🗑️ **${(karte.title ?? "Die Firma").replace(/[*_~`|>@]/g, "")}** ist aussortiert und wird nicht mehr vorgeschlagen.`);
+      await setzeAntwort(appId, itoken, `🗑️ **${(karte.title ?? "Die Firma").replace(/[*_~`|>@]/g, "")}** ist aussortiert. Du kannst sie später mit /lead oder über die Lead-Suche wieder anlegen.`);
     });
     return NextResponse.json({ type: 7, data: { content: "🗑️ Wird aussortiert …", embeds: [], components: [] } });
   }
@@ -240,7 +239,7 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
     return ephemeral(`Diesen Lead hat schon <@${aktuell}> übernommen. Freigeben kann nur sie/er (oder David).`);
   }
 
-  // ---- Aussortieren: Firma doch nicht verfolgen (Karte weg, nicht mehr vorschlagen, NICHT "Kein Interesse")
+  // ---- Aussortieren: Firma im Moment nicht verfolgen (Karte weg, nichts wird gesperrt, NICHT "Kein Interesse")
   if (action === "drop") {
     if (state !== "accepted") return ephemeral("Aussortieren geht nur bei angenommenen Leads.");
     const aktuell = besitzerId(embed);
@@ -253,8 +252,8 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
       data: {
         flags: 64,
         content:
-          `🗑️ **${titel}** wirklich aussortieren?\nDie Karte verschwindet, und die Firma wird nicht mehr vorgeschlagen (auch nicht bei der Lead-Suche). ` +
-          "Das ist für Firmen, die ihr **doch nicht** nehmt. Hat der **Kunde** abgesagt, nimm bitte „Kunde: Kein Interesse“.",
+          `🗑️ **${titel}** wirklich aussortieren?\nDie Karte verschwindet. Die Firma wird **nicht** gesperrt, du kannst sie später mit /lead wieder anlegen. ` +
+          "Das ist für Firmen, die ihr **im Moment nicht** nehmt. Hat der **Kunde** abgesagt, nimm bitte „Kunde: Kein Interesse“.",
         components: [
           {
             type: 1,
