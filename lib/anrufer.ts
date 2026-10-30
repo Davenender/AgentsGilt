@@ -1,5 +1,15 @@
-import { listMessages } from "@/lib/discord";
-import { CUSTOMER_FIELD, FIXED_FIELD, PROPOSAL_FIELD, WISH_FIELD, stateOf, type EmbedLike } from "@/lib/discord-calls";
+import { editMessage, listMessages, replyTo } from "@/lib/discord";
+import {
+  callComponents,
+  CUSTOMER_FIELD,
+  FIXED_FIELD,
+  OWNER_FIELD,
+  ownerId,
+  PROPOSAL_FIELD,
+  WISH_FIELD,
+  stateOf,
+  type EmbedLike,
+} from "@/lib/discord-calls";
 import { toE164 } from "@/lib/termin";
 import type { Vorschlag } from "@/lib/termin-kunde";
 
@@ -96,6 +106,7 @@ function terminDerKarte(embed: EmbedLike): { termin: string; fest: boolean } {
  */
 export async function aktuelleKarte(
   nummer: string | null | undefined,
+  nurOffene = false,
 ): Promise<(Geladen & { fest: boolean }) | null> {
   const key = schluessel(nummer);
   const channel = process.env.DISCORD_CHANNEL_ANRUFE;
@@ -105,9 +116,47 @@ export async function aktuelleKarte(
   for (const m of nachrichten) {
     const embed = m.embeds?.[0];
     if (!embed || stateOf(embed) === "done") continue;
+    // Eine bestätigte Karte ist abgeschlossen: ein neuer Anruf bekommt dann eine neue Karte.
+    if (nurOffene && stateOf(embed) === "confirmed") continue;
     if (!nummernDerKarte(embed).includes(key)) continue;
     const { termin, fest } = terminDerKarte(embed);
     return { ok: true, messageId: m.id, embed, state: stateOf(embed), termin, fest };
   }
   return null;
+}
+
+/**
+ * Ruft ein Kunde erneut an, solange seine Karte noch offen ist, wird sie ergänzt, statt eine
+ * neue anzulegen. Erst nach "Erledigt" (oder nach einer Bestätigung) gibt es wieder eine neue Karte.
+ * Gibt false zurück, wenn es keine passende Karte gibt oder das Ergänzen nicht klappt.
+ */
+export async function ergaenzeKarte(
+  nummer: string,
+  info: { zeit: string; zusammenfassung: string; felder: [string, string][] },
+): Promise<boolean> {
+  const karte = await aktuelleKarte(nummer, true);
+  if (!karte) return false;
+  const fields = karte.embed.fields ?? [];
+  if (fields.length >= 24) return false;
+
+  const zeilen = [
+    info.zusammenfassung || "Keine Zusammenfassung vorhanden.",
+    ...info.felder.filter(([, v]) => v.trim()).map(([k, v]) => `${k}: ${v}`),
+  ].join("\n");
+  const value = zeilen.length > 1000 ? `${zeilen.slice(0, 997)}...` : zeilen;
+
+  const embed: EmbedLike = {
+    ...karte.embed,
+    fields: [...fields, { name: `📞 Erneuter Anruf (${info.zeit})`, value, inline: false }],
+  };
+  const token = process.env.DISCORD_BOT_TOKEN;
+  const channel = process.env.DISCORD_CHANNEL_ANRUFE;
+  const ok = await editMessage(token, channel, karte.messageId, {
+    embeds: [embed],
+    components: callComponents(karte.state, Boolean(ownerId(karte.embed))),
+  });
+  if (!ok) return false;
+  const bearbeiter = karte.embed.fields?.find((f) => f.name === OWNER_FIELD)?.value;
+  await replyTo(token, channel, karte.messageId, `📞 Der Kunde hat erneut angerufen. Das Neue steht in der Meldung.${bearbeiter ? ` (${bearbeiter})` : ""}`);
+  return true;
 }

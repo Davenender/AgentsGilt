@@ -5,8 +5,7 @@ import { callComponents, openEmbed } from "@/lib/discord-calls";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { findeAnruf, imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/lib/rufgruppe";
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
-import { firmaZurNummer, aktuelleKarte } from "@/lib/anrufer";
-import { kundeSagtZu, kundeWuenscht } from "@/lib/termin-antwort";
+import { aktuelleKarte, ergaenzeKarte, firmaZurNummer } from "@/lib/anrufer";
 
 export const runtime = "nodejs";
 
@@ -263,37 +262,17 @@ export async function POST(request: Request) {
           };
         }
 
-        // Termin zur Nummer: nur auf Wunsch des Anrufers abfragen; ändern geht nur als Wunsch, das Team bestätigt.
+        // Termin zur Nummer: der Assistent darf ihn nur nennen. Bestätigen und ändern
+        // macht das Team per SMS oder Rückruf, nie am Telefon.
         if (name === "terminvorschlag") {
-          const a = argumente(c);
           const v = await aktuelleKarte(kunde);
-          if (!v) return { toolCallId, result: "Zu dieser Nummer gibt es keinen Termin. Sag, dass sich das Team meldet, und nimm das Anliegen auf." };
-          if (a.aktion === "abfragen") {
-            if (!v.termin) return { toolCallId, result: "Es ist noch kein Termin festgelegt. Sag, dass sich das Team mit einem Terminvorschlag meldet." };
-            return {
-              toolCallId,
-              result: v.fest
-                ? `Der Termin steht fest: ${v.termin}. Nenne ihn.`
-                : `Der Termin ${v.termin} ist noch nicht endgültig bestätigt, das Team bestätigt ihn. Nenne ihn mit diesem Hinweis.`,
-            };
-          }
-          if (a.aktion === "zusagen") {
-            // Direkt bestätigt wird nur ein Vorschlag, den wir gemacht haben. Alles andere bestätigt das Team.
-            if (v.fest) return { toolCallId, result: "Der Termin ist schon bestätigt. Sag das freundlich." };
-            if (v.state !== "proposed") return { toolCallId, result: "Dieser Termin ist noch nicht vom Team vorgeschlagen, das Team bestätigt ihn. Sag das freundlich." };
-            const r = await kundeSagtZu(v, "telefon");
-            return { toolCallId, result: r.ok ? `Der Termin ${r.termin} ist bestätigt. Bedanke dich kurz.` : `Das hat nicht geklappt (${r.fehler}). Sag, dass sich das Team meldet.` };
-          }
-          if (a.aktion === "wunsch") {
-            const r = await kundeWuenscht(v, String(a.datum ?? ""), String(a.uhrzeit ?? ""), "telefon");
-            return {
-              toolCallId,
-              result: r.ok
-                ? `Der Wunsch ${r.termin} ist notiert. Sag, dass das Team ihn prüft und bestätigt.`
-                : `Nicht übernommen: ${r.fehler} Frage nach einer anderen Zeit oder sag, dass sich das Team meldet.`,
-            };
-          }
-          return { toolCallId, result: "Unbekannte Aktion. Erlaubt: abfragen, zusagen, wunsch." };
+          if (!v || !v.termin) return { toolCallId, result: "Zu dieser Nummer gibt es keinen Termin. Sag, dass sich das Team meldet, und nimm das Anliegen auf." };
+          return {
+            toolCallId,
+            result:
+              (v.fest ? `Der Termin steht fest: ${v.termin}.` : `Der Termin ${v.termin} ist noch nicht endgültig bestätigt.`) +
+              " Nenne ihn. Bestätigen oder ändern kannst du ihn am Telefon nicht: Sag, dass unser Team das per SMS oder Rückruf klärt. Der Wunsch des Anrufers steht dann in der Meldung ans Team.",
+          };
         }
 
         if (!/mitarbeiter|rufgruppe/i.test(name)) return { toolCallId, result: "Unbekanntes Werkzeug." };
@@ -423,14 +402,20 @@ export async function POST(request: Request) {
 
   // Mit Bot: Meldung mit Knöpfen (Übernehmen, Termin nicht möglich, Erledigt).
   // Ohne Bot oder wenn er scheitert: wie bisher über den Webhook, ohne Knöpfe.
-  const mitKnoepfen = await postWithBot(
-    process.env.DISCORD_BOT_TOKEN,
-    process.env.DISCORD_CHANNEL_ANRUFE,
-    {
+  // Ist die Karte dieses Kunden noch offen, wird sie ergänzt statt eine neue anzulegen.
+  const ergaenzt =
+    number !== "unbekannt" &&
+    (await ergaenzeKarte(number, {
+      zeit,
+      zusammenfassung: summary,
+      felder: structuredEntries.map(([k, v]): [string, string] => [k, String(v)]),
+    }));
+  const mitKnoepfen =
+    ergaenzt ||
+    (await postWithBot(process.env.DISCORD_BOT_TOKEN, process.env.DISCORD_CHANNEL_ANRUFE, {
       embeds: [openEmbed(buildEmbed(discordEmbed))],
       components: callComponents("open"),
-    },
-  );
+    }));
   if (!mitKnoepfen) await sendDiscord(process.env.DISCORD_WEBHOOK_ANRUFE, discordEmbed);
 
   await sendMail({
