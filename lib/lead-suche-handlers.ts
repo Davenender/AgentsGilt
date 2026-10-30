@@ -382,10 +382,14 @@ export async function handleSuche(i: SucheInteraction, token: string | undefined
     return NextResponse.json(DEFERRED_EPHEMERAL);
   }
 
-  if (id === "ls:code") return NextResponse.json(modal("ls:codemodal", "Code eingeben", [{ id: "code", label: "Dein Code", placeholder: "XXXX-XXXX", required: true, max: 12 }]));
+  // Fenster und Feld bekommen jedes Mal einen neuen Namen, sonst füllt Discord den zuletzt getippten Text wieder ein.
+  if (id === "ls:code") {
+    const n = Date.now();
+    return NextResponse.json(modal(`ls:codemodal:${n}`, "Code eingeben", [{ id: `code${n}`, label: "Dein Code (aus der Direktnachricht)", placeholder: "XXXX-XXXX", required: true, max: 12 }]));
+  }
 
-  if (id === "ls:codemodal") {
-    const eingabe = feld(i, "code");
+  if (id.startsWith("ls:codemodal")) {
+    const eingabe = (i.data?.components?.[0]?.components?.[0]?.value ?? "").trim();
     after(async () => {
       try {
         if (!(await loeseCodeEin(token, user.id, eingabe))) {
