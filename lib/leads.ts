@@ -15,11 +15,13 @@ export const OWNER_ID = "806859236768088114"; // David: darf Karten löschen
 export const CH_KARTEN = "leads";
 export const CH_ABLAGE = "lead-ablage";
 export const CH_SPEICHER = "lead-speicher";
+export const CH_SUCHE = "lead-suche";
+export const CH_SUCHE_SPEICHER = "lead-suche-speicher";
 export const NEEDED = 2; // so viele gleiche Stimmen entscheiden
 
 export type LeadState = "vote" | "confirm" | "accepted" | "active" | "archived";
 
-const COLOR: Record<LeadState, number> = {
+export const COLOR: Record<LeadState, number> = {
   vote: 0xd4a23c, // Gold
   confirm: 0xf97316, // Orange: wartet auf die Bestätigung der Ablehnung
   accepted: 0x22c55e, // Grün
@@ -50,7 +52,7 @@ function headers(token: string) {
   return { "Content-Type": "application/json", Authorization: `Bot ${token}` };
 }
 
-async function call<T>(token: string, method: string, path: string, body?: unknown): Promise<T | null> {
+export async function call<T>(token: string, method: string, path: string, body?: unknown): Promise<T | null> {
   try {
     const res = await fetch(`${API}${path}`, {
       method,
@@ -95,13 +97,20 @@ async function ensureChannel(token: string, name: string): Promise<string | null
   const existing = await findChannelId(token, name);
   if (existing) return existing;
 
-  const parent = (await findCategoryId(token, "AUTOMATISCH")) ?? (await findCategoryId(token, "TEAM"));
+  const parent =
+    name === CH_SUCHE
+      ? ((await findCategoryId(token, "TEAM")) ?? (await findCategoryId(token, "AUTOMATISCH")))
+      : ((await findCategoryId(token, "AUTOMATISCH")) ?? (await findCategoryId(token, "TEAM")));
   const topic =
     name === CH_KARTEN
       ? "Neue Unternehmen: mit /lead <link> anlegen, hier abstimmen."
       : name === CH_ABLAGE
         ? "Abgeschlossene Leads (Kein Interesse)."
-        : "Merkzettel des Bots (abgelehnte Firmen). Nicht löschen.";
+        : name === CH_SUCHE
+          ? "Lead-Suche: Der Bot findet Firmen über Google Maps. Mit „Suche starten“ loslegen."
+          : name === CH_SUCHE_SPEICHER
+            ? "Merkzettel der Lead-Suche (Codes, Freischaltungen, Suchen, gesehene Firmen). Nicht löschen."
+            : "Merkzettel des Bots (abgelehnte Firmen). Nicht löschen.";
   const created = await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, {
     name,
     type: 0,
@@ -113,7 +122,7 @@ async function ensureChannel(token: string, name: string): Promise<string | null
     return null;
   }
 
-  if (name === CH_SPEICHER) {
+  if (name === CH_SPEICHER || name === CH_SUCHE_SPEICHER) {
     // Nur David darf den Merkzettel sehen. Verbieten darf der Bot, ohne selbst alles zu haben.
     const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
     const team = roles.find((r) => r.name === "Team");
@@ -133,8 +142,10 @@ async function ensureChannel(token: string, name: string): Promise<string | null
 export const kartenKanal = (t: string) => ensureChannel(t, CH_KARTEN);
 export const ablageKanal = (t: string) => ensureChannel(t, CH_ABLAGE);
 export const speicherKanal = (t: string) => ensureChannel(t, CH_SPEICHER);
+export const sucheKanal = (t: string) => ensureChannel(t, CH_SUCHE);
+export const sucheSpeicherKanal = (t: string) => ensureChannel(t, CH_SUCHE_SPEICHER);
 
-interface Msg {
+export interface Msg {
   id: string;
   content: string;
   author: { bot?: boolean };
@@ -142,7 +153,7 @@ interface Msg {
   components?: { components?: { custom_id?: string }[] }[];
 }
 
-async function alleNachrichten(token: string, channelId: string, max = 300): Promise<Msg[]> {
+export async function alleNachrichten(token: string, channelId: string, max = 300): Promise<Msg[]> {
   const out: Msg[] = [];
   let before = "";
   while (out.length < max) {
@@ -162,7 +173,7 @@ async function alleNachrichten(token: string, channelId: string, max = 300): Pro
 // ---------------------------------------------------------------- Merkzettel
 
 const datum = () => new Date().toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" });
-const SEP = " · ";
+export const SEP = " · ";
 
 export async function merkeAbgelehnt(token: string, domain: string, firma: string): Promise<void> {
   const ch = await speicherKanal(token);
@@ -265,11 +276,11 @@ const fieldValue = (e: EmbedLike, name: string) => e.fields?.find((f) => f.name.
 export const domainOfCard = (e: EmbedLike): string | null =>
   e.footer?.text?.startsWith("lead:") ? e.footer.text.slice(5).split(SEP)[0].trim() : null;
 
-const FOOTER_HINWEIS = "Nur kontaktieren, wenn rechtlich zulässig (Kaltakquise)";
+export const FOOTER_HINWEIS = "Nur kontaktieren, wenn rechtlich zulässig (Kaltakquise)";
 
-const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+export const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 // Nichts von der fremden Seite soll in Discord Erwähnungen oder Kanalverweise auslösen.
-const sauber = (s: string) => s.replace(/@/g, "@​").replace(/<(#|@|:)/g, "<​$1");
+export const sauber = (s: string) => s.replace(/@/g, "@​").replace(/<(#|@|:)/g, "<​$1");
 
 /** Die Rolle Team (für die Benachrichtigung bei neuen Karten). */
 export async function teamRolle(token: string): Promise<string | null> {

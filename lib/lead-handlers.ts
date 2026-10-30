@@ -246,7 +246,7 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
       return ephemeral("Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel). Der Status bleibt unverändert.");
     }
     after(async () => {
-      const domain = domainOfCard(embed) ?? "";
+      const domain = (domainOfCard(embed) ?? "").replace(/^gmaps-.*/, "");
       const f = (name: string) => {
         const v = embed.fields?.find((x) => x.name === name)?.value;
         return v && v !== "nicht gefunden" ? v.replace(/​/g, "") : null;
