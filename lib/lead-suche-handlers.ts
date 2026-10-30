@@ -357,10 +357,21 @@ export async function handleSuche(i: SucheInteraction, token: string | undefined
           await bearbeiteOriginal(i, { content: "Der Code konnte nicht erstellt werden. Bitte gleich nochmal versuchen." });
           return;
         }
+        const gilt = `Er gilt **einmal** und ${Math.round((c.bis - Date.now()) / 60000)} Minuten (bis ${zeit(c.bis, "t")}).`;
+        // Den Code schickt der Bot als Direktnachricht. Sind Direktnachrichten aus, zeigen wir ihn ersatzweise privat im Kanal.
+        const dm = await call<{ id: string }>(token, "POST", "/users/@me/channels", { recipient_id: user.id });
+        const gesendet = dm
+          ? await call(token, "POST", `/channels/${dm.id}/messages`, {
+              content:
+                `🔑 **Dein Code für die Lead-Suche:** \`${c.code}\`\n${gilt}\n` +
+                `Geh zurück in ${i.channel_id ? `<#${i.channel_id}>` : "#lead-suche"} und drück dort auf **Code eingeben**. Danach bist du ${SITZUNG_MIN} Minuten freigeschaltet.`,
+              allowed_mentions: { parse: [] },
+            })
+          : null;
         await bearbeiteOriginal(i, {
-          content:
-            `🔑 **Dein Code:** \`${c.code}\`\nEr gilt **einmal** und ${Math.round((c.bis - Date.now()) / 60000)} Minuten (bis ${zeit(c.bis, "t")}). ` +
-            `Drück auf **Code eingeben**, dann bist du ${SITZUNG_MIN} Minuten freigeschaltet.`,
+          content: gesendet
+            ? `📬 Ich habe dir den Code per **Direktnachricht** geschickt. ${gilt}\nDrück auf **Code eingeben** und tipp ihn ein, dann bist du ${SITZUNG_MIN} Minuten freigeschaltet.`
+            : `🔑 **Dein Code:** \`${c.code}\`\n⚠️ Ich konnte dir keine Direktnachricht schicken (in Discord unter Privatsphäre „Direktnachrichten von Servermitgliedern“ erlauben), deshalb steht er hier. ${gilt}\nDrück auf **Code eingeben**.`,
           components: codeKnopf,
         });
       } catch (err) {
