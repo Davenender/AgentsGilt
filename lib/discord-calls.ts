@@ -74,16 +74,12 @@ export function rueckrufKonfiguriert(): boolean {
 }
 
 /**
- * Standard sind die SMS-Knöpfe. Geht die SMS nicht (Festnetz, Fehler), steht auf der Karte das Feld "SMS"
- * und die Karte zeigt stattdessen die zwei Rückruf-Knöpfe. Zum Testen: RUECKRUF_AUCH_HANDY=1 zeigt zusätzlich
- * in einer zweiten Reihe immer den jeweils anderen Weg.
+ * Die Karte zeigt zuerst immer die SMS-Knöpfe. Erst wenn die SMS nicht geht (Festnetz, keine Nummer, Versandfehler),
+ * steht auf der Karte das Feld "SMS" und sie zeigt stattdessen die zwei Rückruf-Knöpfe.
  */
-function rueckrufStand(embed?: EmbedLike): { rueckruf: boolean; beide: boolean } {
-  if (!embed || !rueckrufKonfiguriert()) return { rueckruf: false, beide: false };
-  return {
-    rueckruf: Boolean(embed.fields?.some((f) => f.name === SMS_FIELD)),
-    beide: process.env.RUECKRUF_AUCH_HANDY === "1",
-  };
+function rueckrufStand(embed?: EmbedLike): boolean {
+  if (!embed || !rueckrufKonfiguriert()) return false;
+  return Boolean(embed.fields?.some((f) => f.name === SMS_FIELD));
 }
 
 /** Knöpfe, die zum jeweiligen Zustand passen (Discord: Action Row mit Buttons). */
@@ -103,22 +99,24 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
     case "customer_alt":
       // Ohne Bearbeiter (nach "Freigeben") kann nur wieder übernommen werden.
       if (!hasOwner) return [{ type: 1, components: [button("Übernehmen", "claim", 3)] }];
-      {
-        const { rueckruf, beide } = rueckrufStand(embed);
-        const smsKnoepfe = [
-          button("Termin bestätigen (SMS)", "confirm", 3),
-          button("Anderen Termin vorschlagen", "propose", 1),
-        ];
-        const rueckrufKnoepfe = [
-          button("Termin per Rückruf bestätigen", "rconfirm", 3),
-          button("Anderen Termin per Rückruf vorschlagen", "rpropose", 1),
-        ];
-        const reihen = [
-          { type: 1, components: [...(rueckruf ? rueckrufKnoepfe : smsKnoepfe), button("Erledigt", "done", 2), button("Freigeben", "release", 2)] },
-        ];
-        if (beide) reihen.push({ type: 1, components: rueckruf ? smsKnoepfe : rueckrufKnoepfe });
-        return reihen;
-      }
+      return [
+        {
+          type: 1,
+          components: [
+            ...(rueckrufStand(embed)
+              ? [
+                  button("Termin per Rückruf bestätigen", "rconfirm", 3),
+                  button("Anderen Termin per Rückruf vorschlagen", "rpropose", 1),
+                ]
+              : [
+                  button("Termin bestätigen (SMS)", "confirm", 3),
+                  button("Anderen Termin vorschlagen", "propose", 1),
+                ]),
+            button("Erledigt", "done", 2),
+            button("Freigeben", "release", 2),
+          ],
+        },
+      ];
     case "confirmed":
     case "done":
       return [];
