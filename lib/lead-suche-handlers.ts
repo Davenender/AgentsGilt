@@ -65,6 +65,25 @@ const ephemeral = (content: string) =>
 const update = (embeds: EmbedLike[], components: unknown[], content = "") =>
   NextResponse.json({ type: 7, data: { content, embeds, components, allowed_mentions: { parse: [] } } });
 
+const DEFERRED_EPHEMERAL = { type: 5, data: { flags: 64 } };
+const DEFERRED_UPDATE = { type: 6 };
+
+/** Ändert die Antwort auf die Interaktion nachträglich (mit Text, Karten und Knöpfen). */
+async function bearbeiteOriginal(i: SucheInteraction, body: { content?: string; embeds?: unknown[]; components?: unknown[] }): Promise<void> {
+  if (!i.application_id || !i.token) return;
+  try {
+    const res = await fetch(`https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}/messages/@original`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "", embeds: [], components: [], ...body, allowed_mentions: { parse: [] } }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) console.error(`[lead-suche] Antwort ändern fehlgeschlagen: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`);
+  } catch (err) {
+    console.error("[lead-suche] Antwort ändern fehlgeschlagen:", err);
+  }
+}
+
 const sek = (ms: number) => Math.floor(ms / 1000);
 const zeit = (ms: number, stil: "R" | "t" | "f" = "R") => `<t:${sek(ms)}:${stil}>`;
 
@@ -281,41 +300,64 @@ export async function handleSuche(i: SucheInteraction, token: string | undefined
   // Alles andere nur für die drei aus dem Team.
   if (!SHOW_NAMES[user.id]) return ephemeral("Die Lead-Suche ist nur für das Team.");
 
-  // ---- Suche starten: Code schicken (oder direkt öffnen, wenn schon freigeschaltet)
+  // ---- Suche starten: Code schicken (oder direkt öffnen, wenn schon freigeschaltet).
+  // Das dauert mehrere Zugriffe auf den Merkzettel, deshalb erst quittieren und dann antworten.
   if (id === "ls:start") {
-    const bis = await sitzungBis(token, user.id);
-    if (bis) {
-      const z = await zustandNeu(token, { ...STANDARD }, bis);
-      const r = zentrale(z, "Willkommen zurück, du bist noch freigeschaltet.");
-      return NextResponse.json({ type: 4, data: { flags: 64, embeds: r.embeds, components: r.components, allowed_mentions: { parse: [] } } });
-    }
-    const c = await erzeugeCode(token, user.id);
-    if (!c) return ephemeral("Der Code konnte nicht erstellt werden. Bitte gleich nochmal versuchen.");
-    return NextResponse.json({
-      type: 4,
-      data: {
-        flags: 64,
-        content:
-          `🔑 **Dein Code:** \`${c.code}\`\nEr gilt **einmal** und ${Math.round((c.bis - Date.now()) / 60000)} Minuten (bis ${zeit(c.bis, "t")}). ` +
-          `Drück auf **Code eingeben**, dann bist du ${SITZUNG_MIN} Minuten freigeschaltet.`,
-        components: [{ type: 1, components: [{ type: 2, style: 1, label: "Code eingeben", custom_id: "ls:code" }] }],
-        allowed_mentions: { parse: [] },
-      },
+    after(async () => {
+      try {
+        const bis = await sitzungBis(token, user.id);
+        if (bis) {
+          const z = await zustandNeu(token, { ...STANDARD }, bis);
+          const r = zentrale(z, "Willkommen zurück, du bist noch freigeschaltet.");
+          await bearbeiteOriginal(i, { embeds: r.embeds, components: r.components });
+          return;
+        }
+        const c = await erzeugeCode(token, user.id);
+        if (!c) {
+          await bearbeiteOriginal(i, { content: "Der Code konnte nicht erstellt werden. Bitte gleich nochmal versuchen." });
+          return;
+        }
+        await bearbeiteOriginal(i, {
+          content:
+            `🔑 **Dein Code:** \`${c.code}\`\nEr gilt **einmal** und ${Math.round((c.bis - Date.now()) / 60000)} Minuten (bis ${zeit(c.bis, "t")}). ` +
+            `Drück auf **Code eingeben**, dann bist du ${SITZUNG_MIN} Minuten freigeschaltet.`,
+          components: [{ type: 1, components: [{ type: 2, style: 1, label: "Code eingeben", custom_id: "ls:code" }] }],
+        });
+      } catch (err) {
+        console.error("[lead-suche] Start fehlgeschlagen:", err);
+        await bearbeiteOriginal(i, { content: "Das hat nicht geklappt. Bitte gleich nochmal versuchen." });
+      }
     });
+    return NextResponse.json(DEFERRED_EPHEMERAL);
   }
 
   if (id === "ls:code") return NextResponse.json(modal("ls:codemodal", "Code eingeben", [{ id: "code", label: "Dein Code", placeholder: "XXXX-XXXX", required: true, max: 12 }]));
 
   if (id === "ls:codemodal") {
     const eingabe = feld(i, "code");
-    if (!(await loeseCodeEin(token, user.id, eingabe))) {
-      return update([], [{ type: 1, components: [{ type: 2, style: 1, label: "Code eingeben", custom_id: "ls:code" }] }], "❌ Der Code stimmt nicht oder ist abgelaufen. Drück „Code eingeben“ und versuch es noch einmal, oder starte unten im Kanal einen neuen.");
-    }
-    const bis = await starteSitzung(token, user.id);
-    if (!bis) return ephemeral("Die Freischaltung hat nicht geklappt. Bitte nochmal versuchen.");
-    const z = await zustandNeu(token, { ...STANDARD }, bis);
-    const r = zentrale(z, "✅ Freigeschaltet.");
-    return update(r.embeds, r.components);
+    after(async () => {
+      try {
+        if (!(await loeseCodeEin(token, user.id, eingabe))) {
+          await bearbeiteOriginal(i, {
+            content: "❌ Der Code stimmt nicht oder ist abgelaufen. Drück „Code eingeben“ und versuch es noch einmal, oder starte oben im Kanal einen neuen.",
+            components: [{ type: 1, components: [{ type: 2, style: 1, label: "Code eingeben", custom_id: "ls:code" }] }],
+          });
+          return;
+        }
+        const bis = await starteSitzung(token, user.id);
+        if (!bis) {
+          await bearbeiteOriginal(i, { content: "Die Freischaltung hat nicht geklappt. Bitte nochmal versuchen." });
+          return;
+        }
+        const z = await zustandNeu(token, { ...STANDARD }, bis);
+        const r = zentrale(z, "✅ Freigeschaltet.");
+        await bearbeiteOriginal(i, { embeds: r.embeds, components: r.components });
+      } catch (err) {
+        console.error("[lead-suche] Code prüfen fehlgeschlagen:", err);
+        await bearbeiteOriginal(i, { content: "Das hat nicht geklappt. Bitte gleich nochmal versuchen." });
+      }
+    });
+    return NextResponse.json(DEFERRED_UPDATE);
   }
 
   // ---- ab hier: Suchzentrale (Zustand aus der Nachricht)
