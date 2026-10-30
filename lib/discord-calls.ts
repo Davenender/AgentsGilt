@@ -94,8 +94,8 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
           components: [
             button("Termin bestätigen (SMS)", "confirm", 3),
             button("Anderen Termin vorschlagen", "propose", 1),
-            // Geht keine SMS (Festnetz), ruft stattdessen der KI-Rückruf-Agent an.
-            ...(embed && rueckrufKonfiguriert() && !resolveMobile(embed).mobile
+            // Geht keine SMS (Festnetz), ruft stattdessen der KI-Rückruf-Agent an. Zum Testen: RUECKRUF_AUCH_HANDY=1.
+            ...(embed && rueckrufKonfiguriert() && (!resolveMobile(embed).mobile || process.env.RUECKRUF_AUCH_HANDY === "1")
               ? [button("Per Rückruf klären", "callback", 1)]
               : []),
             button("Erledigt", "done", 2),
