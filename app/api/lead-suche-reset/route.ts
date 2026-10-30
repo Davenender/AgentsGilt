@@ -36,9 +36,13 @@ export async function GET() {
   const archiv = (await call<{ threads?: { id: string }[] }>(token, "GET", `/channels/${kanal}/threads/archived/private`))?.threads ?? [];
   const ids = [...aktiv.filter((t) => t.parent_id === kanal).map((t) => t.id), ...archiv.map((t) => t.id)];
   let threads = 0;
-  for (const id of ids) if (await call(token, "DELETE", `/channels/${id}`)) threads++;
+  let geschlossen = 0;
+  for (const id of ids) {
+    if (await call(token, "DELETE", `/channels/${id}`)) threads++;
+    else if (await call(token, "PATCH", `/channels/${id}`, { archived: true, locked: true })) geschlossen++;
+  }
 
   const merkzettel = await leere(token, speicher, () => true);
   const meldungen = await leere(token, kanal, (m) => !!m.author.bot && m.content.startsWith("🔎 **") && !m.embeds?.length);
-  return NextResponse.json({ threads, merkzettel, meldungen });
+  return NextResponse.json({ gefunden: ids.length, geloescht: threads, geschlossen, merkzettel, meldungen });
 }
