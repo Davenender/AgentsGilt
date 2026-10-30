@@ -394,7 +394,7 @@ export async function sucheFirmen(token: string, e: Einstellungen): Promise<Such
     const basis = {
       platz: p,
       analyse: null,
-      url: p.website ?? p.maps ?? "https://www.google.com/maps",
+      url: p.website ?? `https://www.google.com/maps/place/?q=place_id:${p.id}`,
       domain: art === "site" && dom ? dom : `gmaps-${p.id}`,
       seenKey: art === "site" && dom ? dom : `gmaps-${p.id}`,
     };

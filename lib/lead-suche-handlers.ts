@@ -136,13 +136,13 @@ interface Zustand extends Einstellungen {
   naechste: number | null;
 }
 
-const ZUSTAND_PREFIX = "ls:";
+const ZUSTAND_PREFIX = "Sitzung ";
 
 function lesZustand(embed: EmbedLike | undefined): Zustand | null {
   const t = embed?.footer?.text;
   if (!t?.startsWith(ZUSTAND_PREFIX)) return null;
   try {
-    const j = JSON.parse(t.slice(ZUSTAND_PREFIX.length)) as Record<string, unknown>;
+    const j = JSON.parse(Buffer.from(t.slice(ZUSTAND_PREFIX.length), "base64url").toString("utf8")) as Record<string, unknown>;
     return {
       ort: String(j.o ?? STANDARD.ort),
       radius: Number(j.r ?? STANDARD.radius),
@@ -163,10 +163,8 @@ function lesZustand(embed: EmbedLike | undefined): Zustand | null {
 }
 
 function schreibeZustand(z: Zustand): string {
-  return (
-    ZUSTAND_PREFIX +
-    JSON.stringify({ o: z.ort, r: z.radius, b: z.branchen, x: z.eigene, w: z.web, s: z.sort, u: z.ungesehene ? 1 : 0, mr: z.minBewertung, mc: z.minAnzahl, t: z.bis, f: z.frei, n: z.naechste })
-  );
+  const json = JSON.stringify({ o: z.ort, r: z.radius, b: z.branchen, x: z.eigene, w: z.web, s: z.sort, u: z.ungesehene ? 1 : 0, mr: z.minBewertung, mc: z.minAnzahl, t: z.bis, f: z.frei, n: z.naechste });
+  return ZUSTAND_PREFIX + Buffer.from(json, "utf8").toString("base64url");
 }
 
 // -------------------------------------------------------------- Darstellung
