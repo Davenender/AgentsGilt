@@ -26,7 +26,7 @@ import {
 import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
 import { handleLeadButton, handleLeadCommand } from "@/lib/lead-handlers";
-import { handleSuche, type SucheInteraction } from "@/lib/lead-suche-handlers";
+import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
 import { OWNER_ID } from "@/lib/leads";
 import { closeTicketChannel, FOR_CUSTOMER, SHOW_NAMES, ticketComponents } from "@/lib/support";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
@@ -237,6 +237,7 @@ export async function POST(request: Request) {
   const token = process.env.DISCORD_BOT_TOKEN;
   const channelId = interaction.channel_id ?? process.env.DISCORD_CHANNEL_ANRUFE;
 
+  if (interaction.type === 2 && interaction.data?.name === "close") return handleSucheClose(interaction as unknown as SucheInteraction, token);
   if (interaction.type === 2) return handleLeadCommand(interaction, token, who);
   if (customId.startsWith("lead:")) return handleLeadButton(interaction, token);
   if (customId.startsWith("ls:")) return handleSuche(interaction as unknown as SucheInteraction, token);

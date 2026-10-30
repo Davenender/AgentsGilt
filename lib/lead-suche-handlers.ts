@@ -44,6 +44,7 @@ import {
   leadComponents,
   letzterFehler,
   NEEDED,
+  OWNER_ID,
   postKarte,
   SEP,
   sucheKanal,
@@ -61,6 +62,7 @@ export interface SucheInteraction {
   application_id?: string;
   channel_id?: string;
   data?: {
+    name?: string;
     custom_id?: string;
     values?: string[];
     components?: { components?: { custom_id: string; value?: string }[] }[];
@@ -767,4 +769,32 @@ function wochenEmbed(w: { diese: Woche; letzte: Woche }): EmbedLike {
     ],
     footer: { text: "Gezählt wird ab dem Start der Lead-Suche." },
   };
+}
+
+// ------------------------------------------------------------------ /close
+
+/** /close: schließt den eigenen Such-Thread vorzeitig (nur in einem Thread unter #lead-suche, nur für den Suchenden oder David). */
+export async function handleSucheClose(i: SucheInteraction, token: string | undefined): Promise<NextResponse> {
+  const user = i.member?.user;
+  const kanalId = i.channel_id;
+  if (!token || !user || !kanalId) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
+  if (!SHOW_NAMES[user.id]) return ephemeral("Die Lead-Suche ist nur für das Team.");
+
+  const [ch, parent] = await Promise.all([
+    call<{ type: number; name?: string; parent_id?: string }>(token, "GET", `/channels/${kanalId}`),
+    sucheKanal(token),
+  ]);
+  if (!ch || ch.type !== 12 || !parent || ch.parent_id !== parent) {
+    return ephemeral("`/close` funktioniert nur in einem Such-Thread aus der Lead-Suche. Tipp den Befehl dort ein.");
+  }
+  const name = SHOW_NAMES[user.id];
+  if (!(ch.name ?? "").startsWith(`${name} ·`) && user.id !== OWNER_ID) {
+    return ephemeral("Das ist nicht dein Such-Thread.");
+  }
+  // Erst antworten, dann schließen (im geschlossenen Thread kann der Bot nichts mehr schreiben).
+  after(async () => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await call(token, "PATCH", `/channels/${kanalId}`, { archived: true });
+  });
+  return ephemeral("✅ Der Thread wird geschlossen. Die Karten bleiben erhalten, du findest ihn unter „Archivierte Threads“ in #lead-suche.");
 }
