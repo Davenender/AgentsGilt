@@ -551,21 +551,6 @@ function karteKnoepfe(maps: string | null) {
   ];
 }
 
-/** Ein kurzer Satz zum Einstieg ins Telefonat, passend zur Website der Firma. */
-function einstieg(t: Treffer, wer: string, ort: string): string {
-  const f = t.platz.name;
-  const kopf = `Guten Tag, hier ist ${wer} von Agents Gilt.`;
-  const grund =
-    t.art === "keine"
-      ? `Mir ist aufgefallen, dass ${f} bei Google noch keine eigene Website hat.`
-      : t.art === "social"
-        ? `Mir ist aufgefallen, dass ${f} im Netz nur über Facebook oder ein Verzeichnis zu finden ist.`
-        : t.art === "schlecht"
-          ? `Ich habe mir Ihre Website angesehen. Sie wirkt etwas in die Jahre gekommen und ist auf dem Handy schwer zu bedienen.`
-          : `Ich habe mir Ihre Website angesehen und hätte eine Idee, wie sie noch mehr Kunden bringt.`;
-  return `„${kopf} ${grund} Wir helfen Betrieben in ${ort} mit schnellen, günstigen Lösungen. Haben Sie kurz zwei Minuten?“`.slice(0, 1000);
-}
-
 async function fuehreSucheAus(i: SucheInteraction, token: string, userId: string, z: Zustand): Promise<void> {
   const name = SHOW_NAMES[userId] ?? "Team";
   const buchung = await verbrauchSuche(token, userId);
@@ -640,7 +625,7 @@ async function fuehreSucheAus(i: SucheInteraction, token: string, userId: string
       ...basis,
       author: { name: `Treffer ${n + 1} von ${res.treffer.length}` },
       color: ART_FARBE[t.art] ?? FARBE_NEU,
-      fields: [...felder, ...zusatzFelder(t), { name: "💬 Gesprächseinstieg", value: einstieg(t, name, z.ort), inline: false }],
+      fields: [...felder, ...zusatzFelder(t)],
       footer: { text: `lead:${t.domain}${SEP}suche:${userId}${SEP}${FOOTER_HINWEIS}` },
     } as EmbedLike;
     await call(token, "POST", `/channels/${thread.id}/messages`, {
