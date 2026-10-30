@@ -35,8 +35,8 @@ export const site = {
 
 export const intro = {
   kicker: "Was wir machen",
-  headline: "Wir bauen in Stunden*, wofür Agenturen Wochen brauchen.",
-  // Erklärung zum Sternchen in der Überschrift, steht klein unter dem Text.
+  headline: "Wir bauen in Stunden, wofür Agenturen Wochen brauchen.",
+  // Erklärung zum Sternchen hinter "Stunden" (Sternchen und Text stehen in IntroTypewriter.tsx), steht klein unter dem Text.
   fussnote: "* Gilt nur bei sehr einfachen Projekten und ist kein Versprechen.",
   text: "Mit modernster KI entwickeln wir maßgeschneiderte digitale Lösungen für kleine und mittlere Unternehmen – schnell, bezahlbar und auf neuestem Stand. Du bekommst Technik, die sonst großen Firmen vorbehalten ist.",
 };

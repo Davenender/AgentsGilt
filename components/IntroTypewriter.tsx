@@ -87,6 +87,8 @@ export function IntroTypewriter() {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const preRef = useRef<HTMLSpanElement>(null);
   const swapRef = useRef<HTMLSpanElement>(null);
+  const starRef = useRef<HTMLElement>(null); // das Sternchen hinter "Stunden"
+  const noteRef = useRef<HTMLParagraphElement>(null); // die Fußnote darunter
   const postRef = useRef<HTMLSpanElement>(null);
   const paraRef = useRef<HTMLParagraphElement>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
@@ -131,6 +133,9 @@ export function IntroTypewriter() {
     const body = bodyRef.current;
     const caretHead = caretHeadRef.current;
     const caretBody = caretBodyRef.current;
+    const star = starRef.current;
+    const note = noteRef.current;
+    if (!star || !note) return;
     if (!el || !heading || !pre || !swap || !post || !para || !body) return;
     if (!caretHead || !caretBody) return;
 
@@ -176,6 +181,9 @@ export function IntroTypewriter() {
         swap.textContent = "";
         post.textContent = "";
         body.textContent = "";
+        // Sternchen und Fußnote erscheinen erst im Lauf der Animation.
+        star.style.opacity = "0";
+        note.style.opacity = "0";
 
         // --- 4. Animation -------------------------------------------------
         ctx = gsap.context(() => {
@@ -250,6 +258,8 @@ export function IntroTypewriter() {
               post.textContent = typedPost.slice(0, Math.round(nPost.n));
             },
           });
+          // Das Sternchen hinter "Stunden" blendet gleichzeitig weich ein.
+          tl.to(star, { opacity: 1, duration: 0.5, ease: "power2.out" }, "<");
 
           // 6. "Stunden" leuchtet gold auf
           if (hasSwap) {
@@ -273,6 +283,8 @@ export function IntroTypewriter() {
               },
               "+=0.2",
             )
+            // Die Fußnote blendet nach dem Untertext weich ein.
+            .to(note, { opacity: 1, duration: 0.9, ease: "power2.out" }, "+=0.15")
             // 9. Fertig. Der Cursor bleibt am Textende stehen und blinkt
             //    weiter – als hätte man den Text gerade geschrieben und stehen
             //    lassen. Nur die reservierte Höhe geben wir wieder frei, damit
@@ -304,6 +316,8 @@ export function IntroTypewriter() {
         body.textContent = intro.text;
         caretHead.classList.remove("type-caret");
         caretBody.classList.remove("type-caret");
+        star.style.opacity = "";
+        note.style.opacity = "";
         heading.style.minHeight = "";
         para.style.minHeight = "";
       };
@@ -329,6 +343,9 @@ export function IntroTypewriter() {
       >
         <span ref={preRef}>{HEAD_PRE}</span>
         <span ref={swapRef}>{HEAD_SWAP}</span>
+        <sup ref={starRef} aria-hidden="true" className="ml-0.5 align-super text-[0.4em] font-bold text-gold-dark">
+          *
+        </sup>
         <span ref={postRef}>{HEAD_POST}</span>
         <span ref={caretHeadRef} aria-hidden="true" className="type-caret-base" />
       </h2>
@@ -341,9 +358,9 @@ export function IntroTypewriter() {
         <span ref={caretBodyRef} aria-hidden="true" className="type-caret-base" />
       </p>
 
-      <Reveal delay={0.4}>
-        <p className="mx-auto mt-5 max-w-2xl text-xs text-ink-soft/60">{intro.fussnote}</p>
-      </Reveal>
+      <p ref={noteRef} className="mx-auto mt-5 max-w-2xl text-[11px] text-ink-soft/60">
+        {intro.fussnote}
+      </p>
     </div>
   );
 }
