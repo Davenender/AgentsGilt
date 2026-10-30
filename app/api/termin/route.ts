@@ -38,12 +38,12 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "accept") {
-    const r = await kundeSagtZu(v, "link");
+    const r = await kundeSagtZu(v);
     return r.ok ? NextResponse.json({ ok: true, termin: r.termin }) : NextResponse.json({ error: r.fehler }, { status: r.status });
   }
 
   if (body.action === "wish") {
-    const r = await kundeWuenscht(v, String(body.datum ?? ""), String(body.uhrzeit ?? ""), "link");
+    const r = await kundeWuenscht(v, String(body.datum ?? ""), String(body.uhrzeit ?? ""));
     return r.ok ? NextResponse.json({ ok: true, termin: r.termin }) : NextResponse.json({ error: r.fehler }, { status: r.status });
   }
 

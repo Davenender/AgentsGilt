@@ -271,10 +271,10 @@ export function proposedByUs(embed: EmbedLike, termin: string, who: string, time
 }
 
 /** Der Kunde hat über den Link zugesagt. */
-export function confirmedByCustomer(embed: EmbedLike, time: string, kalender = DEFAULT_CALENDAR_TEXT, weg = "") {
+export function confirmedByCustomer(embed: EmbedLike, time: string, kalender = DEFAULT_CALENDAR_TEXT) {
   const termin = fieldValue(embed, PROPOSAL_FIELD) ?? "";
   return transition(embed, "confirmed", {
-    status: `Kunde hat den Vorschlag ${weg ? `${weg} ` : ""}bestätigt um ${time}`,
+    status: `Kunde hat den Vorschlag bestätigt um ${time}`,
     set: {
       [FIXED_FIELD]: termin,
       [CALENDAR_FIELD]: kalender,
@@ -283,9 +283,9 @@ export function confirmedByCustomer(embed: EmbedLike, time: string, kalender = D
 }
 
 /** Der Kunde wünscht über den Link einen anderen Termin. */
-export function customerWish(embed: EmbedLike, termin: string, time: string, weg = "") {
+export function customerWish(embed: EmbedLike, termin: string, time: string) {
   return transition(embed, "customer_alt", {
-    status: `Kunde wünscht einen anderen Termin (gemeldet ${weg ? `${weg} ` : ""}um ${time})`,
+    status: `Kunde wünscht einen anderen Termin (gemeldet um ${time})`,
     set: { [CUSTOMER_FIELD]: termin },
   });
 }

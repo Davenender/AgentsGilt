@@ -12,11 +12,8 @@ import { terminAusEingabe } from "@/lib/termin";
 import type { Vorschlag } from "@/lib/termin-kunde";
 
 // Die Antwort eines Kunden auf einen Terminvorschlag: Zusage oder anderer Wunsch.
-// Gleiche Logik für die Seite agentsgilt.com/t/... und für den Telefon-Assistenten.
 
 type Geladen = Extract<Vorschlag, { ok: true }>;
-export type Weg = "link" | "telefon";
-
 export type Antwort =
   | { ok: true; termin: string }
   | { ok: false; status: number; fehler: string };
@@ -38,7 +35,7 @@ function wer(v: Geladen) {
   };
 }
 
-export async function kundeSagtZu(v: Geladen, weg: Weg): Promise<Antwort> {
+export async function kundeSagtZu(v: Geladen): Promise<Antwort> {
   const token = process.env.DISCORD_BOT_TOKEN;
   const channelId = process.env.DISCORD_CHANNEL_ANRUFE;
   const { bearbeiter, kunde } = wer(v);
@@ -48,16 +45,15 @@ export async function kundeSagtZu(v: Geladen, weg: Weg): Promise<Antwort> {
     ownerId: ownerId(v.embed),
   });
   const ok = await editMessage(token, channelId, v.messageId, {
-    embeds: [confirmedByCustomer(v.embed, uhrzeit(), kal.text, weg === "telefon" ? "per Anruf" : undefined)],
+    embeds: [confirmedByCustomer(v.embed, uhrzeit(), kal.text)],
     components: callComponents("confirmed"),
   });
   if (!ok) return { ok: false, status: 502, fehler: "Das hat leider nicht geklappt. Bitte rufen Sie uns an." };
-  const wo = weg === "telefon" ? " am Telefon" : "";
-  await replyTo(token, channelId, v.messageId, `✅ ${kunde} hat den Termin${wo} bestätigt: ${v.termin}${bearbeiter}`);
+  await replyTo(token, channelId, v.messageId, `✅ ${kunde} hat den Termin bestätigt: ${v.termin}${bearbeiter}`);
   return { ok: true, termin: v.termin };
 }
 
-export async function kundeWuenscht(v: Geladen, datum: string, zeit: string, weg: Weg): Promise<Antwort> {
+export async function kundeWuenscht(v: Geladen, datum: string, zeit: string): Promise<Antwort> {
   const token = process.env.DISCORD_BOT_TOKEN;
   const channelId = process.env.DISCORD_CHANNEL_ANRUFE;
   const { bearbeiter, kunde } = wer(v);
@@ -72,11 +68,10 @@ export async function kundeWuenscht(v: Geladen, datum: string, zeit: string, weg
   }
 
   const ok = await editMessage(token, channelId, v.messageId, {
-    embeds: [customerWish(v.embed, eingabe.text, uhrzeit(), weg === "telefon" ? "per Anruf" : undefined)],
+    embeds: [customerWish(v.embed, eingabe.text, uhrzeit())],
     components: callComponents("customer_alt", Boolean(ownerId(v.embed))),
   });
   if (!ok) return { ok: false, status: 502, fehler: "Das hat leider nicht geklappt. Bitte rufen Sie uns an." };
-  const wo = weg === "telefon" ? " am Telefon" : "";
-  await replyTo(token, channelId, v.messageId, `🕒 ${kunde} wünscht${wo} stattdessen: ${eingabe.text}${bearbeiter}`);
+  await replyTo(token, channelId, v.messageId, `🕒 ${kunde} wünscht stattdessen: ${eingabe.text}${bearbeiter}`);
   return { ok: true, termin: eingabe.text };
 }

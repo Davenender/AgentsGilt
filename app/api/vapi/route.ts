@@ -5,7 +5,7 @@ import { callComponents, openEmbed } from "@/lib/discord-calls";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { findeAnruf, imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/lib/rufgruppe";
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
-import { aktuelleKarte, ergaenzeKarte, firmaZurNummer } from "@/lib/anrufer";
+import { ergaenzeKarte } from "@/lib/anruf-karte";
 
 export const runtime = "nodejs";
 
@@ -22,19 +22,7 @@ const MAX_TRANSCRIPT_CHARS = 6000;
 interface ToolCall {
   id?: string;
   name?: string;
-  function?: { name?: string; arguments?: unknown };
-  arguments?: unknown;
-}
-
-/** Vapi schickt die Argumente mal als Objekt, mal als JSON-Text. */
-function argumente(c: ToolCall): Record<string, string> {
-  const raw = c.function?.arguments ?? c.arguments;
-  try {
-    const o = typeof raw === "string" ? JSON.parse(raw || "{}") : raw;
-    return o && typeof o === "object" ? (o as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
+  function?: { name?: string };
 }
 
 interface VapiPayload {
@@ -242,38 +230,6 @@ export async function POST(request: Request) {
       calls.map(async (c) => {
         const name = c.name ?? c.function?.name ?? "";
         const toolCallId = c.id ?? "";
-
-        // Wiedererkennen: nur ein Hinweis, wer anrufen könnte. Nie als Tatsache behandeln.
-        if (name === "anrufer_erkennen") {
-          const [firma, karte] = await Promise.all([firmaZurNummer(kunde), aktuelleKarte(kunde)]);
-          if (!firma && !karte) {
-            return { toolCallId, result: "Die Nummer ist nicht zugeordnet. Behandle den Anruf wie von einem Unbekannten und nenne keine Namen." };
-          }
-          return {
-            toolCallId,
-            result:
-              (firma
-                ? `Die Nummer gehört vermutlich zur Firma „${firma}“. Begrüße kurz und frage: „Rufen Sie wegen ${firma} an?“ `
-                : "Die Nummer ist bekannt, aber keiner Firma zugeordnet. Begrüße ganz normal. ") +
-              "Das ist nur ein Hinweis, es kann auch jemand anderes anrufen. Nenne keine Personennamen. " +
-              (karte
-                ? "Es gibt einen Termin zu dieser Nummer. Erwähne ihn NICHT von dir aus. Nur wenn der Anrufer nach dem Termin fragt, rufe terminvorschlag mit aktion „abfragen“ auf."
-                : ""),
-          };
-        }
-
-        // Termin zur Nummer: der Assistent darf ihn nur nennen. Bestätigen und ändern
-        // macht das Team per SMS oder Rückruf, nie am Telefon.
-        if (name === "terminvorschlag") {
-          const v = await aktuelleKarte(kunde);
-          if (!v || !v.termin) return { toolCallId, result: "Zu dieser Nummer gibt es keinen Termin. Sag, dass sich das Team meldet, und nimm das Anliegen auf." };
-          return {
-            toolCallId,
-            result:
-              (v.fest ? `Der Termin steht fest: ${v.termin}.` : `Der Termin ${v.termin} ist noch nicht endgültig bestätigt.`) +
-              " Nenne ihn. Bestätigen oder ändern kannst du ihn am Telefon nicht: Sag, dass unser Team das per SMS oder Rückruf klärt. Der Wunsch des Anrufers steht dann in der Meldung ans Team.",
-          };
-        }
 
         if (!/mitarbeiter|rufgruppe/i.test(name)) return { toolCallId, result: "Unbekanntes Werkzeug." };
 
