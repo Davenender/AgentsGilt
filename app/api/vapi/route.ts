@@ -5,6 +5,8 @@ import { callComponents, openEmbed } from "@/lib/discord-calls";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { findeAnruf, imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/lib/rufgruppe";
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
+import { firmaZurNummer, offenerVorschlag } from "@/lib/anrufer";
+import { kundeSagtZu, kundeWuenscht } from "@/lib/termin-antwort";
 
 export const runtime = "nodejs";
 
@@ -21,7 +23,19 @@ const MAX_TRANSCRIPT_CHARS = 6000;
 interface ToolCall {
   id?: string;
   name?: string;
-  function?: { name?: string };
+  function?: { name?: string; arguments?: unknown };
+  arguments?: unknown;
+}
+
+/** Vapi schickt die Argumente mal als Objekt, mal als JSON-Text. */
+function argumente(c: ToolCall): Record<string, string> {
+  const raw = c.function?.arguments ?? c.arguments;
+  try {
+    const o = typeof raw === "string" ? JSON.parse(raw || "{}") : raw;
+    return o && typeof o === "object" ? (o as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
 }
 
 interface VapiPayload {
@@ -229,6 +243,48 @@ export async function POST(request: Request) {
       calls.map(async (c) => {
         const name = c.name ?? c.function?.name ?? "";
         const toolCallId = c.id ?? "";
+
+        // Wiedererkennen: nur ein Hinweis, wer anrufen könnte. Nie als Tatsache behandeln.
+        if (name === "anrufer_erkennen") {
+          const [firma, offen] = await Promise.all([firmaZurNummer(kunde), offenerVorschlag(kunde)]);
+          if (!firma && !offen) {
+            return { toolCallId, result: "Die Nummer ist nicht zugeordnet. Behandle den Anruf wie von einem Unbekannten und nenne keine Namen." };
+          }
+          const wer = firma ? `Die Nummer gehört zur Firma „${firma}“.` : "Die Nummer ist bekannt, aber keiner Firma zugeordnet.";
+          return {
+            toolCallId,
+            result:
+              `${wer}${offen ? " Es wartet ein Terminvorschlag auf eine Antwort." : ""} ` +
+              `Das ist nur ein Hinweis, es kann auch jemand anderes anrufen. ` +
+              `${firma ? `Frage kurz: „Rufen Sie wegen ${firma} an?“` : "Frage kurz, ob der Anruf wegen eines Terminvorschlags ist."} ` +
+              `Nenne keine Personennamen. Terminangaben erst nach einem klaren Ja.`,
+          };
+        }
+
+        // Terminvorschlag: abfragen, zusagen oder anderen Wunsch melden (wie der Link in der SMS).
+        if (name === "terminvorschlag") {
+          const a = argumente(c);
+          const v = await offenerVorschlag(kunde);
+          if (!v) return { toolCallId, result: "Für diese Nummer wartet kein Terminvorschlag. Sag, dass sich das Team wegen des Termins meldet, und nimm das Anliegen auf." };
+          if (a.aktion === "abfragen") {
+            return { toolCallId, result: `Der vorgeschlagene Termin ist: ${v.termin}. Frage, ob er passt.` };
+          }
+          if (a.aktion === "zusagen") {
+            const r = await kundeSagtZu(v, "telefon");
+            return { toolCallId, result: r.ok ? `Der Termin ${r.termin} ist bestätigt. Bedanke dich kurz.` : `Das hat nicht geklappt (${r.fehler}). Sag, dass sich das Team meldet.` };
+          }
+          if (a.aktion === "wunsch") {
+            const r = await kundeWuenscht(v, String(a.datum ?? ""), String(a.uhrzeit ?? ""), "telefon");
+            return {
+              toolCallId,
+              result: r.ok
+                ? `Der Wunsch ${r.termin} ist notiert. Sag, dass das Team den Termin bestätigt.`
+                : `Nicht übernommen: ${r.fehler} Frage nach einer anderen Zeit oder sag, dass sich das Team meldet.`,
+            };
+          }
+          return { toolCallId, result: "Unbekannte Aktion. Erlaubt: abfragen, zusagen, wunsch." };
+        }
+
         if (!/mitarbeiter|rufgruppe/i.test(name)) return { toolCallId, result: "Unbekanntes Werkzeug." };
 
         if (nummern().length === 0) {
