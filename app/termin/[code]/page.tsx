@@ -28,9 +28,8 @@ export default async function TerminSeite({ params }: { params: Promise<{ code: 
 
   const name = v.ok ? kundenName(v.embed) : "";
   const zeit = v.ok ? feld(v.embed, "Zeitpunkt") : "";
-  const betrieb = v.ok ? feld(v.embed, "Betrieb") : "";
   const anlass = zeit
-    ? `Sie haben am ${/\d{2}:\d{2}$/.test(zeit) ? `${zeit} Uhr` : zeit} bei uns angerufen${betrieb ? ` (${betrieb})` : ""}.`
+    ? `Sie haben am ${/\d{2}:\d{2}$/.test(zeit) ? `${zeit} Uhr` : zeit} bei uns angerufen.`
     : "Sie haben bei uns angerufen.";
 
   const hinweis = (text: string) => <p className="mt-5 text-ink-soft/80">{text}</p>;
@@ -62,11 +61,7 @@ export default async function TerminSeite({ params }: { params: Promise<{ code: 
     );
   }
 
-  const vertrauen = [
-    "Dieser Link ist nur für Sie und gilt nur für diesen Terminvorschlag.",
-    "Keine Anmeldung und keine Zahlungsdaten: Wir fragen nur nach Ihrem Terminwunsch.",
-    "Sie können jederzeit anrufen oder schreiben, wenn Sie lieber so antworten möchten.",
-  ];
+  const vertrauen = ["Persönlicher Link, nur für Sie.", "Keine Anmeldung, keine Zahlungsdaten."];
 
   return (
     <main className="min-h-screen bg-cream-dark/60 px-5 py-10 sm:py-16">

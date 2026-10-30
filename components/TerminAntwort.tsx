@@ -139,9 +139,6 @@ export default function TerminAntwort({
       )}
 
       {fehler && <p className="mt-4 text-sm text-red-700">{fehler}</p>}
-      <p className="mt-6 text-sm text-ink-soft">
-        Lieber telefonisch? Rufen Sie uns an: +49 6108 9694027
-      </p>
       <span className="sr-only">{termin}</span>
     </div>
   );
