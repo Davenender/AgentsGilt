@@ -156,13 +156,49 @@ function signatur(messageId: string, secret: string): string {
   return createHmac("sha256", secret).update(`termin:${messageId}`).digest("hex").slice(0, 12);
 }
 
-/** Kurzer Link für den Kunden: Nummer der Discord-Meldung plus Prüfsumme. */
+// Kurzer Link: /termin/ plus 18 Zeichen (Nummer der Meldung und Prüfsumme, in Buchstaben und Ziffern).
+// Die alten, längeren Links (/t/<Nummer>-<Prüfsumme>) funktionieren weiter.
+const B62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const SIG_MODUL = BigInt("3521614606208"); // 62 hoch 7
+
+function zuB62(zahl: bigint, laenge: number): string {
+  let rest = zahl;
+  let out = "";
+  const basis = BigInt(62);
+  while (rest > BigInt(0)) {
+    out = B62[Number(rest % basis)] + out;
+    rest = rest / basis;
+  }
+  return out.padStart(laenge, "0");
+}
+
+function ausB62(text: string): bigint {
+  let zahl = BigInt(0);
+  for (const zeichen of text) zahl = zahl * BigInt(62) + BigInt(B62.indexOf(zeichen));
+  return zahl;
+}
+
+function signatur62(messageId: string, secret: string): string {
+  const hash = createHmac("sha256", secret).update(`termin:${messageId}`).digest();
+  const zahl = BigInt(`0x${hash.subarray(0, 6).toString("hex")}`);
+  return zuB62(zahl % SIG_MODUL, 7);
+}
+
+/** Link für den Kunden: Nummer der Discord-Meldung plus Prüfsumme, kurz und ohne Sonderzeichen. */
 export function terminLink(messageId: string, secret: string): string {
-  return `${process.env.SITE_URL || SITE}/t/${messageId}-${signatur(messageId, secret)}`;
+  return `${process.env.SITE_URL || SITE}/termin/${zuB62(BigInt(messageId), 11)}${signatur62(messageId, secret)}`;
 }
 
 /** Gibt die Nachrichten-Nummer zurück, wenn die Prüfsumme stimmt. */
 export function pruefeCode(code: string, secret: string): string | null {
+  // Neues, kurzes Format
+  if (/^[0-9A-Za-z]{18}$/.test(code)) {
+    const id = ausB62(code.slice(0, 11)).toString();
+    const erwartet = Buffer.from(signatur62(id, secret));
+    const gegeben = Buffer.from(code.slice(11));
+    return timingSafeEqual(erwartet, gegeben) ? id : null;
+  }
+  // Altes, langes Format
   const m = code.match(/^(\d{5,25})-([0-9a-f]{12})$/);
   if (!m) return null;
   const erwartet = Buffer.from(signatur(m[1], secret));

@@ -13,6 +13,7 @@ import {
   confirmedByUs,
   currentAppointment,
   hasWish,
+  kundenName,
   originalWish,
   ownerId,
   PROPOSAL_MODAL_PREFIX,
@@ -324,7 +325,7 @@ export async function POST(request: Request) {
     }
 
     const link = terminLink(messageId, linkSecret()!);
-    const text = smsVorschlag(eingabe.text, link, hasWish(embed));
+    const text = smsVorschlag(eingabe.text, link, hasWish(embed), kundenName(embed));
 
     after(async () => {
       const f = await frei();
@@ -463,7 +464,7 @@ export async function POST(request: Request) {
         return;
       }
     }
-    const res = await sendSms(bereit.mobile, smsBestaetigung(termin));
+    const res = await sendSms(bereit.mobile, smsBestaetigung(termin, kundenName(embed)));
     if (!res.ok) {
       if (rueckrufKonfiguriert()) {
         const markiert = smsGescheitert(embed, `Der SMS-Versand ist fehlgeschlagen (${res.reason}).`);

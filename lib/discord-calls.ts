@@ -167,6 +167,13 @@ function fieldValue(embed: EmbedLike, name: string): string | undefined {
   return embed.fields?.find((f) => f.name === name)?.value;
 }
 
+/** Der Name des Anrufers aus der Karte, leer wenn er fehlt oder offensichtlich nichts ist. */
+export function kundenName(embed: EmbedLike): string {
+  const name = (fieldValue(embed, "Anrufer") ?? "").trim();
+  if (!name || name.length > 40 || /^(unbekannt|keine angabe|nicht genannt|n\/a|-)/i.test(name)) return "";
+  return name;
+}
+
 export function currentOwner(embed: EmbedLike): string | undefined {
   return fieldValue(embed, OWNER_FIELD);
 }

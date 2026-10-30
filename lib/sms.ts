@@ -56,13 +56,15 @@ export async function sendSms(to: string, body: string): Promise<SmsResult> {
   }
 }
 
-export function smsBestaetigung(termin: string): string {
-  return `Ihr Termin am ${termin} ist bestätigt. Wir freuen uns auf das Gespräch!`;
+const gruss = (name: string) => (name ? `Guten Tag ${name}` : "Guten Tag");
+
+export function smsBestaetigung(termin: string, name = ""): string {
+  return `${gruss(name)}, Ihr Termin am ${termin} ist bestätigt. Wir freuen uns auf das Gespräch! Ihr Team von Agents Gilt`;
 }
 
-export function smsVorschlag(termin: string, link: string, mitWunsch: boolean): string {
+export function smsVorschlag(termin: string, link: string, mitWunsch: boolean, name = ""): string {
   const anfang = mitWunsch
-    ? `Ihr Wunschtermin passt bei uns leider nicht. Wir schlagen ${termin} vor.`
-    : `Wir schlagen Ihnen ${termin} für ein Gespräch vor.`;
-  return `${anfang} Passt das? Antwort hier:\n${link}`;
+    ? `${gruss(name)}, Ihr Wunschtermin passt bei uns leider nicht. Wir schlagen ${termin} vor.`
+    : `${gruss(name)}, wir schlagen Ihnen ${termin} für ein Gespräch vor.`;
+  return `${anfang} Zusagen oder anderen Termin wählen:\n${link}\nSie hatten bei uns angerufen. Ihr Team von Agents Gilt`;
 }
