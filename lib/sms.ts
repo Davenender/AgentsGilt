@@ -1,6 +1,5 @@
 // SMS über Twilio. Der Absender ist ein Name statt einer Nummer ("AgentsGilt");
-// der Kunde kann darauf nicht antworten, deshalb steht ein Link oder die
-// Rückrufnummer im Text.
+// der Kunde kann darauf nicht antworten, deshalb steht ein Link im Text.
 //
 // Env-Vars (Vercel, Production, als Secret):
 //   TWILIO_ACCOUNT_SID   beginnt mit "AC"
@@ -65,5 +64,5 @@ export function smsVorschlag(termin: string, link: string, mitWunsch: boolean): 
   const anfang = mitWunsch
     ? `Ihr Wunschtermin passt bei uns leider nicht. Wir schlagen ${termin} vor.`
     : `Wir schlagen Ihnen ${termin} für ein Gespräch vor.`;
-  return `${anfang} Passt das? Antwort hier:\n${link}\n\nOder per Anruf unter +49 6108 9694027`;
+  return `${anfang} Passt das? Antwort hier:\n${link}`;
 }
