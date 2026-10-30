@@ -439,13 +439,16 @@ export function leadComponents(state: LeadState, status = "Offen", besitzer: str
         s("In Arbeit", "work", status === "In Arbeit"),
         s("Kontaktiert", "contacted", status === "Kontaktiert"),
         ...(status === "Kontaktiert" ? [button("Lead aktiv", "st:active", 3)] : []),
-        button("Kein Interesse", "st:nointerest", 4),
+        button("Kunde: Kein Interesse", "st:nointerest", 4),
       ];
-      // Zweite Zeile (die erste ist mit fünf Knöpfen voll): wer ruft an?
+      // Zweite Zeile (die erste ist mit fünf Knöpfen voll): wer ruft an? Und: doch nicht verfolgen.
       const nehmen = besitzer ? button("Freigeben", "take", 2) : button("Übernehmen", "take", 1);
       return [
         { type: 1, components: row },
-        { type: 1, components: [nehmen] },
+        {
+          type: 1,
+          components: [nehmen, { type: 2, label: "Aussortieren", style: 2, emoji: { name: "🗑️" }, custom_id: "lead:drop" }],
+        },
       ];
     }
     default:
@@ -464,7 +467,7 @@ export async function ruesteKnoepfeNach(token: string): Promise<{ geprueft: numb
     if (!m.author.bot || !embed || !cardDomain(m)) continue;
     geprueft++;
     if (stateOf(embed) !== "accepted") continue;
-    const hatKnopf = m.components?.some((r) => r.components?.some((c) => c.custom_id === "lead:take"));
+    const hatKnopf = m.components?.some((r) => r.components?.some((c) => c.custom_id === "lead:drop"));
     if (hatKnopf) continue;
     if (await aendereKarte(token, ch, m.id, embed, leadComponents("accepted", statusWort(embed), besitzerId(embed)))) geaendert++;
   }

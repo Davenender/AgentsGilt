@@ -2,6 +2,7 @@ import { after, NextResponse } from "next/server";
 import type { EmbedLike } from "@/lib/discord-calls";
 import { analysiere, domainKey, normalizeUrl } from "@/lib/lead-analyse";
 import {
+  call,
   ablageKanal,
   besitzerId,
   mitBesitzer,
@@ -170,6 +171,36 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
   const messageId = i.message?.id;
   const channelId = i.channel_id;
   const action = (i.data?.custom_id ?? "").slice("lead:".length);
+
+  // ---- Aussortieren: Bestätigung (kommt aus der privaten Rückfrage, deshalb vor der Kartenprüfung)
+  if (action === "dropno") {
+    return NextResponse.json({ type: 7, data: { content: "Abgebrochen. Die Karte bleibt, wie sie ist.", embeds: [], components: [] } });
+  }
+  if (action.startsWith("dropyes:")) {
+    const ziel = action.slice("dropyes:".length);
+    const appId = i.application_id;
+    const itoken = i.token;
+    if (!user || !token || !channelId || !ziel || !appId || !itoken) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
+    after(async () => {
+      const msg = await call<{ embeds?: EmbedLike[] }>(token, "GET", `/channels/${channelId}/messages/${ziel}`);
+      const karte = msg?.embeds?.[0];
+      if (!karte) {
+        await setzeAntwort(appId, itoken, "Diese Karte gibt es nicht mehr.");
+        return;
+      }
+      const besitzer = besitzerId(karte);
+      if (besitzer !== user.id && user.id !== OWNER_ID) {
+        await setzeAntwort(appId, itoken, "Aussortieren darf nur, wer den Lead übernommen hat (oder David).");
+        return;
+      }
+      const domain = domainOfCard(karte);
+      if (domain) await merkeAbgelehnt(token, domain, karte.title ?? domain);
+      await loescheNachricht(token, channelId, ziel);
+      await setzeAntwort(appId, itoken, `🗑️ **${(karte.title ?? "Die Firma").replace(/[*_~`|>@]/g, "")}** ist aussortiert und wird nicht mehr vorgeschlagen.`);
+    });
+    return NextResponse.json({ type: 7, data: { content: "🗑️ Wird aussortiert …", embeds: [], components: [] } });
+  }
+
   if (!user || !embed || !messageId || !channelId || !token) return ephemeral("Diese Karte ist nicht mehr aktuell.");
   const state = stateOf(embed);
   const update = (e: EmbedLike, components: unknown[]) =>
@@ -207,6 +238,35 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
     if (!aktuell) return update(mitBesitzer(embed, user.id), leadComponents("accepted", wort, user.id));
     if (aktuell === user.id || user.id === OWNER_ID) return update(mitBesitzer(embed, null), leadComponents("accepted", wort, null));
     return ephemeral(`Diesen Lead hat schon <@${aktuell}> übernommen. Freigeben kann nur sie/er (oder David).`);
+  }
+
+  // ---- Aussortieren: Firma doch nicht verfolgen (Karte weg, nicht mehr vorschlagen, NICHT "Kein Interesse")
+  if (action === "drop") {
+    if (state !== "accepted") return ephemeral("Aussortieren geht nur bei angenommenen Leads.");
+    const aktuell = besitzerId(embed);
+    if (aktuell !== user.id && user.id !== OWNER_ID) {
+      return ephemeral(aktuell ? `Diesen Lead hat <@${aktuell}> übernommen. Aussortieren kann nur sie/er (oder David).` : "Übernimm den Lead zuerst, dann kannst du ihn aussortieren.");
+    }
+    const titel = (embed.title ?? "Die Firma").replace(/[*_~`|>@]/g, "");
+    return NextResponse.json({
+      type: 4,
+      data: {
+        flags: 64,
+        content:
+          `🗑️ **${titel}** wirklich aussortieren?\nDie Karte verschwindet, und die Firma wird nicht mehr vorgeschlagen (auch nicht bei der Lead-Suche). ` +
+          "Das ist für Firmen, die ihr **doch nicht** nehmt. Hat der **Kunde** abgesagt, nimm bitte „Kunde: Kein Interesse“.",
+        components: [
+          {
+            type: 1,
+            components: [
+              { type: 2, label: "Ja, aussortieren", style: 4, custom_id: `lead:dropyes:${messageId}` },
+              { type: 2, label: "Abbrechen", style: 2, custom_id: "lead:dropno" },
+            ],
+          },
+        ],
+        allowed_mentions: { parse: [] },
+      },
+    });
   }
 
   // ---- Status nach der Annahme
