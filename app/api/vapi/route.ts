@@ -6,7 +6,7 @@ import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { findeAnruf, imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/lib/rufgruppe";
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
 import { firmaZurNummer, aktuelleKarte } from "@/lib/anrufer";
-import { kundeMeldetZusage, kundeWuenscht } from "@/lib/termin-antwort";
+import { kundeSagtZu, kundeWuenscht } from "@/lib/termin-antwort";
 
 export const runtime = "nodejs";
 
@@ -278,9 +278,11 @@ export async function POST(request: Request) {
             };
           }
           if (a.aktion === "zusagen") {
+            // Direkt bestätigt wird nur ein Vorschlag, den wir gemacht haben. Alles andere bestätigt das Team.
             if (v.fest) return { toolCallId, result: "Der Termin ist schon bestätigt. Sag das freundlich." };
-            const r = await kundeMeldetZusage(v);
-            return { toolCallId, result: r.ok ? `Das Team ist informiert und bestätigt den Termin ${r.termin}. Sag genau das, bestätige ihn nicht selbst.` : `Das hat nicht geklappt (${r.fehler}). Sag, dass sich das Team meldet.` };
+            if (v.state !== "proposed") return { toolCallId, result: "Dieser Termin ist noch nicht vom Team vorgeschlagen, das Team bestätigt ihn. Sag das freundlich." };
+            const r = await kundeSagtZu(v, "telefon");
+            return { toolCallId, result: r.ok ? `Der Termin ${r.termin} ist bestätigt. Bedanke dich kurz.` : `Das hat nicht geklappt (${r.fehler}). Sag, dass sich das Team meldet.` };
           }
           if (a.aktion === "wunsch") {
             const r = await kundeWuenscht(v, String(a.datum ?? ""), String(a.uhrzeit ?? ""), "telefon");
