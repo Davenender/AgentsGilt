@@ -343,7 +343,7 @@ export function IntroTypewriter() {
       >
         <span ref={preRef}>{HEAD_PRE}</span>
         <span ref={swapRef}>{HEAD_SWAP}</span>
-        <sup ref={starRef} aria-hidden="true" className="ml-0.5 align-super text-[0.4em] font-bold text-gold-dark">
+        <sup ref={starRef} aria-hidden="true" className="ml-0.5 align-super text-[0.5em] font-bold text-gold-dark">
           *
         </sup>
         <span ref={postRef}>{HEAD_POST}</span>
