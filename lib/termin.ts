@@ -91,13 +91,10 @@ export function parseUhrzeit(raw: string): { hour: number; minute: number } | nu
   return { hour, minute };
 }
 
-/** Termine gibt es nur werktags, Beginn zwischen 9 und 17 Uhr, nicht in der Vergangenheit. */
+/** Termine gibt es nur werktags und nicht in der Vergangenheit. Die Uhrzeit ist frei, das Team bestätigt jeden Termin. */
 export function pruefeTermin(t: Termin, now = berlinNow()): string | null {
   const wd = weekday(t);
   if (wd === 0 || wd === 6) return "Das ist ein Wochenende. Termine gibt es nur werktags.";
-  if (t.hour < 9 || t.hour > 17 || (t.hour === 17 && t.minute > 0)) {
-    return "Termine beginnen zwischen 9:00 und 17:00 Uhr.";
-  }
   const key = (x: Termin) =>
     ((x.year * 100 + x.month) * 100 + x.day) * 10000 + x.hour * 100 + x.minute;
   if (key(t) <= key(now)) return "Dieser Zeitpunkt liegt in der Vergangenheit.";

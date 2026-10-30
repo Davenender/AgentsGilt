@@ -92,7 +92,7 @@ export default function TerminAntwort({
           }}
         >
           <p className="text-sm text-ink-soft">
-            Wann passt es Ihnen? Termine gibt es werktags zwischen 9 und 17 Uhr.
+            Wann passt es Ihnen?
           </p>
           <div className="flex flex-wrap gap-3">
             <label className="text-sm text-ink-soft">
@@ -111,8 +111,6 @@ export default function TerminAntwort({
               <input
                 type="time"
                 required
-                min="09:00"
-                max="17:00"
                 step={300}
                 value={uhrzeit}
                 onChange={(e) => setUhrzeit(e.target.value)}
