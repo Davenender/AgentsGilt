@@ -135,6 +135,7 @@ export async function starteRueckruf(messageId: string, embed: EmbedLike, versuc
   }
 
   const feldWert = (name: string) => embed.fields?.find((f) => f.name === name)?.value ?? "";
+  const name = feldWert("Anrufer").trim();
   const state = stateOf(embed);
   const art = state === "proposed" ? "vorschlag" : "bestaetigung";
   try {
@@ -147,8 +148,10 @@ export async function starteRueckruf(messageId: string, embed: EmbedLike, versuc
         customer: { number: ziel },
         assistantOverrides: {
           variableValues: {
-            anrufer: feldWert("Anrufer") || "unbekannt",
+            anrufer: name || "unbekannt",
             betrieb: feldWert("Betrieb"),
+            // Die Begrüßungsfrage: mit Namen, wenn wir ihn kennen. Nennt sonst nichts Persönliches.
+            frage: name ? `Spreche ich mit ${name}?` : "Hatten Sie bei uns wegen eines Termins angerufen?",
             termin,
             art,
             karte: messageId,
