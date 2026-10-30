@@ -6,7 +6,7 @@ import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { findeAnruf, imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/lib/rufgruppe";
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
 import { ergaenzeKarte } from "@/lib/anruf-karte";
-import { karteZuAnruf, RUECKRUF_WERKZEUGE, rueckrufWerkzeug, verarbeiteRueckrufEnde } from "@/lib/rueckruf";
+import { karteZuAnruf, RUECKRUF_WERKZEUGE, rueckrufWerkzeug, verarbeiteRueckrufEnde, type RueckrufErgebnis } from "@/lib/rueckruf";
 
 export const runtime = "nodejs";
 
@@ -200,6 +200,39 @@ function row(label: string, value: string): string {
   return `<tr><td style="padding:8px 0;color:#8a8579;width:150px;vertical-align:top;">${escapeHtml(label)}</td><td style="padding:8px 0;font-weight:600;">${escapeHtml(value)}</td></tr>`;
 }
 
+/** Mail nach einem Rückruf des KI-Assistenten: Ergebnis, Zusammenfassung und Gesprächsverlauf. */
+async function sendeRueckrufMail(msg: NonNullable<VapiPayload["message"]>, e: RueckrufErgebnis | null) {
+  const number = msg.customer?.number || msg.call?.customer?.number || "unbekannt";
+  const zeit = new Date(msg.startedAt ?? Date.now()).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
+  const summary = msg.analysis?.summary || msg.summary || "";
+  const transcript = (msg.artifact?.transcript || msg.transcript || "").slice(0, MAX_TRANSCRIPT_CHARS);
+  const ergebnis = e?.ergebnis ?? "unklar";
+  const block = (titel: string, text: string, klein = false) =>
+    `<p style="margin:20px 0 6px;font-weight:600;">${titel}:</p>
+     <p style="background:#faf9f6;padding:14px 16px;border-radius:10px;white-space:pre-wrap;margin:0;${klein ? "font-size:13px;line-height:1.6;" : ""}">${escapeHtml(text)}</p>`;
+  await sendMail({
+    to: getMailEnv().to,
+    subject: `Rückruf an ${number}: ${ergebnis.slice(0, 70)}`,
+    html: shell(
+      "Rückruf des KI-Assistenten",
+      `
+      <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+        ${row("Ergebnis", ergebnis)}
+        ${e?.anrufer ? row("Anrufer", e.anrufer) : ""}
+        ${e?.betrieb ? row("Betrieb", e.betrieb) : ""}
+        ${e?.termin ? row("Termin", e.termin) : ""}
+        ${row("Rufnummer", number)}
+        ${row("Zeitpunkt", zeit)}
+        ${row("Dauer", formatDuration(msg.durationSeconds))}
+        ${msg.endedReason ? row("Ende", msg.endedReason) : ""}
+      </table>
+      ${summary ? block("Zusammenfassung", summary) : ""}
+      ${transcript ? block("Gesprächsverlauf", transcript, true) : ""}
+      `,
+    ),
+  });
+}
+
 function formatDuration(seconds: number | undefined): string {
   if (!seconds || seconds < 0) return "unbekannt";
   const m = Math.floor(seconds / 60);
@@ -291,15 +324,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ignored: type ?? "unbekannt" });
   }
 
-  // Ende eines Rückruf-Anrufs des KI-Assistenten: gehört zur Karte, keine neue Meldung und keine Mail.
+  // Ende eines Rückruf-Anrufs des KI-Assistenten: gehört zur Karte, keine neue Meldung. Die Mail kommt wie bei normalen Anrufen.
   if (msg?.call?.type === "outboundPhoneCall" || msg?.call?.assistantOverrides?.variableValues?.karte) {
     const karte = await karteZuAnruf(msg?.call);
     if (karte) {
-      await verarbeiteRueckrufEnde(karte, {
+      const ergebnis = await verarbeiteRueckrufEnde(karte, {
         endedReason: msg?.endedReason,
         summary: msg?.analysis?.summary || msg?.summary,
         durationSeconds: msg?.durationSeconds,
       });
+      await sendeRueckrufMail(msg, ergebnis);
       return NextResponse.json({ ok: true, rueckruf: true });
     }
   }

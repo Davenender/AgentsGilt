@@ -18,14 +18,17 @@ import {
   PROPOSAL_MODAL_PREFIX,
   proposalModal,
   proposedByUs,
-  proposedWithoutSms,
+  proposedForCallback,
+  RPROPOSAL_MODAL_PREFIX,
+  rueckrufKonfiguriert,
+  smsGescheitert,
   resolveMobile,
   stateOf,
   type CallAction,
   type EmbedLike,
 } from "@/lib/discord-calls";
 import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
-import { rueckrufKonfiguriert, starteRueckruf } from "@/lib/rueckruf";
+import { starteRueckruf } from "@/lib/rueckruf";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
 import { handleLeadButton, handleLeadCommand } from "@/lib/lead-handlers";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
@@ -182,20 +185,19 @@ function uhrzeit(): string {
  * Prüft vor dem Senden alles, was schiefgehen kann, damit der Klick sofort eine
  * verständliche Antwort bekommt. Gibt entweder die Handynummer oder den Fehlertext zurück.
  */
-function bereitFuerSms(embed: EmbedLike): { mobile: string } | { fehler: string } {
+function bereitFuerSms(embed: EmbedLike): { mobile: string } | { fehler: string; grund: string } {
+  const nein = (grund: string, zusatz = "Bitte den Kunden anrufen.") => ({ fehler: `${grund} ${zusatz}`, grund });
   if (!smsConfigured()) {
-    return { fehler: "Der SMS-Versand ist noch nicht eingerichtet (Twilio-Zugang fehlt bei Vercel)." };
+    return nein("Der SMS-Versand ist noch nicht eingerichtet (Twilio-Zugang fehlt bei Vercel).", "");
   }
   if (!linkSecret()) {
-    return { fehler: "Der Schlüssel für die Links fehlt (DISCORD_BOT_TOKEN bei Vercel)." };
+    return nein("Der Schlüssel für die Links fehlt (DISCORD_BOT_TOKEN bei Vercel).", "");
   }
   const { mobile, seen } = resolveMobile(embed);
   if (!mobile) {
-    return {
-      fehler: seen.length
-        ? `Unter ${seen.join(" / ")} geht keine SMS, das ist keine Handynummer. ${rueckrufKonfiguriert() ? "Nutze den Knopf „Per Rückruf klären“ oder ruf den Kunden an." : "Bitte den Kunden anrufen."}`
-        : "In der Meldung steht keine Rufnummer. Bitte den Kunden anrufen.",
-    };
+    return seen.length
+      ? nein(`Unter ${seen.join(" / ")} geht keine SMS, das ist keine Handynummer.`)
+      : nein("In der Meldung steht keine Rufnummer.");
   }
   return { mobile };
 }
@@ -247,15 +249,18 @@ export async function POST(request: Request) {
 
   // ---------------------------------------------------- Fenster abgeschickt
   if (interaction.type === 5) {
-    if (!customId.startsWith(PROPOSAL_MODAL_PREFIX)) return NextResponse.json({ ok: true });
-    const messageId = customId.slice(PROPOSAL_MODAL_PREFIX.length);
+    const perRueckruf = customId.startsWith(RPROPOSAL_MODAL_PREFIX);
+    if (!perRueckruf && !customId.startsWith(PROPOSAL_MODAL_PREFIX)) return NextResponse.json({ ok: true });
+    const messageId = customId.slice((perRueckruf ? RPROPOSAL_MODAL_PREFIX : PROPOSAL_MODAL_PREFIX).length);
 
     const values: Record<string, string> = {};
     for (const row of interaction.data?.components ?? []) {
       for (const c of row.components ?? []) values[c.custom_id] = c.value ?? "";
     }
     const eingabe = terminAusEingabe(values.datum ?? "", values.uhrzeit ?? "");
-    if (!eingabe.ok) return ephemeral(`${eingabe.fehler} Bitte nochmal auf „Anderen Termin vorschlagen“ klicken.`);
+    if (!eingabe.ok) {
+      return ephemeral(`${eingabe.fehler} Bitte nochmal auf „${perRueckruf ? "Anderen Termin per Rückruf vorschlagen" : "Anderen Termin vorschlagen"}“ klicken.`);
+    }
 
     // Die Nachricht kommt beim Klick mit; sonst holen wir sie über die Nummer im Fenster.
     const embed =
@@ -267,51 +272,78 @@ export async function POST(request: Request) {
     const verboten = nurBearbeiter(embed, user.id);
     if (verboten) return ephemeral(verboten);
 
-    // Festnetz: keine SMS möglich. Der Vorschlag wird auf der Karte gespeichert, geklärt wird per Rückruf.
-    if (!resolveMobile(embed).mobile && rueckrufKonfiguriert()) {
-      const appId = interaction.application_id;
-      const itoken = interaction.token;
-      if (!appId || !itoken) return ephemeral("Discord hat keine Antwortadresse mitgeschickt.");
-      const time = uhrzeit();
+    const appId = interaction.application_id;
+    const itoken = interaction.token;
+    if (!appId || !itoken) return ephemeral("Discord hat keine Antwortadresse mitgeschickt.");
+    const time = uhrzeit();
+    const frei = () => pruefeFrei(eingabe.text, originalWish(embed));
+    const belegt = (womit: string, folge: string) =>
+      `${eingabe.text} ist im Kalender schon belegt („${womit}“). ${folge} Bitte einen anderen Termin vorschlagen.`;
+
+    // Per Rückruf: Vorschlag auf der Karte speichern und gleich anrufen.
+    if (perRueckruf) {
+      if (!rueckrufKonfiguriert()) {
+        return ephemeral("Der Rückruf ist noch nicht eingerichtet (VAPI_API_KEY und VAPI_RUECKRUF_ASSISTANT fehlen bei Vercel).");
+      }
       after(async () => {
-        const frei = await pruefeFrei(eingabe.text, originalWish(embed));
-        if (frei.belegt) {
-          await followupPrivate(appId, itoken, `${eingabe.text} ist im Kalender schon belegt („${frei.womit}“). Es wurde nichts gespeichert. Bitte einen anderen Termin vorschlagen.`);
+        const f = await frei();
+        if (f.belegt) {
+          await followupPrivate(appId, itoken, belegt(f.womit ?? "", "Es wurde nicht angerufen."));
           return;
         }
-        const updated = proposedWithoutSms(embed, eingabe.text, ownerTag, time);
-        await editInteractionOriginal(appId, itoken, {
-          embeds: [updated],
-          components: callComponents("proposed", true, updated),
-        });
+        const gespeichert = proposedForCallback(embed, eingabe.text, ownerTag, `Vorschlag per Rückruf um ${time}`);
+        const res = await starteRueckruf(messageId, gespeichert);
+        if (!res.ok) {
+          await editInteractionOriginal(appId, itoken, { embeds: [gespeichert], components: callComponents("proposed", true, gespeichert) });
+          await followupPrivate(appId, itoken, `Der Vorschlag ist gespeichert, aber der Anruf ging nicht raus: ${res.fehler}`);
+          return;
+        }
+        console.log(`[discord] Terminvorschlag per Rückruf von ${who}`);
+        await editInteractionOriginal(appId, itoken, { embeds: [res.embed], components: callComponents("proposed", true, res.embed) });
       });
       return NextResponse.json(DEFERRED_UPDATE);
     }
 
+    // Per SMS. Geht das nicht, bleibt der Vorschlag auf der Karte und sie zeigt die Rückruf-Knöpfe.
     const bereit = bereitFuerSms(embed);
-    if ("fehler" in bereit) return ephemeral(bereit.fehler);
-
-    const appId = interaction.application_id;
-    const itoken = interaction.token;
-    if (!appId || !itoken) return ephemeral("Discord hat keine Antwortadresse mitgeschickt.");
+    if ("fehler" in bereit) {
+      if (!rueckrufKonfiguriert()) return ephemeral(bereit.fehler);
+      after(async () => {
+        const f = await frei();
+        if (f.belegt) {
+          await followupPrivate(appId, itoken, belegt(f.womit ?? "", "Es wurde nichts gespeichert."));
+          return;
+        }
+        const gespeichert = smsGescheitert(
+          proposedForCallback(embed, eingabe.text, ownerTag, `Vorschlag gespeichert um ${time}, keine SMS möglich`),
+          bereit.grund,
+        );
+        await editInteractionOriginal(appId, itoken, { embeds: [gespeichert], components: callComponents("proposed", true, gespeichert) });
+      });
+      return NextResponse.json(DEFERRED_UPDATE);
+    }
 
     const link = terminLink(messageId, linkSecret()!);
     const text = smsVorschlag(eingabe.text, link, hasWish(embed));
-    const time = uhrzeit();
 
     after(async () => {
-      const frei = await pruefeFrei(eingabe.text, originalWish(embed));
-      if (frei.belegt) {
-        await followupPrivate(
-          appId,
-          itoken,
-          `${eingabe.text} ist im Kalender schon belegt („${frei.womit}“). Es wurde keine SMS gesendet. Bitte einen anderen Termin vorschlagen.`,
-        );
+      const f = await frei();
+      if (f.belegt) {
+        await followupPrivate(appId, itoken, belegt(f.womit ?? "", "Es wurde keine SMS gesendet."));
         return;
       }
       const res = await sendSms(bereit.mobile, text);
       if (!res.ok) {
-        await followupPrivate(appId, itoken, `Die SMS konnte nicht gesendet werden (${res.reason}). Es wurde nichts geändert.`);
+        if (rueckrufKonfiguriert()) {
+          const gespeichert = smsGescheitert(
+            proposedForCallback(embed, eingabe.text, ownerTag, `Vorschlag gespeichert um ${time}, SMS nicht gesendet`),
+            `Der SMS-Versand ist fehlgeschlagen (${res.reason}).`,
+          );
+          await editInteractionOriginal(appId, itoken, { embeds: [gespeichert], components: callComponents("proposed", true, gespeichert) });
+          await followupPrivate(appId, itoken, `Die SMS konnte nicht gesendet werden (${res.reason}). Die Karte zeigt jetzt die Rückruf-Knöpfe, der Vorschlag ist gespeichert.`);
+        } else {
+          await followupPrivate(appId, itoken, `Die SMS konnte nicht gesendet werden (${res.reason}). Es wurde nichts geändert.`);
+        }
         return;
       }
       console.log(`[discord] Terminvorschlag per SMS von ${who}`);
@@ -325,11 +357,11 @@ export async function POST(request: Request) {
   }
 
   // -------------------------------------------------------- Knopf geklickt
-  if (!customId.startsWith(CALL_CUSTOM_ID_PREFIX) || customId.startsWith(PROPOSAL_MODAL_PREFIX)) {
+  if (!customId.startsWith(CALL_CUSTOM_ID_PREFIX) || customId.startsWith(PROPOSAL_MODAL_PREFIX) || customId.startsWith(RPROPOSAL_MODAL_PREFIX)) {
     return NextResponse.json({ ok: true });
   }
   const action = customId.slice(CALL_CUSTOM_ID_PREFIX.length) as CallAction;
-  if (!["claim", "confirm", "propose", "done", "release", "callback"].includes(action)) return NextResponse.json({ ok: true });
+  if (!["claim", "confirm", "propose", "done", "release", "rconfirm", "rpropose"].includes(action)) return NextResponse.json({ ok: true });
 
   const embed = interaction.message?.embeds?.[0];
   const messageId = interaction.message?.id;
@@ -363,7 +395,7 @@ export async function POST(request: Request) {
 
   if (state === "confirmed" || state === "done") return ephemeral("Dieser Anruf ist schon abgeschlossen.");
 
-  if (action === "callback") {
+  if (action === "rconfirm") {
     const appId = interaction.application_id;
     const itoken = interaction.token;
     if (!appId || !itoken) return ephemeral("Discord hat keine Antwortadresse mitgeschickt.");
@@ -389,8 +421,8 @@ export async function POST(request: Request) {
   }
 
   // 9 = Fenster öffnen
-  if (action === "propose") {
-    return NextResponse.json({ type: 9, data: proposalModal(messageId) });
+  if (action === "propose" || action === "rpropose") {
+    return NextResponse.json({ type: 9, data: proposalModal(messageId, action === "rpropose") });
   }
 
   // action === "confirm"
@@ -399,7 +431,19 @@ export async function POST(request: Request) {
     return ephemeral("In der Meldung steht kein Termin. Bitte über „Anderen Termin vorschlagen“ einen Termin senden.");
   }
   const bereit = bereitFuerSms(embed);
-  if ("fehler" in bereit) return ephemeral(bereit.fehler);
+  if ("fehler" in bereit) {
+    if (!rueckrufKonfiguriert()) return ephemeral(bereit.fehler);
+    // Die SMS geht nicht: Die Karte zeigt ab jetzt die Rückruf-Knöpfe.
+    const markiert = smsGescheitert(embed, bereit.grund);
+    return NextResponse.json({
+      type: 7,
+      data: {
+        embeds: [markiert],
+        components: callComponents(state, Boolean(ownerId(markiert)), markiert),
+        allowed_mentions: { parse: [] },
+      },
+    });
+  }
 
   const appId = interaction.application_id;
   const itoken = interaction.token;
@@ -421,7 +465,13 @@ export async function POST(request: Request) {
     }
     const res = await sendSms(bereit.mobile, smsBestaetigung(termin));
     if (!res.ok) {
-      await followupPrivate(appId, itoken, `Die SMS konnte nicht gesendet werden (${res.reason}). Es wurde nichts geändert.`);
+      if (rueckrufKonfiguriert()) {
+        const markiert = smsGescheitert(embed, `Der SMS-Versand ist fehlgeschlagen (${res.reason}).`);
+        await editInteractionOriginal(appId, itoken, { embeds: [markiert], components: callComponents(state, Boolean(ownerId(markiert)), markiert) });
+        await followupPrivate(appId, itoken, `Die SMS konnte nicht gesendet werden (${res.reason}). Die Karte zeigt jetzt die Rückruf-Knöpfe, es wurde nichts bestätigt.`);
+      } else {
+        await followupPrivate(appId, itoken, `Die SMS konnte nicht gesendet werden (${res.reason}). Es wurde nichts geändert.`);
+      }
       return;
     }
     console.log(`[discord] Termin bestätigt per SMS von ${who}`);

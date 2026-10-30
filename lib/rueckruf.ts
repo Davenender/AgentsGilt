@@ -8,6 +8,7 @@ import {
   OWNER_FIELD,
   resolveMobile,
   RUECKRUF_FIELD,
+  rueckrufKonfiguriert,
   stateOf,
   withField,
   type EmbedLike,
@@ -93,10 +94,6 @@ const geplant = (embed: EmbedLike) => {
   const m = feld(embed).match(/Geplant: Versuch (\d) von \d <t:(\d+):R>/);
   return m ? { versuch: Number(m[1]), ts: Number(m[2]) * 1000 } : null;
 };
-
-export function rueckrufKonfiguriert(): boolean {
-  return Boolean(process.env.VAPI_API_KEY?.trim() && process.env.VAPI_RUECKRUF_ASSISTANT?.trim());
-}
 
 /** Speichert die Karte mit den passenden Knöpfen. */
 async function speichere(messageId: string, embed: EmbedLike): Promise<boolean> {
@@ -287,27 +284,58 @@ const NICHT_ERREICHT: Record<string, string> = {
   "silence-timed-out": "Nicht erreicht (nur Stille)",
 };
 
-/** Ergebnis des Anrufs (Vapi-Abschlussbericht). Hat ein Werkzeug schon ein Ergebnis gemeldet, passiert hier fast nichts. */
+/** Das Ergebnis in lesbarem Text (ohne Discord-Zeitangaben), z.B. für die Mail. */
+function klartext(stand: string): string {
+  return stand
+    .replace(/^📞\s*/, "")
+    .replace(/<t:(\d+):R>/g, (_, sec) =>
+      new Date(Number(sec) * 1000).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" }),
+    );
+}
+
+export interface RueckrufErgebnis {
+  ergebnis: string;
+  anrufer: string;
+  betrieb: string;
+  termin: string;
+}
+
+/**
+ * Ergebnis des Anrufs (Vapi-Abschlussbericht). Hat ein Werkzeug schon ein Ergebnis gemeldet, wird hier nur
+ * der Stand gelesen. Gibt das Ergebnis für die Mail zurück.
+ */
 export async function verarbeiteRueckrufEnde(
   messageId: string,
   bericht: { endedReason?: string; summary?: string; durationSeconds?: number },
-): Promise<void> {
-  const embed = (await getMessage(process.env.DISCORD_BOT_TOKEN, process.env.DISCORD_CHANNEL_ANRUFE, messageId))?.embeds?.[0];
-  if (!embed) return;
+): Promise<RueckrufErgebnis | null> {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  const channel = process.env.DISCORD_CHANNEL_ANRUFE;
+  const embed = (await getMessage(token, channel, messageId))?.embeds?.[0];
+  if (!embed) return null;
   const n = laeuftVersuch(embed);
-  // Kein "Anruf läuft" mehr: Ein Werkzeug hat schon ein Ergebnis eingetragen.
-  if (!n) return;
 
-  const grund = NICHT_ERREICHT[bericht.endedReason ?? ""];
-  if (grund) {
-    await planeOderGibAuf(messageId, embed, n, grund);
-    return;
+  // Mit "Anruf läuft": kein Werkzeug hat ein Ergebnis gemeldet, also nach dem Ende des Anrufs entscheiden.
+  if (n) {
+    const grund = NICHT_ERREICHT[bericht.endedReason ?? ""];
+    if (grund) {
+      await planeOderGibAuf(messageId, embed, n, grund);
+    } else {
+      const kurz = (bericht.summary ?? "").slice(0, 300);
+      const fehler = /error|failed|pipeline/i.test(bericht.endedReason ?? "");
+      await speichere(
+        messageId,
+        mitStand(embed, fehler ? `📞 Technischer Fehler beim Rückruf (${bericht.endedReason}). Bitte selbst anrufen.` : `📞 Erreicht (Versuch ${n}), aber ohne Ergebnis. Bitte prüfen.`),
+      );
+      await antworte(messageId, embed, `📞 Rückruf beendet ohne Ergebnis${kurz ? `: ${kurz}` : "."} Bitte prüfen.`);
+    }
   }
-  const kurz = (bericht.summary ?? "").slice(0, 300);
-  const fehler = /error|failed|pipeline/i.test(bericht.endedReason ?? "");
-  await speichere(
-    messageId,
-    mitStand(embed, fehler ? `📞 Technischer Fehler beim Rückruf (${bericht.endedReason}). Bitte selbst anrufen.` : `📞 Erreicht (Versuch ${n}), aber ohne Ergebnis. Bitte prüfen.`),
-  );
-  await antworte(messageId, embed, `📞 Rückruf beendet ohne Ergebnis${kurz ? `: ${kurz}` : "."} Bitte prüfen.`);
+
+  const neu = (await getMessage(token, channel, messageId))?.embeds?.[0] ?? embed;
+  const wert = (name: string) => neu.fields?.find((f) => f.name === name)?.value ?? "";
+  return {
+    ergebnis: klartext(feld(neu)) || "unklar",
+    anrufer: wert("Anrufer"),
+    betrieb: wert("Betrieb"),
+    termin: wert("Bestätigter Termin") || currentAppointment(neu) || "",
+  };
 }

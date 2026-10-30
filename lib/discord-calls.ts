@@ -19,10 +19,11 @@ export type CallState =
   | "confirmed"
   | "done";
 
-export type CallAction = "claim" | "confirm" | "propose" | "done" | "release" | "callback";
+export type CallAction = "claim" | "confirm" | "propose" | "done" | "release" | "rconfirm" | "rpropose";
 
 export const CALL_CUSTOM_ID_PREFIX = "call:";
 export const PROPOSAL_MODAL_PREFIX = "call:proposal:";
+export const RPROPOSAL_MODAL_PREFIX = "call:rproposal:";
 
 export interface EmbedField {
   name: string;
@@ -56,6 +57,7 @@ export const CUSTOMER_FIELD = "Kundenwunsch";
 export const FIXED_FIELD = "Bestätigter Termin";
 export const CALENDAR_FIELD = "Kalender";
 export const RUECKRUF_FIELD = "Rückruf";
+export const SMS_FIELD = "SMS";
 const DEFAULT_CALENDAR_TEXT = "Eintrag „VORLÄUFIG“ im Kalender auf diesen Termin ändern";
 
 /** Den Zustand liest man an der Farbe ab. Unbekannte Farbe zählt als offen. */
@@ -66,9 +68,18 @@ export function stateOf(embed: EmbedLike): CallState {
   return found ?? "open";
 }
 
-/** Der Rückruf-Knopf erscheint erst, wenn der Rückruf-Agent in Vapi und bei Vercel eingerichtet ist. */
-function rueckrufKonfiguriert(): boolean {
+/** Der Rückruf-Agent ist in Vapi und bei Vercel eingerichtet. */
+export function rueckrufKonfiguriert(): boolean {
   return Boolean(process.env.VAPI_API_KEY?.trim() && process.env.VAPI_RUECKRUF_ASSISTANT?.trim());
+}
+
+/**
+ * Standard sind die SMS-Knöpfe. Geht die SMS nicht (Festnetz, Fehler), steht auf der Karte das Feld "SMS"
+ * und die Karte zeigt stattdessen die zwei Rückruf-Knöpfe. Zum Testen: RUECKRUF_AUCH_HANDY=1 zeigt sie immer.
+ */
+export function rueckrufModus(embed?: EmbedLike): boolean {
+  if (!embed || !rueckrufKonfiguriert()) return false;
+  return process.env.RUECKRUF_AUCH_HANDY === "1" || Boolean(embed.fields?.some((f) => f.name === SMS_FIELD));
 }
 
 /** Knöpfe, die zum jeweiligen Zustand passen (Discord: Action Row mit Buttons). */
@@ -92,12 +103,15 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
         {
           type: 1,
           components: [
-            button("Termin bestätigen (SMS)", "confirm", 3),
-            button("Anderen Termin vorschlagen", "propose", 1),
-            // Geht keine SMS (Festnetz), ruft stattdessen der KI-Rückruf-Agent an. Zum Testen: RUECKRUF_AUCH_HANDY=1.
-            ...(embed && rueckrufKonfiguriert() && (!resolveMobile(embed).mobile || process.env.RUECKRUF_AUCH_HANDY === "1")
-              ? [button("Per Rückruf klären", "callback", 1)]
-              : []),
+            ...(rueckrufModus(embed)
+              ? [
+                  button("Termin per Rückruf bestätigen", "rconfirm", 3),
+                  button("Anderen Termin per Rückruf vorschlagen", "rpropose", 1),
+                ]
+              : [
+                  button("Termin bestätigen (SMS)", "confirm", 3),
+                  button("Anderen Termin vorschlagen", "propose", 1),
+                ]),
             button("Erledigt", "done", 2),
             button("Freigeben", "release", 2),
           ],
@@ -110,7 +124,7 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
 }
 
 /** Das kleine Fenster, in dem man Datum und Uhrzeit eines Vorschlags eingibt. */
-export function proposalModal(messageId: string) {
+export function proposalModal(messageId: string, rueckruf = false) {
   const input = (id: string, label: string, placeholder: string) => ({
     type: 1,
     components: [
@@ -127,8 +141,8 @@ export function proposalModal(messageId: string) {
     ],
   });
   return {
-    custom_id: `${PROPOSAL_MODAL_PREFIX}${messageId}`,
-    title: "Terminvorschlag per SMS",
+    custom_id: `${rueckruf ? RPROPOSAL_MODAL_PREFIX : PROPOSAL_MODAL_PREFIX}${messageId}`,
+    title: rueckruf ? "Terminvorschlag per Rückruf" : "Terminvorschlag per SMS",
     components: [
       input("datum", "Datum", "28.10."),
       input("uhrzeit", "Uhrzeit", "10:30"),
@@ -309,14 +323,19 @@ export function openEmbed(embed: EmbedLike): EmbedLike {
   };
 }
 
-/** Vorschlag gespeichert, aber ohne SMS (Festnetz): geklärt wird per Rückruf. */
-export function proposedWithoutSms(embed: EmbedLike, termin: string, who: string, time: string) {
+/** Vorschlag auf der Karte gespeichert, ohne SMS: geklärt wird per Rückruf. */
+export function proposedForCallback(embed: EmbedLike, termin: string, who: string, status: string) {
   return transition(embed, "proposed", {
-    status: `Vorschlag gespeichert um ${time}, keine SMS möglich: per Rückruf klären`,
+    status,
     owner: currentOwner(embed) ?? who,
     set: { [PROPOSAL_FIELD]: termin },
     remove: [CUSTOMER_FIELD],
   });
+}
+
+/** Die SMS ging nicht: Die Karte merkt es sich und zeigt danach die Rückruf-Knöpfe. */
+export function smsGescheitert(embed: EmbedLike, grund: string): EmbedLike {
+  return { ...embed, fields: withField(embed.fields, SMS_FIELD, `❌ Keine SMS möglich: ${grund} Stattdessen per Rückruf klären.`) };
 }
 
 /** Der Kunde hat beim Rückruf des KI-Assistenten zugesagt. */
