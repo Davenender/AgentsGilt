@@ -3,7 +3,7 @@ import type { EmbedLike } from "@/lib/discord-calls";
 import { analysiere, domainKey, type Analyse } from "@/lib/lead-analyse";
 import { findChannelId } from "@/lib/discord";
 import { linkSecret } from "@/lib/termin";
-import { alleNachrichten, call, CH_ABLAGE, CH_KARTEN, CH_SPEICHER, sucheSpeicherKanal, SEP } from "@/lib/leads";
+import { alleNachrichten, call, CH_ABLAGE, CH_KARTEN, CH_SPEICHER, COLOR, sucheSpeicherKanal, SEP } from "@/lib/leads";
 
 // Lead-Suche: Der Bot findet Firmen über Google Maps (Places API (New)), das Team wählt in
 // Discord aus. Dieses Modul enthält den Merkzettel (Codes, Freischaltung, Limit, "gesehen")
@@ -27,6 +27,7 @@ export const STANDARD_LAT = 50.1080582;
 export const STANDARD_LON = 8.8467138;
 
 const TAG_MS = 24 * 60 * 60 * 1000;
+export const SPAETER_TAGE = 30;
 
 // -------------------------------------------------------------- Merkzettel
 
@@ -135,6 +136,10 @@ async function gesehenSet(token: string): Promise<Set<string>> {
     if (r.teile[0] !== "gesehen") continue;
     for (const k of (r.teile[2] ?? "").split(",")) if (k) set.add(k);
   }
+  // "Später": nach dieser Zeit darf die Firma wieder vorgeschlagen werden.
+  for (const r of z?.liste ?? []) {
+    if (r.teile[0] === "entscheid" && r.teile[2] === "spaeter" && Number(r.teile[3]) + SPAETER_TAGE * TAG_MS < Date.now()) set.delete(r.teile[1]);
+  }
   return set;
 }
 
@@ -227,6 +232,17 @@ interface Platz {
   lon: number;
   maps: string | null;
   branche: string;
+  /** Öffnungszeit heute, z. B. "Freitag: 09:00–18:00 Uhr" */
+  heute: string | null;
+  offen: boolean | null;
+}
+
+/** Die Zeile für heute aus den Öffnungszeiten (Google liefert Montag zuerst). */
+function heuteZeile(woche: string[] | undefined): string | null {
+  if (!woche?.length) return null;
+  const tag = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", weekday: "short" }).format(new Date());
+  const idx = ({ Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 } as Record<string, number>)[tag];
+  return woche[idx ?? 0] ?? null;
 }
 
 const km = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
@@ -250,6 +266,8 @@ interface PlacesAntwort {
     businessStatus?: string;
     googleMapsUri?: string;
     location?: { latitude: number; longitude: number };
+    currentOpeningHours?: { openNow?: boolean };
+    regularOpeningHours?: { weekdayDescriptions?: string[] };
   }[];
   nextPageToken?: string;
 }
@@ -264,7 +282,7 @@ async function suchePlaces(key: string, begriff: string, mitte: Ort, radiusKm: n
         "Content-Type": "application/json",
         "X-Goog-Api-Key": key,
         "X-Goog-FieldMask":
-          "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.location,nextPageToken",
+          "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.location,places.currentOpeningHours.openNow,places.regularOpeningHours.weekdayDescriptions,nextPageToken",
       },
       body: JSON.stringify({
         textQuery: begriff,
@@ -356,6 +374,8 @@ export async function sucheFirmen(token: string, e: Einstellungen): Promise<Such
           lon: p.location.longitude,
           maps: p.googleMapsUri ?? null,
           branche: b,
+          heute: heuteZeile(p.regularOpeningHours?.weekdayDescriptions),
+          offen: p.currentOpeningHours?.openNow ?? null,
         });
       }
       seite = antwort.nextPageToken;
@@ -486,6 +506,9 @@ export function zusatzFelder(t: Treffer): NonNullable<EmbedLike["fields"]> {
     { name: "Bewertung", value: p.bewertung !== null ? `${p.bewertung.toFixed(1).replace(".", ",")} ★ · ${p.anzahl} Bewertungen` : `${p.anzahl} Bewertungen`, inline: true },
     { name: "Entfernung", value: `${p.km} km`, inline: true },
     { name: "Website", value: sauber(artText(t.art)), inline: true },
+    ...(p.heute || p.offen !== null
+      ? [{ name: "🕒 Öffnungszeiten", value: sauber(`${p.offen === true ? "🟢 gerade geöffnet" : p.offen === false ? "🔴 gerade geschlossen" : ""}${p.heute ? `${p.offen !== null ? "\n" : ""}${p.heute}` : ""}`), inline: true }]
+      : []),
     ...(p.maps ? [{ name: "Google Maps", value: `[Karte öffnen](${p.maps})`, inline: true }] : []),
   ];
 }
@@ -525,4 +548,73 @@ export function leseKarteUrl(url: string | undefined): Record<string, unknown> |
   } catch {
     return null;
   }
+}
+
+
+// -------------------------------------------------------------- Entscheidungen
+
+/** Merkt, was mit einem Treffer passiert ist (ok = zur Abstimmung, no = verworfen, spaeter). */
+export async function merkeEntscheid(token: string, key: string, art: "ok" | "no" | "spaeter", userId: string): Promise<void> {
+  const ch = await sucheSpeicherKanal(token);
+  if (ch) await schreibe(token, ch, ["entscheid", key, art, String(Date.now()), userId].join(SEP));
+}
+
+// -------------------------------------------------------------- Wochenübersicht
+
+/** Montag 0 Uhr (Berliner Zeit) der Woche, in der `jetzt` liegt, plus `zurueck` Wochen. */
+function wochenStart(zurueck: number): number {
+  const jetzt = new Date();
+  const teile = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(jetzt);
+  const wt = ({ Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 } as Record<string, number>)[teile.find((p) => p.type === "weekday")?.value ?? "Mon"] ?? 0;
+  const h = Number(teile.find((p) => p.type === "hour")?.value ?? 0);
+  const m = Number(teile.find((p) => p.type === "minute")?.value ?? 0);
+  const seitMontag = wt * TAG_MS + (h * 60 + m) * 60_000;
+  return jetzt.getTime() - seitMontag - zurueck * 7 * TAG_MS;
+}
+
+export interface Woche {
+  von: number;
+  suchen: number;
+  treffer: number;
+  zurAbstimmung: number;
+  verworfen: number;
+  spaeter: number;
+  angenommen: number;
+  leadAktiv: number;
+}
+
+export async function wochenUebersicht(token: string): Promise<{ diese: Woche; letzte: Woche }> {
+  const grenzen = [wochenStart(0), wochenStart(1), wochenStart(2)];
+  const leer = (von: number): Woche => ({ von, suchen: 0, treffer: 0, zurAbstimmung: 0, verworfen: 0, spaeter: 0, angenommen: 0, leadAktiv: 0 });
+  const wochen = [leer(grenzen[0]), leer(grenzen[1])];
+  const index = (t: number) => (t >= grenzen[0] ? 0 : t >= grenzen[1] ? 1 : -1);
+
+  const z = await zeilen(token, 800);
+  for (const r of z?.liste ?? []) {
+    const w = wochen[index(r.zeit)];
+    if (!w) continue;
+    if (r.teile[0] === "suche") w.suchen++;
+    else if (r.teile[0] === "gesehen") w.treffer += (r.teile[2] ?? "").split(",").filter(Boolean).length;
+    else if (r.teile[0] === "entscheid") {
+      if (r.teile[2] === "ok") w.zurAbstimmung++;
+      else if (r.teile[2] === "no") w.verworfen++;
+      else if (r.teile[2] === "spaeter") w.spaeter++;
+    }
+  }
+  // Was aus den Vorschlägen geworden ist: Karten in #leads, die per Suche entstanden sind.
+  const ch = await findChannelId(token, CH_KARTEN);
+  if (ch) {
+    for (const m of await alleNachrichten(token, ch, 300)) {
+      const e = m.embeds?.[0];
+      if (!m.author.bot || !e?.footer?.text?.includes("per Suche")) continue;
+      const w = wochen[index(msgZeit(m.id))];
+      if (!w) continue;
+      if (e.color === COLOR.accepted) w.angenommen++;
+      else if (e.color === COLOR.active) {
+        w.angenommen++;
+        w.leadAktiv++;
+      }
+    }
+  }
+  return { diese: wochen[0], letzte: wochen[1] };
 }

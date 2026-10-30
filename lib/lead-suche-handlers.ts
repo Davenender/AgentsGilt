@@ -12,7 +12,11 @@ import {
   loeseCodeEin,
   MAX_BRANCHEN,
   MAX_SUCHEN,
+  merkeEntscheid,
   merkeGesehen,
+  SPAETER_TAGE,
+  wochenUebersicht,
+  type Woche,
   SITZUNG_MIN,
   sitzungBis,
   starteSitzung,
@@ -62,7 +66,7 @@ export interface SucheInteraction {
     components?: { components?: { custom_id: string; value?: string }[] }[];
   };
   member?: { user?: { id: string; username?: string; global_name?: string | null } };
-  message?: { id: string; embeds?: (EmbedLike & { image?: { url?: string } })[] };
+  message?: { id: string; embeds?: (EmbedLike & { image?: { url?: string } })[]; components?: unknown[] };
 }
 
 const ephemeral = (content: string) =>
@@ -284,6 +288,7 @@ function zentrale(z: Zustand, hinweis = ""): { embeds: EmbedLike[]; components: 
       components: [
         { type: 2, style: 2, label: "Ort & Filter", emoji: { name: "📍" }, custom_id: "ls:ort" },
         { type: 2, style: z.ungesehene ? 1 : 2, label: z.ungesehene ? "Nur neue Firmen" : "Alle Firmen", emoji: { name: "👁️" }, custom_id: "ls:ung" },
+        { type: 2, style: 2, label: "Woche", emoji: { name: "📊" }, custom_id: "ls:woche" },
         { type: 2, style: 3, label: "Suche starten", emoji: { name: "🔎" }, custom_id: "ls:go" },
       ],
     },
@@ -331,7 +336,7 @@ export async function handleSuche(i: SucheInteraction, token: string | undefined
   if (!token || !user) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
 
   // Karten im Thread
-  if (id === "ls:ok" || id === "ls:no" || id === "ls:undo") return karteKlick(i, token, id);
+  if (["ls:ok", "ls:no", "ls:undo", "ls:later", "ls:note", "ls:notemodal"].includes(id)) return karteKlick(i, token, id);
 
   // Alles andere nur für die drei aus dem Team.
   if (!SHOW_NAMES[user.id]) return ephemeral("Die Lead-Suche ist nur für das Team.");
@@ -448,6 +453,16 @@ export async function handleSuche(i: SucheInteraction, token: string | undefined
       await bearbeiteOriginal(i, { embeds: r.embeds, components: r.components });
     });
     return NextResponse.json(DEFERRED_UPDATE);
+  } else if (id === "ls:woche") {
+    after(async () => {
+      try {
+        await bearbeiteOriginal(i, { embeds: [wochenEmbed(await wochenUebersicht(token))] });
+      } catch (err) {
+        console.error("[lead-suche] Wochenübersicht fehlgeschlagen:", err);
+        await bearbeiteOriginal(i, { content: "Die Wochenübersicht hat nicht geklappt. Bitte gleich nochmal versuchen." });
+      }
+    });
+    return NextResponse.json(DEFERRED_EPHEMERAL);
   } else if (id === "ls:go") {
     return starteSuche(i, token, user.id, z);
   } else {
@@ -512,11 +527,28 @@ function karteKnoepfe(maps: string | null) {
       type: 1,
       components: [
         { type: 2, style: 3, label: "Zur Abstimmung", emoji: { name: "🗳️" }, custom_id: "ls:ok" },
+        { type: 2, style: 1, label: "Später", emoji: { name: "⏳" }, custom_id: "ls:later" },
         { type: 2, style: 4, label: "Verwerfen", emoji: { name: "🗑️" }, custom_id: "ls:no" },
+        { type: 2, style: 2, label: "Notiz", emoji: { name: "📝" }, custom_id: "ls:note" },
         ...(maps ? [{ type: 2, style: 5, label: "Karte", emoji: { name: "🗺️" }, url: maps }] : []),
       ],
     },
   ];
+}
+
+/** Ein kurzer Satz zum Einstieg ins Telefonat, passend zur Website der Firma. */
+function einstieg(t: Treffer, wer: string, ort: string): string {
+  const f = t.platz.name;
+  const kopf = `Guten Tag, hier ist ${wer} von Agents Gilt.`;
+  const grund =
+    t.art === "keine"
+      ? `Mir ist aufgefallen, dass ${f} bei Google noch keine eigene Website hat.`
+      : t.art === "social"
+        ? `Mir ist aufgefallen, dass ${f} im Netz nur über Facebook oder ein Verzeichnis zu finden ist.`
+        : t.art === "schlecht"
+          ? `Ich habe mir Ihre Website angesehen. Sie wirkt etwas in die Jahre gekommen und ist auf dem Handy schwer zu bedienen.`
+          : `Ich habe mir Ihre Website angesehen und hätte eine Idee, wie sie noch mehr Kunden bringt.`;
+  return `„${kopf} ${grund} Wir helfen Betrieben in ${ort} mit schnellen, günstigen Lösungen. Haben Sie kurz zwei Minuten?“`.slice(0, 1000);
 }
 
 async function fuehreSucheAus(i: SucheInteraction, token: string, userId: string, z: Zustand): Promise<void> {
@@ -593,7 +625,7 @@ async function fuehreSucheAus(i: SucheInteraction, token: string, userId: string
       ...basis,
       author: { name: `Treffer ${n + 1} von ${res.treffer.length}` },
       color: ART_FARBE[t.art] ?? FARBE_NEU,
-      fields: [...felder, ...zusatzFelder(t)],
+      fields: [...felder, ...zusatzFelder(t), { name: "💬 Gesprächseinstieg", value: einstieg(t, name, z.ort), inline: false }],
       footer: { text: `lead:${t.domain}${SEP}suche:${userId}${SEP}${FOOTER_HINWEIS}` },
     } as EmbedLike;
     await call(token, "POST", `/channels/${thread.id}/messages`, {
@@ -625,7 +657,7 @@ export function stelleKarteHer(embed: EmbedLike): { embed: EmbedLike; components
   return { embed: { ...embed, color: ART_FARBE[art] ?? FARBE_NEU, fields }, components: karteKnoepfe(maps) };
 }
 
-export const istVerworfen = (embed: EmbedLike) => entscheidung(embed).startsWith("🗑️");
+export const istVerworfen = (embed: EmbedLike) => /^(🗑️|⏳)/.test(entscheidung(embed));
 
 async function karteKlick(i: SucheInteraction, token: string, aktion: string): Promise<NextResponse> {
   const user = i.member?.user;
@@ -645,13 +677,33 @@ async function karteKlick(i: SucheInteraction, token: string, aktion: string): P
   const undoKnopf = [{ type: 1, components: [{ type: 2, style: 2, label: "Zurücknehmen", emoji: { name: "↩️" }, custom_id: "ls:undo" }] }];
 
   if (aktion === "ls:undo") {
-    if (!istVerworfen(embed)) return ephemeral("Nur verworfene Karten lassen sich zurücknehmen.");
+    if (!istVerworfen(embed)) return ephemeral("Nur verworfene oder zurückgestellte Karten lassen sich zurücknehmen.");
     const r = stelleKarteHer(embed);
     return update([r.embed], r.components);
   }
 
+  // Notiz: kleines Fenster, die Notiz steht danach auf der Karte (und wandert mit nach #leads).
+  if (aktion === "ls:note") {
+    const alt = embed.fields?.find((f) => f.name === "📝 Notiz")?.value.replace(/\s+— \w+$/, "") ?? "";
+    return NextResponse.json(
+      modal("ls:notemodal", "Notiz zur Firma", [{ id: "notiz", label: "Deine Notiz (leer lassen = löschen)", value: alt, placeholder: "z. B. Inhaber ist Herr Schmidt, ab 14 Uhr anrufen", max: 300 }]),
+    );
+  }
+  if (aktion === "ls:notemodal") {
+    const text = feld(i, "notiz");
+    const fields = (embed.fields ?? []).filter((f) => f.name !== "📝 Notiz");
+    if (text) fields.push({ name: "📝 Notiz", value: `${text.replace(/[@<]/g, "")} — ${name}`, inline: false });
+    return update([{ ...embed, fields }], i.message?.components ?? []);
+  }
+
   if (aktion === "ls:no") {
+    after(() => merkeEntscheid(token, domain, "no", user.id));
     return update([erledigt(`🗑️ Verworfen von ${name}`, 0x6b7280)], undoKnopf);
+  }
+  if (aktion === "ls:later") {
+    after(() => merkeEntscheid(token, domain, "spaeter", user.id));
+    const ab = new Date(Date.now() + SPAETER_TAGE * 86_400_000).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" });
+    return update([erledigt(`⏳ Später von ${name}: wird ab ${ab} wieder vorgeschlagen`, 0x6366f1)], undoKnopf);
   }
 
   // ls:ok: als Abstimmungskarte nach #leads
@@ -668,10 +720,10 @@ async function karteKlick(i: SucheInteraction, token: string, aktion: string): P
   );
   const karte = {
     ...embed,
-    author: undefined,
+    author: { name: "🔎 Aus der Lead-Suche" },
     color: COLOR.vote,
     fields: felder,
-    footer: { text: `lead:${domain}${SEP}angelegt von ${name}${SEP}${FOOTER_HINWEIS}` },
+    footer: { text: `lead:${domain}${SEP}angelegt von ${name} per Suche${SEP}${FOOTER_HINWEIS}` },
   } as EmbedLike;
   const rolle = await teamRolle(token);
   const mid = await postKarte(
@@ -679,8 +731,40 @@ async function karteKlick(i: SucheInteraction, token: string, aktion: string): P
     kanal,
     karte,
     leadComponents("vote"),
-    rolle ? { content: `<@&${rolle}> Neuer Lead: **${(embed.title ?? "Firma").replace(/[*_~`|>@]/g, "")}** – jetzt abstimmen`, roleId: rolle } : undefined,
+    rolle ? { content: `<@&${rolle}> Neuer Lead aus der Suche: **${(embed.title ?? "Firma").replace(/[*_~`|>@]/g, "")}** – jetzt abstimmen`, roleId: rolle } : undefined,
   );
   if (!mid) return ephemeral("Die Karte konnte nicht nach #leads gelegt werden. Bitte nochmal versuchen.");
+  after(() => merkeEntscheid(token, domain, "ok", user.id));
   return update([erledigt("✅ Zur Abstimmung nach #leads gelegt", 0x22c55e)], []);
+}
+
+// ------------------------------------------------------------ Wochenübersicht
+
+const balken = (wert: number, max: number) => {
+  const n = max > 0 ? Math.round((wert / max) * 12) : 0;
+  return "█".repeat(n) + "░".repeat(12 - n);
+};
+
+function wochenEmbed(w: { diese: Woche; letzte: Woche }): EmbedLike {
+  const block = (x: Woche) => {
+    const max = Math.max(x.treffer, 1);
+    const z = (name: string, v: number) => `${name.padEnd(15)} ${balken(v, max)} ${String(v).padStart(3)}`;
+    const quote = x.treffer > 0 ? Math.round((x.leadAktiv / x.treffer) * 100) : 0;
+    return (
+      "```\n" +
+      [z("Treffer gezeigt", x.treffer), z("Zur Abstimmung", x.zurAbstimmung), z("Später/verworfen", x.spaeter + x.verworfen), z("Angenommen", x.angenommen), z("Lead aktiv", x.leadAktiv)].join("\n") +
+      "\n```" +
+      `${x.suchen} ${x.suchen === 1 ? "Suche" : "Suchen"} · von ${x.treffer} Treffern wurden **${x.leadAktiv}** Lead${x.leadAktiv === 1 ? "" : "s"} (${quote} %)`
+    );
+  };
+  const tag = (ms: number) => new Date(ms).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" });
+  return {
+    title: "📊 Wochenübersicht Lead-Suche",
+    color: 0xd4a23c,
+    fields: [
+      { name: `Diese Woche (ab ${tag(w.diese.von)})`, value: block(w.diese), inline: false },
+      { name: `Letzte Woche (ab ${tag(w.letzte.von)})`, value: block(w.letzte), inline: false },
+    ],
+    footer: { text: "Gezählt wird ab dem Start der Lead-Suche." },
+  };
 }
