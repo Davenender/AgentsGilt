@@ -80,3 +80,15 @@ export async function kundeWuenscht(v: Geladen, datum: string, zeit: string, weg
   await replyTo(token, channelId, v.messageId, `🕒 ${kunde} wünscht${wo} stattdessen: ${eingabe.text}${bearbeiter}`);
   return { ok: true, termin: eingabe.text };
 }
+
+/** Am Telefon sagt der Kunde, der Termin passt. Bestätigt wird nur vom Team: hier nur ein Hinweis unter der Karte. */
+export async function kundeMeldetZusage(v: Geladen): Promise<Antwort> {
+  const { bearbeiter, kunde } = wer(v);
+  await replyTo(
+    process.env.DISCORD_BOT_TOKEN,
+    process.env.DISCORD_CHANNEL_ANRUFE,
+    v.messageId,
+    `📞 ${kunde} hat am Telefon gesagt, dass der Termin passt: ${v.termin}. Bitte bestätigen.${bearbeiter}`,
+  );
+  return { ok: true, termin: v.termin };
+}
