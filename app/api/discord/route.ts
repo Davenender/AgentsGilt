@@ -204,7 +204,25 @@ function bereitFuerSms(embed: EmbedLike): { mobile: string } | { fehler: string;
   return { mobile };
 }
 
+let warm = false;
+
+/**
+ * Discord wartet nur 3 Sekunden auf die erste Antwort, sonst steht dort "Diese Interaktion ist fehlgeschlagen".
+ * Das Protokoll zeigt, wie lange wir brauchen und ob der Server gerade erst gestartet war (kalter Start).
+ */
 export async function POST(request: Request) {
+  const start = Date.now();
+  const kalt = !warm;
+  warm = true;
+  const res = await antworte(request);
+  const ms = Date.now() - start;
+  if (kalt || ms > 1500) {
+    console.log(`[discord] Antwort nach ${ms} ms (kalter Start: ${kalt ? `ja, Server lief seit ${Math.round(process.uptime() * 1000)} ms` : "nein"})`);
+  }
+  return res;
+}
+
+async function antworte(request: Request) {
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
   if (!publicKey) {
     console.error("[discord] DISCORD_PUBLIC_KEY fehlt, Aufruf abgewiesen");
