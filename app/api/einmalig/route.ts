@@ -21,3 +21,19 @@ export async function GET(request: Request) {
   const msgs = (await res.json()) as { id: string; author: { bot?: boolean }; content: string; embeds: unknown[]; pinned?: boolean }[];
   return NextResponse.json(msgs.reverse().map((m) => ({ id: m.id, bot: m.author.bot, pinned: m.pinned, content: m.content, embeds: m.embeds })));
 }
+
+export async function POST(request: Request) {
+  if (!erlaubt(request)) return NextResponse.json({ error: "Nicht erlaubt" }, { status: 401 });
+  const { ops } = (await request.json()) as { ops: { typ: "patch" | "post"; id?: string; embed: unknown }[] };
+  const out: unknown[] = [];
+  for (const op of ops) {
+    const url = op.typ === "patch" ? `${API}/channels/${KANAL}/messages/${op.id}` : `${API}/channels/${KANAL}/messages`;
+    const res = await fetch(url, {
+      method: op.typ === "patch" ? "PATCH" : "POST",
+      headers: kopf(),
+      body: JSON.stringify({ embeds: [op.embed], allowed_mentions: { parse: [] } }),
+    });
+    out.push({ typ: op.typ, id: op.id, status: res.status });
+  }
+  return NextResponse.json(out);
+}
