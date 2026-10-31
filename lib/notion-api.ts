@@ -132,6 +132,8 @@ export async function legeLeadAusAnfrage(input: {
   company?: string;
   service?: string;
   message: string;
+  /** Wie der Kontakt zu uns kam, Vorgabe: Website / Chatbot (bei Mails: Sonstiges). */
+  quelle?: string;
 }): Promise<{ ok: true; seite: string; nr: string | null; titel: string } | { ok: false; fehler: string }> {
   const token = process.env.NOTION_TOKEN?.trim();
   if (!token) return { ok: false, fehler: "Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel)." };
@@ -141,7 +143,7 @@ export async function legeLeadAusAnfrage(input: {
   const properties: Record<string, unknown> = {
     Name: { title: text(titel, 200) },
     Status: { select: { name: "Lead" } },
-    Quelle: { select: { name: "Website / Chatbot" } },
+    Quelle: { select: { name: input.quelle ?? "Website / Chatbot" } },
     Erstkontakt: { date: { start: heute } },
     "Nächster Schritt": { rich_text: text("Erstkontakt aufnehmen", 200) },
   };
@@ -150,7 +152,7 @@ export async function legeLeadAusAnfrage(input: {
   if (angebot) properties["Angebot"] = { select: { name: angebot } };
 
   const zeilen = [
-    `Anfrage über die Website am ${new Date().toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}`,
+    `${input.quelle === "Sonstiges" ? "Mail" : "Anfrage über die Website"} am ${new Date().toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}`,
     `Ansprechpartner: ${input.name}`,
     input.company?.trim() && `Unternehmen: ${input.company.trim()}`,
     input.service && `Gewünschte Leistung: ${input.service}`,

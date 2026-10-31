@@ -11,12 +11,14 @@ import {
   posteingangErledigt,
   posteingangErledigtEmbed,
   posteingangKomponenten,
+  posteingangMailId,
   posteingangQuelle,
   setzeAnfrageStatus,
   weiterleitenZiele,
   type AnfrageState,
 } from "@/lib/anfragen";
 import { aendereKarte, anfragenKanal, besitzerId, call, clip, loescheNachricht, mitBesitzer, OWNER_ID, postKarte, setzeAntwort } from "@/lib/leads";
+import { labelFuerNr, rufeSkript } from "@/lib/mail-bruecke";
 import { legeLeadAusAnfrage, holeKundenNr, listeKunden, notionConfigured, type KundeKurz } from "@/lib/notion-api";
 
 // Knöpfe unter den Anfrage-Karten in #anfragen (anf:) und unter den Karten im privaten #posteingang (pb:).
@@ -237,7 +239,8 @@ async function legeLeadAn(
   | { ok: false; fehler: string }
 > {
   const d = datenAusKarte(karte);
-  const res = await legeLeadAusAnfrage(d);
+  const ausMail = Boolean(posteingangMailId(karte));
+  const res = await legeLeadAusAnfrage(ausMail ? { ...d, quelle: "Sonstiges" } : d);
   if (!res.ok) return res;
   let nr = res.nr;
   if (!nr) {
@@ -246,7 +249,7 @@ async function legeLeadAn(
   }
   const notiz = `${nr ? `${nr} · ` : ""}[In Notion öffnen](${res.seite})`;
   if (!nr) return { ok: true, verschoben: false, nr: null, notiz, hinweis: "Die Kunden-Nr. war noch nicht da, die Anfrage bleibt deshalb hier stehen." };
-  const move = await inKundenkanal(token, nr, res.titel, karte);
+  const move = await inKundenkanal(token, nr, res.titel, karte, ausMail ? "📧 Erste Mail des Kunden" : undefined);
   if (!move.ok) return { ok: true, verschoben: false, nr, notiz, hinweis: `Die Anfrage konnte nicht in den Kundenkanal gelegt werden: ${move.fehler}` };
   return { ok: true, verschoben: true, nr, kanalId: move.kanalId };
 }
@@ -293,7 +296,15 @@ export function handlePosteingang(i: AnfInteraction, token: string | undefined) 
       }
       if (!ok) return void (await setzeAntwort(appId, itoken, `⚠️ In #${name} konnte ich nichts schreiben. Bitte die Rechte des Bots prüfen.`));
       await aendereKarte(token, channelId, ziel, posteingangErledigtEmbed(karte, `Weitergeleitet nach #${name}`), []);
-      await setzeAntwort(appId, itoken, `✅ Weitergeleitet nach <#${zielKanal}>.`);
+      // Geht eine Mail in einen Kundenkanal (knd_004), bekommt sie in Gmail das Label "Kunde 004".
+      const mailId = posteingangMailId(karte);
+      const kundenNr = name.match(/^knd_(\d+)$/)?.[1];
+      let labelHinweis = "";
+      if (mailId && kundenNr) {
+        const l = await rufeSkript("label", mailId, labelFuerNr(kundenNr));
+        labelHinweis = l.ok ? ` In Gmail hat die Mail das Label „${labelFuerNr(kundenNr)}“ bekommen.` : ` ⚠️ Das Gmail-Label konnte ich nicht setzen: ${l.fehler}`;
+      }
+      await setzeAntwort(appId, itoken, `✅ Weitergeleitet nach <#${zielKanal}>.${labelHinweis}`);
     });
     return NextResponse.json({ type: 7, data: { content: "⏳ Wird weitergeleitet …", components: [], embeds: [] } });
   }
@@ -331,11 +342,28 @@ export function handlePosteingang(i: AnfInteraction, token: string | undefined) 
     return NextResponse.json(DEFERRED_EPHEMERAL);
   }
 
+  const mailId = posteingangMailId(embed);
+
   if (id === "weg") {
-    // Bei Mails aus Gmail archiviert später das Google-Skript die Mail (kommt mit der Gmail-Anbindung).
+    if (!mailId) {
+      return NextResponse.json({
+        type: 7,
+        data: { embeds: [posteingangErledigtEmbed(embed, "Spam / Weg")], components: posteingangKomponenten(quelle, true), allowed_mentions: { parse: [] } },
+      });
+    }
+    // Bei Mails aus Gmail wird die Mail dort archiviert (nicht gelöscht). Klappt das nicht, bleibt die Karte stehen.
+    after(async () => {
+      const res = await rufeSkript("archivieren", mailId);
+      if (!res.ok) return void (await followupPrivate(appId, itoken, `⚠️ Die Mail ist noch nicht archiviert: ${res.fehler} Die Karte bleibt stehen.`));
+      await aendereKarte(token, channelId, messageId, posteingangErledigtEmbed(embed, "Spam / Weg, in Gmail archiviert"), []);
+    });
+    return NextResponse.json(DEFERRED_UPDATE);
+  }
+
+  if (id === "erledigt") {
     return NextResponse.json({
       type: 7,
-      data: { embeds: [posteingangErledigtEmbed(embed, "Spam / Weg")], components: posteingangKomponenten(quelle, true), allowed_mentions: { parse: [] } },
+      data: { embeds: [posteingangErledigtEmbed(embed, "Erledigt")], components: posteingangKomponenten(quelle, true), allowed_mentions: { parse: [] } },
     });
   }
 
@@ -344,7 +372,12 @@ export function handlePosteingang(i: AnfInteraction, token: string | undefined) 
     after(async () => {
       const res = await legeLeadAn(token, embed);
       if (!res.ok) return void (await followupPrivate(appId, itoken, `⚠️ ${res.fehler}`));
-      const was = res.verschoben ? `Lead ${res.nr} angelegt, Anfrage liegt im Kundenkanal` : `Lead ${res.nr ?? ""} angelegt (${res.hinweis})`;
+      let was = res.verschoben ? `Lead ${res.nr} angelegt, Anfrage liegt im Kundenkanal` : `Lead ${res.nr ?? ""} angelegt (${res.hinweis})`;
+      if (mailId && res.nr) {
+        const l = await rufeSkript("label", mailId, labelFuerNr(res.nr));
+        was += l.ok ? `, Gmail-Label „${labelFuerNr(res.nr)}“ gesetzt` : "";
+        if (!l.ok) await followupPrivate(appId, itoken, `⚠️ Das Gmail-Label konnte ich nicht setzen: ${l.fehler}`);
+      }
       await aendereKarte(token, channelId, messageId, posteingangErledigtEmbed(embed, was.trim()), []);
     });
     return NextResponse.json(DEFERRED_UPDATE);

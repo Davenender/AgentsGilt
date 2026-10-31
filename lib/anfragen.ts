@@ -179,6 +179,8 @@ export const PB_COLOR = { offen: 0xf97316, erledigt: 0x6b7280 } as const;
 
 export const istPosteingangsKarte = (e: EmbedLike | undefined) => Boolean(e?.footer?.text?.startsWith(PB_FOOTER));
 export const posteingangQuelle = (e: EmbedLike): "form" | "gmail" => (e.footer?.text?.split(":")[1] === "gmail" ? "gmail" : "form");
+/** Die Gmail-Nachrichten-ID einer Posteingangs-Karte aus der Quelle "gmail" (steht in der Fußzeile). */
+export const posteingangMailId = (e: EmbedLike): string | null => (posteingangQuelle(e) === "gmail" ? (e.footer?.text?.split(":")[2] ?? null) : null);
 export const posteingangErledigt = (e: EmbedLike) => e.color === PB_COLOR.erledigt;
 
 export function posteingangEmbed(d: AnfrageDaten, grund: string): EmbedLike {
@@ -212,6 +214,7 @@ export function posteingangKomponenten(quelle: "form" | "gmail", erledigt = fals
       components: [
         ...(quelle === "form" ? [pknopf("Freigeben", "free", 3)] : []),
         pknopf("Weiterleiten", "fwd", 1),
+        ...(quelle === "gmail" ? [pknopf("Erledigt", "erledigt", 2)] : []),
         pknopf("Spam / Weg", "weg", 4),
         pknopf("Als Lead in Notion", "lead", 2),
       ],
