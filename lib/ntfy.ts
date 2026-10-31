@@ -9,11 +9,11 @@
 
 const SERVER = process.env.NTFY_SERVER?.trim() || "https://ntfy.sh";
 
-export async function pushe(titel: string, text: string, link?: string): Promise<void> {
+export async function pushe(titel: string, text: string, link?: string): Promise<{ gesetzt: boolean; laenge: number; status: number | null }> {
   const topic = process.env.NTFY_TOPIC?.trim();
   if (!topic) {
     console.warn(`[ntfy] NTFY_TOPIC fehlt, Push "${titel}" wird übersprungen`);
-    return;
+    return { gesetzt: false, laenge: 0, status: null };
   }
   try {
     // JSON statt Kopfzeilen: Umlaute und Emojis kommen so unverändert an.
@@ -30,7 +30,10 @@ export async function pushe(titel: string, text: string, link?: string): Promise
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) console.error(`[ntfy] Push fehlgeschlagen: HTTP ${res.status}`);
+    else console.log(`[ntfy] Push "${titel}" gesendet (Sender mit ${topic.length} Zeichen)`);
+    return { gesetzt: true, laenge: topic.length, status: res.status };
   } catch (err) {
     console.error("[ntfy] Push fehlgeschlagen:", err);
+    return { gesetzt: true, laenge: topic.length, status: null };
   }
 }
