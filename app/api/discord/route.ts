@@ -7,6 +7,7 @@ import {
   verifyDiscordSignature,
 } from "@/lib/discord";
 import {
+  anrufIds,
   applyAction,
   callComponents,
   CALL_CUSTOM_ID_PREFIX,
@@ -30,11 +31,12 @@ import {
 } from "@/lib/discord-calls";
 import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
 import { starteRueckruf } from "@/lib/rueckruf";
+import { holeVerlauf, inStuecke } from "@/lib/verlauf";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
 import { handleLeadButton, handleLeadCommand } from "@/lib/lead-handlers";
 import { handleAnfrage, handlePosteingang, type AnfInteraction } from "@/lib/anfrage-handlers";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
-import { OWNER_ID } from "@/lib/leads";
+import { OWNER_ID, setzeAntwort } from "@/lib/leads";
 import { closeTicketChannel, FOR_CUSTOMER, SHOW_NAMES, ticketComponents } from "@/lib/support";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 
@@ -84,6 +86,7 @@ function ephemeral(content: string) {
 }
 
 const DEFERRED_UPDATE = { type: 6 };
+const DEFERRED_EPHEMERAL = { type: 5, data: { flags: 64 } };
 
 
 /** Support-Tickets (Kategorie SUPPORT): Übernehmen, Antworten, Schließen. */
@@ -205,6 +208,12 @@ function bereitFuerSms(embed: EmbedLike): { mobile: string } | { fehler: string;
 }
 
 let warm = false;
+
+/** Zum Wachhalten: Ein Dienst ruft das alle paar Minuten auf, damit der erste Klick nach einer Pause nicht in den 3-Sekunden-Timeout läuft. */
+export async function GET() {
+  warm = true;
+  return NextResponse.json({ ok: true });
+}
 
 /**
  * Discord wartet nur 3 Sekunden auf die erste Antwort, sonst steht dort "Diese Interaktion ist fehlgeschlagen".
@@ -383,12 +392,38 @@ async function antworte(request: Request) {
     return NextResponse.json({ ok: true });
   }
   const action = customId.slice(CALL_CUSTOM_ID_PREFIX.length) as CallAction;
-  if (!["claim", "confirm", "propose", "done", "release", "rconfirm", "rpropose"].includes(action)) return NextResponse.json({ ok: true });
+  if (!["claim", "confirm", "propose", "done", "release", "rconfirm", "rpropose", "verlauf"].includes(action)) return NextResponse.json({ ok: true });
 
   const embed = interaction.message?.embeds?.[0];
   const messageId = interaction.message?.id;
   if (!embed || !messageId) return ephemeral("Diese Meldung ist nicht mehr aktuell.");
   const state = stateOf(embed);
+
+  // Den Gesprächsverlauf darf jeder im Team ansehen (nicht nur der Bearbeiter). Er kommt nur bei dem an, der den Knopf gedrückt hat.
+  if (action === "verlauf") {
+    const appId = interaction.application_id;
+    const itoken = interaction.token;
+    if (!appId || !itoken) return ephemeral("Discord hat keine Antwortadresse mitgeschickt.");
+    const ids = anrufIds(embed);
+    if (!ids.length) return ephemeral("Zu diesem Anruf ist kein Gesprächsverlauf gespeichert. Bei Anrufen vor dieser Funktion fehlt er, die Zusammenfassung steht in der Mail.");
+    after(async () => {
+      const stuecke: string[] = [];
+      for (const [n, id] of ids.entries()) {
+        const res = await holeVerlauf(id);
+        if (!res.ok) {
+          stuecke.push(`⚠️ ${res.fehler}`);
+          continue;
+        }
+        const zeilen = res.zeilen.length ? res.zeilen : ["(Im Gespräch wurde nichts aufgezeichnet.)"];
+        stuecke.push(...inStuecke([ids.length > 1 ? `${res.kopf} (${n + 1} von ${ids.length})` : res.kopf, ...zeilen]));
+      }
+      // Die erste Nachricht ersetzt das "wird geladen", der Rest kommt als weitere private Nachrichten.
+      const [erste, ...rest] = stuecke;
+      await setzeAntwort(appId, itoken, erste ?? "Kein Gespräch gefunden.");
+      for (const t of rest) await followupPrivate(appId, itoken, t);
+    });
+    return NextResponse.json(DEFERRED_EPHEMERAL);
+  }
 
   if (action === "claim") {
     const aktuell = ownerId(embed);

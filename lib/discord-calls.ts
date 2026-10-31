@@ -19,7 +19,7 @@ export type CallState =
   | "confirmed"
   | "done";
 
-export type CallAction = "claim" | "confirm" | "propose" | "done" | "release" | "rconfirm" | "rpropose";
+export type CallAction = "claim" | "confirm" | "propose" | "done" | "release" | "rconfirm" | "rpropose" | "verlauf";
 
 export const CALL_CUSTOM_ID_PREFIX = "call:";
 export const PROPOSAL_MODAL_PREFIX = "call:proposal:";
@@ -82,6 +82,20 @@ function rueckrufStand(embed?: EmbedLike): boolean {
   return Boolean(embed.fields?.some((f) => f.name === SMS_FIELD));
 }
 
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/** Die Vapi-Anruf-IDs, die in der Fußzeile der Karte stehen (mehrere, wenn der Kunde erneut angerufen hat). */
+export function anrufIds(embed: EmbedLike): string[] {
+  return [...new Set(embed.footer?.text?.match(UUID) ?? [])];
+}
+
+/** Hängt eine weitere Anruf-ID an die Fußzeile, falls sie noch nicht dasteht. */
+export function mitAnrufId(embed: EmbedLike, id: string | undefined): EmbedLike {
+  if (!id || anrufIds(embed).includes(id)) return embed;
+  const alt = embed.footer?.text ?? "Voice-Agent";
+  return { ...embed, footer: { text: `${alt.includes("Gesprächs-ID") ? alt : `${alt} · Gesprächs-ID`} ${id}` } };
+}
+
 /** Knöpfe, die zum jeweiligen Zustand passen (Discord: Action Row mit Buttons). */
 export function callComponents(state: CallState, hasOwner = true, embed?: EmbedLike) {
   const button = (label: string, action: CallAction, style: 1 | 2 | 3 | 4) => ({
@@ -98,7 +112,7 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
     case "proposed":
     case "customer_alt":
       // Ohne Bearbeiter (nach "Freigeben") kann nur wieder übernommen werden.
-      if (!hasOwner) return [{ type: 1, components: [button("Übernehmen", "claim", 3)] }];
+      if (!hasOwner) return [{ type: 1, components: [button("Übernehmen", "claim", 3), button("Gespräch ansehen", "verlauf", 2)] }];
       return [
         {
           type: 1,
@@ -114,12 +128,14 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
                 ]),
             button("Erledigt", "done", 2),
             button("Freigeben", "release", 2),
+            button("Gespräch ansehen", "verlauf", 2),
           ],
         },
       ];
     case "confirmed":
     case "done":
-      return [];
+      // Den Gesprächsverlauf kann jeder im Team jederzeit ansehen.
+      return [{ type: 1, components: [button("Gespräch ansehen", "verlauf", 2)] }];
   }
 }
 

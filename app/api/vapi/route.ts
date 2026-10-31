@@ -421,7 +421,7 @@ export async function POST(request: Request) {
       { name: "Dauer", value: duration, inline: true },
       ...(endedReason ? [{ name: "Ende", value: endedReason, inline: true }] : []),
     ],
-    footer: "Voice-Agent · Details und Gesprächsverlauf in der Mail",
+    footer: `Voice-Agent · Details in der Mail${msg?.call?.id ? ` · Gesprächs-ID ${msg.call.id}` : ""}`,
   };
 
   // Mit Bot: Meldung mit Knöpfen (Übernehmen, Termin nicht möglich, Erledigt).
@@ -433,6 +433,7 @@ export async function POST(request: Request) {
       zeit,
       zusammenfassung: summary,
       felder: structuredEntries.map(([k, v]): [string, string] => [k, String(v)]),
+      anrufId: msg?.call?.id,
     }));
   const mitKnoepfen =
     ergaenzt ||

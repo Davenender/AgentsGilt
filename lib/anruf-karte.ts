@@ -1,6 +1,7 @@
 import { editMessage, listMessages, replyTo } from "@/lib/discord";
 import {
   callComponents,
+  mitAnrufId,
   OWNER_FIELD,
   ownerId,
   RUECKRUF_FIELD,
@@ -49,7 +50,7 @@ export async function offeneKarteZuNummer(nummer: string, passt: (embed: EmbedLi
  */
 export async function ergaenzeKarte(
   nummer: string,
-  info: { zeit: string; zusammenfassung: string; felder: [string, string][] },
+  info: { zeit: string; zusammenfassung: string; felder: [string, string][]; anrufId?: string },
 ): Promise<boolean> {
   const karte = await offeneKarteZuNummer(nummer);
   if (!karte) return false;
@@ -64,13 +65,13 @@ export async function ergaenzeKarte(
 
   // Wartet noch ein geplanter Rückruf der KI, ist er überflüssig: der Kunde hat sich selbst gemeldet.
   const geplant = fields.some((f) => f.name === RUECKRUF_FIELD && f.value.includes("Geplant:"));
-  const embed: EmbedLike = {
+  const embed: EmbedLike = mitAnrufId({
     ...karte.embed,
     fields: [
       ...(geplant ? withField(fields, RUECKRUF_FIELD, "📞 Der Kunde hat selbst angerufen, kein weiterer Rückruf geplant.") : fields),
       { name: `📞 Erneuter Anruf (${info.zeit})`, value, inline: false },
     ],
-  };
+  }, info.anrufId);
   const token = process.env.DISCORD_BOT_TOKEN;
   const channel = process.env.DISCORD_CHANNEL_ANRUFE;
   const ok = await editMessage(token, channel, karte.messageId, {
