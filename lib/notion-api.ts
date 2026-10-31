@@ -207,48 +207,58 @@ export interface KundeKurz {
   email: string;
 }
 
-/** Die zuletzt angelegten Kunden (für die Auswahl "Bestehender Kunde?"), neueste zuerst. */
-export async function listeKunden(max = 25): Promise<KundeKurz[] | null> {
+/** Alle Kunden aus Notion (für die Auswahl "Bestehender Kunde?"), neueste zuerst. */
+export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
   const token = process.env.NOTION_TOKEN?.trim();
   if (!token) return null;
+  const out: KundeKurz[] = [];
+  let cursor: string | undefined;
   try {
-    const res = await fetch(`https://api.notion.com/v1/databases/${DATABASE_ID}/query`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Notion-Version": "2022-06-28",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ page_size: Math.min(max * 2, 100), sorts: [{ timestamp: "created_time", direction: "descending" }] }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) {
-      console.error(`[notion] Kunden lesen fehlgeschlagen: HTTP ${res.status}`);
-      return null;
-    }
-    const data = (await res.json()) as {
-      results?: {
-        properties?: Record<
-          string,
-          {
-            title?: { plain_text?: string }[];
-            email?: string | null;
-            formula?: { string?: string | null };
-            unique_id?: { prefix?: string | null; number?: number };
-          }
-        >;
-      }[];
-    };
-    const out: KundeKurz[] = [];
-    for (const p of data.results ?? []) {
-      const props = p.properties ?? {};
-      const name = (props["Name"]?.title ?? []).map((t) => t.plain_text ?? "").join("").trim();
-      const f = props["KND-Nr."]?.formula?.string;
-      const id = props["Kunden-ID"]?.unique_id;
-      const nr = f && /^KND-\d{3,}$/.test(f) ? f : id?.number ? `KND-${String(id.number).padStart(3, "0")}` : null;
-      if (!nr || /beispiel/i.test(name)) continue;
-      out.push({ nr, name: name || "ohne Namen", email: props["E-Mail"]?.email ?? "" });
-      if (out.length >= max) break;
+    while (out.length < max) {
+      const res = await fetch(`https://api.notion.com/v1/databases/${DATABASE_ID}/query`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Notion-Version": "2022-06-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          page_size: 100,
+          sorts: [{ timestamp: "created_time", direction: "descending" }],
+          ...(cursor ? { start_cursor: cursor } : {}),
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) {
+        console.error(`[notion] Kunden lesen fehlgeschlagen: HTTP ${res.status}`);
+        return null;
+      }
+      const data = (await res.json()) as {
+        has_more?: boolean;
+        next_cursor?: string | null;
+        results?: {
+          properties?: Record<
+            string,
+            {
+              title?: { plain_text?: string }[];
+              email?: string | null;
+              formula?: { string?: string | null };
+              unique_id?: { prefix?: string | null; number?: number };
+            }
+          >;
+        }[];
+      };
+      for (const p of data.results ?? []) {
+        const props = p.properties ?? {};
+        const name = (props["Name"]?.title ?? []).map((t) => t.plain_text ?? "").join("").trim();
+        const f = props["KND-Nr."]?.formula?.string;
+        const id = props["Kunden-ID"]?.unique_id;
+        const nr = f && /^KND-\d{3,}$/.test(f) ? f : id?.number ? `KND-${String(id.number).padStart(3, "0")}` : null;
+        if (!nr || /beispiel/i.test(name)) continue;
+        out.push({ nr, name: name || "ohne Namen", email: props["E-Mail"]?.email ?? "" });
+      }
+      if (!data.has_more || !data.next_cursor) break;
+      cursor = data.next_cursor;
     }
     return out;
   } catch (err) {

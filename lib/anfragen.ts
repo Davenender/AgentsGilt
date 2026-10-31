@@ -95,7 +95,7 @@ export function anfrageEmbed(d: AnfrageDaten, hinweis?: string): EmbedLike {
 
 export function anfrageStatusWort(e: EmbedLike): string {
   const v = feld(e, F_STATUS) ?? "Offen";
-  return ["Offen", "In Arbeit", "Kontaktiert", "Lead aktiv", "Kein Interesse", "Zugeordnet"].find((w) => v.startsWith(w)) ?? "Offen";
+  return ["Offen", "In Arbeit", "Kontaktiert", "Lead aktiv", "Erledigt", "Kein Interesse", "Zugeordnet"].find((w) => v.startsWith(w)) ?? "Offen";
 }
 
 export function setzeAnfrageStatus(e: EmbedLike, status: string, state: AnfrageState, notiz?: string): EmbedLike {
@@ -118,7 +118,7 @@ export function anfrageKomponenten(state: AnfrageState, status = "Offen", besitz
         s("In Arbeit", "work", status === "In Arbeit"),
         s("Kontaktiert", "contacted", status === "Kontaktiert"),
         ...(status === "Kontaktiert" ? [knopf("Lead aktiv", "st:active", 3)] : []),
-        knopf("Kein Interesse", "st:nointerest", 4),
+        knopf("Erledigt", "st:done", 4),
       ],
     },
     {

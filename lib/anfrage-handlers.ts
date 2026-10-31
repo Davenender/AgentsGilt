@@ -17,7 +17,7 @@ import {
   type AnfrageState,
 } from "@/lib/anfragen";
 import { aendereKarte, anfragenKanal, besitzerId, call, clip, loescheNachricht, mitBesitzer, OWNER_ID, postKarte, setzeAntwort } from "@/lib/leads";
-import { legeLeadAusAnfrage, holeKundenNr, listeKunden, notionConfigured } from "@/lib/notion-api";
+import { legeLeadAusAnfrage, holeKundenNr, listeKunden, notionConfigured, type KundeKurz } from "@/lib/notion-api";
 
 // Knöpfe unter den Anfrage-Karten in #anfragen (anf:) und unter den Karten im privaten #posteingang (pb:).
 
@@ -26,7 +26,12 @@ export interface AnfInteraction {
   token?: string;
   application_id?: string;
   channel_id?: string;
-  data?: { custom_id?: string; component_type?: number; values?: string[] };
+  data?: {
+    custom_id?: string;
+    component_type?: number;
+    values?: string[];
+    components?: { components?: { custom_id: string; value?: string }[] }[];
+  };
   member?: { user?: { id: string; username?: string; global_name?: string | null }; nick?: string | null };
   message?: { id: string; embeds?: EmbedLike[] };
 }
@@ -57,6 +62,25 @@ async function antwortMitAuswahl(appId: string, itoken: string, content: string,
   }
 }
 
+async function zeigeKunden(appId: string, itoken: string, messageId: string, kunden: KundeKurz[], gesamt: number) {
+  await antwortMitAuswahl(
+    appId,
+    itoken,
+    gesamt > 25
+      ? `${gesamt} Treffer, hier die ersten 25. Such genauer, wenn der Kunde fehlt. Die Anfrage wandert in seinen Kanal, die Karte hier verschwindet.`
+      : "Zu welchem Kunden gehört die Anfrage? Sie wandert in seinen Kanal, die Karte hier verschwindet.",
+    auswahl(
+      `anf:kundesel:${messageId}`,
+      "Kunde wählen",
+      kunden.slice(0, 25).map((k) => ({
+        label: clip(`${k.nr} · ${k.name}`, 100),
+        value: k.nr,
+        ...(k.email ? { description: clip(k.email, 100) } : {}),
+      })),
+    ),
+  );
+}
+
 const auswahl = (customId: string, placeholder: string, options: { label: string; value: string; description?: string }[]) => [
   { type: 1, components: [{ type: 3, custom_id: customId, placeholder, min_values: 1, max_values: 1, options }] },
 ];
@@ -82,6 +106,21 @@ export function handleAnfrage(i: AnfInteraction, token: string | undefined) {
       ? `Diese Anfrage hat <@${b}> übernommen. Erst wenn sie/er sie freigibt, kannst du sie übernehmen und bearbeiten.`
       : "Übernimm die Anfrage zuerst mit dem Knopf „Übernehmen“.";
   };
+
+  // ---- Suchfenster abgeschickt: passende Kunden zur Auswahl
+  if (id.startsWith("ksuchefenster:")) {
+    const ziel = id.slice("ksuchefenster:".length);
+    const suche = (i.data?.components?.[0]?.components?.[0]?.value ?? "").trim().toLowerCase();
+    if (!suche) return ephemeral("Die Suche war leer.");
+    after(async () => {
+      const alle = await listeKunden();
+      if (!alle) return void (await setzeAntwort(appId, itoken, "⚠️ Die Kunden konnte ich gerade nicht aus Notion lesen. Bitte nochmal versuchen."));
+      const treffer = alle.filter((k) => `${k.nr} ${k.name} ${k.email}`.toLowerCase().includes(suche));
+      if (!treffer.length) return void (await setzeAntwort(appId, itoken, `Zu „${clip(suche, 40)}“ habe ich keinen Kunden gefunden. Klick nochmal auf „Bestehender Kunde?“ und such anders.`));
+      await zeigeKunden(appId, itoken, ziel, treffer, treffer.length);
+    });
+    return NextResponse.json(DEFERRED_EPHEMERAL);
+  }
 
   // ---- Kunde gewählt (Auswahlmenü, private Nachricht)
   if (id.startsWith("kundesel:")) {
@@ -130,33 +169,41 @@ export function handleAnfrage(i: AnfInteraction, token: string | undefined) {
     return update(setzeAnfrageStatus(embed, wort, "arbeit"), anfrageKomponenten("arbeit", wort, besitzerId(embed)));
   }
 
-  if (id === "st:nointerest") {
-    return update(setzeAnfrageStatus(embed, "Kein Interesse", "erledigt"), []);
+  if (id === "st:done" || id === "st:nointerest") {
+    return update(setzeAnfrageStatus(embed, "Erledigt", "erledigt"), []);
   }
 
-  // ---- Bestehender Kunde? Auswahl der Kunden aus Notion
+  // ---- Bestehender Kunde? Bis 25 Kunden gleich zur Auswahl, sonst erst suchen
   if (id === "kunde") {
     if (!notionConfigured()) return ephemeral("Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel).");
     after(async () => {
-      const kunden = await listeKunden(25);
+      const kunden = await listeKunden();
       if (!kunden) return void (await setzeAntwort(appId, itoken, "⚠️ Die Kunden konnte ich gerade nicht aus Notion lesen. Bitte nochmal versuchen."));
       if (!kunden.length) return void (await setzeAntwort(appId, itoken, "In Notion gibt es noch keine Kunden."));
-      await antwortMitAuswahl(
-        appId,
-        itoken,
-        "Zu welchem Kunden gehört die Anfrage? (Die 25 neuesten Kunden. Die Anfrage wandert in seinen Kanal, die Karte hier verschwindet.)",
-        auswahl(
-          `anf:kundesel:${messageId}`,
-          "Kunde wählen",
-          kunden.map((k) => ({
-            label: clip(`${k.nr} · ${k.name}`, 100),
-            value: k.nr,
-            ...(k.email ? { description: clip(k.email, 100) } : {}),
-          })),
-        ),
-      );
+      if (kunden.length <= 25) return void (await zeigeKunden(appId, itoken, messageId, kunden, kunden.length));
+      await antwortMitAuswahl(appId, itoken, `Es gibt ${kunden.length} Kunden. Such nach Name, E-Mail oder Nummer.`, [
+        { type: 1, components: [{ type: 2, label: "Kunde suchen", style: 1, custom_id: `anf:ksuche:${messageId}` }] },
+      ]);
     });
     return NextResponse.json(DEFERRED_EPHEMERAL);
+  }
+
+  if (id === "ksuche") {
+    return NextResponse.json({
+      type: 9,
+      data: {
+        custom_id: `anf:ksuchefenster:${messageId}`,
+        title: "Kunde suchen",
+        components: [
+          {
+            type: 1,
+            components: [
+              { type: 4, custom_id: "suche", label: "Name, E-Mail oder KND-Nummer", style: 1, required: true, min_length: 1, max_length: 80 },
+            ],
+          },
+        ],
+      },
+    });
   }
 
   // ---- Lead aktiv: Eintrag in Notion, Anfrage wandert in den neuen Kundenkanal
