@@ -28,7 +28,6 @@ export type MailErgebnis =
   | { aktion: "fehler"; grund: string };
 
 const EIGENE_ADRESSE = /kontakt@agentsgilt\.com/i;
-const SYSTEM_BETREFF = /^(neue projekt-anfrage von|danke für deine anfrage bei agents gilt|anruf von|rückruf|neuer anruf|chat-protokoll|chat-log|support)/i;
 
 export function absender(von: string): { name: string; email: string } {
   const m = von.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
@@ -37,8 +36,13 @@ export function absender(von: string): { name: string; email: string } {
   return { name, email };
 }
 
+/**
+ * Unser System verschickt seine Mails (Anruf, Formular, Chat, Support) immer von kontakt@agentsgilt.com.
+ * Nur daran erkennen wir sie, nicht am Betreff: Ein Kunde kann "Support: ..." oder "Rückruf bitte" schreiben,
+ * und diese Mail darf nie verloren gehen.
+ */
 export function istSystemMail(m: EingehendeMail): boolean {
-  return EIGENE_ADRESSE.test(absender(m.von).email) || SYSTEM_BETREFF.test(m.betreff.trim());
+  return EIGENE_ADRESSE.test(absender(m.von).email);
 }
 
 // ------------------------------------------------------------- Kunden in Notion
