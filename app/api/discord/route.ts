@@ -32,6 +32,7 @@ import { bestaetigeKalender, pruefeFrei } from "@/lib/google-calendar";
 import { starteRueckruf } from "@/lib/rueckruf";
 import { sendSms, smsBestaetigung, smsConfigured, smsVorschlag } from "@/lib/sms";
 import { handleLeadButton, handleLeadCommand } from "@/lib/lead-handlers";
+import { handleAnfrage, handlePosteingang, type AnfInteraction } from "@/lib/anfrage-handlers";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
 import { OWNER_ID } from "@/lib/leads";
 import { closeTicketChannel, FOR_CUSTOMER, SHOW_NAMES, ticketComponents } from "@/lib/support";
@@ -245,6 +246,8 @@ export async function POST(request: Request) {
   if (interaction.type === 2 && interaction.data?.name === "close") return handleSucheClose(interaction as unknown as SucheInteraction, token);
   if (interaction.type === 2) return handleLeadCommand(interaction, token, who);
   if (customId.startsWith("lead:")) return handleLeadButton(interaction, token);
+  if (customId.startsWith("anf:")) return handleAnfrage(interaction as unknown as AnfInteraction, token);
+  if (customId.startsWith("pb:")) return handlePosteingang(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("ls:")) return handleSuche(interaction as unknown as SucheInteraction, token);
   if (customId.startsWith("ticket:")) return handleTicket(interaction, who, ownerTag, token);
 

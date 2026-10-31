@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
+import { leiteAnfrageWeiter } from "@/lib/anfragen";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -52,6 +53,22 @@ export async function POST(request: Request) {
   }
 
   const { to } = getMailEnv();
+
+  // Zusätzlich nach Discord: Die KI prüft auf Spam, echte Anfragen landen in #anfragen, Verdächtige
+  // zuerst in Davids privatem #posteingang. Läuft nach der Antwort und stört die Mails nicht.
+  after(async () => {
+    try {
+      await leiteAnfrageWeiter({
+        name: data.name,
+        email: data.email,
+        company: data.company || undefined,
+        service: data.service || undefined,
+        message: data.message,
+      });
+    } catch (err) {
+      console.error("[contact] Discord-Meldung fehlgeschlagen:", err);
+    }
+  });
 
   // 1) Benachrichtigung an dich
   await sendMail({

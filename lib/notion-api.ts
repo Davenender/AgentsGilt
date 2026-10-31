@@ -124,3 +124,135 @@ export async function holeKundenNr(seite: string | undefined | null): Promise<st
     return null;
   }
 }
+
+/** Legt aus einer Website-Anfrage einen neuen Lead in der Kunden-Datenbank an. */
+export async function legeLeadAusAnfrage(input: {
+  name: string;
+  email: string;
+  company?: string;
+  service?: string;
+  message: string;
+}): Promise<{ ok: true; seite: string; nr: string | null; titel: string } | { ok: false; fehler: string }> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  if (!token) return { ok: false, fehler: "Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel)." };
+
+  const titel = (input.company?.trim() || input.name).slice(0, 200);
+  const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const properties: Record<string, unknown> = {
+    Name: { title: text(titel, 200) },
+    Status: { select: { name: "Lead" } },
+    Quelle: { select: { name: "Website / Chatbot" } },
+    Erstkontakt: { date: { start: heute } },
+    "Nächster Schritt": { rich_text: text("Erstkontakt aufnehmen", 200) },
+  };
+  if (input.email) properties["E-Mail"] = { email: input.email };
+  const angebot = input.service ? ANGEBOT[input.service] : null;
+  if (angebot) properties["Angebot"] = { select: { name: angebot } };
+
+  const zeilen = [
+    `Anfrage über die Website am ${new Date().toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}`,
+    `Ansprechpartner: ${input.name}`,
+    input.company?.trim() && `Unternehmen: ${input.company.trim()}`,
+    input.service && `Gewünschte Leistung: ${input.service}`,
+    `Nachricht:\n${input.message}`,
+  ].filter((x): x is string => Boolean(x));
+
+  try {
+    const res = await fetch("https://api.notion.com/v1/pages", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        parent: { database_id: DATABASE_ID },
+        properties,
+        children: zeilen.map((z) => ({
+          object: "block",
+          type: "paragraph",
+          paragraph: { rich_text: text(z) },
+        })),
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`[notion] Lead anlegen fehlgeschlagen: HTTP ${res.status} ${body.slice(0, 300)}`);
+      return {
+        ok: false,
+        fehler:
+          res.status === 401 || res.status === 403 || res.status === 404
+            ? "Notion lehnt den Zugriff ab. Die Integration muss mit der Kunden-Datenbank geteilt sein."
+            : `Notion hat die Zeile abgelehnt (HTTP ${res.status}).`,
+      };
+    }
+    const page = (await res.json()) as {
+      url?: string;
+      properties?: Record<string, { formula?: { string?: string | null }; unique_id?: { prefix?: string | null; number?: number } }>;
+    };
+    const f = page.properties?.["KND-Nr."]?.formula?.string;
+    const id = page.properties?.["Kunden-ID"]?.unique_id;
+    const nr = f || (id?.number ? `${id.prefix ?? "KND"}-${String(id.number).padStart(3, "0")}` : null);
+    return { ok: true, seite: page.url ?? "", nr, titel };
+  } catch (err) {
+    console.error("[notion] Lead anlegen fehlgeschlagen:", err);
+    return { ok: false, fehler: "Notion war nicht erreichbar. Bitte gleich nochmal versuchen." };
+  }
+}
+
+export interface KundeKurz {
+  nr: string;
+  name: string;
+  email: string;
+}
+
+/** Die zuletzt angelegten Kunden (für die Auswahl "Bestehender Kunde?"), neueste zuerst. */
+export async function listeKunden(max = 25): Promise<KundeKurz[] | null> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/databases/${DATABASE_ID}/query`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ page_size: Math.min(max * 2, 100), sorts: [{ timestamp: "created_time", direction: "descending" }] }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      console.error(`[notion] Kunden lesen fehlgeschlagen: HTTP ${res.status}`);
+      return null;
+    }
+    const data = (await res.json()) as {
+      results?: {
+        properties?: Record<
+          string,
+          {
+            title?: { plain_text?: string }[];
+            email?: string | null;
+            formula?: { string?: string | null };
+            unique_id?: { prefix?: string | null; number?: number };
+          }
+        >;
+      }[];
+    };
+    const out: KundeKurz[] = [];
+    for (const p of data.results ?? []) {
+      const props = p.properties ?? {};
+      const name = (props["Name"]?.title ?? []).map((t) => t.plain_text ?? "").join("").trim();
+      const f = props["KND-Nr."]?.formula?.string;
+      const id = props["Kunden-ID"]?.unique_id;
+      const nr = f && /^KND-\d{3,}$/.test(f) ? f : id?.number ? `KND-${String(id.number).padStart(3, "0")}` : null;
+      if (!nr || /beispiel/i.test(name)) continue;
+      out.push({ nr, name: name || "ohne Namen", email: props["E-Mail"]?.email ?? "" });
+      if (out.length >= max) break;
+    }
+    return out;
+  } catch (err) {
+    console.error("[notion] Kunden lesen fehlgeschlagen:", err);
+    return null;
+  }
+}

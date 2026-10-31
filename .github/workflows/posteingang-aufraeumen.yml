@@ -1,0 +1,14 @@
+name: Posteingang aufräumen
+
+# Löscht erledigte Karten im privaten Discord-Kanal #posteingang nach 14 Tagen. Offene Karten bleiben stehen.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  aufraeumen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aufräumen abrufen
+        run: curl -fsS --max-time 60 -X POST https://agentsgilt.com/api/posteingang/aufraeumen

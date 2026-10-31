@@ -17,6 +17,8 @@ export const CH_ABLAGE = "lead-ablage";
 export const CH_SPEICHER = "lead-speicher";
 export const CH_SUCHE = "lead-suche";
 export const CH_SUCHE_SPEICHER = "lead-suche-speicher";
+export const CH_ANFRAGEN = "anfragen";
+export const CH_POSTEINGANG = "posteingang";
 export const NEEDED = 2; // so viele gleiche Stimmen entscheiden
 
 export type LeadState = "vote" | "confirm" | "accepted" | "active" | "archived";
@@ -110,7 +112,11 @@ async function ensureChannel(token: string, name: string): Promise<string | null
           ? "Lead-Suche: Der Bot findet Firmen über Google Maps. Mit „Suche starten“ loslegen."
           : name === CH_SUCHE_SPEICHER
             ? "Merkzettel der Lead-Suche (Codes, Freischaltungen, Suchen, gesehene Firmen). Nicht löschen."
-            : "Merkzettel des Bots (abgelehnte Firmen). Nicht löschen.";
+            : name === CH_ANFRAGEN
+              ? "Anfragen von Kunden über die Website: übernehmen, kontaktieren, als Lead anlegen."
+              : name === CH_POSTEINGANG
+                ? "Privater Posteingang: Werbung, Verdächtiges und Unbekanntes. Hier entscheidet David, was weitergeht."
+                : "Merkzettel des Bots (abgelehnte Firmen). Nicht löschen.";
   const created = await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, {
     name,
     type: 0,
@@ -122,8 +128,8 @@ async function ensureChannel(token: string, name: string): Promise<string | null
     return null;
   }
 
-  if (name === CH_SPEICHER || name === CH_SUCHE_SPEICHER) {
-    // Nur David darf den Merkzettel sehen. Verbieten darf der Bot, ohne selbst alles zu haben.
+  if (name === CH_SPEICHER || name === CH_SUCHE_SPEICHER || name === CH_POSTEINGANG) {
+    // Nur David darf den Merkzettel (und den privaten Posteingang) sehen. Verbieten darf der Bot, ohne selbst alles zu haben.
     const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
     const team = roles.find((r) => r.name === "Team");
     if (team) await call(token, "PUT", `/channels/${created.id}/permissions/${team.id}`, { type: 0, allow: "0", deny: "1024" });
@@ -144,6 +150,8 @@ export const ablageKanal = (t: string) => ensureChannel(t, CH_ABLAGE);
 export const speicherKanal = (t: string) => ensureChannel(t, CH_SPEICHER);
 export const sucheKanal = (t: string) => ensureChannel(t, CH_SUCHE);
 export const sucheSpeicherKanal = (t: string) => ensureChannel(t, CH_SUCHE_SPEICHER);
+export const anfragenKanal = (t: string) => ensureChannel(t, CH_ANFRAGEN);
+export const posteingangKanal = (t: string) => ensureChannel(t, CH_POSTEINGANG);
 
 export interface Msg {
   id: string;

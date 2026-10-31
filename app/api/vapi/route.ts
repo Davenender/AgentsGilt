@@ -3,6 +3,7 @@ import { after, NextResponse } from "next/server";
 import { buildEmbed, postWithBot, sendDiscord } from "@/lib/discord";
 import { callComponents, openEmbed } from "@/lib/discord-calls";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
+import { pushe } from "@/lib/ntfy";
 import { findeAnruf, imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/lib/rufgruppe";
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
 import { ergaenzeKarte } from "@/lib/anruf-karte";
@@ -440,6 +441,18 @@ export async function POST(request: Request) {
       components: callComponents("open"),
     }));
   if (!mitKnoepfen) await sendDiscord(process.env.DISCORD_WEBHOOK_ANRUFE, discordEmbed);
+
+  // Push aufs Handy (ntfy): nur das Nötigste, Details stehen in der Karte.
+  const wer = structuredEntries
+    .filter(([k]) => k === "Anrufer" || k === "Betrieb")
+    .map(([, v]) => String(v).trim())
+    .filter(Boolean)
+    .join(", ");
+  await pushe(
+    ergaenzt ? "📞 Erneuter Anruf" : "📞 Neuer Anruf",
+    wer || "Die Karte steht in #anrufe",
+    `https://discord.com/channels/${process.env.DISCORD_GUILD_ID || "1564355422222159975"}/${process.env.DISCORD_CHANNEL_ANRUFE ?? ""}`,
+  );
 
   await sendMail({
     to,
