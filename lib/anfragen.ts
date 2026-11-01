@@ -213,8 +213,6 @@ export function posteingangKomponenten(quelle: "form" | "gmail", erledigt = fals
       type: 1,
       components: [
         ...(quelle === "form" ? [pknopf("Freigeben", "free", 3)] : []),
-        // Bei Mails: direkt in der Gmail-Unterhaltung antworten (siehe lib/mail-antwort.ts)
-        ...(quelle === "gmail" ? [{ type: 2, label: "Antworten", style: 1, emoji: { name: "↩️" }, custom_id: "mail:reply" }] : []),
         pknopf("Weiterleiten", "fwd", 1),
         ...(quelle === "gmail" ? [pknopf("Erledigt", "erledigt", 2)] : []),
         pknopf("Spam / Weg", "weg", 4),
