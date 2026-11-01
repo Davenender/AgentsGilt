@@ -149,25 +149,25 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
                 ]),
             button("Erledigt", "done", 2),
             button("Freigeben", "release", 2),
-            button("Gespräch ansehen", "verlauf", 2),
           ],
         },
-        // Zweite Reihe: kleiner Umschalter, nur ein graues Symbol. Geht die SMS ohnehin nicht, gibt es ihn nicht.
-        ...(rueckrufKonfiguriert() && (!rueckrufStand(embed) || (embed && rueckrufGewaehlt(embed)))
-          ? [
-              {
-                type: 1,
-                components: [
+        // Zweite Reihe: Gespräch ansehen und der kleine Umschalter (nur ein graues Symbol). Geht die SMS ohnehin nicht, gibt es den Umschalter nicht.
+        {
+          type: 1,
+          components: [
+            button("Gespräch ansehen", "verlauf", 2),
+            ...(rueckrufKonfiguriert() && (!rueckrufStand(embed) || (embed && rueckrufGewaehlt(embed)))
+              ? [
                   {
                     type: 2,
                     style: 2,
                     emoji: embed && rueckrufGewaehlt(embed) ? EMOJI_ZU_SMS : EMOJI_ZU_RUECKRUF,
                     custom_id: `${CALL_CUSTOM_ID_PREFIX}modus`,
                   },
-                ],
-              },
-            ]
-          : []),
+                ]
+              : []),
+          ],
+        },
       ];
     case "confirmed":
     case "done":
