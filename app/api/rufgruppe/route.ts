@@ -65,7 +65,7 @@ async function handle(request: Request) {
     const sid = feld("CallSid");
     if (von && sid && rueckrufKonfiguriert()) {
       try {
-        const wartet = await Promise.race([rueckrufWartet(von), new Promise<null>((r) => setTimeout(() => r(null), 3000))]);
+        const wartet = await Promise.race([rueckrufWartet(von), new Promise<null>((r) => setTimeout(() => r(null), 5000))]);
         if (wartet) {
           console.log(`[rufgruppe] Rückruf wartet auf ${von}: Ansage, danach Rückruf durch den Assistenten`);
           await markiereZurueckgerufen(wartet.messageId, wartet.embed, wartet.versuch);
