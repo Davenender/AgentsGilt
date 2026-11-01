@@ -15,6 +15,7 @@ import {
   currentAppointment,
   hasWish,
   kundenName,
+  modusUmschalten,
   originalWish,
   ownerId,
   PROPOSAL_MODAL_PREFIX,
@@ -392,7 +393,7 @@ async function antworte(request: Request) {
     return NextResponse.json({ ok: true });
   }
   const action = customId.slice(CALL_CUSTOM_ID_PREFIX.length) as CallAction;
-  if (!["claim", "confirm", "propose", "done", "release", "rconfirm", "rpropose", "verlauf"].includes(action)) return NextResponse.json({ ok: true });
+  if (!["claim", "confirm", "propose", "done", "release", "rconfirm", "rpropose", "verlauf", "modus"].includes(action)) return NextResponse.json({ ok: true });
 
   const embed = interaction.message?.embeds?.[0];
   const messageId = interaction.message?.id;
@@ -451,6 +452,24 @@ async function antworte(request: Request) {
   }
 
   if (state === "confirmed" || state === "done") return ephemeral("Dieser Anruf ist schon abgeschlossen.");
+
+  // Umschalter: SMS-Knöpfe <-> Rückruf-Knöpfe, auch wenn die SMS möglich wäre.
+  if (action === "modus") {
+    if (!rueckrufKonfiguriert()) {
+      return ephemeral("Der Rückruf ist noch nicht eingerichtet (VAPI_API_KEY und VAPI_RUECKRUF_ASSISTANT fehlen bei Vercel).");
+    }
+    const umgestellt = modusUmschalten(embed);
+    if (!umgestellt) return ephemeral("Bei diesem Anruf geht keine SMS, deshalb gibt es hier nur den Rückruf.");
+    console.log(`[discord] Modus umgeschaltet von ${who}`);
+    return NextResponse.json({
+      type: 7,
+      data: {
+        embeds: [umgestellt],
+        components: callComponents(state, Boolean(ownerId(umgestellt)), umgestellt),
+        allowed_mentions: { parse: [] },
+      },
+    });
+  }
 
   if (action === "rconfirm") {
     const appId = interaction.application_id;

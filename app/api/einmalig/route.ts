@@ -1,12 +1,12 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { callComponents } from "@/lib/discord-calls";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// EINMALIG: legt Emojis für die Knöpfe auf dem Server an. Nach Gebrauch wieder löschen.
+// EINMALIG: legt eine Test-Karte in #anrufe an (und löscht sie wieder). Nach Gebrauch wieder löschen.
 const KEY_HASH = "b3c11a035049ca9532aeec034bfa1a89176b5b164063d0fbb4782ac6a31e97fc";
-const GUILD = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 const API = "https://discord.com/api/v10";
 
 function erlaubt(request: Request) {
@@ -17,14 +17,30 @@ const kopf = () => ({ Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`, "Co
 
 export async function POST(request: Request) {
   if (!erlaubt(request)) return NextResponse.json({ error: "Nicht erlaubt" }, { status: 401 });
-  const { emojis } = (await request.json()) as { emojis: { name: string; image: string }[] };
-  const out: unknown[] = [];
-  for (const e of emojis) {
-    const res = await fetch(`${API}/guilds/${GUILD}/emojis`, { method: "POST", headers: kopf(), body: JSON.stringify(e) });
-    const body = (await res.json().catch(() => ({}))) as { id?: string; name?: string; message?: string; code?: number };
-    out.push({ name: e.name, status: res.status, id: body.id, fehler: body.message, code: body.code });
+  const kanal = process.env.DISCORD_CHANNEL_ANRUFE;
+  const body = (await request.json()) as { aktion: "test" | "loeschen"; id?: string };
+  if (body.aktion === "loeschen") {
+    const res = await fetch(`${API}/channels/${kanal}/messages/${body.id}`, { method: "DELETE", headers: kopf() });
+    return NextResponse.json({ status: res.status });
   }
-  const liste = await fetch(`${API}/guilds/${GUILD}/emojis`, { headers: kopf() });
-  const alle = (await liste.json().catch(() => [])) as { id: string; name: string }[];
-  return NextResponse.json({ out, vorhanden: Array.isArray(alle) ? alle.length : null });
+  const embed = {
+    title: "TEST (bitte ignorieren): Umschalter ausprobieren",
+    description: "Testkarte, wird gleich wieder gelöscht.",
+    color: 0x3b82f6,
+    fields: [
+      { name: "Anrufer", value: "Max Test", inline: true },
+      { name: "Terminwunsch", value: "Montag, 3.11., 10:00", inline: true },
+      { name: "Rückrufnummer", value: "+49 173 0000000", inline: true },
+      { name: "Bearbeiter", value: "<@806859236768088114>", inline: false },
+      { name: "Status", value: "Übernommen", inline: false },
+    ],
+    footer: { text: "Test · kein echter Anruf" },
+  };
+  const res = await fetch(`${API}/channels/${kanal}/messages`, {
+    method: "POST",
+    headers: kopf(),
+    body: JSON.stringify({ embeds: [embed], components: callComponents("claimed", true, embed), allowed_mentions: { parse: [] } }),
+  });
+  const m = (await res.json().catch(() => ({}))) as { id?: string };
+  return NextResponse.json({ status: res.status, id: m.id });
 }

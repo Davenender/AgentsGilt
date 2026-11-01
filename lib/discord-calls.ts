@@ -19,7 +19,7 @@ export type CallState =
   | "confirmed"
   | "done";
 
-export type CallAction = "claim" | "confirm" | "propose" | "done" | "release" | "rconfirm" | "rpropose" | "verlauf";
+export type CallAction = "claim" | "confirm" | "propose" | "done" | "release" | "rconfirm" | "rpropose" | "verlauf" | "modus";
 
 export const CALL_CUSTOM_ID_PREFIX = "call:";
 export const PROPOSAL_MODAL_PREFIX = "call:proposal:";
@@ -58,6 +58,13 @@ export const FIXED_FIELD = "Bestätigter Termin";
 export const CALENDAR_FIELD = "Kalender";
 export const RUECKRUF_FIELD = "Rückruf";
 export const SMS_FIELD = "SMS";
+/**
+ * Der Umschalter (SMS-Karte <-> Rückruf-Karte) ist ein kleiner grauer Knopf nur mit Symbol.
+ * Die Symbole sind eigene Server-Emojis (graues Telefon, graue Sprechblase), im Server unter Emojis angelegt.
+ */
+const EMOJI_ZU_RUECKRUF = { id: "1566416537458581665", name: "rueckruf_grau" };
+const EMOJI_ZU_SMS = { id: "1566416538439778324", name: "sms_grau" };
+const RUECKRUF_GEWAEHLT = "📞 Per Rückruf gewählt: Der Kunde wird vom KI-Assistenten angerufen, nicht per SMS.";
 const DEFAULT_CALENDAR_TEXT = "Eintrag „VORLÄUFIG“ im Kalender auf diesen Termin ändern";
 
 /** Den Zustand liest man an der Farbe ab. Unbekannte Farbe zählt als offen. */
@@ -96,6 +103,20 @@ export function mitAnrufId(embed: EmbedLike, id: string | undefined): EmbedLike 
   return { ...embed, footer: { text: `${alt.includes("Gesprächs-ID") ? alt : `${alt} · Gesprächs-ID`} ${id}` } };
 }
 
+/** Das Team hat die Karte von Hand auf Rückruf umgestellt (die SMS wäre möglich gewesen). */
+export function rueckrufGewaehlt(embed: EmbedLike): boolean {
+  return Boolean(embed.fields?.some((f) => f.name === SMS_FIELD && f.value.startsWith("📞 Per Rückruf gewählt")));
+}
+
+/** Schaltet die Karte zwischen SMS-Knöpfen und Rückruf-Knöpfen um. Geht nur, wenn die SMS nicht ohnehin unmöglich ist. */
+export function modusUmschalten(embed: EmbedLike): EmbedLike | null {
+  const hatFeld = embed.fields?.some((f) => f.name === SMS_FIELD);
+  if (hatFeld && !rueckrufGewaehlt(embed)) return null;
+  return hatFeld
+    ? { ...embed, fields: (embed.fields ?? []).filter((f) => f.name !== SMS_FIELD) }
+    : { ...embed, fields: withField(embed.fields, SMS_FIELD, RUECKRUF_GEWAEHLT) };
+}
+
 /** Knöpfe, die zum jeweiligen Zustand passen (Discord: Action Row mit Buttons). */
 export function callComponents(state: CallState, hasOwner = true, embed?: EmbedLike) {
   const button = (label: string, action: CallAction, style: 1 | 2 | 3 | 4) => ({
@@ -131,6 +152,22 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
             button("Gespräch ansehen", "verlauf", 2),
           ],
         },
+        // Zweite Reihe: kleiner Umschalter, nur ein graues Symbol. Geht die SMS ohnehin nicht, gibt es ihn nicht.
+        ...(rueckrufKonfiguriert() && (!rueckrufStand(embed) || (embed && rueckrufGewaehlt(embed)))
+          ? [
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 2,
+                    style: 2,
+                    emoji: embed && rueckrufGewaehlt(embed) ? EMOJI_ZU_SMS : EMOJI_ZU_RUECKRUF,
+                    custom_id: `${CALL_CUSTOM_ID_PREFIX}modus`,
+                  },
+                ],
+              },
+            ]
+          : []),
       ];
     case "confirmed":
     case "done":
