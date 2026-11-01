@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { findChannelId } from "@/lib/discord";
-import { call, CH_SUCHE, NUR_LESEN_KLICKEN } from "@/lib/leads";
+import { call, CH_SUCHE, letzterFehler } from "@/lib/leads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,8 +23,9 @@ export async function POST(request: Request) {
   const roles = (await call<{ id: string; name: string }[]>(token, "GET", `/guilds/${GUILD}/roles`)) ?? [];
   const team = roles.find((r) => r.name === "Team");
   if (!team) return NextResponse.json({ error: "Rolle Team nicht gefunden" });
-  const gesetzt = await call(token, "PUT", `/channels/${kanal}/permissions/${team.id}`, { type: 0, allow: "0", deny: NUR_LESEN_KLICKEN });
+  const { deny } = (await request.json()) as { deny: string };
+  const gesetzt = await call(token, "PUT", `/channels/${kanal}/permissions/${team.id}`, { type: 0, allow: "1049600", deny });
   const info = await call<{ permission_overwrites?: { id: string; type: number; allow: string; deny: string }[] }>(token, "GET", `/channels/${kanal}`);
   const mein = info?.permission_overwrites?.find((o) => o.id === team.id);
-  return NextResponse.json({ gesetzt: gesetzt !== null, kanal, ueberschreibung: mein ?? null });
+  return NextResponse.json({ gesetzt: gesetzt !== null, fehler: gesetzt === null ? letzterFehler : null, kanal, ueberschreibung: mein ?? null });
 }
