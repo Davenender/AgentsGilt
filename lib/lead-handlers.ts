@@ -195,7 +195,7 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
       }
       // Nur die Karte wegnehmen: Die Firma wird NICHT gesperrt und lässt sich später wieder anlegen.
       await loescheNachricht(token, channelId, ziel);
-      await setzeAntwort(appId, itoken, `🗑️ **${(karte.title ?? "Die Firma").replace(/[*_~`|>@]/g, "")}** ist aussortiert. Du kannst sie später mit /lead oder über die Lead-Suche wieder anlegen.`);
+      await setzeAntwort(appId, itoken, `🗑️ **${(karte.title ?? "Die Firma").replace(/[*_~`|>@]/g, "")}** ist aussortiert. Du kannst sie später mit /lead in #lead-befehle wieder anlegen. In der Lead-Suche taucht sie nur auf, wenn du dort auf „Alle Firmen“ umschaltest.`);
     });
     return NextResponse.json({ type: 7, data: { content: "🗑️ Wird aussortiert …", embeds: [], components: [] } });
   }
