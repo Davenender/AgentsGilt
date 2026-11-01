@@ -6,7 +6,7 @@ import { zeitplanGebremst } from "@/lib/zeitplan";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Schickt die Terminerinnerungen in #termine. Wird alle 10 Minuten von 5 bis 22 Uhr
+// Schickt die Terminerinnerungen in #termine. Wird alle 10 Minuten von 5 bis 24 Uhr
 // von einem Zeitplan bei cron-job.org aufgerufen ("AgentsGilt Erinnerungen").
 //
 // Der Aufruf braucht kein Geheimnis: Er sendet nur, was gerade fällig ist, und
