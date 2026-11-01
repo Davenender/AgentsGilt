@@ -131,14 +131,14 @@ export const MAX_ANSAGEN = 2;
 
 export function twimlRueckrufAnsage(n: number): string {
   const weiter = n < MAX_ANSAGEN ? `<Pause length="3"/><Redirect method="POST">${esc(adresseWartet(n + 1))}</Redirect>` : "<Hangup/>";
-  return xml(`<Say language="de-DE" voice="Polly.Vicki">${esc(RUECKRUF_ANSAGE)}</Say>${weiter}`);
+  return xml(`<Say language="de-DE" voice="Polly.Vicki-Generative">${esc(RUECKRUF_ANSAGE)}</Say>${weiter}`);
 }
 
 /** Der Assistent hat das Gespräch beendet (normal) oder war nicht erreichbar (dann klingelt das Team). */
 export function twimlWeiter(dialStatus: string | null): string {
   if (!dialStatus || dialStatus === "completed" || dialStatus === "answered") return xml("<Hangup/>");
   return xml(
-    `<Say language="de-DE" voice="Polly.Vicki">Unser Assistent ist gerade nicht erreichbar. Wir verbinden Sie mit unserem Team.</Say>${dialKlingeln()}`,
+    `<Say language="de-DE" voice="Polly.Vicki-Generative">Unser Assistent ist gerade nicht erreichbar. Wir verbinden Sie mit unserem Team.</Say>${dialKlingeln()}`,
   );
 }
 
@@ -147,7 +147,7 @@ export function twimlAnnahme(digits: string | null): string {
   if (digits === "1") return xml(""); // leer = Anruf wird verbunden
   if (digits) return xml("<Hangup/>");
   return xml(
-    `<Gather numDigits="1" timeout="6" action="${esc(adresse("annahme"))}" method="POST"><Say language="de-DE" voice="Polly.Vicki">${esc(ANNAHME_TEXT)}</Say></Gather><Hangup/>`,
+    `<Gather numDigits="1" timeout="6" action="${esc(adresse("annahme"))}" method="POST"><Say language="de-DE" voice="Polly.Vicki-Generative">${esc(ANNAHME_TEXT)}</Say></Gather><Hangup/>`,
   );
 }
 
@@ -165,7 +165,7 @@ export function wirklichVerbunden(dialStatus: string | null, dauerSekunden: numb
 
 export function twimlEnde(verbunden: boolean): string {
   if (verbunden) return xml("<Hangup/>");
-  return xml(`<Say language="de-DE" voice="Polly.Vicki">${esc(ANSAGE)}</Say><Hangup/>`);
+  return xml(`<Say language="de-DE" voice="Polly.Vicki-Generative">${esc(ANSAGE)}</Say><Hangup/>`);
 }
 
 // --------------------------------------------------------------------- Twilio

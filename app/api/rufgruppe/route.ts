@@ -97,7 +97,7 @@ async function handle(request: Request) {
     if (!imZeitfenster()) {
       await meldeInDiscord("📵 **Ein Anrufer wollte einen Mitarbeiter**, aber gerade ist keine Zeit für das Durchstellen. Er hat die Ansage gehört. Bitte zurückrufen (Nummer in der Anrufkarte).");
       return twiml(
-        `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="de-DE" voice="Polly.Vicki">${ANSAGE}</Say><Hangup/></Response>`,
+        `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="de-DE" voice="Polly.Vicki-Generative">${ANSAGE}</Say><Hangup/></Response>`,
       );
     }
     return twiml(twimlKlingeln());
