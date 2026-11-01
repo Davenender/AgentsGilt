@@ -91,24 +91,48 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const apiStream = anthropic.messages.stream({
-          model: "claude-sonnet-5",
-          max_tokens: 700,
+        // Sonnet 5.5: "low" ist für Chat gedacht (denkt bei einfachen Fragen kaum, antwortet schnell). Das Denken zählt
+        // zu max_tokens, deshalb etwas Luft. Lehnt das Modell aus Sicherheitsgründen ab, springt die API selbst auf ein
+        // passendes Ausweichmodell ("default"); das SDK kennt diese Form noch nicht, daher die Typ-Umwandlung.
+        const params = {
+          model: "claude-sonnet-5-5",
+          max_tokens: 1500,
+          output_config: { effort: "low" },
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default",
           system: AGENTS_GILT_SYSTEM_PROMPT,
           messages: safeMessages,
-        });
+        };
+        const apiStream = anthropic.beta.messages.stream(
+          params as unknown as Parameters<typeof anthropic.beta.messages.stream>[0],
+        );
 
+        let textGesendet = false;
+        let stopReason: string | null = null;
         for await (const event of apiStream) {
           if (
             event.type === "content_block_delta" &&
             event.delta.type === "text_delta"
           ) {
+            textGesendet = true;
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({ text: event.delta.text })}\n\n`,
               ),
             );
+          } else if (event.type === "message_delta") {
+            stopReason = event.delta.stop_reason ?? stopReason;
           }
+        }
+        // Ganz abgelehnt (auch vom Ausweichmodell): freundlich auf den Kontakt verweisen statt leer zu bleiben.
+        if (stopReason === "refusal") {
+          console.warn("[chat] Anfrage vom Modell abgelehnt");
+          const hinweis = "Dabei kann ich leider nicht helfen. Schreib uns gern über das Kontaktformular, dann meldet sich unser Team.";
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ text: textGesendet ? `\n\n${hinweis}` : hinweis })}\n\n`,
+            ),
+          );
         }
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`),

@@ -148,8 +148,9 @@ export async function pruefeAnfrage(d: AnfrageDaten): Promise<{ verdacht: boolea
   if (!apiKey) return null;
   try {
     const res = await new Anthropic({ apiKey, timeout: 15_000, maxRetries: 1 }).messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 200,
+      model: "claude-haiku-5-5",
+      max_tokens: 1024, // Platz fürs (kurze) Denken plus die JSON-Antwort
+      output_config: { effort: "low" },
       system: SPAM_PROMPT,
       messages: [
         {

@@ -360,8 +360,11 @@ export async function korrigiere(text: string): Promise<string> {
   if (!apiKey || text.length < 3 || text.length > 1500) return text;
   try {
     const res = await new Anthropic({ apiKey, timeout: 6000, maxRetries: 0 }).messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-haiku-5-5",
       max_tokens: 800,
+      // Reine Korrektur, schnell muss es sein: ohne Denken (bei Haiku 5.5 bis effort "high" erlaubt).
+      thinking: { type: "disabled" },
+      output_config: { effort: "low" },
       system: KORREKTUR_PROMPT,
       messages: [{ role: "user", content: `<nachricht>${text}</nachricht>` }],
     });

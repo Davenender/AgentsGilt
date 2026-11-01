@@ -136,8 +136,10 @@ async function summarize(
   try {
     const anthropic = new Anthropic({ apiKey });
     const res = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 700,
+      model: "claude-haiku-5-5",
+      // Haiku 5.5 denkt standardmäßig mit; "low" hält das kurz. Das Denken zählt zu max_tokens, deshalb Luft lassen.
+      max_tokens: 2000,
+      output_config: { effort: "low" },
       system: `Du wertest Telefonate aus, die ein KI-Assistent für die Agentur "Agents Gilt" entgegengenommen hat.
 
 Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, ohne Markdown und ohne Erklärung:
