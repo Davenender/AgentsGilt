@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import {
   ANSAGE,
   absender,
@@ -10,15 +10,24 @@ import {
   twimlEingang,
   twimlEnde,
   twimlKlingeln,
+  twimlRueckrufAnsage,
+  wartAufEnde,
   twimlWeiter,
   wirklichVerbunden,
 } from "@/lib/rufgruppe";
 
+import { markiereZurueckgerufen, rueckrufNachEigenemAnruf, rueckrufWartet } from "@/lib/rueckruf";
+import { rueckrufKonfiguriert } from "@/lib/discord-calls";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Nach der Ansage wartet der Server, bis der Kunde aufgelegt hat, und startet dann den Rückruf.
+export const maxDuration = 120;
 
 // Twilio ruft diese Adresse für die Rufgruppe auf:
-//   ?a=eingang  jeder neue Anruf auf +49 6108 9694027 (Voice-Adresse bei Twilio): an Vapi weiterreichen
+//   ?a=eingang  jeder neue Anruf auf +49 6108 9694027 (Voice-Adresse bei Twilio): an Vapi weiterreichen.
+//               Wartet für die Nummer des Anrufers ein geplanter Wiederholungs-Rückruf, hört er stattdessen eine Ansage
+//               (?a=wartet), legt auf, und der Rückruf-Assistent ruft ihn sofort an.
 //   ?a=weiter   wenn die Verbindung zum Assistenten zu Ende ist
 //   ?a=ring     Anrufer wurde zum Team umgeleitet: die Handys klingeln
 //   ?a=annahme  läuft auf dem Handy dessen, der abgenommen hat (Taste 1)
@@ -50,7 +59,33 @@ async function handle(request: Request) {
     `[rufgruppe] ${aktion} von=${feld("From") ?? "-"} status=${feld("DialCallStatus") ?? feld("CallStatus") ?? "-"} dauer=${feld("DialCallDuration") ?? "-"}`,
   );
 
-  if (aktion === "eingang") return twiml(twimlEingang());
+  if (aktion === "eingang") {
+    // Hat unser Rückruf-Assistent den Kunden nicht erreicht und er ruft jetzt zurück? Dann nicht zum normalen Assistenten.
+    const von = feld("From");
+    const sid = feld("CallSid");
+    if (von && sid && rueckrufKonfiguriert()) {
+      try {
+        const wartet = await Promise.race([rueckrufWartet(von), new Promise<null>((r) => setTimeout(() => r(null), 3000))]);
+        if (wartet) {
+          console.log(`[rufgruppe] Rückruf wartet auf ${von}: Ansage, danach Rückruf durch den Assistenten`);
+          await markiereZurueckgerufen(wartet.messageId, wartet.embed, wartet.versuch);
+          after(async () => {
+            await wartAufEnde(sid, 100);
+            await new Promise((r) => setTimeout(r, 2000));
+            await rueckrufNachEigenemAnruf(wartet.messageId, wartet.versuch, von);
+          });
+          return twiml(twimlRueckrufAnsage(1));
+        }
+      } catch (err) {
+        console.error("[rufgruppe] Prüfung auf wartenden Rückruf fehlgeschlagen, Anruf geht normal weiter:", err);
+      }
+    }
+    return twiml(twimlEingang());
+  }
+  if (aktion === "wartet") {
+    const n = Math.max(1, Math.min(9, Number(url.searchParams.get("n")) || 1));
+    return twiml(twimlRueckrufAnsage(n));
+  }
   if (aktion === "weiter") {
     const status = feld("DialCallStatus");
     if (status && status !== "completed" && status !== "answered") {

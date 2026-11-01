@@ -15,6 +15,7 @@ import {
 } from "@/lib/discord-calls";
 import { bestaetigeKalender } from "@/lib/google-calendar";
 import { offeneKarteZuNummer } from "@/lib/anruf-karte";
+import { toE164 } from "@/lib/termin";
 import { kundeWuenscht } from "@/lib/termin-antwort";
 
 // Rückruf-Agent: Ein KI-Assistent in Vapi ruft den Kunden an (z.B. wenn keine SMS möglich ist,
@@ -116,17 +117,23 @@ type Start = { ok: true; embed: EmbedLike } | { ok: false; fehler: string };
  * Startet den Rückruf-Anruf (oder plant ihn auf 8 Uhr, wenn gerade keine Anrufzeit ist).
  * Gibt die Karte mit dem neuen Stand zurück. Speichern übernimmt der Aufrufer.
  */
-export async function starteRueckruf(messageId: string, embed: EmbedLike, versuch = 1): Promise<Start> {
+export async function starteRueckruf(
+  messageId: string,
+  embed: EmbedLike,
+  versuch = 1,
+  opt: { ziel?: string; ohneFenster?: boolean } = {},
+): Promise<Start> {
   if (!rueckrufKonfiguriert()) {
     return { ok: false, fehler: "Der Rückruf ist noch nicht eingerichtet (VAPI_API_KEY und VAPI_RUECKRUF_ASSISTANT fehlen bei Vercel)." };
   }
   const termin = currentAppointment(embed);
   if (!termin) return { ok: false, fehler: "In der Meldung steht kein Termin. Bitte erst über „Anderen Termin vorschlagen“ einen Termin eintragen." };
-  const ziel = resolveMobile(embed).seen[0];
+  const ziel = opt.ziel ?? resolveMobile(embed).seen[0];
   if (!ziel) return { ok: false, fehler: "In der Meldung steht keine Rufnummer. Bitte den Kunden selbst anrufen." };
   if (laeuftVersuch(embed)) return { ok: false, fehler: "Der Rückruf läuft gerade schon." };
 
-  if (!imRueckrufFenster()) {
+  // Hat der Kunde gerade selbst angerufen, darf der Rückruf auch außerhalb von 8 bis 22 Uhr sofort kommen.
+  if (!opt.ohneFenster && !imRueckrufFenster()) {
     const ts = fensterBeginn(Date.now(), berlinTeile(Date.now()).h < FENSTER_VON ? 0 : 1);
     return { ok: true, embed: mitStand(embed, textGeplant("Gerade keine Anrufzeit (8 bis 22 Uhr)", versuch, ts)) };
   }
@@ -209,6 +216,41 @@ export async function faelligeWiederholungen(): Promise<{ gestartet: number; off
     gestartet++;
   }
   return { gestartet, offen };
+}
+
+// ------------------------------------------------- Kunde ruft selbst zurück
+
+const TEXT_ZURUECKGERUFEN = "📞 Der Kunde hat zurückgerufen. Rückruf folgt sofort";
+
+/** Wartet für diese Nummer ein geplanter Wiederholungs-Rückruf? (Der Kunde hat nicht abgenommen und ruft jetzt selbst an.) */
+export async function rueckrufWartet(nummer: string): Promise<{ messageId: string; embed: EmbedLike; versuch: number } | null> {
+  const karte = await offeneKarteZuNummer(nummer, (e) => geplant(e) !== null);
+  const plan = karte ? geplant(karte.embed) : null;
+  return karte && plan ? { messageId: karte.messageId, embed: karte.embed, versuch: plan.versuch } : null;
+}
+
+/** Sofort auf der Karte vermerken, damit die regelmäßige Wiederholung nicht dazwischenfunkt. */
+export async function markiereZurueckgerufen(messageId: string, embed: EmbedLike, versuch: number): Promise<void> {
+  await speichere(messageId, mitStand(embed, `${TEXT_ZURUECKGERUFEN} (Versuch ${versuch} von ${MAX_VERSUCHE})`));
+  await antworte(messageId, embed, "📞 Der Kunde hat zurückgerufen. Der Rückruf-Assistent ruft ihn sofort wieder an, sobald er aufgelegt hat.");
+}
+
+/** Der Kunde hat aufgelegt: jetzt ruft ihn der Rückruf-Assistent an (auch außerhalb der Anrufzeiten). */
+export async function rueckrufNachEigenemAnruf(messageId: string, versuch: number, nummer: string): Promise<void> {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  const channel = process.env.DISCORD_CHANNEL_ANRUFE;
+  const embed = (await getMessage(token, channel, messageId))?.embeds?.[0];
+  if (!embed || !feld(embed).includes("Rückruf folgt sofort")) return; // inzwischen erledigt oder anders bearbeitet
+  const state = stateOf(embed);
+  if (state === "confirmed" || state === "done") return;
+  const ziel = toE164(nummer) ?? nummer;
+  const res = await starteRueckruf(messageId, embed, versuch, { ziel, ohneFenster: true });
+  if (!res.ok) {
+    await speichere(messageId, mitStand(embed, `📞 Der Kunde hat zurückgerufen, der Rückruf konnte nicht gestartet werden: ${res.fehler} Bitte selbst anrufen.`));
+    await antworte(messageId, embed, `⚠️ Der Rückruf konnte nicht gestartet werden: ${res.fehler} Bitte den Kunden selbst anrufen.`);
+    return;
+  }
+  await speichere(messageId, res.embed);
 }
 
 // ---------------------------------------------------------------- Zuordnung

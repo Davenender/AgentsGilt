@@ -62,6 +62,9 @@ export function schluesselOk(given: string | null): boolean {
 export const adresse = (aktion: "ring" | "annahme" | "ende" | "weiter") =>
   `${SITE}/api/rufgruppe?a=${aktion}&k=${schluessel() ?? ""}`;
 
+/** Wiederholung der Ansage für Kunden, die auf einen Rückruf zurückrufen (n = Nummer der Wiederholung). */
+export const adresseWartet = (n: number) => `${SITE}/api/rufgruppe?a=wartet&n=${n}&k=${schluessel() ?? ""}`;
+
 // ---------------------------------------------------------------- Zeitfenster
 
 const TAGE: Record<string, number> = { mo: 1, di: 2, mi: 3, do: 4, fr: 5, sa: 6, so: 7 };
@@ -118,6 +121,17 @@ export function twimlEingang(): string {
   return xml(
     `<Dial answerOnBridge="true" timeout="40" action="${esc(adresse("weiter"))}" method="POST"><Sip>${esc(sip)}</Sip></Dial>`,
   );
+}
+
+// Ruft ein Kunde zurück, den unser Rückruf-Assistent nicht erreicht hat, hört er diese Ansage und legt auf.
+// Danach ruft ihn der Rückruf-Assistent sofort an. Die Ansage wiederholt sich, bis er auflegt (höchstens 3-mal, dann legen wir auf).
+export const RUECKRUF_ANSAGE =
+  "Guten Tag, hier ist die Agentur, die Sie wegen Ihres Termins angerufen hat. Wir rufen Sie jetzt sofort zurück, damit wir Ihren Termin mit Ihnen bestätigen können. Bitte legen Sie jetzt auf und halten Sie Ihr Telefon bereit.";
+export const MAX_ANSAGEN = 3;
+
+export function twimlRueckrufAnsage(n: number): string {
+  const weiter = n < MAX_ANSAGEN ? `<Pause length="3"/><Redirect method="POST">${esc(adresseWartet(n + 1))}</Redirect>` : "<Hangup/>";
+  return xml(`<Say language="de-DE" voice="Polly.Vicki">${esc(RUECKRUF_ANSAGE)}</Say>${weiter}`);
 }
 
 /** Der Assistent hat das Gespräch beendet (normal) oder war nicht erreichbar (dann klingelt das Team). */
@@ -202,6 +216,32 @@ export async function findeAnruf(kunde?: string | null): Promise<AnrufSuche> {
   } catch (err) {
     return { ok: false, grund: err instanceof Error ? err.message : "Twilio nicht erreichbar" };
   }
+}
+
+/**
+ * Wartet, bis ein Anruf zu Ende ist (Kunde hat aufgelegt oder wir haben aufgelegt). Gibt false zurück, wenn
+ * das Ende nicht innerhalb der Zeit festgestellt wurde.
+ */
+export async function wartAufEnde(sid: string, maxSekunden: number): Promise<boolean> {
+  const auth = twilioAuth();
+  if (!auth) return false;
+  const ende = Date.now() + maxSekunden * 1000;
+  while (Date.now() < ende) {
+    try {
+      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${auth.sid}/Calls/${sid}.json`, {
+        headers: { Authorization: auth.header },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (res.ok) {
+        const status = ((await res.json()) as { status?: string }).status;
+        if (status && !["queued", "ringing", "in-progress"].includes(status)) return true;
+      }
+    } catch {
+      /* nächster Versuch */
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return false;
 }
 
 /** Holt den laufenden Anruf vom Assistenten weg und lässt die Handys klingeln. */
