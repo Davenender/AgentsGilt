@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { findChannelId, messageLink, postText } from "@/lib/discord";
 import { holeErinnerungen, markiereErinnert } from "@/lib/google-calendar";
+import { zeitplanGebremst } from "@/lib/zeitplan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ export const dynamic = "force-dynamic";
 // aufruft, kann also keine zusätzlichen Nachrichten auslösen.
 
 async function laufen() {
+  const bremse = zeitplanGebremst("erinnerungen");
+  if (bremse) return bremse;
   const token = process.env.DISCORD_BOT_TOKEN;
   const faellig = await holeErinnerungen();
   if (faellig.length === 0) return NextResponse.json({ gesendet: 0 });

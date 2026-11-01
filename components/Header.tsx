@@ -18,6 +18,7 @@ export function Header() {
   useEffect(() => {
     const hero = document.getElementById("top");
     if (!hero) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ohne Hero (Unterseiten) ist der Header immer deckend; das DOM gibt es erst im Effekt
       setSolid(true);
       return;
     }

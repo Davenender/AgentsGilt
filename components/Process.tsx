@@ -92,6 +92,7 @@ export function Process() {
       //
       // Wurde die Runde abgebrochen (weggescrollt, bevor sie durch war), ist
       // das Merkmal noch false – dann läuft sie beim Zurückkommen von vorn.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Zurücksetzen beim Verlassen der Sektion (siehe Kommentar oben)
       setStarted(false);
       setActive(0);
       return;

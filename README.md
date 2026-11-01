@@ -21,7 +21,7 @@ trotzdem – es werden dann nur keine Mails versendet (Hinweis im Terminal).
 ## Deployment
 
 Push zu GitHub → in [Vercel](https://vercel.com) importieren → Domain
-agents-gilt.agency verbinden. In Vercel die gleichen Umgebungs-Variablen
+agentsgilt.com verbinden. In Vercel die gleichen Umgebungs-Variablen
 (`RESEND_API_KEY`, `MAIL_FROM`, `MAIL_TO`) hinterlegen.
 
 Details siehe [CLAUDE.md](./CLAUDE.md).

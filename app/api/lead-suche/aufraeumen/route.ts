@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { findChannelId } from "@/lib/discord";
 import { alleNachrichten, call, CH_SUCHE, SEP, sucheSpeicherKanal } from "@/lib/leads";
+import { zeitplanGebremst } from "@/lib/zeitplan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ const msgZeit = (id: string) => Math.floor(Number(BigInt(id) / BigInt(4194304)))
 const TAG = 24 * 60 * 60 * 1000;
 
 async function laufen() {
+  const bremse = zeitplanGebremst("lead-suche");
+  if (bremse) return bremse;
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) return NextResponse.json({ error: "Kein Bot-Token" }, { status: 500 });
   const jetzt = Date.now();

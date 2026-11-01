@@ -1,16 +1,17 @@
 # Agents Gilt – Projekt-Website
 
-Moderne, animierte Marketing-Website der KI-Agentur **Agents Gilt** (Domain: agents-gilt.agency).
+Moderne, animierte Marketing-Website der KI-Agentur **Agents Gilt** (Domain: agentsgilt.com).
 Apple-artiger Look: viel Weißraum, große Typografie, sanfte Scroll-Animationen, Gold-Akzente aus dem Logo.
 
 ## Tech-Stack
 
 - **Next.js 16** (App Router) + **React 19** + **TypeScript**
 - **Tailwind CSS v4** (Konfiguration in `app/globals.css` über `@theme`, KEINE `tailwind.config.js`)
-- **Framer Motion** (Scroll-Animationen, Hover-Effekte)
+- **GSAP** (Scroll-Animationen, Schreibmaschinen-Effekt)
 - **Resend** (Mailversand des Kontaktformulars)
 - **Zod** (Validierung der Formular-Eingaben)
-- Deployment: **Vercel** → Domain agents-gilt.agency
+- Deployment: **Vercel** → Domain agentsgilt.com (Push auf main deployt automatisch)
+- Dazu: Discord-Bot, Vapi (Telefon-Assistent), Twilio (SMS, Rufgruppe), Notion, Google Kalender, Gmail-Brücke, ntfy. Alle Einstellungen: `.env.example`
 
 > Hinweis: Dieses Next.js (16) kann von älterem Wissen abweichen. Im Zweifel die
 > Docs in `node_modules/next/dist/docs/` lesen, bevor Code geschrieben wird.

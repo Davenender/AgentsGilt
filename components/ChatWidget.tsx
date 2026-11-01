@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   INTRO_TYPING_DONE,
@@ -190,6 +191,7 @@ export function ChatWidget() {
   // Der pagehide-Handler wird einmal registriert und sieht deshalb nur den
   // Anfangszustand. Über diese Referenz kommt er an die aktuellen Daten.
   const openRef = useRef(false);
+  const router = useRouter();
   const ticketRef = useRef<Ticket | null>(null);
   const stateRef = useRef<{
     messages: Message[];
@@ -201,6 +203,7 @@ export function ChatWidget() {
   // ersten Durchgang dasselbe ausgeben, sonst meckert React über abweichendes
   // HTML — sessionStorage gibt es auf dem Server aber nicht.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage gibt es erst im Browser, siehe oben
     setMessages(loadMessages());
     try {
       const raw = sessionStorage.getItem(STORAGE_PREFILL);
@@ -295,6 +298,8 @@ export function ChatWidget() {
       stop = true;
       window.clearTimeout(timer);
     };
+    // Bewusst nur Token und Ende: Den aktuellen Stand (after) liest tick() über ticketRef, sonst würde jeder Abruf neu starten.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.token, ticket?.closed]);
 
   // Gespräch an uns schicken, wenn der Besucher die Seite verlässt. sendBeacon
@@ -452,7 +457,8 @@ export function ChatWidget() {
     if (el) {
       el.scrollIntoView({ behavior: "smooth" });
     } else {
-      window.location.href = "/#kontakt";
+      // Auf Unterseiten (Impressum usw.) gibt es das Formular nicht: zur Startseite wechseln.
+      router.push("/#kontakt");
     }
   }
 

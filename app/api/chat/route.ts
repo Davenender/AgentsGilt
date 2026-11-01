@@ -116,8 +116,9 @@ export async function POST(request: Request) {
         controller.close();
       } catch (err) {
         console.error("[chat] Anthropic error:", err);
+        // Interne Fehlertexte (z. B. von der API) nicht an Besucher weitergeben.
         const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
+          "Der Chat hat gerade ein Problem. Bitte versuch es gleich noch einmal oder schreib uns über das Kontaktformular.";
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ error: message })}\n\n`),
         );

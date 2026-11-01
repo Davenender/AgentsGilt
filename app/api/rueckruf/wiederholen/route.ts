@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { faelligeWiederholungen } from "@/lib/rueckruf";
+import { zeitplanGebremst } from "@/lib/zeitplan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,8 @@ export const dynamic = "force-dynamic";
 // Gestartet wird nur täglich von 8 bis 22 Uhr. Der Aufruf braucht kein Geheimnis: Er tut nur, was auf den Karten geplant ist.
 
 async function laufen() {
+  const bremse = zeitplanGebremst("rueckruf");
+  if (bremse) return bremse;
   const res = await faelligeWiederholungen();
   return NextResponse.json(res);
 }
