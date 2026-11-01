@@ -9,8 +9,11 @@
 export const mailBrueckeKonfiguriert = () =>
   Boolean(process.env.MAIL_BRIDGE_SECRET?.trim() && process.env.MAIL_SCRIPT_URL?.trim());
 
-/** "KND-004" -> "Kunde 004" (so heißen die Labels in Gmail). */
-export const labelFuerNr = (nr: string): string => `Kunde ${nr.replace(/^\D+/, "").padStart(3, "0")}`;
+/**
+ * "KND-004" -> "Kunden/Kunde - 004". So heißen Davids Labels in Gmail: Das Oberlabel "Kunden" mit den
+ * Unterlabels "Kunde - 002", "Kunde - 003" ... (der Schrägstrich bedeutet in Gmail "darunter").
+ */
+export const labelFuerNr = (nr: string): string => `Kunden/Kunde - ${nr.replace(/^\D+/, "").padStart(3, "0")}`;
 
 export type SkriptAntwort = { ok: true } | { ok: false; fehler: string };
 
