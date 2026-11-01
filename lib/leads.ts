@@ -142,7 +142,12 @@ async function ensureChannel(token: string, name: string): Promise<string | null
     // Verboten sind Schreiben im Kanal und Threads anlegen. Im eigenen privaten Such-Thread bleibt /close nutzbar.
     const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
     const team = roles.find((r) => r.name === "Team");
-    if (team) await call(token, "PUT", `/channels/${created.id}/permissions/${team.id}`, { type: 0, allow: "0", deny: NUR_LESEN_KLICKEN });
+    if (team) {
+      // Die bestehenden Erlaubnisse der Rolle (aus der Kategorie) bleiben erhalten, nur die Verbote kommen dazu.
+      const info = await call<{ permission_overwrites?: { id: string; allow: string }[] }>(token, "GET", `/channels/${created.id}`);
+      const allow = info?.permission_overwrites?.find((o) => o.id === team.id)?.allow ?? "0";
+      await call(token, "PUT", `/channels/${created.id}/permissions/${team.id}`, { type: 0, allow, deny: NUR_LESEN_KLICKEN });
+    }
   }
   if (name === CH_KARTEN) {
     const msg = await call<{ id: string }>(token, "POST", `/channels/${created.id}/messages`, {
