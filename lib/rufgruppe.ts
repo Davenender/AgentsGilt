@@ -124,10 +124,10 @@ export function twimlEingang(): string {
 }
 
 // Ruft ein Kunde zurück, den unser Rückruf-Assistent nicht erreicht hat, hört er diese Ansage und legt auf.
-// Danach ruft ihn der Rückruf-Assistent sofort an. Die Ansage wiederholt sich, bis er auflegt (höchstens 3-mal, dann legen wir auf).
+// Danach ruft ihn der Rückruf-Assistent sofort an. Die Ansage wiederholt sich, bis er auflegt (höchstens 2-mal, dann legen wir auf und der Rückruf folgt sofort).
 export const RUECKRUF_ANSAGE =
   "Guten Tag, hier ist die Agentur, die Sie wegen Ihres Termins angerufen hat. Wir rufen Sie jetzt sofort zurück, damit wir Ihren Termin mit Ihnen bestätigen können. Bitte legen Sie jetzt auf und halten Sie Ihr Telefon bereit.";
-export const MAX_ANSAGEN = 3;
+export const MAX_ANSAGEN = 2;
 
 export function twimlRueckrufAnsage(n: number): string {
   const weiter = n < MAX_ANSAGEN ? `<Pause length="3"/><Redirect method="POST">${esc(adresseWartet(n + 1))}</Redirect>` : "<Hangup/>";
