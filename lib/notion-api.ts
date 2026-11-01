@@ -98,6 +98,11 @@ export async function legeKundenZeileAn(input: {
   }
 }
 
+/** Seiten-ID (32 Hex-Zeichen) aus einer Notion-Adresse oder ID, sonst null. */
+export function seitenId(seite: string | undefined | null): string | null {
+  return (seite ?? "").replace(/-/g, "").match(/([0-9a-f]{32})(?:[?#].*)?$/i)?.[1]?.toLowerCase() ?? null;
+}
+
 /**
  * Schlägt die Kunden-Nr. einer Seite direkt bei Notion nach. Der Webhook liefert sie
  * manchmal nicht mit (z.B. wenn nur ein anderes Feld geändert wurde).
