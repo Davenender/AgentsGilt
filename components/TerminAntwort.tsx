@@ -87,7 +87,7 @@ export default function TerminAntwort({
             e.preventDefault();
             void senden(
               { action: "wish", datum, uhrzeit },
-              (t) => `Vielen Dank! Wir haben Ihren Wunsch (${t}) notiert und melden uns per SMS.`,
+              (t) => `Vielen Dank! Wir haben Ihren Wunsch (${t}) notiert und melden uns per SMS oder Rückruf.`,
             );
           }}
         >

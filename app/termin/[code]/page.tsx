@@ -40,7 +40,7 @@ export default async function TerminSeite({ params }: { params: Promise<{ code: 
   } else if (v.state === "confirmed") {
     inhalt = hinweis("Ihr Termin ist bestätigt. Vielen Dank, wir freuen uns auf das Gespräch.");
   } else if (v.state === "customer_alt") {
-    inhalt = hinweis("Vielen Dank, wir haben Ihren Wunsch erhalten und melden uns per SMS.");
+    inhalt = hinweis("Vielen Dank, wir haben Ihren Wunsch erhalten und melden uns per SMS oder Rückruf.");
   } else if (v.state !== "proposed" || !v.termin) {
     inhalt = hinweis(`Dieser Vorschlag ist nicht mehr aktuell. Rufen Sie uns gern an: ${site.phoneDisplay}`);
   } else {
