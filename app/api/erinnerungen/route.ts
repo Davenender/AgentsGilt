@@ -6,8 +6,8 @@ import { zeitplanGebremst } from "@/lib/zeitplan";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Schickt die Terminerinnerungen in #termine. Wird alle paar Minuten von einem
-// Zeitplan in GitHub Actions aufgerufen (.github/workflows/erinnerungen.yml).
+// Schickt die Terminerinnerungen in #termine. Wird alle 10 Minuten von 5 bis 22 Uhr
+// von einem Zeitplan bei cron-job.org aufgerufen ("AgentsGilt Erinnerungen").
 //
 // Der Aufruf braucht kein Geheimnis: Er sendet nur, was gerade fällig ist, und
 // vermerkt jede gesendete Erinnerung am Kalendereintrag. Wer ihn selbst

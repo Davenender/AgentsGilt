@@ -191,7 +191,7 @@ async function planeOderGibAuf(messageId: string, embed: EmbedLike, n: number, g
 
 // ---------------------------------------------------------------- Wiederholen
 
-/** Wird regelmäßig aufgerufen (GitHub Actions): startet fällige Wiederholungen, solange Anrufzeit ist. */
+/** Wird regelmäßig aufgerufen (cron-job.org): startet fällige Wiederholungen, solange Anrufzeit ist. */
 export async function faelligeWiederholungen(): Promise<{ gestartet: number; offen: number }> {
   const channel = process.env.DISCORD_CHANNEL_ANRUFE;
   if (!channel || !rueckrufKonfiguriert() || !imRueckrufFenster()) return { gestartet: 0, offen: 0 };

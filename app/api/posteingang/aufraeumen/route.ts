@@ -5,7 +5,7 @@ import { zeitplanGebremst } from "@/lib/zeitplan";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Räumt den privaten #posteingang auf: Erledigte Karten verschwinden nach 14 Tagen (GitHub Actions ruft das täglich auf).
+// Räumt den privaten #posteingang auf: Erledigte Karten verschwinden nach 14 Tagen (cron-job.org ruft das täglich um 3 Uhr auf).
 // Der Aufruf braucht kein Geheimnis: Er löscht nur, was ohnehin erledigt und alt ist.
 
 async function laufen() {

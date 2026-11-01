@@ -6,7 +6,7 @@ import { zeitplanGebremst } from "@/lib/zeitplan";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Räumt die Lead-Suche auf (wird stündlich von GitHub Actions aufgerufen):
+// Räumt die Lead-Suche auf (wird stündlich von cron-job.org aufgerufen):
 //  - die öffentlichen Meldungen "… hat gesucht" in #lead-suche verschwinden nach 24 Stunden
 //  - im Merkzettel werden alte Codes, Freischaltungen und Suchen gelöscht
 // Der Aufruf braucht kein Geheimnis: Er löscht nur Altes, sonst nichts.
