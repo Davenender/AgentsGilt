@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { messageLink } from "@/lib/discord";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
+import { pushe } from "@/lib/ntfy";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import {
   checkTicketToken,
@@ -62,6 +64,11 @@ export async function POST(request: Request) {
 
     const ticket = await openTicket(bot, { name, kontakt, frage, verlauf });
     if (!ticket) return fehler("Das hat leider nicht geklappt. Bitte nutze das Kontaktformular.", 502);
+
+    // Push aufs Handy (ntfy): ein Besucher möchte mit einem Mitarbeiter sprechen. Läuft nach der Antwort, der Besucher wartet nicht darauf.
+    after(async () => {
+      await pushe("💬 Neues Support-Ticket", `ticket-${ticket.nummer}: ${name} möchte mit einem Mitarbeiter sprechen`, messageLink(ticket.channelId, ticket.cardId));
+    });
 
     // Zusätzlich eine Mail, falls im Discord niemand hinschaut.
     try {
