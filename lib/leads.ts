@@ -82,6 +82,8 @@ interface Role {
 }
 
 const READ = String(1024 + 65536); // ansehen + Verlauf
+/** Verboten: Nachrichten schreiben (2048), öffentliche (1<<35) und private Threads (1<<36) anlegen. */
+export const NUR_LESEN_KLICKEN = String(BigInt(2048) + (BigInt(1) << BigInt(35)) + (BigInt(1) << BigInt(36)));
 
 export const USAGE_TEXT =
   "**So legst du eine Lead-Karte an**\n" +
@@ -134,6 +136,13 @@ async function ensureChannel(token: string, name: string): Promise<string | null
     const team = roles.find((r) => r.name === "Team");
     if (team) await call(token, "PUT", `/channels/${created.id}/permissions/${team.id}`, { type: 0, allow: "0", deny: "1024" });
     await call(token, "PUT", `/channels/${created.id}/permissions/${OWNER_ID}`, { type: 1, allow: READ, deny: "0" });
+  }
+  if (name === CH_SUCHE) {
+    // In #lead-suche wird nicht geschrieben: Das Team darf nur Knöpfe drücken, den Code eingeben und lesen.
+    // Verboten sind Schreiben im Kanal und Threads anlegen. Im eigenen privaten Such-Thread bleibt /close nutzbar.
+    const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
+    const team = roles.find((r) => r.name === "Team");
+    if (team) await call(token, "PUT", `/channels/${created.id}/permissions/${team.id}`, { type: 0, allow: "0", deny: NUR_LESEN_KLICKEN });
   }
   if (name === CH_KARTEN) {
     const msg = await call<{ id: string }>(token, "POST", `/channels/${created.id}/messages`, {
