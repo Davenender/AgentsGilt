@@ -4,6 +4,7 @@ import type { EmbedLike } from "@/lib/discord-calls";
 import { PB_COLOR, PB_FOOTER, posteingangKomponenten } from "@/lib/anfragen";
 import { clip, posteingangKanal, postKarte, sauber, teamRolle } from "@/lib/leads";
 import { labelFuerNr } from "@/lib/mail-bruecke";
+import { antwortReihe } from "@/lib/mail-antwort";
 import { listeKunden, type KundeKurz } from "@/lib/notion-api";
 import { kanalName } from "@/lib/notion-kunden";
 
@@ -160,14 +161,14 @@ export async function verarbeiteMail(token: string, m: EingehendeMail): Promise<
           { name: "Absender", value: sauber(clip(m.von, 200)), inline: true },
           ...(m.link ? [{ name: "Gmail", value: `[Mail öffnen](${m.link})`, inline: true }] : []),
         ],
-        footer: { text: `Kundenmail · ${kunde.nr}` },
+        footer: { text: `Kundenmail · ${kunde.nr} · Mail ${m.id}` },
       };
       const rolle = await teamRolle(token);
       const id = await postKarte(
         token,
         kanal,
         embed,
-        [],
+        antwortReihe(),
         rolle ? { content: `<@&${rolle}> Neue Mail von **${sauber(clip(kunde.name, 80)).replace(/[*_~`|>]/g, "")}**`, roleId: rolle } : undefined,
       );
       if (id) return { aktion: "kunde", label: labelFuerNr(kunde.nr), kanal };

@@ -17,12 +17,7 @@ export const labelFuerNr = (nr: string): string => `Kunden/Kunde - ${nr.replace(
 
 export type SkriptAntwort = { ok: true } | { ok: false; fehler: string };
 
-/** Ruft das Google-Skript auf. "archivieren" nimmt die Mail aus dem Posteingang, "label" legt das Label an und setzt es. */
-export async function rufeSkript(
-  aktion: "archivieren" | "label",
-  mailId: string,
-  label?: string,
-): Promise<SkriptAntwort> {
+async function postSkript(aktion: string, payload: Record<string, unknown>): Promise<SkriptAntwort> {
   const url = process.env.MAIL_SCRIPT_URL?.trim();
   const secret = process.env.MAIL_BRIDGE_SECRET?.trim();
   if (!url || !secret) return { ok: false, fehler: "Die Gmail-Anbindung ist noch nicht eingerichtet (MAIL_SCRIPT_URL / MAIL_BRIDGE_SECRET fehlen bei Vercel)." };
@@ -31,7 +26,7 @@ export async function rufeSkript(
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ secret, aktion, id: mailId, ...(label ? { label } : {}) }),
+      body: JSON.stringify({ secret, aktion, ...payload }),
       redirect: "follow",
       signal: AbortSignal.timeout(20_000),
     });
@@ -51,4 +46,14 @@ export async function rufeSkript(
     console.error(`[mail] Skript-Aufruf "${aktion}" fehlgeschlagen:`, err);
     return { ok: false, fehler: "Das Google-Skript war nicht erreichbar." };
   }
+}
+
+/** "archivieren" nimmt die Mail aus dem Posteingang, "label" legt das Label an und setzt es. */
+export function rufeSkript(aktion: "archivieren" | "label", mailId: string, label?: string): Promise<SkriptAntwort> {
+  return postSkript(aktion, { id: mailId, ...(label ? { label } : {}) });
+}
+
+/** Antwortet in der Gmail-Unterhaltung der Mail (aus kontakt@agentsgilt.com), mit dem Namen des Antwortenden. */
+export function antworteAufMail(mailId: string, text: string, name: string): Promise<SkriptAntwort> {
+  return postSkript("antworten", { id: mailId, text, name });
 }
