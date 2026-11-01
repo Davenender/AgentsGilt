@@ -8,13 +8,17 @@ import {
   listMessages,
   postEmbed,
   postText,
+  setzeKanalName,
 } from "@/lib/discord";
 import {
   aenderungen,
   CARD_MARKER,
   kanalName,
+  kanalNameMitPunkt,
   kundenKarte,
   parseKunde,
+  statusPunkt,
+  wert,
 } from "@/lib/notion-kunden";
 import { holeKundenNr } from "@/lib/notion-api";
 
@@ -28,7 +32,8 @@ export const dynamic = "force-dynamic";
 //
 // Pro Kunde gibt es den Kanal knd_00X (wird angelegt, falls er fehlt) mit einer
 // Karte (Embed), die bei jeder Änderung überschrieben wird. Zusätzlich steht
-// jede Änderung als kurze Zeile im Kanal.
+// jede Änderung als kurze Zeile im Kanal. Vor dem Kanalnamen steht ein Farbpunkt
+// je Status (🔴knd_004), siehe statusPunkt.
 //
 // Env-Vars (Vercel, Production):
 //   NOTION_WEBHOOK_KEY   zufälliger Schlüssel in der Webhook-URL
@@ -94,14 +99,19 @@ async function verarbeite(request: Request): Promise<{ res: NextResponse; protok
 
   const token = process.env.DISCORD_BOT_TOKEN;
   const name = kanalName(kunde.nr);
+  const status = wert(kunde.props["Status"]);
+  const mitPunkt = kanalNameMitPunkt(kunde.nr, status);
   const karte = kundenKarte(kunde);
 
   let kanal = await findChannelId(token, name);
   let neu = false;
   if (!kanal) {
     const kategorie = await findCategoryId(token, "KUNDEN");
-    kanal = await createTextChannel(token, name, kategorie, `${kunde.nr} · ${kunde.name}`);
+    kanal = await createTextChannel(token, mitPunkt, kategorie, `${kunde.nr} · ${kunde.name}`);
     neu = true;
+  } else if (statusPunkt(status)) {
+    // Farbpunkt vor dem Kanalnamen an den Status anpassen (🔴knd_004 -> 🟡knd_004).
+    await setzeKanalName(token, kanal, mitPunkt);
   }
   if (!kanal) {
     return {

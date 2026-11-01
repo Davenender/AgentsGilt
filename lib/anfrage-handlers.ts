@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { followupPrivate } from "@/lib/discord";
+import { followupPrivate, ohneStatusPunkt } from "@/lib/discord";
 import type { EmbedLike } from "@/lib/discord-calls";
 import {
   anfrageKomponenten,
@@ -298,7 +298,7 @@ export function handlePosteingang(i: AnfInteraction, token: string | undefined) 
       await aendereKarte(token, channelId, ziel, posteingangErledigtEmbed(karte, `Weitergeleitet nach #${name}`), []);
       // Geht eine Mail in einen Kundenkanal (knd_004), bekommt sie in Gmail das Label "Kunde 004".
       const mailId = posteingangMailId(karte);
-      const kundenNr = name.match(/^knd_(\d+)$/)?.[1];
+      const kundenNr = ohneStatusPunkt(name).match(/^knd_(\d+)$/)?.[1];
       let labelHinweis = "";
       if (mailId && kundenNr) {
         const l = await rufeSkript("label", mailId, labelFuerNr(kundenNr));

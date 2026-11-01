@@ -206,6 +206,14 @@ export function messageLink(channelId: string, messageId: string): string {
 
 let channelCache = new Map<string, string>();
 
+/** Kundenkanäle tragen vorne einen Farbpunkt (🔴knd_004). Gesucht wird trotzdem mit "knd_004". */
+export const ohneStatusPunkt = (name: string) => name.replace(/^(?:🔴|🟡|🟢|⚪)/u, "");
+
+function merkeKanal(name: string, id: string) {
+  channelCache.set(name, id);
+  channelCache.set(ohneStatusPunkt(name), id);
+}
+
 /** Findet einen Textkanal des Servers über seinen Namen (z.B. "termine"). */
 export async function findChannelId(
   token: string | undefined,
@@ -224,7 +232,8 @@ export async function findChannelId(
       return null;
     }
     const all = (await res.json()) as { id: string; name: string; type: number }[];
-    channelCache = new Map(all.filter((c) => c.type === 0).map((c) => [c.name, c.id]));
+    channelCache = new Map();
+    for (const c of all) if (c.type === 0) merkeKanal(c.name, c.id);
     return channelCache.get(name) ?? null;
   } catch (err) {
     console.error("[discord] Kanäle lesen fehlgeschlagen:", err);
@@ -280,11 +289,39 @@ export async function createTextChannel(
       return null;
     }
     const ch = (await res.json()) as { id: string; name: string };
-    channelCache.set(ch.name, ch.id);
+    merkeKanal(ch.name, ch.id);
     return ch.id;
   } catch (err) {
     console.error("[discord] Kanal anlegen fehlgeschlagen:", err);
     return null;
+  }
+}
+
+/**
+ * Benennt einen Kanal um, falls er noch anders heißt. Discord erlaubt nur 2 Umbenennungen
+ * pro Kanal in 10 Minuten; wird das überschritten, bleibt der alte Name bis zum nächsten Abgleich.
+ */
+export async function setzeKanalName(token: string | undefined, id: string, name: string): Promise<boolean> {
+  if (!token) return false;
+  try {
+    const alt = await fetch(`${API}/channels/${id}`, { headers: botHeaders(token), signal: AbortSignal.timeout(5000) });
+    if (!alt.ok) return false;
+    if (((await alt.json()) as { name?: string }).name === name) return true;
+    const res = await fetch(`${API}/channels/${id}`, {
+      method: "PATCH",
+      headers: botHeaders(token),
+      body: JSON.stringify({ name }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) {
+      console.error(`[discord] Kanal umbenennen fehlgeschlagen: HTTP ${res.status}`);
+      return false;
+    }
+    merkeKanal(name, id);
+    return true;
+  } catch (err) {
+    console.error("[discord] Kanal umbenennen fehlgeschlagen:", err);
+    return false;
   }
 }
 

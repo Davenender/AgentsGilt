@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createTextChannel, findCategoryId, findChannelId, messageLink, postEmbed } from "@/lib/discord";
+import { createTextChannel, findCategoryId, findChannelId, messageLink, ohneStatusPunkt, postEmbed } from "@/lib/discord";
 import type { EmbedField, EmbedLike } from "@/lib/discord-calls";
 import {
   alleNachrichten,
@@ -314,7 +314,7 @@ export async function weiterleitenZiele(token: string): Promise<{ id: string; na
   const guild = process.env.DISCORD_GUILD_ID || "1564355422222159975";
   const alle = (await call<{ id: string; name: string; type: number; position: number }[]>(token, "GET", `/guilds/${guild}/channels`)) ?? [];
   const text = alle.filter((c) => c.type === 0 && !NICHT_ANBIETEN.has(c.name) && !c.name.startsWith("ticket"));
-  const rang = (n: string) => (n === "anfragen" ? 0 : n === "anrufe" ? 1 : n.startsWith("knd_") ? 3 : 2);
+  const rang = (n: string) => (n === "anfragen" ? 0 : n === "anrufe" ? 1 : ohneStatusPunkt(n).startsWith("knd_") ? 3 : 2);
   text.sort((a, b) => rang(a.name) - rang(b.name) || a.name.localeCompare(b.name));
   return text.slice(0, 25).map((c) => ({ id: c.id, name: c.name }));
 }

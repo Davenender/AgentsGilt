@@ -90,6 +90,26 @@ export function kanalName(nr: string): string {
   return nr.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 }
 
+/** Farbpunkt je Notion-Status: 🔴 Lead · 🟡 Angebot gesendet · 🟢 Kunde / Retainer läuft · ⚪ Verloren. */
+export function statusPunkt(status: string): string {
+  switch (status) {
+    case "Lead":
+      return "🔴";
+    case "Angebot gesendet":
+      return "🟡";
+    case "Kunde":
+    case "Retainer läuft":
+      return "🟢";
+    case "Verloren":
+      return "⚪";
+    default:
+      return "";
+  }
+}
+
+/** "KND-004" + "Lead" -> "🔴knd_004". Ohne bekannten Status bleibt es bei "knd_004". */
+export const kanalNameMitPunkt = (nr: string, status: string) => `${statusPunkt(status)}${kanalName(nr)}`;
+
 const CHECKLIST = [
   "Angebot raus",
   "Vertrag unterschrieben",
