@@ -147,6 +147,10 @@ export default function DatenschutzPage() {
             Handynummer eine SMS mit der Bestätigung oder einem anderen
             Terminvorschlag. Ein Vorschlag enthält einen Link auf agentsgilt.com,
             über den du ihn annehmen oder einen anderen Termin wünschen kannst.
+            Kann der Termin nicht per SMS geklärt werden (zum Beispiel bei einer
+            Festnetznummer) oder erreichen wir dich nicht, ruft dich unser
+            KI-Telefonassistent unter der Nummer an, die du uns genannt hast, und
+            fragt, ob der Termin passt.
             Für den SMS-Versand nutzen wir Twilio Inc. (USA) als
             Auftragsverarbeiter. Damit wir dein Anliegen im Team abstimmen
             können, legen wir Name, Rückrufnummer, Terminwunsch und eine kurze
