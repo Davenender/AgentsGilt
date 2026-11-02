@@ -1,5 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { listeTermine } from "@/lib/google-calendar";
+import { listeKunden } from "@/lib/notion-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +13,8 @@ export const maxDuration = 60;
 //
 //   GET /api/helfer?bereich=lage&seit=2026-11-02T06:00:00Z        → neue Discord-Nachrichten je Kanal
 //   GET /api/helfer?bereich=protokolle&seit=2026-11-02T06:00:00Z  → Twilio-Anrufe + Warnungen, Vapi-Gespräche
+//   GET /api/helfer?bereich=kunden                                → Kundenliste aus Notion (Status, nächster Schritt)
+//   GET /api/helfer?bereich=termine&von=ISO&bis=ISO              → Kalendertermine (Standard: heute + morgen)
 //
 // Ohne "seit": die letzten 24 Stunden.
 
@@ -181,6 +185,17 @@ async function vapi(seit: Date) {
   }
 }
 
+/** Standard: heute 00:00 bis übermorgen 00:00 (Berliner Zeit), sonst ?von= und ?bis=. */
+function termineZeitraum(url: URL): { von: Date; bis: Date } {
+  const tag = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
+  const mitternacht = new Date(`${tag}T00:00:00`);
+  const versatz = new Date(mitternacht.toLocaleString("en-US", { timeZone: "Europe/Berlin" })).getTime() - mitternacht.getTime();
+  const heute = new Date(mitternacht.getTime() - versatz);
+  const von = new Date(url.searchParams.get("von") ?? heute.toISOString());
+  const bis = new Date(url.searchParams.get("bis") ?? new Date(heute.getTime() + 2 * 86400_000).toISOString());
+  return { von: Number.isNaN(von.getTime()) ? heute : von, bis: Number.isNaN(bis.getTime()) ? new Date(heute.getTime() + 2 * 86400_000) : bis };
+}
+
 export async function GET(req: Request) {
   if (!process.env.HELFER_SECRET?.trim()) {
     return NextResponse.json({ error: "Helfer-Brücke ist nicht eingerichtet (HELFER_SECRET fehlt)" }, { status: 503 });
@@ -196,5 +211,24 @@ export async function GET(req: Request) {
     const [t, v] = await Promise.all([twilio(seit), vapi(seit)]);
     return NextResponse.json({ seit: seit.toISOString(), twilio: t, vapi: v });
   }
-  return NextResponse.json({ error: "Unbekannter Bereich (lage | protokolle)" }, { status: 400 });
+  if (bereich === "kunden") {
+    const kunden = await listeKunden();
+    if (!kunden) return NextResponse.json({ error: "Notion nicht erreichbar" }, { status: 502 });
+    return NextResponse.json({
+      kunden: kunden.map((k) => ({
+        nr: k.nr,
+        name: k.name,
+        status: k.status || null,
+        naechsterSchritt: k.naechsterSchritt ?? null,
+        followUp: k.followUp ?? null,
+      })),
+    });
+  }
+  if (bereich === "termine") {
+    const { von, bis } = termineZeitraum(url);
+    const termine = await listeTermine(von, bis);
+    if (!termine) return NextResponse.json({ error: "Kalender nicht erreichbar" }, { status: 502 });
+    return NextResponse.json({ von: von.toISOString(), bis: bis.toISOString(), termine });
+  }
+  return NextResponse.json({ error: "Unbekannter Bereich (lage | protokolle | kunden | termine)" }, { status: 400 });
 }

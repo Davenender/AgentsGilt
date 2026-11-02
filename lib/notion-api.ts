@@ -213,6 +213,10 @@ export interface KundeKurz {
   name: string;
   email: string;
   status: string;
+  /** Spalte "Nächster Schritt" (für die Helfer-Brücke) */
+  naechsterSchritt?: string | null;
+  /** Spalte "Nächstes Follow-up" als JJJJ-MM-TT (für die Helfer-Brücke) */
+  followUp?: string | null;
 }
 
 /** Alle Kunden aus Notion (für die Auswahl "Bestehender Kunde?"), neueste zuerst. */
@@ -253,6 +257,8 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
               select?: { name?: string } | null;
               formula?: { string?: string | null };
               unique_id?: { prefix?: string | null; number?: number };
+              rich_text?: { plain_text?: string }[];
+              date?: { start?: string | null } | null;
             }
           >;
         }[];
@@ -264,7 +270,14 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
         const id = props["Kunden-ID"]?.unique_id;
         const nr = f && /^KND-\d{3,}$/.test(f) ? f : id?.number ? `KND-${String(id.number).padStart(3, "0")}` : null;
         if (!nr || /beispiel/i.test(name)) continue;
-        out.push({ nr, name: name || "ohne Namen", email: props["E-Mail"]?.email ?? "", status: props["Status"]?.select?.name ?? "" });
+        out.push({
+          nr,
+          name: name || "ohne Namen",
+          email: props["E-Mail"]?.email ?? "",
+          status: props["Status"]?.select?.name ?? "",
+          naechsterSchritt: (props["Nächster Schritt"]?.rich_text ?? []).map((t) => t.plain_text ?? "").join("").trim() || null,
+          followUp: props["Nächstes Follow-up"]?.date?.start?.slice(0, 10) ?? null,
+        });
       }
       if (!data.has_more || !data.next_cursor) break;
       cursor = data.next_cursor;

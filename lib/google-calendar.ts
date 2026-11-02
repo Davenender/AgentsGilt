@@ -88,8 +88,8 @@ async function accessToken(): Promise<string | null> {
 interface CalEvent {
   id: string;
   summary?: string;
-  start?: { dateTime?: string };
-  end?: { dateTime?: string };
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
   extendedProperties?: { private?: Record<string, string> };
 }
 
@@ -371,4 +371,27 @@ export async function markiereErinnert(
     }),
   });
   return Boolean(res);
+}
+
+/** Alle Termine zwischen "von" und "bis" (nur lesen, für die Helfer-Brücke). null = Kalender nicht eingerichtet. */
+export async function listeTermine(
+  von: Date,
+  bis: Date,
+): Promise<{ titel: string; start: string; ende: string; ganztags: boolean }[] | null> {
+  if (!calendarConfigured()) return null;
+  const token = await accessToken();
+  if (!token) return null;
+  const calId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID!);
+  const list = await call<{ items?: CalEvent[] }>(
+    token,
+    `/calendars/${calId}/events?singleEvents=true&orderBy=startTime&timeZone=Europe%2FBerlin&maxResults=50` +
+      `&timeMin=${encodeURIComponent(von.toISOString())}&timeMax=${encodeURIComponent(bis.toISOString())}`,
+  );
+  if (!list) return null;
+  return (list.items ?? []).map((e) => ({
+    titel: e.summary ?? "Termin",
+    start: e.start?.dateTime ?? e.start?.date ?? "",
+    ende: e.end?.dateTime ?? e.end?.date ?? "",
+    ganztags: !e.start?.dateTime,
+  }));
 }
