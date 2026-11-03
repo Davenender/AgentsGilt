@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { listeTermine } from "@/lib/google-calendar";
 import { listeKunden } from "@/lib/notion-api";
+import { kanalName } from "@/lib/notion-kunden";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -170,19 +171,37 @@ async function vapi(seit: Date) {
       gespraeche: calls.map((c) => {
         const start = c.startedAt ? new Date(String(c.startedAt)).getTime() : 0;
         const ende = c.endedAt ? new Date(String(c.endedAt)).getTime() : 0;
+        const kunde = c.customer as { number?: string; name?: string } | undefined;
+        const zusammenfassung = (c.analysis as { summary?: string } | undefined)?.summary ?? (c as { summary?: string }).summary;
         return {
+          id: c.id ?? null,
           zeit: c.createdAt,
           art: c.type,
           status: c.status,
           endeGrund: c.endedReason,
           dauerSek: start && ende ? Math.round((ende - start) / 1000) : null,
-          anrufer: (c.customer as { number?: string } | undefined)?.number ?? null,
+          // nur Name oder die letzten 3 Ziffern – die volle Nummer verlässt die Brücke nicht
+          anrufer: kunde?.name?.trim() || maskiere(kunde?.number),
+          ergebnis: zusammenfassung ? kurz(String(zusammenfassung), 240) : null,
         };
       }),
     };
   } catch {
     return { fehler: "Vapi nicht erreichbar" };
   }
+}
+
+/** Telefonnummer → „+49 … 678“ (nur die letzten 3 Ziffern sichtbar). */
+function maskiere(nummer?: string | null): string | null {
+  const ziffern = (nummer ?? "").replace(/\D/g, "");
+  if (ziffern.length < 4) return nummer ? "unbekannt" : null;
+  return `${nummer!.trim().startsWith("+") ? `+${ziffern.slice(0, 2)} ` : ""}… ${ziffern.slice(-3)}`;
+}
+
+/** „Domain / Anbieter“ (z. B. „relaxfit.de (IONOS)“) → https://relaxfit.de, sonst null. */
+function alsWebsite(text?: string | null): string | null {
+  const m = (text ?? "").match(/(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,})(\/[^\s]*)?/i);
+  return m ? `https://${m[1].toLowerCase()}` : null;
 }
 
 /** Standard: heute 00:00 bis übermorgen 00:00 (Berliner Zeit), sonst ?von= und ?bis=. */
@@ -221,6 +240,14 @@ export async function GET(req: Request) {
         status: k.status || null,
         naechsterSchritt: k.naechsterSchritt ?? null,
         followUp: k.followUp ?? null,
+        angebot: k.angebot ?? null,
+        website: alsWebsite(k.domain),
+        demoLink: k.vercelProjekt && /\.vercel\.app/i.test(k.vercelProjekt) ? k.vercelProjekt : null,
+        vercelProjekt: k.vercelProjekt ?? null,
+        live: k.live ?? false,
+        notionUrl: k.notionUrl ?? null,
+        kanal: kanalName(k.nr),
+        letzteAktivitaet: k.geaendert ?? null,
       })),
     });
   }

@@ -217,6 +217,13 @@ export interface KundeKurz {
   naechsterSchritt?: string | null;
   /** Spalte "Nächstes Follow-up" als JJJJ-MM-TT (für die Helfer-Brücke) */
   followUp?: string | null;
+  /** Für die Helfer-Brücke (nur lesen): Angebot, "Domain / Anbieter", "Vercel-Projekt", "Live / Übergeben", Seite, zuletzt geändert */
+  angebot?: string | null;
+  domain?: string | null;
+  vercelProjekt?: string | null;
+  live?: boolean;
+  notionUrl?: string | null;
+  geaendert?: string | null;
 }
 
 /** Alle Kunden aus Notion (für die Auswahl "Bestehender Kunde?"), neueste zuerst. */
@@ -249,6 +256,8 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
         has_more?: boolean;
         next_cursor?: string | null;
         results?: {
+          url?: string;
+          last_edited_time?: string;
           properties?: Record<
             string,
             {
@@ -259,6 +268,8 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
               unique_id?: { prefix?: string | null; number?: number };
               rich_text?: { plain_text?: string }[];
               date?: { start?: string | null } | null;
+              url?: string | null;
+              checkbox?: boolean;
             }
           >;
         }[];
@@ -277,6 +288,12 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
           status: props["Status"]?.select?.name ?? "",
           naechsterSchritt: (props["Nächster Schritt"]?.rich_text ?? []).map((t) => t.plain_text ?? "").join("").trim() || null,
           followUp: props["Nächstes Follow-up"]?.date?.start?.slice(0, 10) ?? null,
+          angebot: props["Angebot"]?.select?.name ?? null,
+          domain: (props["Domain / Anbieter"]?.rich_text ?? []).map((t) => t.plain_text ?? "").join("").trim() || null,
+          vercelProjekt: props["Vercel-Projekt"]?.url ?? null,
+          live: props["Live / Übergeben"]?.checkbox ?? false,
+          notionUrl: p.url ?? null,
+          geaendert: p.last_edited_time ?? null,
         });
       }
       if (!data.has_more || !data.next_cursor) break;
