@@ -183,7 +183,8 @@ async function vapi(seit: Date) {
           // nur Name oder die letzten 3 Ziffern – die volle Nummer verlässt die Brücke nicht
           // (Vapi legt die Nummer manchmal auch ins Namensfeld)
           anrufer: kunde?.name?.trim() && !/^[+\d\s()\-/.]+$/.test(kunde.name.trim()) ? kunde.name.trim() : maskiere(kunde?.number ?? kunde?.name),
-          ergebnis: zusammenfassung ? kurz(String(zusammenfassung), 240) : null,
+          // auch diktierte Rückrufnummern in der Zusammenfassung nur gekürzt
+          ergebnis: zusammenfassung ? kurz(ohneNummern(String(zusammenfassung)), 240) : null,
         };
       }),
     };
@@ -197,6 +198,11 @@ function maskiere(nummer?: string | null): string | null {
   const ziffern = (nummer ?? "").replace(/\D/g, "");
   if (ziffern.length < 4) return nummer ? "unbekannt" : null;
   return `${nummer!.trim().startsWith("+") ? `+${ziffern.slice(0, 2)} ` : ""}… ${ziffern.slice(-3)}`;
+}
+
+/** Zahlenfolgen mit 7 oder mehr Ziffern (Telefonnummern) im Text → „+49 … 678“ bzw. „… 678“. */
+function ohneNummern(text: string): string {
+  return text.replace(/\+?\d[\d \-/()]{5,}\d/g, (m) => (m.replace(/\D/g, "").length >= 7 ? maskiere(m) ?? m : m));
 }
 
 /** „Domain / Anbieter“ (z. B. „relaxfit.de (IONOS)“) → https://relaxfit.de, sonst null. */
