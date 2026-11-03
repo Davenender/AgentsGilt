@@ -181,7 +181,8 @@ async function vapi(seit: Date) {
           endeGrund: c.endedReason,
           dauerSek: start && ende ? Math.round((ende - start) / 1000) : null,
           // nur Name oder die letzten 3 Ziffern – die volle Nummer verlässt die Brücke nicht
-          anrufer: kunde?.name?.trim() || maskiere(kunde?.number),
+          // (Vapi legt die Nummer manchmal auch ins Namensfeld)
+          anrufer: kunde?.name?.trim() && !/^[+\d\s()\-/.]+$/.test(kunde.name.trim()) ? kunde.name.trim() : maskiere(kunde?.number ?? kunde?.name),
           ergebnis: zusammenfassung ? kurz(String(zusammenfassung), 240) : null,
         };
       }),
