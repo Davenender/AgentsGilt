@@ -3,7 +3,6 @@ import { findChannelId } from "@/lib/discord";
 import {
   anrufErlaubt,
   anrufNachricht,
-  anrufZeit,
   BRIEF_MARKE,
   briefLesen,
   briefText,
@@ -246,18 +245,14 @@ export async function assistentFuerEingang() {
   };
 }
 
-async function anrufeBisher(kanal: string): Promise<string[]> {
-  return (await nachrichten(kanal)).filter(istUnsere).map((m) => anrufZeit(m.content)).filter((z): z is string => z !== null);
-}
-
-/** Luca ruft David an – nur Davids Nummer, nie 22–7 Uhr, höchstens 3-mal am Tag. */
-export async function rufeDavidAn(grund: string, test: boolean, info?: string, gewuenscht = false): Promise<{ ok: true } | { ok: false; grund: string }> {
+/** Luca ruft David an – nur Davids Nummer, nie 22–7 Uhr (keine Grenze pro Tag). */
+export async function rufeDavidAn(grund: string, test: boolean, info?: string): Promise<{ ok: true } | { ok: false; grund: string }> {
   if (!lucaAn()) return { ok: false, grund: "Luca am Telefon ist noch nicht eingerichtet." };
   if (!process.env.VAPI_API_KEY?.trim()) return { ok: false, grund: "VAPI_API_KEY fehlt." };
   const kanal = await lucaKanal();
   if (!kanal) return { ok: false, grund: "Kanal #luca nicht gefunden." };
   const jetzt = new Date();
-  const darf = anrufErlaubt(jetzt, await anrufeBisher(kanal), test || gewuenscht);
+  const darf = anrufErlaubt(jetzt);
   if (!darf.ok) return darf;
   const [lage, notiz] = await Promise.all([holeLage(), holeNotiz()]);
   const stimme = stimmeAus(lage);

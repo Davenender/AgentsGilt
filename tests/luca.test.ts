@@ -115,16 +115,16 @@ test("Lagebericht: Hin und zurück; alter Stand wird als 'Mac schläft' angesagt
   assert.match(lageText(null, new Date()), /noch kein Lagebericht/);
 });
 
-test("Anrufe an David: nie 22–7 Uhr (Berlin), höchstens 3 am Tag", () => {
+test("Anrufe an David: nie 22–7 Uhr (Berlin), keine Tagesgrenze", () => {
   // 05.11. = Winterzeit, Berlin = UTC+1
   const mittag = new Date("2026-11-05T11:00:00.000Z"); // 12:00
   assert.deepEqual(anrufErlaubt(mittag, []), { ok: true });
   assert.equal(anrufErlaubt(new Date("2026-11-05T21:30:00.000Z"), []).ok, false); // 22:30
   assert.equal(anrufErlaubt(new Date("2026-11-05T05:30:00.000Z"), []).ok, false); // 06:30
   assert.equal(anrufErlaubt(new Date("2026-11-05T06:00:00.000Z"), []).ok, true); // 07:00
-  const drei = ["2026-11-05T07:00:00.000Z", "2026-11-05T08:00:00.000Z", "2026-11-05T09:00:00.000Z"];
-  assert.equal(anrufErlaubt(mittag, drei).ok, false);
-  assert.equal(anrufErlaubt(mittag, ["2026-11-04T09:00:00.000Z", ...drei.slice(0, 2)]).ok, true); // gestern zählt nicht
+  // Davids Wunsch 05.11.: keine Grenze mehr pro Tag
+  const sechs = ["06:00", "07:00", "08:00", "09:00", "10:00", "10:30"].map((u) => `2026-11-05T${u}:00.000Z`);
+  assert.deepEqual(anrufErlaubt(mittag, sechs), { ok: true });
 });
 
 test("Anruf-Nachricht trägt die Zeit lesbar für die Tageszählung", () => {

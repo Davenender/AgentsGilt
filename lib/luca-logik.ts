@@ -200,15 +200,10 @@ export function lageLesen(inhalt: string): Lage | null {
 
 // ------------------------------------------------------------------ Anrufe an David
 
-export const MAX_ANRUFE_TAG = 3;
-
-/** Darf Luca David jetzt anrufen? Nie 22–7 Uhr, höchstens 3-mal am (Berliner) Tag. Die Zentrale prüft zusätzlich den Unterricht. */
-export function anrufErlaubt(jetzt: Date, bisher: string[], test = false): { ok: true } | { ok: false; grund: string } {
-  const { tag, stunde } = berlinTagUndStunde(jetzt);
+/** Darf Luca David jetzt anrufen? Nie 22–7 Uhr (Berlin). Keine Grenze pro Tag (Davids Wunsch 05.11.). Die Zentrale prüft zusätzlich Unterricht und Abstand. */
+export function anrufErlaubt(jetzt: Date): { ok: true } | { ok: false; grund: string } {
+  const { stunde } = berlinTagUndStunde(jetzt);
   if (stunde >= 22 || stunde < 7) return { ok: false, grund: "Zwischen 22 und 7 Uhr ruft Luca nicht an." };
-  const heute = bisher.filter((z) => berlinTagUndStunde(new Date(z)).tag === tag).length;
-  const grenze = test ? MAX_ANRUFE_TAG + 2 : MAX_ANRUFE_TAG;
-  if (heute >= grenze) return { ok: false, grund: `Heute hat Luca schon ${heute}-mal angerufen.` };
   return { ok: true };
 }
 
