@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { briefAus } from "@/lib/luca-logik";
 import { lucaLive } from "@/lib/luca-live";
+import { ortsname } from "@/lib/luca-unterwegs";
 import { owntracksKonfig, owntracksLink, standortText } from "@/lib/standort-logik";
 import {
   assistentFuerEingang,
@@ -210,6 +211,12 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
         .slice(0, 20)
         .map((o) => ({ name: String(o.name).trim().slice(0, 60), lat: Number(o.lat), lon: Number(o.lon), rad: Math.min(1000, Math.max(50, Number(o.rad) || 150)) }));
       return NextResponse.json({ ok: await setzeOrte(orte) });
+    }
+    if (aktion === "standort-name") {
+      const s = await holeStandortSpeicher();
+      if (!s.standort) return NextResponse.json({ ok: false });
+      const ort = await ortsname(s.standort.lat, s.standort.lon);
+      return NextResponse.json({ ok: Boolean(ort && (await schreibeStandortSpeicher({ ...s, standort: { ...s.standort, ort } }))), ort });
     }
     if (aktion === "standort-loeschen") {
       const s = await holeStandortSpeicher();

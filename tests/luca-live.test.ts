@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { briefAus, kundeAenderung, terminAus, wetterWort } from "../lib/luca-logik.ts";
-import { findeOrt, routeText, verbindungText, wetterText } from "../lib/luca-unterwegs.ts";
+import { findeOrt, ortsnameAus, routeText, verbindungText, wetterText } from "../lib/luca-unterwegs.ts";
 
 const JETZT = new Date("2026-11-05T21:00:00.000Z");
 const tst = Math.floor(JETZT.getTime() / 1000) - 120;
@@ -109,4 +109,11 @@ test("Änderungen per Stimme: nur mit Bestätigung und nur diese Felder", () => 
   assert.equal(terminAus({ titel: "x", start: "morgen", bestaetigt: true }).ok, false);
   assert.equal(terminAus({ start: "2026-11-06T15:00", bestaetigt: true }).ok, false);
   assert.equal((terminAus({ titel: "x", start: "2026-11-06T15:00", minuten: 9999, bestaetigt: true }) as { minuten: number }).minuten, 480);
+});
+
+test("Standortname: Hausnummer dabei, die Stadt zählt vor dem Stadtteil", () => {
+  assert.equal(ortsnameAus({ road: "Lämmerspieler Straße", house_number: "100", village: "Dietesheim", municipality: "Mühlheim am Main" }), "Lämmerspieler Straße 100, Mühlheim am Main");
+  assert.equal(ortsnameAus({ road: "Zeil", suburb: "Innenstadt", city: "Frankfurt am Main" }), "Zeil, Frankfurt am Main");
+  assert.equal(ortsnameAus({ village: "Dietesheim" }), "Dietesheim");
+  assert.equal(ortsnameAus({}), null);
 });
