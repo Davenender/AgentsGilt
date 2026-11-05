@@ -342,6 +342,21 @@ export async function setzeOrte(orte: OrtMarke[]): Promise<boolean> {
   return schreibeStandortSpeicher({ ...s, orte, orteNeu: true, drin: s.drin.filter((n) => orte.some((o) => o.name === n)) });
 }
 
+/** Ein Ergebnis mitten ins laufende Gespräch geben: Die Stimme sagt es in eigenen Worten (GPT Live). Klassisch: kein Weg, dann steht es nur im Stand. */
+export async function sagImGespraech(anruf: string, text: string): Promise<{ ok: boolean; vorbei?: boolean; grund?: string }> {
+  if (!/^[0-9a-f-]{20,60}$/i.test(anruf)) return { ok: false, grund: "ungültige Gesprächsnummer" };
+  const call = await vapi<{ status?: string; assistantId?: string; monitor?: { controlUrl?: string } }>(`/call/${anruf}`);
+  if (call.assistantId !== lucaAssistent()) return { ok: false, grund: "fremdes Gespräch" };
+  if (call.status !== "in-progress" || !call.monitor?.controlUrl) return { ok: false, vorbei: true };
+  const res = await fetch(call.monitor.controlUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ type: "append-context", kind: "commentary", content: text }),
+    signal: AbortSignal.timeout(8000),
+  });
+  return res.ok ? { ok: true } : { ok: false, grund: `Vapi: HTTP ${res.status}` };
+}
+
 /** Werkzeuge bei Luca auf Stand bringen; alles andere (GPT Live, Prompts, Stimme, Reasoner) bleibt, wie David es eingestellt hat. */
 export async function aktualisiereWerkzeuge() {
   const id = lucaAssistent();

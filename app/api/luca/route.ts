@@ -1,10 +1,12 @@
 import { after, NextResponse } from "next/server";
 import { briefAus } from "@/lib/luca-logik";
+import { lucaLive } from "@/lib/luca-live";
 import { owntracksKonfig, owntracksLink, standortText } from "@/lib/standort-logik";
 import {
   assistentFuerEingang,
   einrichten,
   aktualisiereWerkzeuge,
+  sagImGespraech,
   holeStandortSpeicher,
   LUCA_ADRESSE,
   lucaEinstellungen,
@@ -76,6 +78,10 @@ const ANTWORT: Record<string, string> = {
   auftrag: "Der Auftrag ist bei der Zentrale angekommen. Sag David kurz, dass er erledigt wird und das Ergebnis in der Zentrale steht.",
   antwort: "Die Antwort ist weitergegeben. Die Aufgabe macht damit weiter.",
   freigabe: "Die Entscheidung ist weitergegeben.",
+  nachschauen: "Ist beim Team, noch kein Ergebnis. Es kommt im Gespräch nach, meist unter einer Minute. Sag David kurz, dass nachgeschaut wird, und rede normal weiter. Behaupte nichts, bis es da ist.",
+  schule: "Das Schulportal wird gerade abgefragt, noch kein Ergebnis. Es kommt gleich im Gespräch nach.",
+  erinnerung: "Die Erinnerung ist eingeplant: Luca ruft David an. Sag ihm kurz, wann. Zwischen 22 und 7 Uhr und im Unterricht ruft er nicht an, dann danach.",
+  lerncheck: "Ist gemerkt.",
 };
 
 async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
@@ -99,6 +105,15 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
     const results = [];
     for (const c of calls) {
       const name = c.function?.name ?? c.name ?? "";
+      // Stand, Standort, Route, Bus, Wetter, Änderungen: sofort, ohne Umweg über den Mac
+      const live = await lucaLive(name, argumente(c)).catch((err) => {
+        console.error(`[luca] ${name}:`, err);
+        return "Das hat gerade nicht geklappt. Sag David das kurz und ehrlich.";
+      });
+      if (live !== null) {
+        results.push({ toolCallId: c.id, result: live });
+        continue;
+      }
       const brief = briefAus(name, argumente(c), lage?.stand ?? "");
       if (!brief) {
         results.push({ toolCallId: c.id, result: "Das hat nicht geklappt: Angaben unvollständig. Frag David noch einmal." });
@@ -180,6 +195,12 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
     }
     if (aktion === "einrichten") return NextResponse.json(await einrichten());
     if (aktion === "werkzeuge") return NextResponse.json({ assistent: await aktualisiereWerkzeuge() });
+    if (aktion === "mitteilung") {
+      const anruf = typeof body.anruf === "string" ? body.anruf : "";
+      const text = typeof body.text === "string" ? body.text.trim().slice(0, 4000) : "";
+      if (!anruf || !text) return NextResponse.json({ error: "anruf oder text fehlt" }, { status: 400 });
+      return NextResponse.json(await sagImGespraech(anruf, text));
+    }
     if (aktion === "standort-orte") {
       const orte = (Array.isArray(body.orte) ? body.orte : [])
         .map((o) => o as { name?: unknown; lat?: unknown; lon?: unknown; rad?: unknown })

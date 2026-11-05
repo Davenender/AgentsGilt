@@ -128,7 +128,11 @@ export type Brief =
   | { typ: "auftrag"; text: string }
   | { typ: "rueckruf"; minuten: number; text: string }
   | { typ: "antwort"; nr: number; text: string; stand: string }
-  | { typ: "freigabe"; nr: number; erlauben: boolean; stand: string };
+  | { typ: "freigabe"; nr: number; erlauben: boolean; stand: string }
+  | { typ: "nachschauen"; frage: string }
+  | { typ: "schule" }
+  | { typ: "erinnerung"; text: string; minuten?: number; uhrzeit?: string; ort?: string; ereignis?: "ankunft" | "abfahrt" }
+  | { typ: "lerncheck"; fach: string; sitzt?: string; luecken?: string };
 export type BriefMitZeit = Brief & { zeit: string; anruf?: string };
 
 const MAX_TEXT = 1500;
@@ -148,6 +152,26 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     const minuten = Math.round(Number(args.minuten));
     return Number.isFinite(minuten) && minuten >= 1 && minuten <= 720 ? { typ: "rueckruf", minuten, text: text || "Rückruf, wie besprochen" } : null;
   }
+  if (werkzeug === "nachschauen") {
+    const frage = typeof args.frage === "string" ? args.frage.replace(/\s+/g, " ").trim().slice(0, 500) : "";
+    return frage ? { typ: "nachschauen", frage } : null;
+  }
+  if (werkzeug === "schule_aktualisieren") return { typ: "schule" };
+  if (werkzeug === "erinnerung_planen") {
+    if (!text) return null;
+    const ort = typeof args.ort === "string" ? args.ort.replace(/\s+/g, " ").trim().slice(0, 60) : "";
+    if (ort) return { typ: "erinnerung", text, ort, ereignis: args.ereignis === "abfahrt" ? "abfahrt" : "ankunft" };
+    const uhrzeit = typeof args.uhrzeit === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(args.uhrzeit) ? args.uhrzeit.slice(0, 16) : "";
+    if (uhrzeit) return { typ: "erinnerung", text, uhrzeit };
+    const minuten = Math.round(Number(args.minuten));
+    return Number.isFinite(minuten) && minuten >= 1 && minuten <= 10_080 ? { typ: "erinnerung", text, minuten } : null;
+  }
+  if (werkzeug === "lerncheck_merken") {
+    const kurz = (x: unknown) => (typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 400) : "");
+    const fach = kurz(args.fach).slice(0, 60);
+    if (!fach) return null;
+    return { typ: "lerncheck", fach, ...(kurz(args.sitzt) ? { sitzt: kurz(args.sitzt) } : {}), ...(kurz(args.luecken) ? { luecken: kurz(args.luecken) } : {}) };
+  }
   if (werkzeug === "rueckfrage_beantworten") return text && Number.isInteger(nr) && nr > 0 && nr < 100 ? { typ: "antwort", nr, text, stand } : null;
   if (werkzeug === "freigabe_entscheiden") {
     const e = args.erlauben;
@@ -159,7 +183,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
 
 export function briefText(b: BriefMitZeit): string {
   const kopf =
-    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? `Rückruf in ${b.minuten} Min.` : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
+    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? `Rückruf in ${b.minuten} Min.` : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
   // ``` im Text würde den Block beenden
   const json = JSON.stringify(b).replace(/`/g, "'");
   return `${BRIEF_MARKE} · ${kopf}\n\`\`\`json\n${json}\n\`\`\``;
@@ -171,11 +195,47 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   if (!m) return null;
   try {
     const j = JSON.parse(m[1]) as BriefMitZeit;
-    if (j.typ !== "auftrag" && j.typ !== "antwort" && j.typ !== "freigabe" && j.typ !== "rueckruf" && j.typ !== "zeigen") return null;
+    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck"].includes(j.typ)) return null;
     return typeof j.zeit === "string" ? j : null;
   } catch {
     return null;
   }
+}
+
+// ------------------------------------------------------------------ Live-Werkzeuge
+const WETTER_WORTE: [number, string][] = [[0, "klar"], [1, "überwiegend klar"], [2, "teils bewölkt"], [3, "bewölkt"], [48, "neblig"], [57, "Nieselregen"], [67, "Regen"], [77, "Schnee"], [82, "Regenschauer"], [86, "Schneeschauer"], [99, "Gewitter"]];
+/** Wetterlage (WMO-Code von Open-Meteo) als Wort. */
+export const wetterWort = (code: number): string => WETTER_WORTE.find(([bis]) => code <= bis)?.[1] ?? "wechselhaft";
+
+const nurText = (x: unknown, max: number) => (typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, max) : "");
+const BESTAETIGEN = "David hat noch nicht zugestimmt. Lass Luca die Änderung in einem Satz wiederholen und auf sein Ja warten.";
+
+/** Kundenzeile in Notion ändern: nur diese drei Felder und nur nach Davids Ja. */
+export function kundeAenderung(a: Record<string, unknown>): { ok: true; nr: string; felder: { status?: string; naechsterSchritt?: string; followUp?: string } } | { ok: false; grund: string } {
+  if (a.bestaetigt !== true) return { ok: false, grund: BESTAETIGEN };
+  const nr = nurText(a.nr, 12).toUpperCase();
+  if (!/^KND-\d{3,}$/.test(nr)) return { ok: false, grund: "Die Kundennummer fehlt (zum Beispiel KND-003). Sie steht im Lagebericht." };
+  const felder: { status?: string; naechsterSchritt?: string; followUp?: string } = {};
+  if (nurText(a.status, 40)) felder.status = nurText(a.status, 40);
+  if (nurText(a.naechsterSchritt, 300)) felder.naechsterSchritt = nurText(a.naechsterSchritt, 300);
+  const f = nurText(a.followUp, 10);
+  if (f) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return { ok: false, grund: "Das Follow-up braucht ein Datum im Format JJJJ-MM-TT." };
+    felder.followUp = f;
+  }
+  return Object.keys(felder).length ? { ok: true, nr, felder } : { ok: false, grund: "Es fehlt, was geändert werden soll." };
+}
+
+/** Kalendertermin anlegen: nur nach Davids Ja. Uhrzeit in Berliner Zeit. */
+export function terminAus(a: Record<string, unknown>): { ok: true; titel: string; start: string; minuten: number; ort?: string } | { ok: false; grund: string } {
+  if (a.bestaetigt !== true) return { ok: false, grund: BESTAETIGEN };
+  const titel = nurText(a.titel, 120);
+  if (!titel) return { ok: false, grund: "Der Titel fehlt." };
+  const m = nurText(a.start, 25).match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  if (!m) return { ok: false, grund: "Das Datum fehlt oder ist ungenau: Es braucht Tag und Uhrzeit (JJJJ-MM-TTTHH:MM)." };
+  const minuten = Math.min(480, Math.max(5, Math.round(Number(a.minuten)) || 60));
+  const ort = nurText(a.ort, 160);
+  return { ok: true, titel, start: `${m[1]}:00`, minuten, ...(ort ? { ort } : {}) };
 }
 
 // ------------------------------------------------------------------ GPT Live oder klassisch
@@ -318,6 +378,22 @@ Was du kannst:
 
 Grenzen: Du kannst am Telefon nichts senden, posten, löschen oder kaufen und keine Mails verschicken. Du erfindest keine Zahlen und keine Ergebnisse. Wenn David fertig ist, verabschiede dich kurz und locker und leg auf.`;
 
+const fn = (name: string, description: string, properties: Record<string, unknown> = {}, required: string[] = []) => ({ type: "function" as const, function: { name, description, parameters: { type: "object", properties, required } } });
+const txt = (description: string) => ({ type: "string", description });
+const WERKZEUGE_LIVE = [
+  fn("stand_abfragen", "Der aktuelle Stand der Zentrale: was läuft (mit dem aktuellen Schritt jeder Figur), was fertig ist, was auf David wartet."),
+  fn("wo_ist_david", "Davids letzter Standort vom iPhone und wo er gerade ist (zum Beispiel Zuhause, Schule)."),
+  fn("route_berechnen", "Weg, Entfernung und Dauer. Ohne von: ab Davids Standort. „nach Hause“ ist sein Zuhause.", { von: txt("Startort, leer = Davids Standort"), nach: txt("Ziel"), modus: { type: "string", enum: ["auto", "rad", "fuss"], description: "Standard auto" } }, ["nach"]),
+  fn("verbindung_suchen", "Nächste Bus- und Bahnverbindungen mit Uhrzeit, Haltestelle, Linie und Umstiegen. Ohne von: ab Davids Standort.", { von: txt("Startort, leer = Davids Standort"), nach: txt("Ziel") }, ["nach"]),
+  fn("wetter_abrufen", "Wetter jetzt, heute und morgen. Ohne ort: an Davids Standort.", { ort: txt("Ort, leer = Davids Standort") }),
+  fn("nachschauen", "Das Team sucht in Notion, den Mails von kontakt@agentsgilt.com, im Kalender und im Tresor nach einer Antwort. Dauert meist unter einer Minute, das Ergebnis kommt im Gespräch nach. Das Ergebnis kommt nicht als Antwort auf diesen Aufruf.", { frage: txt("Die Frage in einem klaren Satz") }, ["frage"]),
+  fn("schule_aktualisieren", "Schaut frisch im Schulportal nach (Vertretung, Entfall, Räume). Das Ergebnis kommt im Gespräch nach."),
+  fn("erinnerung_planen", "David wird angerufen und erinnert: an einem Ort (ort + ereignis), in einigen Minuten (minuten) oder zu einer Uhrzeit (uhrzeit). Genau eins davon.", { text: txt("Woran erinnert werden soll"), ort: txt("Ort, zum Beispiel Zuhause oder Schule"), ereignis: { type: "string", enum: ["ankunft", "abfahrt"], description: "ankunft = wenn er dort ankommt, abfahrt = wenn er dort weggeht" }, minuten: { type: "number", description: "In wie vielen Minuten" }, uhrzeit: txt("Zeitpunkt in Berliner Zeit: JJJJ-MM-TTTHH:MM") }, ["text"]),
+  fn("lerncheck_merken", "Merkt nach einem Lerncheck, was sitzt und was nicht.", { fach: txt("Fach"), sitzt: txt("Was sitzt"), luecken: txt("Was noch nicht sitzt") }, ["fach"]),
+  fn("kunde_aendern", "Ändert Status, nächsten Schritt oder Follow-up eines Kunden in Notion. Nur nachdem Luca die Änderung wiederholt und David zugestimmt hat.", { nr: txt("Kundennummer, zum Beispiel KND-003"), status: txt("Neuer Status"), naechsterSchritt: txt("Neuer nächster Schritt"), followUp: txt("Datum JJJJ-MM-TT"), bestaetigt: { type: "boolean", description: "Nur true, wenn David klar zugestimmt hat" } }, ["nr", "bestaetigt"]),
+  fn("termin_anlegen", "Legt einen Termin im Kalender an. Nur nachdem Luca Titel, Tag und Uhrzeit wiederholt und David zugestimmt hat.", { titel: txt("Titel"), start: txt("Beginn in Berliner Zeit: JJJJ-MM-TTTHH:MM"), minuten: { type: "number", description: "Dauer, Standard 60" }, ort: txt("Ort"), bestaetigt: { type: "boolean", description: "Nur true, wenn David klar zugestimmt hat" } }, ["titel", "start", "bestaetigt"]),
+];
+
 export const LUCA_WERKZEUGE = [
   {
     type: "function",
@@ -391,6 +467,7 @@ export const LUCA_WERKZEUGE = [
       },
     },
   },
+  ...WERKZEUGE_LIVE,
 ] as const;
 
 // ------------------------------------------------------------------ Stufe A: natürlicher am Telefon

@@ -305,3 +305,31 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
     return null;
   }
 }
+
+/** Luca am Telefon, nach Davids Ja: Status, nächster Schritt oder Follow-up eines Kunden ändern (nur diese Felder). */
+export async function aendereKunde(nr: string, felder: { status?: string; naechsterSchritt?: string; followUp?: string }): Promise<{ ok: true; name: string } | { ok: false; grund: string }> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  if (!token) return { ok: false, grund: "Notion ist hier nicht eingerichtet." };
+  const kopf = { Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28", "Content-Type": "application/json" };
+  const kunde = (await listeKunden())?.find((k) => k.nr === nr);
+  if (!kunde) return { ok: false, grund: `${nr} habe ich in Notion nicht gefunden.` };
+  const seite = seitenId(kunde.notionUrl);
+  if (!seite) return { ok: false, grund: `Die Notion-Seite von ${nr} habe ich nicht gefunden.` };
+  const properties: Record<string, unknown> = {};
+  if (felder.status) {
+    // Nur Status, die es schon gibt: Sonst würde Notion still einen neuen anlegen
+    const db = await fetch(`https://api.notion.com/v1/databases/${DATABASE_ID}`, { headers: kopf, signal: AbortSignal.timeout(10_000) });
+    const optionen = db.ok ? (((await db.json()) as { properties?: Record<string, { select?: { options?: { name: string }[] } }> }).properties?.Status?.select?.options ?? []).map((o) => o.name) : [];
+    const treffer = optionen.find((o) => o.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase() === felder.status!.replace(/[^\p{L}\p{N} ]/gu, "").trim().toLowerCase());
+    if (!treffer) return { ok: false, grund: `Den Status „${felder.status}“ gibt es nicht. Möglich sind: ${optionen.join(", ") || "unbekannt"}.` };
+    properties.Status = { select: { name: treffer } };
+  }
+  if (felder.naechsterSchritt) properties["Nächster Schritt"] = { rich_text: text(felder.naechsterSchritt) };
+  if (felder.followUp) properties["Nächstes Follow-up"] = { date: { start: felder.followUp } };
+  const res = await fetch(`https://api.notion.com/v1/pages/${seite}`, { method: "PATCH", headers: kopf, body: JSON.stringify({ properties }), signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) {
+    console.error(`[notion] Kunde ändern fehlgeschlagen: HTTP ${res.status}`);
+    return { ok: false, grund: "Notion hat die Änderung nicht angenommen." };
+  }
+  return { ok: true, name: kunde.name };
+}

@@ -395,3 +395,23 @@ export async function listeTermine(
     ganztags: !e.start?.dateTime,
   }));
 }
+
+/** Luca am Telefon, nach Davids Ja: einen Termin anlegen. `start` in Berliner Zeit (JJJJ-MM-TTTHH:MM:SS). */
+export async function legeTerminAn(o: { titel: string; start: string; minuten: number; ort?: string }): Promise<{ ok: true } | { ok: false; grund: string }> {
+  if (!calendarConfigured()) return { ok: false, grund: "Der Kalender ist hier nicht eingerichtet." };
+  const token = await accessToken();
+  if (!token) return { ok: false, grund: "Beim Kalender konnte ich mich nicht anmelden." };
+  // Ende rechnen, ohne die Zeitzone zu verlassen: Google bekommt beide Zeiten mit timeZone Europe/Berlin
+  const [tag, zeit] = o.start.split("T");
+  const [j, m, t] = tag.split("-").map(Number);
+  const [h, min] = zeit.split(":").map(Number);
+  const e = new Date(Date.UTC(j, m - 1, t, h, min + o.minuten));
+  const zwei = (n: number) => String(n).padStart(2, "0");
+  const ende = `${e.getUTCFullYear()}-${zwei(e.getUTCMonth() + 1)}-${zwei(e.getUTCDate())}T${zwei(e.getUTCHours())}:${zwei(e.getUTCMinutes())}:00`;
+  const calId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID!);
+  const r = await call<CalEvent>(token, `/calendars/${calId}/events`, {
+    method: "POST",
+    body: JSON.stringify({ summary: o.titel, start: { dateTime: o.start, timeZone: "Europe/Berlin" }, end: { dateTime: ende, timeZone: "Europe/Berlin" }, ...(o.ort ? { location: o.ort } : {}), description: "Von Luca am Telefon eingetragen" }),
+  });
+  return r ? { ok: true } : { ok: false, grund: "Google hat den Termin nicht angenommen." };
+}
