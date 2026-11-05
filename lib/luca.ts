@@ -16,8 +16,11 @@ import {
   GESPRAECH_MARKE,
   GESPRAECH_STATUS,
   gespraechLaeuft,
+  gedaechtnisAus,
   gespraechNachrichten,
   gespraechText,
+  SPRECH_PLAN,
+  stimmeTelefon,
   LAGE_MARKE,
   lageLesen,
   lageNachricht,
@@ -230,9 +233,10 @@ async function vapi<T>(pfad: string, init: RequestInit = {}): Promise<T> {
 }
 
 /** Was Luca beim Gespräch weiß (Lagebericht), warum er anruft, was er erklären/fragen soll und die Notiz von Claude. */
-function variablen(lage: Lage | null, grund: string | null, info?: string, notiz: string | null = null) {
+function variablen(lage: Lage | null, grund: string | null, info?: string, notiz: string | null = null, gedaechtnis = "(noch keine früheren Gespräche)") {
   return {
     lage: lageText(lage, new Date()),
+    gedaechtnis,
     grund: mitNotiz(grund ? `Du rufst David an. Grund: ${grund}${info ? `\n\nDas sollst du ihm erklären und fragen:\n${info}` : ""}` : "David hat dich angerufen.", notiz),
   };
 }
@@ -268,18 +272,19 @@ export async function holeNotiz(): Promise<string | null> {
 
 function stimmeAus(lage: Lage | null): { provider: string; voiceId: string; model?: string } | undefined {
   // turbo v2.5: deutlich schneller als multilingual v2 – am Telefon zählt jede Zehntelsekunde
-  return lage?.stimme && /^[A-Za-z0-9]{10,40}$/.test(lage.stimme) ? { provider: "11labs", voiceId: lage.stimme, model: "eleven_turbo_v2_5" } : undefined;
+  // Stufe A: Flash (noch schneller) und etwas lebendiger – Daniel bleibt, solange David nichts anderes wählt
+  return lage?.stimme && /^[A-Za-z0-9]{10,40}$/.test(lage.stimme) ? stimmeTelefon(lage.stimme) : undefined;
 }
 
 /** Antwort auf assistant-request (David ruft an und hat die 1 gedrückt). */
 export async function assistentFuerEingang() {
-  const [lage, notiz] = await Promise.all([holeLage(), holeNotiz()]);
+  const [lage, notiz, frueher] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => [])]);
   const stimme = stimmeAus(lage);
   return {
     assistantId: lucaAssistent(),
     assistantOverrides: {
       firstMessage: notiz ? ERSTER_SATZ_MIT_NOTIZ : ERSTER_SATZ_EINGEHEND,
-      variableValues: variablen(lage, null, undefined, notiz),
+      variableValues: variablen(lage, null, undefined, notiz, gedaechtnisAus(frueher)),
       ...(stimme ? { voice: stimme } : {}),
     },
   };
@@ -294,7 +299,7 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
   const jetzt = new Date();
   const darf = anrufErlaubt(jetzt);
   if (!darf.ok) return darf;
-  const [lage, notiz] = await Promise.all([holeLage(), holeNotiz()]);
+  const [lage, notiz, frueher] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => [])]);
   const stimme = stimmeAus(lage);
   try {
     await vapi("/call", {
@@ -305,7 +310,7 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
         customer: { number: lucaNummer() },
         assistantOverrides: {
           firstMessage: ersterSatzAusgehend(grund),
-          variableValues: variablen(lage, grund, info, notiz),
+          variableValues: variablen(lage, grund, info, notiz, gedaechtnisAus(frueher)),
           metadata: { luca: true, test, grund: grund.slice(0, 200) },
           ...(stimme ? { voice: stimme } : {}),
         },
@@ -350,7 +355,8 @@ export async function einrichten(): Promise<Record<string, unknown>> {
       messages: [{ role: "system", content: LUCA_PROMPT }],
       tools: LUCA_WERKZEUGE,
     },
-    voice: { provider: "11labs", voiceId: "onwK4e9ZLuTAKqWW03F9", model: "eleven_turbo_v2_5" },
+    voice: stimmeTelefon("onwK4e9ZLuTAKqWW03F9"),
+    ...SPRECH_PLAN,
     ...(vorlage.transcriber ? { transcriber: vorlage.transcriber } : {}),
     maxDurationSeconds: 900,
     // David ist oft unterwegs: länger auf ihn warten und Straßenlärm herausfiltern

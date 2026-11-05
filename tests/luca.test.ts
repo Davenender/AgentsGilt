@@ -220,3 +220,35 @@ test("Stufe 6: Gespräch läuft – Marke mit Zeit, verfällt nach 20 Minuten", 
   assert.equal(gespraechLaeuft(gespraechText(false, jetzt), jetzt), false);
   assert.equal(gespraechLaeuft("irgendwas", jetzt), false);
 });
+
+test("Stufe A: deutsches Abwarten, Unterbrechen ohne „mhm“, lebendigere Stimme", async () => {
+  const { SPRECH_PLAN, stimmeTelefon } = await import("../lib/luca-logik.ts");
+  assert.equal(SPRECH_PLAN.startSpeakingPlan.smartEndpointingPlan.provider, "vapi");
+  assert.ok(SPRECH_PLAN.startSpeakingPlan.transcriptionEndpointingPlan.onNoPunctuationSeconds > SPRECH_PLAN.startSpeakingPlan.transcriptionEndpointingPlan.onPunctuationSeconds);
+  for (const w of ["ja", "mhm", "genau", "okay"]) assert.ok(SPRECH_PLAN.stopSpeakingPlan.acknowledgementPhrases.includes(w), w);
+  assert.ok(SPRECH_PLAN.stopSpeakingPlan.interruptionPhrases.includes("stopp"));
+  const s = stimmeTelefon("onwK4e9ZLuTAKqWW03F9");
+  assert.equal(s.model, "eleven_flash_v2_5");
+  assert.equal(s.voiceId, "onwK4e9ZLuTAKqWW03F9");
+  assert.ok(s.stability < 0.5);
+});
+
+test("Stufe A: Gedächtnis – Kurzfassungen der letzten drei Gespräche, älteste zuerst", async () => {
+  const { gedaechtnisAus, LUCA_PROMPT } = await import("../lib/luca-logik.ts");
+  const g = (zeit: string, kurz: string) => ({ zeit, text: `☎️ Gespräch mit Luca · 18:17 Uhr · 2 Min.\nGrund: x\n**Kurz:** ${kurz}` });
+  const liste = [
+    g("2026-11-05T17:17:32.000Z", "David will den ganzen Bühnen-Plan."),
+    { zeit: "2026-11-05T17:17:33.000Z", text: "☎️ Gespräch mit Luca · Mitschrift 1\nAI: Hey" },
+    g("2026-11-05T15:11:00.000Z", "David war unterwegs."),
+    g("2026-11-04T10:00:00.000Z", "Ganz alt."),
+    g("2026-11-05T14:31:00.000Z", "Merkliste-Auftrag."),
+  ];
+  const t = gedaechtnisAus(liste);
+  assert.equal(t.split("\n").length, 3);
+  assert.match(t.split("\n")[0], /Merkliste-Auftrag/);
+  assert.match(t.split("\n")[2], /ganzen Bühnen-Plan/);
+  assert.doesNotMatch(t, /Ganz alt|Mitschrift/);
+  assert.equal(gedaechtnisAus([]), "(noch keine früheren Gespräche)");
+  assert.match(LUCA_PROMPT, /\{\{gedaechtnis\}\}/);
+  assert.match(LUCA_PROMPT, /Umgangssprache/);
+});

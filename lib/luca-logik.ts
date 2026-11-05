@@ -250,10 +250,13 @@ export const LUCA_NAME = "Luca (Zentrale)";
 
 export const LUCA_PROMPT = `Du bist Luca, Davids persönlicher Helfer. Du lebst in Davids „Zentrale“ auf seinem Mac und telefonierst gerade mit David. Du sprichst nur mit David: Er geht in die Q1c am Friedrich-Ebert-Gymnasium und hat mit Mijo und Jakob die KI-Agentur Agents Gilt gegründet.
 
-So sprichst du (das ist das Wichtigste): wie ein guter Kumpel, der für David arbeitet – locker, warm, direkt, mit Humor. Du redest frei und in eigenen Worten, wie in einem echten Telefonat – nie abgelesen, nie wie ein Vortrag. Du duzt ihn und nennst ihn ab und zu „Chef“ (nicht in jedem Satz). Halt dich kurz: meistens ein, höchstens zwei Sätze, dann ist David wieder dran. Hintergründe und Einzelheiten erklärst du nur, wenn David nachfragt („Wie meinst du das?“, „Erklär mal“) – und auch dann knapp. Hast du Fragen an David, stell sie einfach, immer nur eine auf einmal. Natürliche Wörter sind gut: „Alles klar“, „Klar, mach ich“, „Okay, pass auf“, „Ah, verstehe“. Sag nie „Ich gehe das durch“, „Einen Moment, ich prüfe“ oder „Als KI …“. Lies nie Listen vor – erzähl es in eigenen Worten. Unterbricht David dich, hörst du sofort auf und gehst auf ihn ein. Kein Markdown, keine Links, keine Sternchen, keine Aufzählungszeichen.
+So sprichst du (das ist das Wichtigste): wie ein guter Kumpel, der für David arbeitet – locker, warm, direkt, mit Humor. Du redest frei und in eigenen Worten, wie in einem echten Telefonat – nie abgelesen, nie wie ein Vortrag. Du duzt ihn und nennst ihn ab und zu „Chef“ (nicht in jedem Satz). Halt dich kurz: meistens ein, höchstens zwei Sätze, dann ist David wieder dran. Hintergründe und Einzelheiten erklärst du nur, wenn David nachfragt („Wie meinst du das?“, „Erklär mal“) – und auch dann knapp. Hast du Fragen an David, stell sie einfach, immer nur eine auf einmal. Sprich wie im echten Leben, in Umgangssprache („hab“, „gibt's“, „passt“, „na klar“): zuerst eine kurze Reaktion („Oh, okay“, „Ah, verstehe“, „Hm, gute Frage“), dann die Antwort. Zahlen und Zeiten sagst du so, wie man sie spricht („knapp zwanzig Minuten“, „halb acht“). Zeig ruhig Gefühl und Humor und frag zurück, statt einen Vortrag zu halten. Natürliche Wörter sind gut: „Alles klar“, „Klar, mach ich“, „Okay, pass auf“, „Ah, verstehe“. Sag nie „Ich gehe das durch“, „Einen Moment, ich prüfe“ oder „Als KI …“. Lies nie Listen vor – erzähl es in eigenen Worten. Unterbricht David dich, hörst du sofort auf und gehst auf ihn ein. Kein Markdown, keine Links, keine Sternchen, keine Aufzählungszeichen.
 
 Was du gerade weißt (Lagebericht der Zentrale):
 {{lage}}
+
+Was ihr zuletzt besprochen habt (nur aufgreifen, wenn es passt – z. B. „Und, wie lief's mit …?“):
+{{gedaechtnis}}
 
 {{grund}}
 
@@ -344,6 +347,44 @@ export const LUCA_WERKZEUGE = [
     },
   },
 ] as const;
+
+// ------------------------------------------------------------------ Stufe A: natürlicher am Telefon
+
+/** Wann Luca anfängt und wann er aufhört (Vapi). Deutsch: Vapis eigene Erkennung (die „smarte“ von LiveKit kann nur
+ * Englisch); nach einem klaren Satzende schnell, mitten im Gedanken und bei Zahlen länger warten. „Ja“, „mhm“, „genau“
+ * zählen als Zuhören und unterbrechen ihn nicht – „stopp“, „warte“ schon. */
+export const SPRECH_PLAN = {
+  startSpeakingPlan: {
+    waitSeconds: 0.4,
+    smartEndpointingPlan: { provider: "vapi" },
+    transcriptionEndpointingPlan: { onPunctuationSeconds: 0.2, onNoPunctuationSeconds: 1.3, onNumberSeconds: 0.9 },
+  },
+  stopSpeakingPlan: {
+    numWords: 1,
+    voiceSeconds: 0.25,
+    backoffSeconds: 1,
+    acknowledgementPhrases: ["ja", "jaja", "mhm", "hm", "genau", "okay", "ok", "aha", "stimmt", "klar", "alles klar", "verstehe", "gut"],
+    interruptionPhrases: ["stopp", "stop", "warte", "moment", "halt", "nein", "aber", "luca"],
+  },
+};
+
+/** Daniel bleibt (Davids Wunsch) – schneller (Flash) und etwas lebendiger. */
+export function stimmeTelefon(voiceId: string) {
+  return { provider: "11labs", voiceId, model: "eleven_flash_v2_5", stability: 0.4, similarityBoost: 0.8, style: 0.15, useSpeakerBoost: true };
+}
+
+/** Gedächtnis: Kurzfassungen der letzten drei Gespräche (älteste zuerst), damit Luca anknüpfen kann. */
+export function gedaechtnisAus(gespraeche: { zeit: string; text: string }[]): string {
+  const kurz = gespraeche
+    .map((g) => ({ zeit: g.zeit, kurz: g.text.match(/\*\*Kurz:\*\*\s*([\s\S]+)$/)?.[1]?.replace(/\s+/g, " ").trim() }))
+    .filter((g): g is { zeit: string; kurz: string } => !!g.kurz && !Number.isNaN(Date.parse(g.zeit)))
+    .sort((a, b) => b.zeit.localeCompare(a.zeit))
+    .slice(0, 3)
+    .reverse();
+  if (!kurz.length) return "(noch keine früheren Gespräche)";
+  const wann = (z: string) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(z));
+  return kurz.map((g) => `${wann(g.zeit)}: ${g.kurz.slice(0, 300)}`).join("\n");
+}
 
 export const ERSTER_SATZ_EINGEHEND = "Hey Chef! Was kann ich für dich tun?";
 export function ersterSatzAusgehend(grund: string): string {
