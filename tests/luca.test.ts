@@ -3,6 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   anrufErlaubt,
+  assistentUeberblick,
+  laeuftKlassisch,
   anrufNachricht,
   anrufZeit,
   briefAus,
@@ -251,4 +253,29 @@ test("Stufe A: Gedächtnis – Kurzfassungen der letzten drei Gespräche, ältes
   assert.equal(gedaechtnisAus([]), "(noch keine früheren Gespräche)");
   assert.match(LUCA_PROMPT, /\{\{gedaechtnis\}\}/);
   assert.match(LUCA_PROMPT, /Umgangssprache/);
+});
+
+test("Stimme mitschicken nur, wenn Luca klassisch läuft: GPT Live lehnt fremde Stimmen samt Anruf ab", () => {
+  assert.equal(laeuftKlassisch({ voice: { provider: "11labs" } }), true);
+  assert.equal(laeuftKlassisch({ voice: { provider: "openai" } }), false);
+  // Vapi antwortet nicht oder nichts eingestellt: lieber keine Stimme schicken, der Anruf klappt dann trotzdem
+  assert.equal(laeuftKlassisch(null), false);
+  assert.equal(laeuftKlassisch({}), false);
+});
+
+test("Überblick über Lucas Einstellungen: ohne Prompt und ohne Geheimnisse", () => {
+  const u = assistentUeberblick({
+    voice: { provider: "openai", voiceId: "cedar" },
+    transcriber: { provider: "assembly-ai" },
+    model: { provider: "openai", model: "gpt-live", messages: [{ role: "system", content: "GEHEIMER PROMPT" }], tools: [{ type: "function", function: { name: "auftrag_geben" } }, { type: "endCall" }] },
+    server: { url: "https://agentsgilt.com/api/luca", secret: "GEHEIM" },
+    serverMessages: ["tool-calls", "end-of-call-report"],
+    analysisPlan: { summaryPlan: {} },
+    maxDurationSeconds: 900,
+  } as never);
+  assert.equal(u?.art, "gpt-live-oder-eigene-stimme");
+  assert.deepEqual(u?.werkzeuge, ["auftrag_geben", "endCall"]);
+  assert.equal(u?.serverGesetzt, true);
+  assert.ok(!JSON.stringify(u).includes("GEHEIM"));
+  assert.equal(assistentUeberblick(null), null);
 });
