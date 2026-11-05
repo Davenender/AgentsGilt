@@ -195,6 +195,8 @@ test("Stufe 6: zeigen – Brief für die Bühne der Zentrale, nur bekannte Vorla
   assert.deepEqual(briefAus("zeigen", { vorlage: "kunden", wunsch: "  Relax Fit " }, "s"), { typ: "zeigen", vorlage: "kunden", wunsch: "Relax Fit" });
   assert.deepEqual(briefAus("zeigen", { vorlage: "route", wunsch: "von Mühlheim nach Offenbach" }, "s"), { typ: "zeigen", vorlage: "route", wunsch: "von Mühlheim nach Offenbach" });
   assert.equal(briefAus("zeigen", { vorlage: "aufgaben" }, "s"), null); // nichts über die Zentrale selbst
+  assert.deepEqual(briefAus("zeigen", { vorlage: "wetter" }, "s"), { typ: "zeigen", vorlage: "wetter" });
+  assert.deepEqual(briefAus("zeigen", { vorlage: "treffpunkt", wunsch: "Offenbach|Hanau" }, "s"), { typ: "zeigen", vorlage: "treffpunkt", wunsch: "Offenbach|Hanau" });
   assert.deepEqual(briefAus("zeigen", { vorlage: "schliessen" }, "s"), { typ: "zeigen", vorlage: "schliessen" });
   assert.equal(briefAus("zeigen", { vorlage: "rakete" }, "s"), null);
   assert.equal(briefAus("zeigen", {}, "s"), null);

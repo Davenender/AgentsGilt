@@ -121,7 +121,7 @@ export const LAGE_MARKE = "📋 Lagebericht";
 export const ANRUF_MARKE = "📞 Luca ruft David an";
 
 /** Stufe 6: was Luca am Telefon auf der Bühne der Zentrale zeigen kann (Vorlagen der Zentrale) – „schliessen“ macht sie zu. */
-export const ZEIG_VORLAGEN = ["ort", "route", "schulwoche", "kunden", "website", "karte", "schliessen"] as const;
+export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "schliessen"] as const;
 
 export type Brief =
   | { typ: "zeigen"; vorlage: string; wunsch?: string }
@@ -266,7 +266,7 @@ Was du kannst:
 7. Rückruf: Will David, dass du ihn später nochmal anrufst („ruf mich in 30 Minuten an“), rufst du rueckruf_planen auf (Minuten und worum es dann gehen soll). Versprich nie einen Rückruf, ohne das Werkzeug aufzurufen. Einen Rückruf machst du nicht mit auftrag_geben.
 6. Hast du Fragen an David (steht dann oben beim Grund): Stell sie nacheinander, immer nur eine, warte auf die Antwort und frag kurz nach, wenn sie unklar ist. Am Ende fasst du alle Antworten in zwei, drei Sätzen zusammen und fragst, ob das so stimmt. Seine Antworten werden mitgeschrieben – du musst dafür kein Werkzeug aufrufen.
 
-8. Zeigen: Du kannst David Antworten auf dem Bildschirm seiner Zentrale zeigen. Mit dem Werkzeug zeigen geht es sofort: ort (wo etwas ist – mit wunsch = Firma, Ort oder Adresse), route (wunsch = „von X nach Y“), schulwoche, kunden, website, karte, schliessen. Für alles andere, was man sehen kann – Bewertungen, Lernplan, Vergleich, Zahlen –, gib einen Auftrag mit auftrag_geben; das Ergebnis erscheint dann von selbst auf dem Bildschirm. Steht im Lagebericht, dass die Zentrale offen ist, sag kurz „Schau mal auf den Bildschirm“; sonst, dass er es sieht, sobald er sie öffnet. Personen suchst oder ortest du nie.
+8. Zeigen: Du kannst David Antworten auf dem Bildschirm seiner Zentrale zeigen. Mit dem Werkzeug zeigen geht es sofort: ort (wo etwas ist – mit wunsch = Firma, Ort oder Adresse), route (wunsch = „von X nach Y“), wetter, bahn (nächste Bus- und Bahnverbindungen), treffpunkt (Mitte zwischen zwei Orten, die David nennt), schulwoche, kunden, website, karte, schliessen. Für alles andere, was man sehen kann – Bewertungen, Lernplan, Karteikarten, Funktionsgraph, Zeitstrahl, Vergleich, Zahlen, Besuchstour –, gib einen Auftrag mit auftrag_geben; das Ergebnis erscheint dann von selbst auf dem Bildschirm. Steht im Lagebericht, dass die Zentrale offen ist, sag kurz „Schau mal auf den Bildschirm“; sonst, dass er es sieht, sobald er sie öffnet. Personen suchst oder ortest du nie.
 
 Grenzen: Du kannst am Telefon nichts senden, posten, löschen oder kaufen und keine Mails verschicken. Du erfindest keine Zahlen und keine Ergebnisse. Wenn David fertig ist, verabschiede dich kurz und locker und leg auf.`;
 
@@ -321,7 +321,7 @@ export const LUCA_WERKZEUGE = [
       parameters: {
         type: "object",
         properties: {
-          vorlage: { type: "string", enum: [...ZEIG_VORLAGEN], description: "Was gezeigt wird: ort (Karte mit dem Gebäude – wunsch = Firma, Ort oder Adresse), route (wunsch = „von X nach Y“ oder „nach Y“, auch „mit dem Rad“/„zu Fuß“), schulwoche, kunden (wunsch = Kundenname), website (letzte Prüfung), karte (die Gegend), schliessen (Bühne zu)." },
+          vorlage: { type: "string", enum: [...ZEIG_VORLAGEN], description: "Was gezeigt wird: ort (Karte mit dem Gebäude – wunsch = Firma, Ort oder Adresse), route (wunsch = „von X nach Y“ oder „nach Y“, auch „mit dem Rad“/„zu Fuß“), wetter (wunsch = Ort, leer = Mühlheim), bahn (Bus und Bahn – wunsch = „von X nach Y“ oder „nach Y“), treffpunkt (wunsch = „Ort A|Ort B“), schulwoche, kunden (wunsch = Kundenname), website (letzte Prüfung), karte (die Gegend), schliessen (Bühne zu)." },
           wunsch: { type: "string", description: "Für ort und route nötig, sonst optional: z. B. „Relax Fit Obertshausen“ oder „von Mühlheim nach Offenbach“." },
         },
         required: ["vorlage"],
