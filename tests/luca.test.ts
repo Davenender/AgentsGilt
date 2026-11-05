@@ -188,3 +188,33 @@ test("Notiz für Luca: in zwei Teile geteilt, wieder zusammengesetzt, leer = kei
   assert.match(mitNotiz("David hat dich angerufen.", "Stufe 6 erklären"), /^David hat dich angerufen\.\n\nNotiz von Claude.*\nStufe 6 erklären$/s);
   assert.equal(mitNotiz("Grund", null), "Grund");
 });
+
+test("Stufe 6: zeigen – Brief für die Bühne der Zentrale, nur bekannte Vorlagen", async () => {
+  const { briefAus, briefText, briefLesen, LUCA_WERKZEUGE, LUCA_PROMPT, ZEIG_VORLAGEN } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("zeigen", { vorlage: "schulwoche" }, "s"), { typ: "zeigen", vorlage: "schulwoche" });
+  assert.deepEqual(briefAus("zeigen", { vorlage: "kunden", wunsch: "  Relax Fit " }, "s"), { typ: "zeigen", vorlage: "kunden", wunsch: "Relax Fit" });
+  assert.deepEqual(briefAus("zeigen", { vorlage: "route", wunsch: "von Mühlheim nach Offenbach" }, "s"), { typ: "zeigen", vorlage: "route", wunsch: "von Mühlheim nach Offenbach" });
+  assert.equal(briefAus("zeigen", { vorlage: "aufgaben" }, "s"), null); // nichts über die Zentrale selbst
+  assert.deepEqual(briefAus("zeigen", { vorlage: "schliessen" }, "s"), { typ: "zeigen", vorlage: "schliessen" });
+  assert.equal(briefAus("zeigen", { vorlage: "rakete" }, "s"), null);
+  assert.equal(briefAus("zeigen", {}, "s"), null);
+  const b = { typ: "zeigen" as const, vorlage: "ort", wunsch: "Relax Fit", zeit: "2026-11-05T18:00:00.000Z" };
+  assert.deepEqual(briefLesen(briefText(b)), b);
+  const w = LUCA_WERKZEUGE.find((x) => x.function.name === "zeigen");
+  assert.ok(w);
+  assert.deepEqual([...(w!.function.parameters.properties as { vorlage: { enum: string[] } }).vorlage.enum], [...ZEIG_VORLAGEN]);
+  assert.match(LUCA_PROMPT, /Werkzeug zeigen/);
+  assert.match(LUCA_PROMPT, /Personen suchst oder ortest du nie/);
+  assert.match(LUCA_PROMPT, /Bildschirm/);
+});
+
+test("Stufe 6: Gespräch läuft – Marke mit Zeit, verfällt nach 20 Minuten", async () => {
+  const { gespraechText, gespraechLaeuft, GESPRAECH_LAEUFT_MARKE } = await import("../lib/luca-logik.ts");
+  const jetzt = new Date("2026-11-05T18:00:00.000Z");
+  const an = gespraechText(true, jetzt);
+  assert.ok(an.startsWith(GESPRAECH_LAEUFT_MARKE));
+  assert.equal(gespraechLaeuft(an, new Date("2026-11-05T18:19:00.000Z")), true);
+  assert.equal(gespraechLaeuft(an, new Date("2026-11-05T18:21:00.000Z")), false);
+  assert.equal(gespraechLaeuft(gespraechText(false, jetzt), jetzt), false);
+  assert.equal(gespraechLaeuft("irgendwas", jetzt), false);
+});

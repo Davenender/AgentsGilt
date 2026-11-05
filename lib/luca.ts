@@ -14,7 +14,10 @@ import {
   notizAus,
   notizTeile,
   GESPRAECH_MARKE,
+  GESPRAECH_STATUS,
+  gespraechLaeuft,
   gespraechNachrichten,
+  gespraechText,
   LAGE_MARKE,
   lageLesen,
   lageNachricht,
@@ -119,14 +122,26 @@ export async function posteBrief(b: BriefMitZeit): Promise<boolean> {
 }
 
 /** Alle noch nicht abgeholten Briefe (ohne ✅ des Bots), älteste zuerst. */
-export async function offeneBriefe(): Promise<{ id: string; brief: BriefMitZeit }[]> {
+/** Briefkasten für die Zentrale: offene Briefe und ob gerade ein Gespräch läuft (ein einziger Discord-Abruf). */
+export async function briefkasten(): Promise<{ briefe: { id: string; brief: BriefMitZeit }[]; gespraech: boolean }> {
   const kanal = await lucaKanal();
   if (!kanal) throw new Error("Kanal #luca nicht gefunden");
-  return (await nachrichten(kanal))
+  const alle = await nachrichten(kanal);
+  return { briefe: briefeAus(alle), gespraech: gespraechAus(alle) };
+}
+
+function briefeAus(alle: Nachricht[]): { id: string; brief: BriefMitZeit }[] {
+  return alle
     .filter((m) => istUnsere(m) && m.content.startsWith(BRIEF_MARKE) && !m.reactions?.some((r) => r.emoji.name === "✅" && r.me))
     .map((m) => ({ id: m.id, brief: briefLesen(m.content) }))
     .filter((x): x is { id: string; brief: BriefMitZeit } => x.brief !== null)
     .reverse();
+}
+
+export async function offeneBriefe(): Promise<{ id: string; brief: BriefMitZeit }[]> {
+  const kanal = await lucaKanal();
+  if (!kanal) throw new Error("Kanal #luca nicht gefunden");
+  return briefeAus(await nachrichten(kanal));
 }
 
 export async function markiereAbgeholt(ids: string[]): Promise<number> {
@@ -147,6 +162,31 @@ export async function markiereAbgeholt(ids: string[]): Promise<number> {
 
 async function lageNachrichtFinden(kanal: string): Promise<Nachricht | null> {
   return (await nachrichten(kanal)).find((m) => istUnsere(m) && m.content.startsWith(LAGE_MARKE)) ?? null;
+}
+
+/** Stufe 6: Läuft gerade ein Gespräch mit Luca? Eine feste Bot-Nachricht, die geändert wird (nie eine neue je Anruf). */
+export async function setzeGespraech(laeuft: boolean): Promise<boolean> {
+  try {
+    const kanal = await lucaKanal();
+    if (!kanal) return false;
+    const alt = (await nachrichten(kanal)).find((m) => istUnsere(m) && m.content.startsWith(GESPRAECH_STATUS));
+    const content = gespraechText(laeuft, new Date());
+    if (alt) {
+      if (alt.content === content) return true;
+      const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, { method: "PATCH", headers: kopf(), body: JSON.stringify({ content, allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(6000) });
+      return res.ok;
+    }
+    return Boolean(await poste(kanal, content));
+  } catch (err) {
+    console.error("[luca] Gespräch-Status:", err);
+    return false;
+  }
+}
+
+/** Für den Briefkasten: läuft gerade ein Gespräch (höchstens 20 Minuten alt)? */
+export function gespraechAus(nachr: Nachricht[], jetzt = new Date()): boolean {
+  const m = nachr.find((x) => istUnsere(x) && x.content.startsWith(GESPRAECH_STATUS));
+  return m ? gespraechLaeuft(m.content, jetzt) : false;
 }
 
 /** Die Zentrale schickt jede Minute ihren Lagebericht: eine einzige Bot-Nachricht, die immer wieder geändert wird. */
@@ -276,6 +316,7 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
     return { ok: false, grund: "Vapi hat den Anruf abgelehnt." };
   }
   await poste(kanal, anrufNachricht(jetzt.toISOString(), grund, test));
+  await setzeGespraech(true);
   return { ok: true };
 }
 

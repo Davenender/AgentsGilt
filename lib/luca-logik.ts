@@ -120,7 +120,11 @@ export const BRIEF_MARKE = "📥 Luca-Briefkasten";
 export const LAGE_MARKE = "📋 Lagebericht";
 export const ANRUF_MARKE = "📞 Luca ruft David an";
 
+/** Stufe 6: was Luca am Telefon auf der Bühne der Zentrale zeigen kann (Vorlagen der Zentrale) – „schliessen“ macht sie zu. */
+export const ZEIG_VORLAGEN = ["ort", "route", "schulwoche", "kunden", "website", "karte", "schliessen"] as const;
+
 export type Brief =
+  | { typ: "zeigen"; vorlage: string; wunsch?: string }
   | { typ: "auftrag"; text: string }
   | { typ: "rueckruf"; minuten: number; text: string }
   | { typ: "antwort"; nr: number; text: string; stand: string }
@@ -134,6 +138,12 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
   const text = typeof args.text === "string" ? args.text.replace(/\s+/g, " ").trim().slice(0, MAX_TEXT) : "";
   const nr = Number(args.nr);
   if (werkzeug === "auftrag_geben") return text ? { typ: "auftrag", text } : null;
+  if (werkzeug === "zeigen") {
+    const vorlage = typeof args.vorlage === "string" ? args.vorlage.trim().toLowerCase() : "";
+    if (!(ZEIG_VORLAGEN as readonly string[]).includes(vorlage)) return null;
+    const wunsch = typeof args.wunsch === "string" ? args.wunsch.replace(/\s+/g, " ").trim().slice(0, 120) : "";
+    return wunsch ? { typ: "zeigen", vorlage, wunsch } : { typ: "zeigen", vorlage };
+  }
   if (werkzeug === "rueckruf_planen") {
     const minuten = Math.round(Number(args.minuten));
     return Number.isFinite(minuten) && minuten >= 1 && minuten <= 720 ? { typ: "rueckruf", minuten, text: text || "Rückruf, wie besprochen" } : null;
@@ -149,7 +159,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
 
 export function briefText(b: BriefMitZeit): string {
   const kopf =
-    b.typ === "rueckruf" ? `Rückruf in ${b.minuten} Min.` : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
+    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? `Rückruf in ${b.minuten} Min.` : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
   // ``` im Text würde den Block beenden
   const json = JSON.stringify(b).replace(/`/g, "'");
   return `${BRIEF_MARKE} · ${kopf}\n\`\`\`json\n${json}\n\`\`\``;
@@ -161,7 +171,7 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   if (!m) return null;
   try {
     const j = JSON.parse(m[1]) as BriefMitZeit;
-    if (j.typ !== "auftrag" && j.typ !== "antwort" && j.typ !== "freigabe" && j.typ !== "rueckruf") return null;
+    if (j.typ !== "auftrag" && j.typ !== "antwort" && j.typ !== "freigabe" && j.typ !== "rueckruf" && j.typ !== "zeigen") return null;
     return typeof j.zeit === "string" ? j : null;
   } catch {
     return null;
@@ -216,6 +226,24 @@ export function anrufZeit(inhalt: string): string | null {
   return inhalt.match(/`(\d{4}-\d{2}-\d{2}T[^`]+)`\s*$/)?.[1] ?? null;
 }
 
+// ------------------------------------------------------------------ Gespräch läuft (Stufe 6)
+
+// Eine feste Nachricht in #luca: läuft gerade ein Gespräch mit Luca? Dann holt die Zentrale alle 3 Sekunden ab (für
+// „zeigen“), sonst alle 30. Verfällt nach 20 Minuten, falls das Ende einmal nicht gemeldet wird.
+export const GESPRAECH_STATUS = "📞 Gespräch-Status";
+export const GESPRAECH_LAEUFT_MARKE = `${GESPRAECH_STATUS}: läuft`;
+export const GESPRAECH_GILT_MS = 20 * 60_000;
+
+export function gespraechText(laeuft: boolean, jetzt: Date): string {
+  return laeuft ? `${GESPRAECH_LAEUFT_MARKE} seit \`${jetzt.toISOString()}\`` : `${GESPRAECH_STATUS}: frei`;
+}
+
+export function gespraechLaeuft(inhalt: string, jetzt: Date): boolean {
+  const m = inhalt.match(/^📞 Gespräch-Status: läuft seit `([^`]+)`/u);
+  const t = m ? Date.parse(m[1]) : NaN;
+  return Number.isFinite(t) && jetzt.getTime() - t >= -60_000 && jetzt.getTime() - t < GESPRAECH_GILT_MS;
+}
+
 // ------------------------------------------------------------------ Lucas Assistent bei Vapi
 
 export const LUCA_NAME = "Luca (Zentrale)";
@@ -237,6 +265,8 @@ Was du kannst:
 5. Allgemeine Fragen beantwortest du direkt und kurz.
 7. Rückruf: Will David, dass du ihn später nochmal anrufst („ruf mich in 30 Minuten an“), rufst du rueckruf_planen auf (Minuten und worum es dann gehen soll). Versprich nie einen Rückruf, ohne das Werkzeug aufzurufen. Einen Rückruf machst du nicht mit auftrag_geben.
 6. Hast du Fragen an David (steht dann oben beim Grund): Stell sie nacheinander, immer nur eine, warte auf die Antwort und frag kurz nach, wenn sie unklar ist. Am Ende fasst du alle Antworten in zwei, drei Sätzen zusammen und fragst, ob das so stimmt. Seine Antworten werden mitgeschrieben – du musst dafür kein Werkzeug aufrufen.
+
+8. Zeigen: Du kannst David Antworten auf dem Bildschirm seiner Zentrale zeigen. Mit dem Werkzeug zeigen geht es sofort: ort (wo etwas ist – mit wunsch = Firma, Ort oder Adresse), route (wunsch = „von X nach Y“), schulwoche, kunden, website, karte, schliessen. Für alles andere, was man sehen kann – Bewertungen, Lernplan, Vergleich, Zahlen –, gib einen Auftrag mit auftrag_geben; das Ergebnis erscheint dann von selbst auf dem Bildschirm. Steht im Lagebericht, dass die Zentrale offen ist, sag kurz „Schau mal auf den Bildschirm“; sonst, dass er es sieht, sobald er sie öffnet. Personen suchst oder ortest du nie.
 
 Grenzen: Du kannst am Telefon nichts senden, posten, löschen oder kaufen und keine Mails verschicken. Du erfindest keine Zahlen und keine Ergebnisse. Wenn David fertig ist, verabschiede dich kurz und locker und leg auf.`;
 
@@ -280,6 +310,21 @@ export const LUCA_WERKZEUGE = [
           erlauben: { type: "boolean", description: "true = erlauben, false = ablehnen." },
         },
         required: ["nr", "erlauben"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "zeigen",
+      description: "Zeigt David etwas auf dem Bildschirm seiner Zentrale (Mac oder Handy) – zu sehen, sobald die Zentrale offen ist. Verändert nichts.",
+      parameters: {
+        type: "object",
+        properties: {
+          vorlage: { type: "string", enum: [...ZEIG_VORLAGEN], description: "Was gezeigt wird: ort (Karte mit dem Gebäude – wunsch = Firma, Ort oder Adresse), route (wunsch = „von X nach Y“ oder „nach Y“, auch „mit dem Rad“/„zu Fuß“), schulwoche, kunden (wunsch = Kundenname), website (letzte Prüfung), karte (die Gegend), schliessen (Bühne zu)." },
+          wunsch: { type: "string", description: "Für ort und route nötig, sonst optional: z. B. „Relax Fit Obertshausen“ oder „von Mühlheim nach Offenbach“." },
+        },
+        required: ["vorlage"],
       },
     },
   },

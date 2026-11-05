@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { briefAus } from "@/lib/luca-logik";
 import {
   assistentFuerEingang,
@@ -11,7 +11,8 @@ import {
   lucaKanal,
   lucaSchluessel,
   markiereAbgeholt,
-  offeneBriefe,
+  briefkasten,
+  setzeGespraech,
   posteBrief,
   posteGespraech,
   setzeNotiz,
@@ -61,6 +62,7 @@ function argumente(c: ToolCall): Record<string, unknown> {
 }
 
 const ANTWORT: Record<string, string> = {
+  zeigen: "Ist unterwegs zum Bildschirm der Zentrale. Sag kurz „Schau mal auf den Bildschirm“ – ist die Zentrale nicht offen, sieht David es, sobald er sie öffnet.",
   rueckruf: "Der Rückruf ist eingeplant. Sag David kurz, wann du dich meldest.",
   auftrag: "Der Auftrag ist bei der Zentrale angekommen. Sag David kurz, dass er erledigt wird und das Ergebnis in der Zentrale steht.",
   antwort: "Die Antwort ist weitergegeben. Die Aufgabe macht damit weiter.",
@@ -73,6 +75,8 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
 
   if (typ === "assistant-request") {
     if (!lucaAn()) return NextResponse.json({ error: "Luca ist nicht eingerichtet" }, { status: 503 });
+    // Stufe 6: Gespräch läuft → die Zentrale holt schneller ab (für „zeigen“)
+    after(() => setzeGespraech(true).then(() => undefined));
     return NextResponse.json(await assistentFuerEingang());
   }
 
@@ -92,6 +96,7 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
         continue;
       }
       const ok = await posteBrief({ ...brief, zeit: new Date().toISOString(), ...(msg?.call?.id ? { anruf: msg.call.id } : {}) });
+      if (brief.typ === "zeigen") after(() => setzeGespraech(true).then(() => undefined));
       results.push({ toolCallId: c.id, result: ok ? ANTWORT[brief.typ] : "Der Briefkasten ist gerade nicht erreichbar. Sag David, er soll es in der Zentrale eintragen." });
     }
     return NextResponse.json({ results });
@@ -99,6 +104,7 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
 
   if (typ === "end-of-call-report") {
     if (istLucaGespraech(msg?.call)) {
+      after(() => setzeGespraech(false).then(() => undefined));
       const grund = msg?.call?.assistantOverrides?.metadata?.grund;
       await posteGespraech({
         minuten: Math.max(1, Math.round((msg?.durationSeconds ?? 0) / 60)),
@@ -115,7 +121,7 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
 
 async function vonDerZentrale(req: Request, aktion: string | null) {
   try {
-    if (req.method === "GET" && aktion === "briefkasten") return NextResponse.json({ briefe: await offeneBriefe() });
+    if (req.method === "GET" && aktion === "briefkasten") return NextResponse.json(await briefkasten());
     if (req.method === "GET" && aktion === "gespraeche") return NextResponse.json({ gespraeche: await letzteGespraeche() });
     if (req.method === "GET" && aktion === "status") {
       const lage = await holeLage();
