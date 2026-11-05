@@ -88,6 +88,7 @@ async function accessToken(): Promise<string | null> {
 interface CalEvent {
   id: string;
   summary?: string;
+  location?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   extendedProperties?: { private?: Record<string, string> };
@@ -377,7 +378,7 @@ export async function markiereErinnert(
 export async function listeTermine(
   von: Date,
   bis: Date,
-): Promise<{ titel: string; start: string; ende: string; ganztags: boolean }[] | null> {
+): Promise<{ titel: string; start: string; ende: string; ganztags: boolean; ort?: string }[] | null> {
   if (!calendarConfigured()) return null;
   const token = await accessToken();
   if (!token) return null;
@@ -393,6 +394,7 @@ export async function listeTermine(
     start: e.start?.dateTime ?? e.start?.date ?? "",
     ende: e.end?.dateTime ?? e.end?.date ?? "",
     ganztags: !e.start?.dateTime,
+    ...(e.location ? { ort: e.location } : {}),
   }));
 }
 
