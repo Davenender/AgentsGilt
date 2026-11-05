@@ -152,6 +152,17 @@ test("Luca spricht locker: Prompt verlangt kurze, natürliche Antworten und kein
   assert.equal(ersterSatzAusgehend("Ich hab den Plan fertig."), "Hey Chef, Luca hier! Ich hab den Plan fertig.");
 });
 
+test("Davids Wunsch 05.11.: frei reden, kurz halten, nur auf Nachfrage erklären, Fragen stellen", async () => {
+  const { LUCA_PROMPT, ERSTER_SATZ_MIT_NOTIZ, mitNotiz } = await import("../lib/luca-logik.ts");
+  assert.match(LUCA_PROMPT, /redest frei/);
+  assert.match(LUCA_PROMPT, /höchstens zwei Sätze/);
+  assert.match(LUCA_PROMPT, /nur, wenn David nachfragt/);
+  assert.match(LUCA_PROMPT, /Hast du Fragen an David, stell sie/);
+  assert.doesNotMatch(ERSTER_SATZ_MIT_NOTIZ, /erklären/);
+  assert.match(mitNotiz("Grund", "Thema"), /nur kurz/);
+  assert.doesNotMatch(mitNotiz("Grund", "Thema"), /in Ruhe/);
+});
+
 test("Rückruf planen: 1 bis 720 Minuten, mit Thema; sonst abgewiesen", async () => {
   const { briefAus, briefLesen, briefText, LUCA_WERKZEUGE, LUCA_PROMPT } = await import("../lib/luca-logik.ts");
   assert.deepEqual(briefAus("rueckruf_planen", { minuten: "30", text: "Plan in Ruhe besprechen" }, "s"), { typ: "rueckruf", minuten: 30, text: "Plan in Ruhe besprechen" });
