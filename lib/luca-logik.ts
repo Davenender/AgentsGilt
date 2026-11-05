@@ -424,8 +424,38 @@ export function gedaechtnisAus(gespraeche: { zeit: string; text: string }[]): st
     .reverse();
   if (!kurz.length) return "(noch keine früheren Gespräche)";
   const wann = (z: string) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(z));
-  return kurz.map((g) => `${wann(g.zeit)}: ${g.kurz.slice(0, 300)}`).join("\n");
+  // Die Spracherkennung macht aus Luca gern „Lukas“ – im Gedächtnis soll er richtig heißen
+  return kurz.map((g) => `${wann(g.zeit)}: ${g.kurz.replace(/\bLukas(['’]|s\b)?/g, "Luca").slice(0, 300)}`).join("\n");
 }
+
+// ------------------------------------------------------------------ Kunden (Davids Wunsch 05.11.: „Er weiß da nicht so viel“)
+export type KundeFuerLuca = { nr: string; name: string; status?: string | null; naechsterSchritt?: string | null; followUp?: string | null; angebot?: string | null; domain?: string | null; vercelProjekt?: string | null; live?: boolean | null };
+
+/** Die Kundenliste aus Notion als kurzer Text für Lucas Lagebericht am Telefon. */
+export function kundenText(kunden: KundeFuerLuca[] | null, jetzt: Date): string {
+  if (!kunden) return "Kunden: Die Liste aus Notion ist gerade nicht erreichbar.";
+  if (!kunden.length) return "Kunden: In Notion steht noch kein Kunde.";
+  const heute = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(jetzt);
+  const datum = (t: string) => `${t.slice(8, 10)}.${t.slice(5, 7)}.`;
+  const zeilen = kunden.slice(0, 15).map((k) => {
+    const teile = [
+      k.status ? `Status: ${k.status}` : "",
+      k.angebot ? `Angebot: ${k.angebot}` : "",
+      k.naechsterSchritt ? `nächster Schritt: ${k.naechsterSchritt}` : "",
+      k.followUp ? `Follow-up ${datum(k.followUp)}${k.followUp.slice(0, 10) < heute ? " (überfällig)" : ""}` : "",
+      k.vercelProjekt && /\.vercel\.app/i.test(k.vercelProjekt) ? "Demo ist online" : "",
+      k.live ? "live" : "",
+    ].filter(Boolean);
+    return `- ${k.nr} ${k.name}: ${teile.join("; ")}`.replace(/\s+/g, " ").trim();
+  });
+  return `Kunden (aus Notion):\n${zeilen.join("\n")}`.slice(0, 1800);
+}
+
+/** Luca ruft David an und landet auf der Mailbox: erkennen, kurz draufsprechen (ohne Inhalte), auflegen. */
+export const MAILBOX = {
+  voicemailDetection: { provider: "vapi", type: "audio", backoffPlan: { startAtSeconds: 3, frequencySeconds: 2.5, maxRetries: 6 }, beepMaxAwaitSeconds: 15 },
+  voicemailMessage: "Hey Chef, Luca hier. Ich hab dich nicht erreicht, ruf einfach zurück, wenn du Zeit hast.",
+} as const;
 
 export const ERSTER_SATZ_EINGEHEND = "Hey Chef! Was kann ich für dich tun?";
 export function ersterSatzAusgehend(grund: string): string {
