@@ -249,7 +249,7 @@ async function vapi<T>(pfad: string, init: RequestInit = {}): Promise<T> {
 /** Was Luca beim Gespräch weiß (Lagebericht), warum er anruft, was er erklären/fragen soll und die Notiz von Claude. */
 function variablen(lage: Lage | null, grund: string | null, info?: string, notiz: string | null = null, gedaechtnis = "(noch keine früheren Gespräche)", kunden: KundeFuerLuca[] | null = null, standort: StandortSpeicher | null = null) {
   return {
-    lage: `${standort?.standort ? `${standortText(standort.standort, new Date())}\n` : ""}${lageText(lage, new Date())}\n\n${kundenText(kunden, new Date())}`,
+    lage: `Heute ist ${new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}.\n${standort?.standort ? `${standortText(standort.standort, new Date())}\n` : ""}${lageText(lage, new Date())}\n\n${kundenText(kunden, new Date())}`,
     gedaechtnis,
     grund: mitNotiz(grund ? `Du rufst David an. Grund: ${grund}${info ? `\n\nDas sollst du ihm erklären und fragen:\n${info}` : ""}` : "David hat dich angerufen.", notiz),
   };

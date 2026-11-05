@@ -90,6 +90,7 @@ test("Briefe: nachschauen, Schule, Erinnerung, Lerncheck werden geprüft", () =>
   assert.deepEqual(briefAus("erinnerung_planen", { text: "An die Sporttasche denken", ort: "Zuhause", ereignis: "ankunft" }, ""), { typ: "erinnerung", text: "An die Sporttasche denken", ort: "Zuhause", ereignis: "ankunft" });
   assert.deepEqual(briefAus("erinnerung_planen", { text: "Mama anrufen", minuten: 45 }, ""), { typ: "erinnerung", text: "Mama anrufen", minuten: 45 });
   assert.deepEqual(briefAus("erinnerung_planen", { text: "Lernen", uhrzeit: "2026-11-06T16:00" }, ""), { typ: "erinnerung", text: "Lernen", uhrzeit: "2026-11-06T16:00" });
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "Morgen-Anruf", uhrzeit: "2026-11-06T07:00", ueberblick: true }, ""), { typ: "erinnerung", text: "Morgen-Anruf", uhrzeit: "2026-11-06T07:00", ueberblick: true });
   assert.equal(briefAus("erinnerung_planen", { text: "Ohne Auslöser" }, ""), null);
   assert.equal(briefAus("erinnerung_planen", { minuten: 5 }, ""), null);
   assert.equal(briefAus("erinnerung_planen", { text: "x", minuten: 99999 }, ""), null);

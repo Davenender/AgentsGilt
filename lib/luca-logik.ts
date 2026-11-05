@@ -131,7 +131,7 @@ export type Brief =
   | { typ: "freigabe"; nr: number; erlauben: boolean; stand: string }
   | { typ: "nachschauen"; frage: string }
   | { typ: "schule" }
-  | { typ: "erinnerung"; text: string; minuten?: number; uhrzeit?: string; ort?: string; ereignis?: "ankunft" | "abfahrt" }
+  | { typ: "erinnerung"; text: string; minuten?: number; uhrzeit?: string; ort?: string; ereignis?: "ankunft" | "abfahrt"; ueberblick?: boolean }
   | { typ: "lerncheck"; fach: string; sitzt?: string; luecken?: string };
 export type BriefMitZeit = Brief & { zeit: string; anruf?: string };
 
@@ -162,7 +162,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     const ort = typeof args.ort === "string" ? args.ort.replace(/\s+/g, " ").trim().slice(0, 60) : "";
     if (ort) return { typ: "erinnerung", text, ort, ereignis: args.ereignis === "abfahrt" ? "abfahrt" : "ankunft" };
     const uhrzeit = typeof args.uhrzeit === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(args.uhrzeit) ? args.uhrzeit.slice(0, 16) : "";
-    if (uhrzeit) return { typ: "erinnerung", text, uhrzeit };
+    if (uhrzeit) return { typ: "erinnerung", text, uhrzeit, ...(args.ueberblick === true ? { ueberblick: true } : {}) };
     const minuten = Math.round(Number(args.minuten));
     return Number.isFinite(minuten) && minuten >= 1 && minuten <= 10_080 ? { typ: "erinnerung", text, minuten } : null;
   }
@@ -388,7 +388,7 @@ const WERKZEUGE_LIVE = [
   fn("wetter_abrufen", "Wetter jetzt, heute und morgen. Ohne ort: an Davids Standort.", { ort: txt("Ort, leer = Davids Standort") }),
   fn("nachschauen", "Das Team sucht in Notion, den Mails von kontakt@agentsgilt.com, im Kalender und im Tresor nach einer Antwort. Dauert meist unter einer Minute, das Ergebnis kommt im Gespräch nach. Das Ergebnis kommt nicht als Antwort auf diesen Aufruf.", { frage: txt("Die Frage in einem klaren Satz") }, ["frage"]),
   fn("schule_aktualisieren", "Schaut frisch im Schulportal nach (Vertretung, Entfall, Räume). Das Ergebnis kommt im Gespräch nach."),
-  fn("erinnerung_planen", "David wird angerufen und erinnert: an einem Ort (ort + ereignis), in einigen Minuten (minuten) oder zu einer Uhrzeit (uhrzeit). Genau eins davon.", { text: txt("Woran erinnert werden soll"), ort: txt("Ort, zum Beispiel Zuhause oder Schule"), ereignis: { type: "string", enum: ["ankunft", "abfahrt"], description: "ankunft = wenn er dort ankommt, abfahrt = wenn er dort weggeht" }, minuten: { type: "number", description: "In wie vielen Minuten" }, uhrzeit: txt("Zeitpunkt in Berliner Zeit: JJJJ-MM-TTTHH:MM") }, ["text"]),
+  fn("erinnerung_planen", "David wird angerufen und erinnert: an einem Ort (ort + ereignis), in einigen Minuten (minuten) oder zu einer Uhrzeit (uhrzeit). Genau eins davon. Sagt David „ruf mich morgen früh an“, ist das eine Erinnerung mit uhrzeit und ueberblick true: Dann kommt beim Anruf auch der Tagesüberblick mit. Fehlt die Uhrzeit, frag nach; vor 7 Uhr ruft Luca nicht an.", { ueberblick: { type: "boolean", description: "true bei einem bestellten Morgen-Anruf: mit Schule, Terminen und dem, was wartet" }, text: txt("Woran erinnert werden soll"), ort: txt("Ort, zum Beispiel Zuhause oder Schule"), ereignis: { type: "string", enum: ["ankunft", "abfahrt"], description: "ankunft = wenn er dort ankommt, abfahrt = wenn er dort weggeht" }, minuten: { type: "number", description: "In wie vielen Minuten" }, uhrzeit: txt("Zeitpunkt in Berliner Zeit: JJJJ-MM-TTTHH:MM") }, ["text"]),
   fn("lerncheck_merken", "Merkt nach einem Lerncheck, was sitzt und was nicht.", { fach: txt("Fach"), sitzt: txt("Was sitzt"), luecken: txt("Was noch nicht sitzt") }, ["fach"]),
   fn("kunde_aendern", "Ändert Status, nächsten Schritt oder Follow-up eines Kunden in Notion. Nur nachdem Luca die Änderung wiederholt und David zugestimmt hat.", { nr: txt("Kundennummer, zum Beispiel KND-003"), status: txt("Neuer Status"), naechsterSchritt: txt("Neuer nächster Schritt"), followUp: txt("Datum JJJJ-MM-TT"), bestaetigt: { type: "boolean", description: "Nur true, wenn David klar zugestimmt hat" } }, ["nr", "bestaetigt"]),
   fn("termin_anlegen", "Legt einen Termin im Kalender an. Nur nachdem Luca Titel, Tag und Uhrzeit wiederholt und David zugestimmt hat.", { titel: txt("Titel"), start: txt("Beginn in Berliner Zeit: JJJJ-MM-TTTHH:MM"), minuten: { type: "number", description: "Dauer, Standard 60" }, ort: txt("Ort"), bestaetigt: { type: "boolean", description: "Nur true, wenn David klar zugestimmt hat" } }, ["titel", "start", "bestaetigt"]),
