@@ -164,3 +164,16 @@ test("Rückruf planen: 1 bis 720 Minuten, mit Thema; sonst abgewiesen", async ()
   assert.equal(LUCA_WERKZEUGE.some((w) => w.function.name === "rueckruf_planen"), true);
   assert.match(LUCA_PROMPT, /Versprich nie einen Rückruf, ohne das Werkzeug aufzurufen/);
 });
+
+test("Notiz für Luca: in zwei Teile geteilt, wieder zusammengesetzt, leer = keine Notiz", async () => {
+  const { notizTeile, notizAus, mitNotiz, NOTIZ_MAX } = await import("../lib/luca-logik.ts");
+  const lang = "Plan: ".concat("x".repeat(3000));
+  const [a, b] = notizTeile(lang);
+  assert.equal(a.length < 2000 && b.length < 2000, true);
+  assert.equal(notizAus([b, "andere Nachricht", a]), lang);
+  assert.equal(notizAus(notizTeile("")), null);
+  assert.equal(notizAus(notizTeile("kurz")), "kurz");
+  assert.equal(notizTeile("y".repeat(NOTIZ_MAX + 500)).join("").includes("y".repeat(NOTIZ_MAX + 1)), false);
+  assert.match(mitNotiz("David hat dich angerufen.", "Stufe 6 erklären"), /^David hat dich angerufen\.\n\nNotiz von Claude.*\nStufe 6 erklären$/s);
+  assert.equal(mitNotiz("Grund", null), "Grund");
+});

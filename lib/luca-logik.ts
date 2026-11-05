@@ -322,3 +322,28 @@ export function gespraechNachrichten(o: { minuten: number; grund?: string; zusam
   for (let i = 0; i < text.length && teile.length < 8; i += 1800) teile.push(`${GESPRAECH_MARKE} · Mitschrift ${teile.length}\n${text.slice(i, i + 1800)}`);
   return teile;
 }
+
+// ------------------------------------------------------------------ Notiz für Luca (Thema für Gespräche)
+
+// Claude (oder die Zentrale) kann Luca ein Thema mitgeben, z. B. einen Plan zum Erklären. Es gilt für jedes Gespräch –
+// auch wenn David selbst anruft –, bis es gelöscht wird. Zwei Discord-Nachrichten à höchstens 1900 Zeichen.
+export const NOTIZ_MARKE = "📌 Notiz für Luca";
+export const NOTIZ_MAX = 3600;
+
+export function notizTeile(text: string): [string, string] {
+  const t = text.trim().slice(0, NOTIZ_MAX);
+  return [`${NOTIZ_MARKE} 1\n${t.slice(0, 1800) || "(leer)"}`, `${NOTIZ_MARKE} 2\n${t.slice(1800) || "(leer)"}`];
+}
+
+export function notizAus(inhalte: string[]): string | null {
+  const teil = (n: number) => inhalte.find((c) => c.startsWith(`${NOTIZ_MARKE} ${n}\n`))?.slice(`${NOTIZ_MARKE} ${n}\n`.length) ?? "";
+  const t = [teil(1), teil(2)].filter((x) => x && x !== "(leer)").join("");
+  return t.trim() || null;
+}
+
+export function mitNotiz(grund: string, notiz: string | null): string {
+  return notiz ? `${grund}\n\nNotiz von Claude – das ist gerade das wichtigste Thema. Erklär es in Ruhe und in eigenen Worten, wenn David danach fragt oder du deswegen anrufst:\n${notiz}` : grund;
+}
+
+export const ERSTER_SATZ_MIT_NOTIZ = "Hey Chef! Soll ich dir erklären, was Claude geplant hat, oder was kann ich für dich tun?";
+

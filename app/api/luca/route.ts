@@ -14,6 +14,7 @@ import {
   offeneBriefe,
   posteBrief,
   posteGespraech,
+  setzeNotiz,
   rufeDavidAn,
   setzeLage,
   vonZentrale,
@@ -151,6 +152,7 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       return NextResponse.json(r, { status: r.ok ? 200 : 409 });
     }
     if (aktion === "einrichten") return NextResponse.json(await einrichten());
+    if (aktion === "notiz") return NextResponse.json({ ok: await setzeNotiz(typeof body.text === "string" ? body.text : "") });
   } catch (err) {
     console.error(`[luca] ${aktion}:`, err);
     return NextResponse.json({ error: err instanceof Error ? err.message.slice(0, 500) : "Fehler" }, { status: 502 });

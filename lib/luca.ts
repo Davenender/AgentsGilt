@@ -8,7 +8,12 @@ import {
   briefLesen,
   briefText,
   ERSTER_SATZ_EINGEHEND,
+  ERSTER_SATZ_MIT_NOTIZ,
   ersterSatzAusgehend,
+  mitNotiz,
+  NOTIZ_MARKE,
+  notizAus,
+  notizTeile,
   GESPRAECH_MARKE,
   gespraechNachrichten,
   LAGE_MARKE,
@@ -185,12 +190,41 @@ async function vapi<T>(pfad: string, init: RequestInit = {}): Promise<T> {
   return (text ? JSON.parse(text) : null) as T;
 }
 
-/** Was Luca beim Gespräch weiß (Lagebericht), warum er anruft und was er erklären/fragen soll. */
-function variablen(lage: Lage | null, grund: string | null, info?: string) {
+/** Was Luca beim Gespräch weiß (Lagebericht), warum er anruft, was er erklären/fragen soll und die Notiz von Claude. */
+function variablen(lage: Lage | null, grund: string | null, info?: string, notiz: string | null = null) {
   return {
     lage: lageText(lage, new Date()),
-    grund: grund ? `Du rufst David an. Grund: ${grund}${info ? `\n\nDas sollst du ihm erklären und fragen:\n${info}` : ""}` : "David hat dich angerufen.",
+    grund: mitNotiz(grund ? `Du rufst David an. Grund: ${grund}${info ? `\n\nDas sollst du ihm erklären und fragen:\n${info}` : ""}` : "David hat dich angerufen.", notiz),
   };
+}
+
+async function notizNachrichten(kanal: string): Promise<Nachricht[]> {
+  return (await nachrichten(kanal)).filter((m) => istUnsere(m) && m.content.startsWith(NOTIZ_MARKE));
+}
+
+/** Die Notiz für Luca setzen (leer = löschen). Zwei feste Bot-Nachrichten, die geändert werden. */
+export async function setzeNotiz(text: string): Promise<boolean> {
+  const kanal = await lucaKanal();
+  if (!kanal) return false;
+  const alt = await notizNachrichten(kanal);
+  const teile = notizTeile(text);
+  for (let i = 0; i < 2; i++) {
+    const vorhanden = alt.find((m) => m.content.startsWith(`${NOTIZ_MARKE} ${i + 1}\n`));
+    if (vorhanden) {
+      const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${vorhanden.id}`, { method: "PATCH", headers: kopf(), body: JSON.stringify({ content: teile[i], allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(6000) });
+      if (!res.ok) return false;
+    } else if (!(await poste(kanal, teile[i]))) return false;
+  }
+  return true;
+}
+
+export async function holeNotiz(): Promise<string | null> {
+  try {
+    const kanal = await lucaKanal();
+    return kanal ? notizAus((await notizNachrichten(kanal)).map((m) => m.content)) : null;
+  } catch {
+    return null;
+  }
 }
 
 function stimmeAus(lage: Lage | null): { provider: string; voiceId: string; model?: string } | undefined {
@@ -200,13 +234,13 @@ function stimmeAus(lage: Lage | null): { provider: string; voiceId: string; mode
 
 /** Antwort auf assistant-request (David ruft an und hat die 1 gedrückt). */
 export async function assistentFuerEingang() {
-  const lage = await holeLage();
+  const [lage, notiz] = await Promise.all([holeLage(), holeNotiz()]);
   const stimme = stimmeAus(lage);
   return {
     assistantId: lucaAssistent(),
     assistantOverrides: {
-      firstMessage: ERSTER_SATZ_EINGEHEND,
-      variableValues: variablen(lage, null),
+      firstMessage: notiz ? ERSTER_SATZ_MIT_NOTIZ : ERSTER_SATZ_EINGEHEND,
+      variableValues: variablen(lage, null, undefined, notiz),
       ...(stimme ? { voice: stimme } : {}),
     },
   };
@@ -225,7 +259,7 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
   const jetzt = new Date();
   const darf = anrufErlaubt(jetzt, await anrufeBisher(kanal), test);
   if (!darf.ok) return darf;
-  const lage = await holeLage();
+  const [lage, notiz] = await Promise.all([holeLage(), holeNotiz()]);
   const stimme = stimmeAus(lage);
   try {
     await vapi("/call", {
@@ -236,7 +270,7 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
         customer: { number: lucaNummer() },
         assistantOverrides: {
           firstMessage: ersterSatzAusgehend(grund),
-          variableValues: variablen(lage, grund, info),
+          variableValues: variablen(lage, grund, info, notiz),
           metadata: { luca: true, test, grund: grund.slice(0, 200) },
           ...(stimme ? { voice: stimme } : {}),
         },
@@ -283,6 +317,9 @@ export async function einrichten(): Promise<Record<string, unknown>> {
     voice: { provider: "11labs", voiceId: "onwK4e9ZLuTAKqWW03F9", model: "eleven_turbo_v2_5" },
     ...(vorlage.transcriber ? { transcriber: vorlage.transcriber } : {}),
     maxDurationSeconds: 900,
+    // David ist oft unterwegs: länger auf ihn warten und Straßenlärm herausfiltern
+    silenceTimeoutSeconds: 90,
+    backgroundDenoisingEnabled: true,
     analysisPlan: {
       summaryPlan: {
         messages: [
