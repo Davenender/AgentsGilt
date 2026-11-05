@@ -88,3 +88,19 @@ export async function ergaenzeKarte(
   );
   return true;
 }
+
+/**
+ * Schreibt eine Zeile in die offene Karte des Anrufers (z. B. „📲 Durchgestellt: ✅ Angenommen von Mijo · 4 Min.“).
+ * Gleiches Feld wird ersetzt, nicht doppelt angehängt. false, wenn es (noch) keine Karte gibt.
+ */
+export async function setzeKartenzeile(nummer: string, feld: string, wert: string): Promise<boolean> {
+  const karte = await offeneKarteZuNummer(nummer);
+  if (!karte) return false;
+  const fields = karte.embed.fields ?? [];
+  if (fields.length >= 25 && !fields.some((f) => f.name === feld)) return false;
+  const embed: EmbedLike = { ...karte.embed, fields: withField(fields, feld, wert.slice(0, 1000)) };
+  return editMessage(process.env.DISCORD_BOT_TOKEN, process.env.DISCORD_CHANNEL_ANRUFE, karte.messageId, {
+    embeds: [embed],
+    components: callComponents(karte.state, Boolean(ownerId(karte.embed)), embed),
+  });
+}

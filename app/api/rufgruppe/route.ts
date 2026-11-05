@@ -14,7 +14,14 @@ import {
   wartAufEnde,
   twimlWeiter,
   wirklichVerbunden,
+  adresseLucaEnde,
+  angenommenVon,
+  teamName,
+  twimlDavidsMenue,
 } from "@/lib/rufgruppe";
+import { berlinUhr, DURCHGESTELLT_FELD, durchgestelltText, istDavid, menuewahl, twimlLucaNichtDa, twimlZuLuca } from "@/lib/luca-logik";
+import { lucaAn, lucaNummer, lucaSip, sipZugang } from "@/lib/luca";
+import { setzeKartenzeile } from "@/lib/anruf-karte";
 
 import { markiereZurueckgerufen, rueckrufNachEigenemAnruf, rueckrufWartet } from "@/lib/rueckruf";
 import { rueckrufKonfiguriert } from "@/lib/discord-calls";
@@ -60,8 +67,10 @@ async function handle(request: Request) {
   );
 
   if (aktion === "eingang") {
-    // Hat unser Rückruf-Assistent den Kunden nicht erreicht und er ruft jetzt zurück? Dann nicht zum normalen Assistenten.
     const von = feld("From");
+    // David (LUCA_NUMMER) bekommt ein Menü: 1 = Luca, 2 = Kunden-Assistent. Alle anderen merken davon nichts.
+    if (lucaAn() && istDavid(von, lucaNummer())) return twiml(twimlDavidsMenue(1));
+    // Hat unser Rückruf-Assistent den Kunden nicht erreicht und er ruft jetzt zurück? Dann nicht zum normalen Assistenten.
     const sid = feld("CallSid");
     if (von && sid && rueckrufKonfiguriert()) {
       try {
@@ -81,6 +90,26 @@ async function handle(request: Request) {
       }
     }
     return twiml(twimlEingang());
+  }
+  if (aktion === "menue") {
+    if (!lucaAn() || !istDavid(feld("From"), lucaNummer())) return twiml(twimlEingang());
+    const runde = Math.max(1, Math.min(99, Number(url.searchParams.get("n")) || 1));
+    const taste = feld("Digits");
+    if (taste === null) return twiml(twimlDavidsMenue(runde)); // keine Taste: Ansage noch einmal
+    const wahl = menuewahl(taste);
+    const sip = lucaSip();
+    const zugang = sipZugang();
+    if (wahl === "luca" && sip && zugang) return twiml(twimlZuLuca(sip, zugang, adresseLucaEnde()));
+    if (wahl === "kunde") return twiml(twimlEingang());
+    return twiml(twimlDavidsMenue(runde + 1));
+  }
+  if (aktion === "lucaende") {
+    const status = feld("DialCallStatus");
+    if (status && status !== "completed" && status !== "answered") {
+      console.error(`[rufgruppe] Luca nicht erreichbar: ${status}`);
+      return twiml(twimlLucaNichtDa());
+    }
+    return twiml(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
   }
   if (aktion === "wartet") {
     const n = Math.max(1, Math.min(9, Number(url.searchParams.get("n")) || 1));
@@ -107,6 +136,27 @@ async function handle(request: Request) {
     const status = feld("DialCallStatus");
     const dauer = Number(feld("DialCallDuration") ?? 0) || 0;
     const verbunden = wirklichVerbunden(status, dauer);
+    // Kurze Zeile auf der Karte des Anrufers: wer angenommen hat (oder dass es nicht geklappt hat).
+    const anrufer = feld("From");
+    const dialSid = feld("DialCallSid");
+    if (anrufer) {
+      after(async () => {
+        const wer = verbunden ? teamName(await angenommenVon(dialSid)) : null;
+        const zeile = durchgestelltText({
+          verbunden,
+          wer,
+          sekunden: dauer,
+          uhr: berlinUhr(new Date()),
+          grund: status === "canceled" ? "der Anrufer hat vorher aufgelegt" : "niemand hat abgenommen",
+        });
+        // Die Karte entsteht mit dem Bericht des Assistenten – bei sehr kurzen Gesprächen ist sie evtl. noch nicht da.
+        for (let versuch = 0; versuch < 4; versuch++) {
+          if (await setzeKartenzeile(anrufer, DURCHGESTELLT_FELD, zeile).catch(() => false)) return;
+          await new Promise((r) => setTimeout(r, 10_000));
+        }
+        console.error("[rufgruppe] Kartenzeile „Durchgestellt“: keine offene Karte gefunden");
+      });
+    }
     if (!verbunden) {
       const grund =
         status === "no-answer"

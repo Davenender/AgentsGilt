@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { findChannelId, postText } from "@/lib/discord";
 import { linkSecret, toE164 } from "@/lib/termin";
+import { nameZu, teamEintraege, twimlMenue } from "@/lib/luca-logik";
 
 // Rufgruppe. Ablauf:
 //  1. Twilio nimmt jeden Anruf auf +49 6108 9694027 zuerst selbst an (Voice-Adresse
@@ -30,13 +31,21 @@ export const ANNAHME_TEXT = "Anruf von Agents Gilt. Drücken Sie die 1, um das G
 
 const SITE = process.env.SITE_URL || "https://agentsgilt.com";
 
-export function nummern(): string[] {
+/** Davids Handy (LUCA_NUMMER) klingelt bei Kunden nie mit (seit 05.11.2026); RUFGRUPPE_MIT_DAVID=1 holt ihn zurück. */
+function team() {
   // Zweite Variable für weitere Nummern, falls die erste nicht mehr einsehbar ist.
-  return `${process.env.RUFGRUPPE_NUMMERN ?? ""},${process.env.RUFGRUPPE_NUMMERN_2 ?? ""}`
-    .split(/[,;\n]/)
-    .map((n) => toE164(n.trim()))
+  const roh = `${process.env.RUFGRUPPE_NUMMERN ?? ""},${process.env.RUFGRUPPE_NUMMERN_2 ?? ""}`;
+  return teamEintraege(roh, process.env.RUFGRUPPE_MIT_DAVID === "1" ? null : process.env.LUCA_NUMMER);
+}
+
+export function nummern(): string[] {
+  return team()
+    .map((e) => toE164(e.roh))
     .filter((n): n is string => Boolean(n));
 }
+
+/** Name des Teammitglieds zu einer Nummer (aus „Mijo=…“ in RUFGRUPPE_NUMMERN), sonst null. */
+export const teamName = (nummer: string | null | undefined) => nameZu(nummer, team());
 
 export const absender = () => toE164(process.env.RUFGRUPPE_ABSENDER ?? "") ?? "+4961089694027";
 export const eingangsnummer = () => toE164(process.env.RUFGRUPPE_EINGANG ?? "") ?? "+4961089694027";
@@ -61,6 +70,11 @@ export function schluesselOk(given: string | null): boolean {
 
 export const adresse = (aktion: "ring" | "annahme" | "ende" | "weiter") =>
   `${SITE}/api/rufgruppe?a=${aktion}&k=${schluessel() ?? ""}`;
+
+/** Davids Menü (1 = Luca, 2 = Kunden-Assistent), Runde n. */
+export const adresseMenue = (n: number) => `${SITE}/api/rufgruppe?a=menue&n=${n}&k=${schluessel() ?? ""}`;
+export const adresseLucaEnde = () => `${SITE}/api/rufgruppe?a=lucaende&k=${schluessel() ?? ""}`;
+export const twimlDavidsMenue = (runde = 1) => twimlMenue(adresseMenue, runde);
 
 /** Wiederholung der Ansage für Kunden, die auf einen Rückruf zurückrufen (n = Nummer der Wiederholung). */
 export const adresseWartet = (n: number) => `${SITE}/api/rufgruppe?a=wartet&n=${n}&k=${schluessel() ?? ""}`;
@@ -242,6 +256,21 @@ export async function wartAufEnde(sid: string, maxSekunden: number): Promise<boo
     await new Promise((r) => setTimeout(r, 2000));
   }
   return false;
+}
+
+/** Welches Handy hat angenommen? (Der Handy-Anruf, mit dem verbunden war: DialCallSid aus ?a=ende.) */
+export async function angenommenVon(dialCallSid: string | null): Promise<string | null> {
+  const auth = twilioAuth();
+  if (!auth || !dialCallSid || !/^CA[0-9a-f]{32}$/i.test(dialCallSid)) return null;
+  try {
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${auth.sid}/Calls/${dialCallSid}.json`, {
+      headers: { Authorization: auth.header },
+      signal: AbortSignal.timeout(6000),
+    });
+    return res.ok ? (((await res.json()) as { to?: string }).to ?? null) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Holt den laufenden Anruf vom Assistenten weg und lässt die Handys klingeln. */
