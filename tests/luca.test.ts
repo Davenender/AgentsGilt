@@ -132,3 +132,22 @@ test("Anruf-Nachricht trägt die Zeit lesbar für die Tageszählung", () => {
   assert.equal(anrufZeit(anrufNachricht(z, "Frage zu `x`", false)), z);
   assert.equal(anrufZeit("Hallo"), null);
 });
+
+test("Mitschrift: Kopf mit Grund und Zusammenfassung, Mitschrift in Teilen unter 2000 Zeichen", async () => {
+  const { gespraechNachrichten, GESPRAECH_MARKE } = await import("../lib/luca-logik.ts");
+  const teile = gespraechNachrichten({ minuten: 4, grund: "Plan besprechen", zusammenfassung: "David will Karte zuerst.", mitschrift: "AI: Hey Chef\nUser: Hi\n".repeat(1000), zeit: "2026-11-05T15:00:00.000Z" });
+  assert.match(teile[0], /^☎️ Gespräch mit Luca · 16:00 Uhr · 4 Min\.\nGrund: Plan besprechen\n\*\*Kurz:\*\* David will Karte zuerst\./);
+  assert.equal(teile.length, 8);
+  assert.equal(teile.every((t) => t.length < 2000 && t.startsWith(GESPRAECH_MARKE)), true);
+  assert.equal(gespraechNachrichten({ minuten: 1, zeit: "2026-11-05T15:00:00.000Z" }).length, 1);
+});
+
+test("Luca spricht locker: Prompt verlangt kurze, natürliche Antworten und keine Listen", async () => {
+  const { LUCA_PROMPT, ERSTER_SATZ_EINGEHEND, ersterSatzAusgehend } = await import("../lib/luca-logik.ts");
+  assert.match(LUCA_PROMPT, /wie ein guter Kumpel/);
+  assert.match(LUCA_PROMPT, /Lies nie Listen vor/);
+  assert.match(LUCA_PROMPT, /\{\{lage\}\}/);
+  assert.match(LUCA_PROMPT, /\{\{grund\}\}/);
+  assert.equal(ERSTER_SATZ_EINGEHEND, "Hey Chef! Was kann ich für dich tun?");
+  assert.equal(ersterSatzAusgehend("Ich hab den Plan fertig."), "Hey Chef, Luca hier! Ich hab den Plan fertig.");
+});

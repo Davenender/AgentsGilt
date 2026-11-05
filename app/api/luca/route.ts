@@ -6,12 +6,14 @@ import {
   gleich,
   holeLage,
   istLucaGespraech,
+  letzteGespraeche,
   lucaAn,
   lucaKanal,
   lucaSchluessel,
   markiereAbgeholt,
   offeneBriefe,
   posteBrief,
+  posteGespraech,
   rufeDavidAn,
   setzeLage,
   vonZentrale,
@@ -30,12 +32,16 @@ export const maxDuration = 30;
 // 2. Die Zentrale (Authorization: Bearer HELFER_SECRET):
 //    GET  ?a=briefkasten   offene Briefe        POST ?a=abgeholt {ids}
 //    POST ?a=lagebericht {stand, text, stimme}  POST ?a=anrufen {grund, test}
-//    GET  ?a=status                             POST ?a=einrichten (legt Luca bei Vapi an, einmalig)
+//    GET  ?a=status · ?a=gespraeche (Mitschriften)  POST ?a=einrichten (legt Luca bei Vapi an, einmalig)
+//    POST ?a=anrufen {grund, info?} – info: was Luca erklären/fragen soll (höchstens 3500 Zeichen)
 
 type ToolCall = { id?: string; name?: string; function?: { name?: string; arguments?: unknown }; arguments?: unknown };
 type VapiNachricht = {
   type?: string;
-  call?: { id?: string; assistantId?: string | null };
+  call?: { id?: string; assistantId?: string | null; assistantOverrides?: { metadata?: Record<string, unknown> } };
+  analysis?: { summary?: string };
+  artifact?: { transcript?: string };
+  transcript?: string;
   toolCallList?: ToolCall[];
   toolCalls?: ToolCall[];
   durationSeconds?: number;
@@ -91,12 +97,13 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
 
   if (typ === "end-of-call-report") {
     if (istLucaGespraech(msg?.call)) {
-      const kanal = await lucaKanal();
-      const min = Math.max(1, Math.round((msg?.durationSeconds ?? 0) / 60));
-      if (kanal) {
-        const { postText } = await import("@/lib/discord");
-        await postText(process.env.DISCORD_BOT_TOKEN, kanal, `☎️ Gespräch mit Luca beendet (${min} Min.)${msg?.endedReason ? ` · ${msg.endedReason}` : ""}`);
-      }
+      const grund = msg?.call?.assistantOverrides?.metadata?.grund;
+      await posteGespraech({
+        minuten: Math.max(1, Math.round((msg?.durationSeconds ?? 0) / 60)),
+        grund: typeof grund === "string" ? grund : undefined,
+        zusammenfassung: msg?.analysis?.summary ?? msg?.summary,
+        mitschrift: msg?.artifact?.transcript ?? msg?.transcript,
+      }).catch((err) => console.error("[luca] Mitschrift:", err));
     }
     return NextResponse.json({ ok: true });
   }
@@ -107,6 +114,7 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
 async function vonDerZentrale(req: Request, aktion: string | null) {
   try {
     if (req.method === "GET" && aktion === "briefkasten") return NextResponse.json({ briefe: await offeneBriefe() });
+    if (req.method === "GET" && aktion === "gespraeche") return NextResponse.json({ gespraeche: await letzteGespraeche() });
     if (req.method === "GET" && aktion === "status") {
       const lage = await holeLage();
       // Rufgruppe ohne Nummern: nur Anzahl, Namen und die letzten 3 Ziffern, damit man sieht, dass David draußen ist
@@ -137,7 +145,8 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
     if (aktion === "anrufen") {
       const grund = typeof body.grund === "string" ? body.grund.trim().slice(0, 300) : "";
       if (!grund) return NextResponse.json({ error: "grund fehlt" }, { status: 400 });
-      const r = await rufeDavidAn(grund, body.test === true);
+      const info = typeof body.info === "string" ? body.info.trim().slice(0, 3500) : undefined;
+      const r = await rufeDavidAn(grund, body.test === true, info || undefined);
       return NextResponse.json(r, { status: r.ok ? 200 : 409 });
     }
     if (aktion === "einrichten") return NextResponse.json(await einrichten());

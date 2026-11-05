@@ -9,6 +9,8 @@ import {
   briefText,
   ERSTER_SATZ_EINGEHEND,
   ersterSatzAusgehend,
+  GESPRAECH_MARKE,
+  gespraechNachrichten,
   LAGE_MARKE,
   lageLesen,
   lageNachricht,
@@ -183,16 +185,17 @@ async function vapi<T>(pfad: string, init: RequestInit = {}): Promise<T> {
   return (text ? JSON.parse(text) : null) as T;
 }
 
-/** Was Luca beim Gespräch weiß (Lagebericht) und warum er anruft. */
-function variablen(lage: Lage | null, grund: string | null) {
+/** Was Luca beim Gespräch weiß (Lagebericht), warum er anruft und was er erklären/fragen soll. */
+function variablen(lage: Lage | null, grund: string | null, info?: string) {
   return {
     lage: lageText(lage, new Date()),
-    grund: grund ? `Du rufst David an. Grund: ${grund}` : "David hat dich angerufen.",
+    grund: grund ? `Du rufst David an. Grund: ${grund}${info ? `\n\nDas sollst du ihm erklären und fragen:\n${info}` : ""}` : "David hat dich angerufen.",
   };
 }
 
 function stimmeAus(lage: Lage | null): { provider: string; voiceId: string; model?: string } | undefined {
-  return lage?.stimme && /^[A-Za-z0-9]{10,40}$/.test(lage.stimme) ? { provider: "11labs", voiceId: lage.stimme, model: "eleven_multilingual_v2" } : undefined;
+  // turbo v2.5: deutlich schneller als multilingual v2 – am Telefon zählt jede Zehntelsekunde
+  return lage?.stimme && /^[A-Za-z0-9]{10,40}$/.test(lage.stimme) ? { provider: "11labs", voiceId: lage.stimme, model: "eleven_turbo_v2_5" } : undefined;
 }
 
 /** Antwort auf assistant-request (David ruft an und hat die 1 gedrückt). */
@@ -214,7 +217,7 @@ async function anrufeBisher(kanal: string): Promise<string[]> {
 }
 
 /** Luca ruft David an – nur Davids Nummer, nie 22–7 Uhr, höchstens 3-mal am Tag. */
-export async function rufeDavidAn(grund: string, test: boolean): Promise<{ ok: true } | { ok: false; grund: string }> {
+export async function rufeDavidAn(grund: string, test: boolean, info?: string): Promise<{ ok: true } | { ok: false; grund: string }> {
   if (!lucaAn()) return { ok: false, grund: "Luca am Telefon ist noch nicht eingerichtet." };
   if (!process.env.VAPI_API_KEY?.trim()) return { ok: false, grund: "VAPI_API_KEY fehlt." };
   const kanal = await lucaKanal();
@@ -233,8 +236,8 @@ export async function rufeDavidAn(grund: string, test: boolean): Promise<{ ok: t
         customer: { number: lucaNummer() },
         assistantOverrides: {
           firstMessage: ersterSatzAusgehend(grund),
-          variableValues: variablen(lage, grund),
-          metadata: { luca: true, test },
+          variableValues: variablen(lage, grund, info),
+          metadata: { luca: true, test, grund: grund.slice(0, 200) },
           ...(stimme ? { voice: stimme } : {}),
         },
       }),
@@ -277,9 +280,21 @@ export async function einrichten(): Promise<Record<string, unknown>> {
       messages: [{ role: "system", content: LUCA_PROMPT }],
       tools: LUCA_WERKZEUGE,
     },
-    voice: { provider: "11labs", voiceId: "onwK4e9ZLuTAKqWW03F9", model: "eleven_multilingual_v2" },
+    voice: { provider: "11labs", voiceId: "onwK4e9ZLuTAKqWW03F9", model: "eleven_turbo_v2_5" },
     ...(vorlage.transcriber ? { transcriber: vorlage.transcriber } : {}),
-    maxDurationSeconds: 600,
+    maxDurationSeconds: 900,
+    analysisPlan: {
+      summaryPlan: {
+        messages: [
+          {
+            role: "system",
+            content:
+              "Fasse das Telefonat zwischen Luca und David auf Deutsch in 3 bis 6 kurzen Sätzen zusammen. Wichtig: jede Entscheidung, Antwort und jeder Auftrag von David, möglichst in seinen Worten. Keine Einleitung.",
+          },
+          { role: "user", content: "Mitschrift:\n{{transcript}}" },
+        ],
+      },
+    },
     endCallFunctionEnabled: true,
     serverMessages: ["tool-calls", "end-of-call-report"],
     server: { url: LUCA_ADRESSE, secret: schluessel },
@@ -315,4 +330,20 @@ export async function einrichten(): Promise<Record<string, unknown>> {
 export function istLucaGespraech(call: { assistantId?: string | null } | undefined): boolean {
   const id = lucaAssistent();
   return Boolean(id && call?.assistantId === id);
+}
+
+/** Nach jedem Gespräch: Zusammenfassung und Mitschrift in #luca (privat: nur David und der Bot). */
+export async function posteGespraech(o: { minuten: number; grund?: string; zusammenfassung?: string; mitschrift?: string }): Promise<void> {
+  const kanal = await lucaKanal();
+  if (!kanal) return;
+  for (const teil of gespraechNachrichten({ ...o, zeit: new Date().toISOString() })) await poste(kanal, teil);
+}
+
+/** Die letzten Gespräche (Zusammenfassung + Mitschrift), neueste zuerst. */
+export async function letzteGespraeche(): Promise<{ zeit: string; text: string }[]> {
+  const kanal = await lucaKanal();
+  if (!kanal) return [];
+  return (await nachrichten(kanal))
+    .filter((m) => istUnsere(m) && m.content.startsWith(GESPRAECH_MARKE))
+    .map((m) => ({ zeit: m.timestamp, text: m.content }));
 }
