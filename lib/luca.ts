@@ -104,7 +104,14 @@ export async function lucaKanal(): Promise<string | null> {
 }
 
 async function nachrichten(kanal: string, limit = 100): Promise<Nachricht[]> {
-  const res = await fetch(`${DISCORD}/channels/${kanal}/messages?limit=${limit}`, { headers: kopf(), cache: "no-store", signal: AbortSignal.timeout(6000) });
+  const hole = () => fetch(`${DISCORD}/channels/${kanal}/messages?limit=${limit}`, { headers: kopf(), cache: "no-store", signal: AbortSignal.timeout(6000) });
+  let res = await hole();
+  // Discord bremst: kurz warten und einmal neu versuchen, statt mitten im Gespräch aufzugeben
+  if (res.status === 429) {
+    const warte = Number(((await res.json().catch(() => ({}))) as { retry_after?: number }).retry_after) || 1;
+    await new Promise((r) => setTimeout(r, Math.min(3, warte) * 1000 + 100));
+    res = await hole();
+  }
   if (!res.ok) throw new Error(`Discord HTTP ${res.status}`);
   return (await res.json()) as Nachricht[];
 }
@@ -321,6 +328,12 @@ export async function holeStandortSpeicher(): Promise<StandortSpeicher> {
   const inhalt = m?.content.slice(STANDORT_MARKE.length).trim();
   return (inhalt && entschluessele<StandortSpeicher>(inhalt, geheimnis())) || structuredClone(LEERER_SPEICHER);
 }
+
+/** Für Werkzeuge im Anruf: Klappt das Lesen nicht, geht es ohne Standort weiter (mit genannten Orten klappt die Antwort trotzdem). */
+export const standortOderLeer = () => holeStandortSpeicher().catch((err) => {
+  console.error("[luca] Standort nicht lesbar:", err);
+  return structuredClone(LEERER_SPEICHER);
+});
 
 export async function schreibeStandortSpeicher(s: StandortSpeicher): Promise<boolean> {
   const kanal = await lucaKanal();

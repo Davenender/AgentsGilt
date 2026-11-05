@@ -101,7 +101,8 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
       console.error("[luca] Werkzeug-Aufruf aus einem fremden Gespräch abgewiesen");
       return NextResponse.json({ results: calls.map((c) => ({ toolCallId: c.id, result: "Nicht erlaubt." })) });
     }
-    const lage = await holeLage();
+    // Den Stand nur holen, wenn ein Brief ihn braucht: Discord bremst sonst bei vielen Werkzeug-Aufrufen
+    let lage: Awaited<ReturnType<typeof holeLage>> | undefined;
     const results = [];
     for (const c of calls) {
       const name = c.function?.name ?? c.name ?? "";
@@ -114,6 +115,7 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
         results.push({ toolCallId: c.id, result: live });
         continue;
       }
+      lage ??= await holeLage();
       const brief = briefAus(name, argumente(c), lage?.stand ?? "");
       if (!brief) {
         results.push({ toolCallId: c.id, result: "Das hat nicht geklappt: Angaben unvollständig. Frag David noch einmal." });
