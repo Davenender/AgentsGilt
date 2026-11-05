@@ -1,5 +1,5 @@
 import { legeTerminAn } from "@/lib/google-calendar";
-import { holeLage, holeStandortSpeicher } from "@/lib/luca";
+import { holeLage, standortOderLeer } from "@/lib/luca";
 import { kundeAenderung, lageText, terminAus } from "@/lib/luca-logik";
 import { routeText, verbindungText, wetterText, type Welt } from "@/lib/luca-unterwegs";
 import { aendereKunde } from "@/lib/notion-api";
@@ -30,7 +30,7 @@ export async function lucaLive(name: string, a: Record<string, unknown>): Promis
     const r = await legeTerminAn(p);
     return r.ok ? `Termin angelegt: ${p.titel}, ${p.start.slice(8, 10)}.${p.start.slice(5, 7)}. um ${p.start.slice(11, 16)} Uhr, ${p.minuten} Minuten.` : `Nicht angelegt: ${r.grund}`;
   }
-  const s = await holeStandortSpeicher();
+  const s = await standortOderLeer();
   if (name === "wo_ist_david") return s.standort ? `${standortText(s.standort, new Date())}${s.drin.length ? ` Er ist gerade bei: ${s.drin.join(", ")}.` : ""}` : "Davids Standort ist nicht bekannt: Vom iPhone kam noch nichts.";
   const welt: Welt = { standort: s.standort, orte: s.orte };
   if (name === "route_berechnen") return routeText({ von: text(a.von), nach: text(a.nach), modus: text(a.modus) }, welt);
