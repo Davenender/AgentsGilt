@@ -251,13 +251,13 @@ async function anrufeBisher(kanal: string): Promise<string[]> {
 }
 
 /** Luca ruft David an – nur Davids Nummer, nie 22–7 Uhr, höchstens 3-mal am Tag. */
-export async function rufeDavidAn(grund: string, test: boolean, info?: string): Promise<{ ok: true } | { ok: false; grund: string }> {
+export async function rufeDavidAn(grund: string, test: boolean, info?: string, gewuenscht = false): Promise<{ ok: true } | { ok: false; grund: string }> {
   if (!lucaAn()) return { ok: false, grund: "Luca am Telefon ist noch nicht eingerichtet." };
   if (!process.env.VAPI_API_KEY?.trim()) return { ok: false, grund: "VAPI_API_KEY fehlt." };
   const kanal = await lucaKanal();
   if (!kanal) return { ok: false, grund: "Kanal #luca nicht gefunden." };
   const jetzt = new Date();
-  const darf = anrufErlaubt(jetzt, await anrufeBisher(kanal), test);
+  const darf = anrufErlaubt(jetzt, await anrufeBisher(kanal), test || gewuenscht);
   if (!darf.ok) return darf;
   const [lage, notiz] = await Promise.all([holeLage(), holeNotiz()]);
   const stimme = stimmeAus(lage);

@@ -148,7 +148,8 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       const grund = typeof body.grund === "string" ? body.grund.trim().slice(0, 300) : "";
       if (!grund) return NextResponse.json({ error: "grund fehlt" }, { status: 400 });
       const info = typeof body.info === "string" ? body.info.trim().slice(0, 3500) : undefined;
-      const r = await rufeDavidAn(grund, body.test === true, info || undefined);
+      // gewuenscht: David hat den Rückruf selbst bestellt – zählt wie ein Test nicht gegen die Grenze von 3 am Tag
+      const r = await rufeDavidAn(grund, body.test === true, info || undefined, body.gewuenscht === true);
       return NextResponse.json(r, { status: r.ok ? 200 : 409 });
     }
     if (aktion === "einrichten") return NextResponse.json(await einrichten());
