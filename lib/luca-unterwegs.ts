@@ -23,12 +23,18 @@ async function holeJson<T>(url: string, abruf: Abruf, ms = 8000): Promise<T | nu
   }
 }
 
-/** „Bahnhofstraße, Offenbach am Main“ aus Koordinaten; null, wenn der Dienst nicht antwortet. */
-export async function ortsname(lat: number, lon: number, abruf: Abruf = fetch): Promise<string | null> {
-  const j = await holeJson<{ address?: Record<string, string> }>(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=17&addressdetails=1&accept-language=de`, abruf, 5000);
-  const a = j?.address ?? {};
-  const teile = [a.road ?? a.pedestrian ?? a.footway ?? a.neighbourhood, a.city ?? a.town ?? a.village ?? a.municipality ?? a.suburb].filter(Boolean);
+/** Aus einer Nominatim-Adresse: „Lämmerspieler Straße 100, Mühlheim am Main“. Die Stadt zählt vor dem Stadtteil. */
+export function ortsnameAus(a: Record<string, string>): string | null {
+  const strasse = a.road ?? a.pedestrian ?? a.footway ?? a.neighbourhood;
+  const mitNummer = strasse && a.house_number ? `${strasse} ${a.house_number}` : strasse;
+  const teile = [mitNummer, a.city ?? a.town ?? a.municipality ?? a.village ?? a.suburb].filter(Boolean);
   return teile.length ? teile.join(", ") : null;
+}
+
+/** Name zu Koordinaten; null, wenn der Dienst nicht antwortet. */
+export async function ortsname(lat: number, lon: number, abruf: Abruf = fetch): Promise<string | null> {
+  const j = await holeJson<{ address?: Record<string, string> }>(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=de`, abruf, 5000);
+  return ortsnameAus(j?.address ?? {});
 }
 
 const FUELL_ORT = /\b(von|nach|zu|zum|zur|die|der|das|den|dem|bis|in|an|am|mein|meine|meinem)\b/g;
