@@ -11,7 +11,10 @@ import {
   briefLesen,
   briefText,
   durchgestelltText,
+  gedaechtnisAus,
   istDavid,
+  kundenText,
+  MAILBOX,
   lageLesen,
   lageNachricht,
   lageText,
@@ -278,4 +281,29 @@ test("Überblick über Lucas Einstellungen: ohne Prompt und ohne Geheimnisse", (
   assert.equal(u?.serverGesetzt, true);
   assert.ok(!JSON.stringify(u).includes("GEHEIM"));
   assert.equal(assistentUeberblick(null), null);
+});
+
+test("Luca kennt am Telefon die Kunden aus Notion: Stand, nächster Schritt, überfälliges Follow-up", () => {
+  const jetzt = new Date("2026-11-05T20:00:00.000Z");
+  const t = kundenText([{ nr: "KND-003", name: "Relax Fit", status: "Angebot gesendet", naechsterSchritt: "Neuen Termin ausmachen", followUp: "2026-10-22", angebot: "Websites", vercelProjekt: "https://relaxfit-demo.vercel.app", live: false }, { nr: "KND-002", name: "Friseur Graziella", status: "Lead", followUp: "2026-12-01" }], jetzt);
+  assert.match(t, /KND-003 Relax Fit: Status: Angebot gesendet/);
+  assert.match(t, /nächster Schritt: Neuen Termin ausmachen/);
+  assert.match(t, /Follow-up 22\.10\. \(überfällig\)/);
+  assert.match(t, /Demo ist online/);
+  assert.match(t, /Follow-up 01\.12\.(?! \()/);
+  assert.match(kundenText(null, jetzt), /nicht erreichbar/);
+  assert.match(kundenText([], jetzt), /noch kein Kunde/);
+  assert.ok(kundenText(Array.from({ length: 50 }, (_, i) => ({ nr: `KND-${i}`, name: "x".repeat(200) })), jetzt).length <= 1800);
+});
+
+test("Im Gedächtnis heißt Luca Luca, auch wenn die Mitschrift Lukas verstanden hat", () => {
+  const g = gedaechtnisAus([{ zeit: "2026-11-05T17:17:00.000Z", text: "**Kurz:** David erlaubt Lukas' neue Bühne. Lukas darf zeigen." }]);
+  assert.ok(!/Lukas/.test(g));
+  assert.match(g, /Luca neue Bühne/);
+});
+
+test("Mailbox: Erkennung per Vapi, kurzer Satz ohne Inhalte", () => {
+  assert.equal(MAILBOX.voicemailDetection.provider, "vapi");
+  assert.ok(MAILBOX.voicemailDetection.backoffPlan.frequencySeconds >= 2.5);
+  assert.ok(MAILBOX.voicemailMessage.length < 120);
 });

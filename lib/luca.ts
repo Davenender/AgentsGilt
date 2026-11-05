@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { findChannelId } from "@/lib/discord";
+import { listeKunden } from "@/lib/notion-api";
 import {
   anrufErlaubt,
   anrufNachricht,
@@ -22,6 +23,9 @@ import {
   SPRECH_PLAN,
   stimmeTelefon,
   LAGE_MARKE,
+  MAILBOX,
+  kundenText,
+  type KundeFuerLuca,
   assistentUeberblick,
   laeuftKlassisch,
   lageLesen,
@@ -235,9 +239,9 @@ async function vapi<T>(pfad: string, init: RequestInit = {}): Promise<T> {
 }
 
 /** Was Luca beim Gespräch weiß (Lagebericht), warum er anruft, was er erklären/fragen soll und die Notiz von Claude. */
-function variablen(lage: Lage | null, grund: string | null, info?: string, notiz: string | null = null, gedaechtnis = "(noch keine früheren Gespräche)") {
+function variablen(lage: Lage | null, grund: string | null, info?: string, notiz: string | null = null, gedaechtnis = "(noch keine früheren Gespräche)", kunden: KundeFuerLuca[] | null = null) {
   return {
-    lage: lageText(lage, new Date()),
+    lage: `${lageText(lage, new Date())}\n\n${kundenText(kunden, new Date())}`,
     gedaechtnis,
     grund: mitNotiz(grund ? `Du rufst David an. Grund: ${grund}${info ? `\n\nDas sollst du ihm erklären und fragen:\n${info}` : ""}` : "David hat dich angerufen.", notiz),
   };
@@ -303,15 +307,27 @@ export async function lucaEinstellungen() {
   return assistentUeberblick((await lucaBeiVapi()) as Parameters<typeof assistentUeberblick>[0]);
 }
 
+/** Kundenliste für Lucas Lagebericht. Höchstens 2,5 s warten: Vapi gibt uns beim Anruf nur wenige Sekunden. */
+async function kundenFuerLuca(): Promise<KundeFuerLuca[] | null> {
+  let uhr: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([listeKunden(), new Promise<null>((fertig) => (uhr = setTimeout(() => fertig(null), 2500)))]);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(uhr);
+  }
+}
+
 /** Antwort auf assistant-request (David ruft an und hat die 1 gedrückt). */
 export async function assistentFuerEingang() {
-  const [lage, notiz, frueher] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => [])]);
+  const [lage, notiz, frueher, kunden] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => []), kundenFuerLuca()]);
   const stimme = await stimmeFuerGespraech(lage);
   return {
     assistantId: lucaAssistent(),
     assistantOverrides: {
       firstMessage: notiz ? ERSTER_SATZ_MIT_NOTIZ : ERSTER_SATZ_EINGEHEND,
-      variableValues: variablen(lage, null, undefined, notiz, gedaechtnisAus(frueher)),
+      variableValues: variablen(lage, null, undefined, notiz, gedaechtnisAus(frueher), kunden),
       ...(stimme ? { voice: stimme } : {}),
     },
   };
@@ -326,10 +342,10 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
   const jetzt = new Date();
   const darf = anrufErlaubt(jetzt);
   if (!darf.ok) return darf;
-  const [lage, notiz, frueher] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => [])]);
+  const [lage, notiz, frueher, kunden] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => []), kundenFuerLuca()]);
   const stimme = await stimmeFuerGespraech(lage);
-  try {
-    await vapi("/call", {
+  const anruf = (mitMailbox: boolean) =>
+    vapi("/call", {
       method: "POST",
       body: JSON.stringify({
         assistantId: lucaAssistent(),
@@ -337,11 +353,18 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
         customer: { number: lucaNummer() },
         assistantOverrides: {
           firstMessage: ersterSatzAusgehend(grund),
-          variableValues: variablen(lage, grund, info, notiz, gedaechtnisAus(frueher)),
+          variableValues: variablen(lage, grund, info, notiz, gedaechtnisAus(frueher), kunden),
           metadata: { luca: true, test, grund: grund.slice(0, 200) },
           ...(stimme ? { voice: stimme } : {}),
+          ...(mitMailbox ? MAILBOX : {}),
         },
       }),
+    });
+  try {
+    // Nimmt Vapi die Mailbox-Erkennung bei dieser Einstellung nicht an, rufen wir lieber ohne an, als gar nicht
+    await anruf(true).catch(async (err) => {
+      console.error("[luca] Anruf mit Mailbox-Erkennung abgelehnt, versuche ohne:", err);
+      return anruf(false);
     });
   } catch (err) {
     console.error("[luca] Anruf fehlgeschlagen:", err);
