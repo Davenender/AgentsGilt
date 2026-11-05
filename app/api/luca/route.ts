@@ -117,7 +117,7 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
         an: lucaAn(),
         kanal: Boolean(await lucaKanal()),
         lageStand: lage?.stand ?? null,
-        rufgruppe: { handys: nummern().length, davidEntfernt: teamEintraege(roh, null).length - teamEintraege(roh, process.env.LUCA_NUMMER).length, namen: teamEintraege(roh, process.env.LUCA_NUMMER).map((e) => e.name) },
+        rufgruppe: { handys: nummern().length, davidEntfernt: teamEintraege(roh, null).length - teamEintraege(roh, process.env.LUCA_NUMMER).length, namen: teamEintraege(roh, process.env.LUCA_NUMMER).map((e) => e.name), endungen: teamEintraege(roh, null).map((e) => `…${e.roh.replace(/\D/g, "").slice(-3)}`), luca: `…${(process.env.LUCA_NUMMER ?? "").replace(/\D/g, "").slice(-3)}` },
       });
     }
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
