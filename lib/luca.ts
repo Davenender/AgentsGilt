@@ -23,7 +23,8 @@ import {
 // Luca am Telefon – die Teile, die mit Vapi und Discord reden. Logik und Texte: lib/luca-logik.ts.
 //
 // Einstellungen (Vercel, Production):
-//   LUCA_NUMMER            Davids Handy. Nur von dort gibt es das Menü, nur dorthin ruft Luca an.
+//   LUCA_NUMMER            Davids privates Handy. Nur dorthin ruft Luca an.
+//   DAVID_NUMMERN          weitere Handys von David (Komma), z. B. das Geschäftshandy – Menü auch von dort
 //   LUCA_ASSISTANT         Vapi-Assistent „Luca (Zentrale)“ (legt ?a=einrichten an)
 //   LUCA_SIP_URI           Lucas SIP-Adresse bei Vapi (legt ?a=einrichten an)
 //   HELFER_SECRET          daraus werden Lucas Vapi-Schlüssel und das SIP-Passwort abgeleitet
@@ -50,6 +51,8 @@ export const sipZugang = () => {
 };
 
 export const lucaNummer = () => process.env.LUCA_NUMMER?.trim() || null;
+/** Alle Handys von David (privat + weitere) – von dort gibt es das Menü, und keins davon klingelt bei Kunden. */
+export const davidsNummern = () => [process.env.LUCA_NUMMER, process.env.DAVID_NUMMERN].filter((x): x is string => Boolean(x?.trim()));
 export const lucaAssistent = () => process.env.LUCA_ASSISTANT?.trim() || null;
 export const lucaSip = () => process.env.LUCA_SIP_URI?.trim() || null;
 /** Menü und Anrufe sind nur an, wenn alles eingerichtet ist. */

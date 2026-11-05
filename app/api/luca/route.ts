@@ -109,15 +109,17 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
     if (req.method === "GET" && aktion === "briefkasten") return NextResponse.json({ briefe: await offeneBriefe() });
     if (req.method === "GET" && aktion === "status") {
       const lage = await holeLage();
-      // Rufgruppe ohne Nummern: nur Anzahl und Namen, damit man sieht, dass David draußen ist
+      // Rufgruppe ohne Nummern: nur Anzahl, Namen und die letzten 3 Ziffern, damit man sieht, dass David draußen ist
       const { nummern } = await import("@/lib/rufgruppe");
       const { teamEintraege } = await import("@/lib/luca-logik");
       const roh = `${process.env.RUFGRUPPE_NUMMERN ?? ""},${process.env.RUFGRUPPE_NUMMERN_2 ?? ""}`;
+      const ohne = [process.env.LUCA_NUMMER, process.env.DAVID_NUMMERN];
+      const ende = (n: string) => `…${n.replace(/\D/g, "").slice(-3)}`;
       return NextResponse.json({
         an: lucaAn(),
         kanal: Boolean(await lucaKanal()),
         lageStand: lage?.stand ?? null,
-        rufgruppe: { handys: nummern().length, davidEntfernt: teamEintraege(roh, null).length - teamEintraege(roh, process.env.LUCA_NUMMER).length, namen: teamEintraege(roh, process.env.LUCA_NUMMER).map((e) => e.name), endungen: teamEintraege(roh, null).map((e) => `…${e.roh.replace(/\D/g, "").slice(-3)}`), luca: `…${(process.env.LUCA_NUMMER ?? "").replace(/\D/g, "").slice(-3)}` },
+        rufgruppe: { klingeln: nummern().length, team: teamEintraege(roh, ohne).map((e) => `${e.name ?? "?"} ${ende(e.roh)}`), david: ohne.flatMap((x) => (x ?? "").split(",")).filter((x) => x.trim()).map(ende) },
       });
     }
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

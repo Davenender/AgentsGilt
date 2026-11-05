@@ -3,18 +3,21 @@
 // David (und nur er, erkannt an LUCA_NUMMER) hört beim Anruf auf +49 6108 9694027 ein kleines Menü:
 // 1 = Luca (Davids Helfer aus der Zentrale), 2 = der Kunden-Assistent wie jeder Kunde. Die Ansage wiederholt sich,
 // bis er eine Taste drückt (höchstens MAX_MENUE-mal, dann wird aufgelegt – falls das Handy in der Tasche wählt).
-// Aus der Rufgruppe ist David draußen: Kunden lassen nur noch Mijo und Jakob klingeln.
+// Aus der Rufgruppe ist David draußen (alle seine Nummern): Kunden lassen nur noch Mijo und Jakob klingeln.
+// Davids Nummern: LUCA_NUMMER (privat, dorthin ruft Luca an) und DAVID_NUMMERN (weitere, z. B. das Geschäftshandy).
 
 /** Nummern vergleichen wir über die letzten 9 Ziffern (ohne +49/0, Leerzeichen, Striche). */
 export function ziffern9(n: string | null | undefined): string {
   return (n ?? "").replace(/\D/g, "").slice(-9);
 }
 
-/** Ist die Nummer des Anrufers Davids Handy? Zu kurze Nummern (unterdrückt, „anonymous“) zählen nie. */
-export function istDavid(von: string | null | undefined, lucaNummer: string | null | undefined): boolean {
+type Nummern = string | null | undefined | (string | null | undefined)[];
+const liste = (n: Nummern) => (Array.isArray(n) ? n : [n]).flatMap((x) => (x ?? "").split(/[,;\n]/)).map(ziffern9).filter((z) => z.length === 9);
+
+/** Ist die Nummer des Anrufers eins von Davids Handys? Zu kurze Nummern (unterdrückt, „anonymous“) zählen nie. */
+export function istDavid(von: string | null | undefined, davids: Nummern): boolean {
   const a = ziffern9(von);
-  const b = ziffern9(lucaNummer);
-  return a.length === 9 && a === b;
+  return a.length === 9 && liste(davids).includes(a);
 }
 
 // ------------------------------------------------------------------ Menü (TwiML)
@@ -63,12 +66,12 @@ export function twimlLucaNichtDa(): string {
 // ------------------------------------------------------------------ Rufgruppe ohne David
 
 /**
- * Wer bei Kunden klingelt: alle Einträge aus RUFGRUPPE_NUMMERN außer Davids Handy (LUCA_NUMMER).
+ * Wer bei Kunden klingelt: alle Einträge aus RUFGRUPPE_NUMMERN außer Davids Handys (LUCA_NUMMER, DAVID_NUMMERN).
  * Ein Eintrag darf einen Namen tragen („Mijo=+49 151 …“ oder „Mijo: 0151 …“), der Name erscheint dann auf der Karte.
  */
 export type Teamhandy = { name: string | null; roh: string };
-export function teamEintraege(roh: string, ohne: string | null | undefined): Teamhandy[] {
-  const davids = ziffern9(ohne);
+export function teamEintraege(roh: string, ohne: Nummern): Teamhandy[] {
+  const davids = liste(ohne);
   return roh
     .split(/[,;\n]/)
     .map((teil) => teil.trim())
@@ -77,7 +80,7 @@ export function teamEintraege(roh: string, ohne: string | null | undefined): Tea
       const m = teil.match(/^([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß .-]{0,30}?)\s*[=:]\s*(.+)$/);
       return m ? { name: m[1].trim(), roh: m[2].trim() } : { name: null, roh: teil };
     })
-    .filter((e) => ziffern9(e.roh).length >= 7 && (!davids || ziffern9(e.roh) !== davids));
+    .filter((e) => ziffern9(e.roh).length >= 7 && !davids.includes(ziffern9(e.roh)));
 }
 
 /** Name zu einer Nummer (für die Kartenzeile „angenommen von …“). */

@@ -20,7 +20,7 @@ import {
   twimlDavidsMenue,
 } from "@/lib/rufgruppe";
 import { berlinUhr, DURCHGESTELLT_FELD, durchgestelltText, istDavid, menuewahl, twimlLucaNichtDa, twimlZuLuca } from "@/lib/luca-logik";
-import { lucaAn, lucaNummer, lucaSip, sipZugang } from "@/lib/luca";
+import { davidsNummern, lucaAn, lucaSip, sipZugang } from "@/lib/luca";
 import { setzeKartenzeile } from "@/lib/anruf-karte";
 
 import { markiereZurueckgerufen, rueckrufNachEigenemAnruf, rueckrufWartet } from "@/lib/rueckruf";
@@ -68,8 +68,8 @@ async function handle(request: Request) {
 
   if (aktion === "eingang") {
     const von = feld("From");
-    // David (LUCA_NUMMER) bekommt ein Menü: 1 = Luca, 2 = Kunden-Assistent. Alle anderen merken davon nichts.
-    if (lucaAn() && istDavid(von, lucaNummer())) return twiml(twimlDavidsMenue(1));
+    // David (LUCA_NUMMER oder DAVID_NUMMERN) bekommt ein Menü: 1 = Luca, 2 = Kunden-Assistent. Alle anderen merken davon nichts.
+    if (lucaAn() && istDavid(von, davidsNummern())) return twiml(twimlDavidsMenue(1));
     // Hat unser Rückruf-Assistent den Kunden nicht erreicht und er ruft jetzt zurück? Dann nicht zum normalen Assistenten.
     const sid = feld("CallSid");
     if (von && sid && rueckrufKonfiguriert()) {
@@ -92,7 +92,7 @@ async function handle(request: Request) {
     return twiml(twimlEingang());
   }
   if (aktion === "menue") {
-    if (!lucaAn() || !istDavid(feld("From"), lucaNummer())) return twiml(twimlEingang());
+    if (!lucaAn() || !istDavid(feld("From"), davidsNummern())) return twiml(twimlEingang());
     const runde = Math.max(1, Math.min(99, Number(url.searchParams.get("n")) || 1));
     const taste = feld("Digits");
     if (taste === null) return twiml(twimlDavidsMenue(runde)); // keine Taste: Ansage noch einmal

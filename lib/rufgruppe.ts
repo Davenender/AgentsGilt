@@ -31,11 +31,11 @@ export const ANNAHME_TEXT = "Anruf von Agents Gilt. Drücken Sie die 1, um das G
 
 const SITE = process.env.SITE_URL || "https://agentsgilt.com";
 
-/** Davids Handy (LUCA_NUMMER) klingelt bei Kunden nie mit (seit 05.11.2026); RUFGRUPPE_MIT_DAVID=1 holt ihn zurück. */
+/** Davids Handys (LUCA_NUMMER, DAVID_NUMMERN) klingeln bei Kunden nie mit (seit 05.11.2026); RUFGRUPPE_MIT_DAVID=1 holt ihn zurück. */
 function team() {
   // Zweite Variable für weitere Nummern, falls die erste nicht mehr einsehbar ist.
   const roh = `${process.env.RUFGRUPPE_NUMMERN ?? ""},${process.env.RUFGRUPPE_NUMMERN_2 ?? ""}`;
-  return teamEintraege(roh, process.env.RUFGRUPPE_MIT_DAVID === "1" ? null : process.env.LUCA_NUMMER);
+  return teamEintraege(roh, process.env.RUFGRUPPE_MIT_DAVID === "1" ? null : [process.env.LUCA_NUMMER, process.env.DAVID_NUMMERN]);
 }
 
 export function nummern(): string[] {

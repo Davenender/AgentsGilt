@@ -33,6 +33,16 @@ test("Davids Nummer wird in jeder Schreibweise erkannt, andere nicht", () => {
   assert.equal(istDavid(DAVID, ""), false);
 });
 
+test("David hat mehrere Handys: alle werden erkannt und keins klingelt bei Kunden", () => {
+  const davids = [DAVID, "+49 160 98427943"];
+  assert.equal(istDavid("+4916098427943", davids), true);
+  assert.equal(istDavid("015906430065", davids), true);
+  assert.equal(istDavid("+491715233279", davids), false);
+  assert.equal(istDavid("+4916098427943", "015906430065, 0160 98427943"), true);
+  const team = teamEintraege("David=+4916098427943,Mijo=+491715233279,Jakob=+491715256337", [DAVID, undefined, "+4916098427943"]);
+  assert.deepEqual(team.map((e) => e.name), ["Mijo", "Jakob"]);
+});
+
 test("Menü: Ansage mit 1/2, ohne Taste geht es mit der nächsten Runde weiter, nach MAX_MENUE wird aufgelegt", () => {
   const url = (n: number) => `https://x/api/rufgruppe?a=menue&n=${n}&k=abc`;
   const eins = twimlMenue(url, 1);
