@@ -4,7 +4,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 // Abfahrt erkennen, verschlüsseln. Gespeichert wird nur der letzte Standort, nie ein Verlauf – andere Personen nie.
 
 export type Standort = { lat: number; lon: number; tst: number; acc?: number; vel?: number; batt?: number; ort?: string };
-export type OrtMarke = { name: string; lat: number; lon: number; rad: number };
+export type OrtMarke = { name: string; lat: number; lon: number; rad: number; auch?: string[] };
 export type OrtEreignis = { art: "ankunft" | "abfahrt"; ort: string; tst: number };
 export type StandortSpeicher = { standort: Standort | null; orte: OrtMarke[]; drin: string[]; ereignisse: OrtEreignis[]; orteNeu?: boolean };
 export type OwnTracks = { art: "ort"; standort: Standort } | { art: "uebergang"; ereignis: OrtEreignis };

@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { briefAus } from "@/lib/luca-logik";
+import { kostenStand } from "@/lib/kosten";
 import { lucaLive } from "@/lib/luca-live";
 import { ortsname } from "@/lib/luca-unterwegs";
 import { owntracksKonfig, owntracksLink, standortText } from "@/lib/standort-logik";
@@ -150,6 +151,7 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
   try {
     if (req.method === "GET" && aktion === "briefkasten") return NextResponse.json(await briefkasten());
     if (req.method === "GET" && aktion === "gespraeche") return NextResponse.json({ gespraeche: await letzteGespraeche() });
+    if (req.method === "GET" && aktion === "kosten") return NextResponse.json(await kostenStand());
     if (req.method === "GET" && aktion === "standort") {
       const s = await holeStandortSpeicher();
       return NextResponse.json({ standort: s.standort, text: standortText(s.standort, new Date()), orte: s.orte, drin: s.drin, ereignisse: s.ereignisse });
@@ -206,10 +208,10 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
     }
     if (aktion === "standort-orte") {
       const orte = (Array.isArray(body.orte) ? body.orte : [])
-        .map((o) => o as { name?: unknown; lat?: unknown; lon?: unknown; rad?: unknown })
+        .map((o) => o as { name?: unknown; lat?: unknown; lon?: unknown; rad?: unknown; auch?: unknown })
         .filter((o) => typeof o.name === "string" && o.name.trim() && Number.isFinite(o.lat) && Number.isFinite(o.lon))
         .slice(0, 20)
-        .map((o) => ({ name: String(o.name).trim().slice(0, 60), lat: Number(o.lat), lon: Number(o.lon), rad: Math.min(1000, Math.max(50, Number(o.rad) || 150)) }));
+        .map((o) => ({ name: String(o.name).trim().slice(0, 60), lat: Number(o.lat), lon: Number(o.lon), rad: Math.min(1000, Math.max(50, Number(o.rad) || 150)), ...(Array.isArray(o.auch) && o.auch.length ? { auch: o.auch.filter((a): a is string => typeof a === "string").slice(0, 6).map((a) => a.slice(0, 40)) } : {}) }));
       return NextResponse.json({ ok: await setzeOrte(orte) });
     }
     if (aktion === "standort-name") {

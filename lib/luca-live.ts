@@ -32,7 +32,7 @@ export async function lucaLive(name: string, a: Record<string, unknown>): Promis
   }
   const s = await standortOderLeer();
   if (name === "wo_ist_david") return s.standort ? `${standortText(s.standort, new Date())}${s.drin.length ? ` Er ist gerade bei: ${s.drin.join(", ")}.` : ""}` : "Davids Standort ist nicht bekannt: Vom iPhone kam noch nichts.";
-  const welt: Welt = { standort: s.standort, orte: s.orte };
+  const welt: Welt = { standort: s.standort, orte: s.orte, stauSchluessel: process.env.TOMTOM_KEY };
   if (name === "route_berechnen") return routeText({ von: text(a.von), nach: text(a.nach), modus: text(a.modus) }, welt);
   if (name === "verbindung_suchen") return verbindungText({ von: text(a.von), nach: text(a.nach) }, welt);
   return wetterText({ ort: text(a.ort) }, welt);

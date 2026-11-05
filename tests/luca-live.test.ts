@@ -25,7 +25,10 @@ test("Orte: „hier“ ist Davids frischer Standort, „nach Hause“ sein Zuhau
   for (const t of ["nach Hause", "zuhause", "heim", "Zuhause"]) assert.equal((await findeOrt(t, welt, leer))?.name, "Zuhause", t);
   assert.equal((await findeOrt("die Schule", welt, leer))?.name, "Schule");
   // Standort zu alt oder unbekannt: nicht raten
-  assert.equal(await findeOrt("hier", { ...welt, standort: { ...welt.standort, tst: tst - 5 * 3600 } }, leer), null);
+  // Das iPhone meldet sich nur bei Bewegung: Stunden ohne Meldung heißen, er ist noch dort; erst nach einer Woche nicht mehr
+  assert.equal((await findeOrt("hier", { ...welt, standort: { ...welt.standort, tst: tst - 5 * 3600 } }, leer))?.lat, 50.0761);
+  assert.equal(await findeOrt("hier", { ...welt, standort: { ...welt.standort, tst: tst - 8 * 86400 } }, leer), null);
+  for (const t of ["von hier aus", "wo ich gerade bin", "von wo ich gerade bin", "meinem aktuellen Standort aus", "da wo ich jetzt bin"]) assert.equal((await findeOrt(t, welt, leer))?.lat, 50.0761, t);
   assert.equal(await findeOrt("hier", { ...welt, standort: null }, leer), null);
   assert.equal(await findeOrt("nach Hause", { ...welt, orte: [] }, leer), null);
 });
@@ -117,4 +120,29 @@ test("Standortname: Hausnummer dabei, die Stadt zählt vor dem Stadtteil", () =>
   assert.equal(ortsnameAus({ road: "Zeil", suburb: "Innenstadt", city: "Frankfurt am Main" }), "Zeil, Frankfurt am Main");
   assert.equal(ortsnameAus({ village: "Dietesheim" }), "Dietesheim");
   assert.equal(ortsnameAus({}), null);
+});
+
+test("Adressbuch der Zentrale: Relax Fit in allen Schreibweisen, ohne Kartensuche", async () => {
+  const leer = netz(() => new Error("nicht fragen"));
+  const w = { ...welt, orte: [...welt.orte, { name: "Relax Fit", lat: 50.0763, lon: 8.8728, rad: 150, auch: ["Relaxfit", "RELAX-FIT Fitness-Studio"] }] };
+  for (const t of ["Relax Fit", "relaxfit", "Relax-Fit", "zum Relax Fit", "RELAX-FIT Fitness-Studio"]) assert.equal((await findeOrt(t, w, leer))?.name, "Relax Fit", t);
+});
+
+test("Route mit Schlüssel: echter Verkehr von TomTom; scheitert das, ehrlich ohne Stau", async () => {
+  const w = { ...welt, stauSchluessel: "test" };
+  const osrm = { code: "Ok", routes: [{ distance: 5000, duration: 600 }] };
+  const live = { routes: [{ summary: { lengthInMeters: 13200, travelTimeInSeconds: 1500, trafficDelayInSeconds: 360 } }] };
+  let t = await routeText({ nach: "Zuhause" }, w, netz((u) => (u.includes("tomtom") ? live : osrm)));
+  assert.match(t, /13,2 Kilometer/);
+  assert.match(t, /mit dem aktuellen Verkehr, davon 6 Minuten Stau/);
+  t = await routeText({ nach: "Zuhause" }, w, netz((u) => (u.includes("tomtom") ? { routes: [{ summary: { lengthInMeters: 13200, travelTimeInSeconds: 1200, trafficDelayInSeconds: 0 } }] } : osrm)));
+  assert.match(t, /gerade kein Stau/);
+  t = await routeText({ nach: "Zuhause" }, w, netz((u) => (u.includes("tomtom") ? {} : osrm)));
+  assert.match(t, /ohne Stau gerechnet/);
+  // ohne Schlüssel fragt er TomTom gar nicht
+  let gefragt = false;
+  await routeText({ nach: "Zuhause" }, welt, netz((u) => { if (u.includes("tomtom")) gefragt = true; return osrm; }));
+  assert.equal(gefragt, false);
+  // der Schlüssel taucht nie in dem auf, was Luca sagt
+  assert.doesNotMatch(t, /test/);
 });

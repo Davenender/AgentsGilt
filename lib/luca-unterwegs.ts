@@ -6,11 +6,13 @@ import { besterKandidat, falte, varianten, type Kandidat } from "./ortssuche.ts"
 const UA = "AgentsGilt-Luca/1.0 (privat)";
 type Abruf = typeof fetch;
 const NAH = { lat: 50.1186, lon: 8.8331 };
-const STANDORT_FRISCH_S = 2 * 3600;
+/** Das iPhone meldet sich nur, wenn David sich bewegt: Keine Meldung heißt meist, er ist noch dort. Erst nach einer Woche gilt es nicht mehr. */
+const STANDORT_FRISCH_S = 7 * 24 * 3600;
+const TOMTOM = "https://api.tomtom.com/routing/1/calculateRoute";
 const ZONE = "Europe/Berlin";
 
 export type Punkt = { name: string; lat: number; lon: number };
-export type Welt = { standort: { lat: number; lon: number; tst: number; ort?: string } | null; orte: { name: string; lat: number; lon: number; rad?: number }[]; jetzt?: Date };
+export type Welt = { standort: { lat: number; lon: number; tst: number; ort?: string } | null; orte: { name: string; lat: number; lon: number; rad?: number; auch?: string[] }[]; jetzt?: Date; stauSchluessel?: string };
 export type Modus = "auto" | "rad" | "fuss";
 
 const kopf = { "user-agent": UA, accept: "application/json" };
@@ -39,18 +41,21 @@ export async function ortsname(lat: number, lon: number, abruf: Abruf = fetch): 
 
 const FUELL_ORT = /\b(von|nach|zu|zum|zur|die|der|das|den|dem|bis|in|an|am|mein|meine|meinem)\b/g;
 const einfach = (t: string) => falte(t).replace(/[^\p{L}\p{N}\s]/gu, " ").replace(FUELL_ORT, " ").replace(/\s+/g, " ").trim();
-const HIER = new Set(["", "hier", "standort", "aktueller standort", "wo ich bin", "ich bin", "da wo ich bin", "ich"]);
+const IST_HIER = /^(?:hier(?: aus)?|(?:(?:aktu|jetzig)\w* )?(?:standort|position)(?: aus)?|(?:da )?wo ich(?: gerade| grad| jetzt| momentan)? bin(?: aus)?|ich(?: bin)?)$/;
+const istHier = (k: string) => k === "" || IST_HIER.test(k);
+const kompakt = (t: string) => t.replace(/\s+/g, "");
 const HEIM = new Set(["hause", "haus", "zuhause", "heim", "daheim", "home"]);
 
 /** Einen Ort finden: Davids Standort, seine festen Orte, sonst Kartensuche. Lieber null als ein falscher Ort. */
 export async function findeOrt(text: string | undefined, w: Welt, abruf: Abruf = fetch): Promise<Punkt | null> {
   const k = einfach(text ?? "");
-  if (HIER.has(k)) {
+  if (istHier(k)) {
     const s = w.standort;
     const jetzt = (w.jetzt ?? new Date()).getTime() / 1000;
     return s && jetzt - s.tst <= STANDORT_FRISCH_S ? { name: s.ort ?? "deinem Standort", lat: s.lat, lon: s.lon } : null;
   }
-  const fest = HEIM.has(k) ? w.orte.find((o) => o.name === "Zuhause") : w.orte.find((o) => einfach(o.name) === k);
+  const kk = kompakt(k);
+  const fest = HEIM.has(k) ? w.orte.find((o) => o.name === "Zuhause") : w.orte.find((o) => [o.name, ...(o.auch ?? [])].some((n) => kompakt(einfach(n)) === kk));
   if (fest) return { name: fest.name, lat: fest.lat, lon: fest.lon };
   if (HEIM.has(k)) return null;
   for (const v of varianten(text!)) {
@@ -80,7 +85,7 @@ const uhr = (iso: string) => new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, 
 
 async function strecke(o: { von?: string; nach?: string }, w: Welt, abruf: Abruf): Promise<{ von: Punkt; nach: Punkt } | string> {
   const von = await findeOrt(o.von, w, abruf);
-  if (!von) return einfach(o.von ?? "") && !HIER.has(einfach(o.von ?? "")) ? `„${o.von}“ habe ich nicht gefunden. Frag David nach dem genauen Namen oder der Adresse.` : OHNE_STANDORT;
+  if (!von) return !istHier(einfach(o.von ?? "")) ? `„${o.von}“ habe ich nicht gefunden. Frag David nach dem genauen Namen oder der Adresse.` : OHNE_STANDORT;
   if (!o.nach?.trim()) return "Das Ziel fehlt. Frag David, wohin er will.";
   const nach = await findeOrt(o.nach, w, abruf);
   if (!nach) return HEIM.has(einfach(o.nach)) ? "Dein Zuhause ist noch nicht eingetragen: David legt es im Zahnrad der Zentrale fest (Standort)." : `„${o.nach}“ habe ich nicht gefunden. Frag David nach dem genauen Namen oder der Adresse.`;
@@ -91,6 +96,14 @@ export async function routeText(o: { von?: string; nach?: string; modus?: string
   const s = await strecke(o, w, abruf);
   if (typeof s === "string") return s;
   const modus: Modus = o.modus === "rad" || o.modus === "fuss" ? o.modus : "auto";
+  if (modus === "auto" && w.stauSchluessel) {
+    const live = await holeJson<{ routes?: { summary?: { lengthInMeters?: number; travelTimeInSeconds?: number; trafficDelayInSeconds?: number } }[] }>(`${TOMTOM}/${s.von.lat},${s.von.lon}:${s.nach.lat},${s.nach.lon}/json?key=${encodeURIComponent(w.stauSchluessel)}&traffic=true&travelMode=car&routeType=fastest&computeTravelTimeFor=all&routeRepresentation=summaryOnly`, abruf);
+    const su = live?.routes?.[0]?.summary;
+    if (su?.lengthInMeters && su.travelTimeInSeconds) {
+      const stau = Math.round((su.trafficDelayInSeconds ?? 0) / 60);
+      return `Von ${s.von.name} nach ${s.nach.name} ${MITTEL.auto}: ${komma(su.lengthInMeters / 1000)} Kilometer, etwa ${dauer(Math.max(1, Math.round(su.travelTimeInSeconds / 60)))} mit dem aktuellen Verkehr, ${stau ? `davon ${dauer(stau)} Stau` : "gerade kein Stau"}.`;
+    }
+  }
   const j = await holeJson<{ code?: string; routes?: { distance: number; duration: number }[] }>(`https://routing.openstreetmap.de/${PROFIL[modus]}/route/v1/driving/${s.von.lon},${s.von.lat};${s.nach.lon},${s.nach.lat}?overview=false`, abruf, 10_000);
   const r = j?.routes?.[0];
   if (j?.code !== "Ok" || !r) return `Die Route von ${s.von.name} nach ${s.nach.name} konnte ich gerade nicht berechnen. Nichts angezeigt.`;
