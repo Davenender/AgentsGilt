@@ -122,6 +122,7 @@ export const ANRUF_MARKE = "📞 Luca ruft David an";
 
 export type Brief =
   | { typ: "auftrag"; text: string }
+  | { typ: "rueckruf"; minuten: number; text: string }
   | { typ: "antwort"; nr: number; text: string; stand: string }
   | { typ: "freigabe"; nr: number; erlauben: boolean; stand: string };
 export type BriefMitZeit = Brief & { zeit: string; anruf?: string };
@@ -133,6 +134,10 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
   const text = typeof args.text === "string" ? args.text.replace(/\s+/g, " ").trim().slice(0, MAX_TEXT) : "";
   const nr = Number(args.nr);
   if (werkzeug === "auftrag_geben") return text ? { typ: "auftrag", text } : null;
+  if (werkzeug === "rueckruf_planen") {
+    const minuten = Math.round(Number(args.minuten));
+    return Number.isFinite(minuten) && minuten >= 1 && minuten <= 720 ? { typ: "rueckruf", minuten, text: text || "Rückruf, wie besprochen" } : null;
+  }
   if (werkzeug === "rueckfrage_beantworten") return text && Number.isInteger(nr) && nr > 0 && nr < 100 ? { typ: "antwort", nr, text, stand } : null;
   if (werkzeug === "freigabe_entscheiden") {
     const e = args.erlauben;
@@ -144,7 +149,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
 
 export function briefText(b: BriefMitZeit): string {
   const kopf =
-    b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
+    b.typ === "rueckruf" ? `Rückruf in ${b.minuten} Min.` : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
   // ``` im Text würde den Block beenden
   const json = JSON.stringify(b).replace(/`/g, "'");
   return `${BRIEF_MARKE} · ${kopf}\n\`\`\`json\n${json}\n\`\`\``;
@@ -156,7 +161,7 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   if (!m) return null;
   try {
     const j = JSON.parse(m[1]) as BriefMitZeit;
-    if (j.typ !== "auftrag" && j.typ !== "antwort" && j.typ !== "freigabe") return null;
+    if (j.typ !== "auftrag" && j.typ !== "antwort" && j.typ !== "freigabe" && j.typ !== "rueckruf") return null;
     return typeof j.zeit === "string" ? j : null;
   } catch {
     return null;
@@ -235,6 +240,7 @@ Was du kannst:
 3. Freigaben: Im Lagebericht stehen Freigaben mit Nummer und dem genauen Satz, was erlaubt werden soll. Sag genau, was passieren würde. Nur wenn David klar „ja, erlauben“ oder „erlaub das“ sagt, rufst du freigabe_entscheiden mit erlauben true auf; bei Nein mit false. Bist du unsicher, frag nach. Senden, Posten, Löschen und Kaufen gibt es als Freigabe nicht – das macht David selbst.
 4. Auskunft: Was wartet, was läuft, was fertig ist, was in der Schule ansteht – aus dem Lagebericht. Was nicht drinsteht, weißt du nicht; sag das ehrlich und biete an, einen Auftrag daraus zu machen.
 5. Allgemeine Fragen beantwortest du direkt und kurz.
+7. Rückruf: Will David, dass du ihn später nochmal anrufst („ruf mich in 30 Minuten an“), rufst du rueckruf_planen auf (Minuten und worum es dann gehen soll). Versprich nie einen Rückruf, ohne das Werkzeug aufzurufen. Einen Rückruf machst du nicht mit auftrag_geben.
 6. Hast du Fragen an David (steht dann oben beim Grund): Stell sie nacheinander, immer nur eine, warte auf die Antwort und frag kurz nach, wenn sie unklar ist. Am Ende fasst du alle Antworten in zwei, drei Sätzen zusammen und fragst, ob das so stimmt. Seine Antworten werden mitgeschrieben – du musst dafür kein Werkzeug aufrufen.
 
 Grenzen: Du kannst am Telefon nichts senden, posten, löschen oder kaufen und keine Mails verschicken. Du erfindest keine Zahlen und keine Ergebnisse. Wenn David fertig ist, verabschiede dich kurz und locker und leg auf.`;
@@ -279,6 +285,21 @@ export const LUCA_WERKZEUGE = [
           erlauben: { type: "boolean", description: "true = erlauben, false = ablehnen." },
         },
         required: ["nr", "erlauben"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "rueckruf_planen",
+      description: "Plant, dass Luca David später noch einmal anruft (z. B. in 30 Minuten). Nur auf Davids Wunsch.",
+      parameters: {
+        type: "object",
+        properties: {
+          minuten: { type: "number", description: "In wie vielen Minuten (1 bis 720)." },
+          text: { type: "string", description: "Worum es beim Rückruf gehen soll, in einem Satz." },
+        },
+        required: ["minuten", "text"],
       },
     },
   },

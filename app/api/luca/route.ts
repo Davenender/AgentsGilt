@@ -60,6 +60,7 @@ function argumente(c: ToolCall): Record<string, unknown> {
 }
 
 const ANTWORT: Record<string, string> = {
+  rueckruf: "Der Rückruf ist eingeplant. Sag David kurz, wann du dich meldest.",
   auftrag: "Der Auftrag ist bei der Zentrale angekommen. Sag David kurz, dass er erledigt wird und das Ergebnis in der Zentrale steht.",
   antwort: "Die Antwort ist weitergegeben. Die Aufgabe macht damit weiter.",
   freigabe: "Die Entscheidung ist weitergegeben.",

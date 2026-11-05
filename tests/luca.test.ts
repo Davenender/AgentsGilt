@@ -151,3 +151,16 @@ test("Luca spricht locker: Prompt verlangt kurze, natürliche Antworten und kein
   assert.equal(ERSTER_SATZ_EINGEHEND, "Hey Chef! Was kann ich für dich tun?");
   assert.equal(ersterSatzAusgehend("Ich hab den Plan fertig."), "Hey Chef, Luca hier! Ich hab den Plan fertig.");
 });
+
+test("Rückruf planen: 1 bis 720 Minuten, mit Thema; sonst abgewiesen", async () => {
+  const { briefAus, briefLesen, briefText, LUCA_WERKZEUGE, LUCA_PROMPT } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("rueckruf_planen", { minuten: "30", text: "Plan in Ruhe besprechen" }, "s"), { typ: "rueckruf", minuten: 30, text: "Plan in Ruhe besprechen" });
+  assert.equal(briefAus("rueckruf_planen", { minuten: 0, text: "x" }, "s"), null);
+  assert.equal(briefAus("rueckruf_planen", { minuten: 2000, text: "x" }, "s"), null);
+  assert.deepEqual(briefAus("rueckruf_planen", { minuten: 5 }, "s"), { typ: "rueckruf", minuten: 5, text: "Rückruf, wie besprochen" });
+  const b = { typ: "rueckruf" as const, minuten: 30, text: "Plan", zeit: "2026-11-05T15:00:00.000Z" };
+  assert.match(briefText(b), /Rückruf in 30 Min\./);
+  assert.deepEqual(briefLesen(briefText(b)), b);
+  assert.equal(LUCA_WERKZEUGE.some((w) => w.function.name === "rueckruf_planen"), true);
+  assert.match(LUCA_PROMPT, /Versprich nie einen Rückruf, ohne das Werkzeug aufzurufen/);
+});
