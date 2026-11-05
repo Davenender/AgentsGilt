@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { findChannelId } from "@/lib/discord";
 import { listeKunden } from "@/lib/notion-api";
+import { entschluessele, LEERER_SPEICHER, standortText, verschluessele, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
 import {
   anrufErlaubt,
   anrufNachricht,
@@ -239,9 +240,9 @@ async function vapi<T>(pfad: string, init: RequestInit = {}): Promise<T> {
 }
 
 /** Was Luca beim Gespräch weiß (Lagebericht), warum er anruft, was er erklären/fragen soll und die Notiz von Claude. */
-function variablen(lage: Lage | null, grund: string | null, info?: string, notiz: string | null = null, gedaechtnis = "(noch keine früheren Gespräche)", kunden: KundeFuerLuca[] | null = null) {
+function variablen(lage: Lage | null, grund: string | null, info?: string, notiz: string | null = null, gedaechtnis = "(noch keine früheren Gespräche)", kunden: KundeFuerLuca[] | null = null, standort: StandortSpeicher | null = null) {
   return {
-    lage: `${lageText(lage, new Date())}\n\n${kundenText(kunden, new Date())}`,
+    lage: `${standort?.standort ? `${standortText(standort.standort, new Date())}\n` : ""}${lageText(lage, new Date())}\n\n${kundenText(kunden, new Date())}`,
     gedaechtnis,
     grund: mitNotiz(grund ? `Du rufst David an. Grund: ${grund}${info ? `\n\nDas sollst du ihm erklären und fragen:\n${info}` : ""}` : "David hat dich angerufen.", notiz),
   };
@@ -302,6 +303,55 @@ async function stimmeFuerGespraech(lage: Lage | null) {
   return laeuftKlassisch(await lucaBeiVapi()) ? wunsch : undefined;
 }
 
+// ------------------------------------------------------------------ Davids Standort (OwnTracks, nur sein eigenes Handy)
+const STANDORT_MARKE = "🔒 Standort";
+const geheimnis = () => process.env.HELFER_SECRET?.trim() ?? "";
+/** Passwort für die App auf Davids iPhone (Basic Auth an /api/standort). */
+export const standortPasswort = () => abgeleitet("luca-standort", 32);
+export const STANDORT_BENUTZER = "david";
+
+async function standortNachricht(kanal: string): Promise<Nachricht | null> {
+  return (await nachrichten(kanal)).find((m) => istUnsere(m) && m.content.startsWith(STANDORT_MARKE)) ?? null;
+}
+
+/** Eine einzige Bot-Nachricht in #luca, verschlüsselt: nur der letzte Stand, Discord sieht keine Koordinaten. */
+export async function holeStandortSpeicher(): Promise<StandortSpeicher> {
+  const kanal = await lucaKanal();
+  const m = kanal ? await standortNachricht(kanal) : null;
+  const inhalt = m?.content.slice(STANDORT_MARKE.length).trim();
+  return (inhalt && entschluessele<StandortSpeicher>(inhalt, geheimnis())) || structuredClone(LEERER_SPEICHER);
+}
+
+export async function schreibeStandortSpeicher(s: StandortSpeicher): Promise<boolean> {
+  const kanal = await lucaKanal();
+  if (!kanal) return false;
+  const content = `${STANDORT_MARKE} ${verschluessele(s, geheimnis())}`;
+  if (content.length > 2000) return false;
+  const alt = await standortNachricht(kanal);
+  if (alt) {
+    const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, { method: "PATCH", headers: kopf(), body: JSON.stringify({ content, allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(6000) });
+    return res.ok;
+  }
+  return Boolean(await poste(kanal, content));
+}
+
+/** Die Orte (Zuhause, Schule …) kommen von der Zentrale. Geändert: Die App bekommt sie bei ihrer nächsten Meldung. */
+export async function setzeOrte(orte: OrtMarke[]): Promise<boolean> {
+  const s = await holeStandortSpeicher();
+  if (JSON.stringify(s.orte) === JSON.stringify(orte)) return true;
+  return schreibeStandortSpeicher({ ...s, orte, orteNeu: true, drin: s.drin.filter((n) => orte.some((o) => o.name === n)) });
+}
+
+/** Werkzeuge bei Luca auf Stand bringen; alles andere (GPT Live, Prompts, Stimme, Reasoner) bleibt, wie David es eingestellt hat. */
+export async function aktualisiereWerkzeuge() {
+  const id = lucaAssistent();
+  if (!id) throw new Error("LUCA_ASSISTANT fehlt");
+  const a = await vapi<VapiAssistent>(`/assistant/${id}`);
+  const model = { ...a.model, tools: [...LUCA_WERKZEUGE, { type: "endCall" }], toolIds: [] };
+  const neu = await vapi<VapiAssistent>(`/assistant/${id}`, { method: "PATCH", body: JSON.stringify({ model }) });
+  return assistentUeberblick(neu as Parameters<typeof assistentUeberblick>[0]);
+}
+
 /** Für die Prüfung von der Zentrale aus: Was ist bei Luca gerade eingestellt? */
 export async function lucaEinstellungen() {
   return assistentUeberblick((await lucaBeiVapi()) as Parameters<typeof assistentUeberblick>[0]);
@@ -321,13 +371,13 @@ async function kundenFuerLuca(): Promise<KundeFuerLuca[] | null> {
 
 /** Antwort auf assistant-request (David ruft an und hat die 1 gedrückt). */
 export async function assistentFuerEingang() {
-  const [lage, notiz, frueher, kunden] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => []), kundenFuerLuca()]);
+  const [lage, notiz, frueher, kunden, standort] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => []), kundenFuerLuca(), holeStandortSpeicher().catch(() => null)]);
   const stimme = await stimmeFuerGespraech(lage);
   return {
     assistantId: lucaAssistent(),
     assistantOverrides: {
       firstMessage: notiz ? ERSTER_SATZ_MIT_NOTIZ : ERSTER_SATZ_EINGEHEND,
-      variableValues: variablen(lage, null, undefined, notiz, gedaechtnisAus(frueher), kunden),
+      variableValues: variablen(lage, null, undefined, notiz, gedaechtnisAus(frueher), kunden, standort),
       ...(stimme ? { voice: stimme } : {}),
     },
   };
@@ -342,7 +392,7 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
   const jetzt = new Date();
   const darf = anrufErlaubt(jetzt);
   if (!darf.ok) return darf;
-  const [lage, notiz, frueher, kunden] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => []), kundenFuerLuca()]);
+  const [lage, notiz, frueher, kunden, standort] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => []), kundenFuerLuca(), holeStandortSpeicher().catch(() => null)]);
   const stimme = await stimmeFuerGespraech(lage);
   const anruf = (mitMailbox: boolean) =>
     vapi("/call", {
@@ -353,7 +403,7 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
         customer: { number: lucaNummer() },
         assistantOverrides: {
           firstMessage: ersterSatzAusgehend(grund),
-          variableValues: variablen(lage, grund, info, notiz, gedaechtnisAus(frueher), kunden),
+          variableValues: variablen(lage, grund, info, notiz, gedaechtnisAus(frueher), kunden, standort),
           metadata: { luca: true, test, grund: grund.slice(0, 200) },
           ...(stimme ? { voice: stimme } : {}),
           ...(mitMailbox ? MAILBOX : {}),
