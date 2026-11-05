@@ -46,8 +46,10 @@ const abgeleitet = (zweck: string, laenge: number): string | null => {
 export const lucaSchluessel = () => abgeleitet("luca-vapi", 40);
 /** Benutzer und Passwort für Lucas SIP-Adresse (nur Twilio kennt sie, sonst kommt niemand direkt zu Luca). */
 export const sipZugang = () => {
-  const p = abgeleitet("luca-sip", 24);
-  return p ? { benutzer: "zentrale", passwort: p } : null;
+  const p = abgeleitet("luca-sip", 32);
+  const b = abgeleitet("luca-sip-benutzer", 10);
+  // Vapi verlangt mindestens 20 Zeichen für den Benutzernamen
+  return p && b ? { benutzer: `luca-zentrale-${b}`, passwort: p } : null;
 };
 
 export const lucaNummer = () => process.env.LUCA_NUMMER?.trim() || null;
