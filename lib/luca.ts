@@ -22,6 +22,8 @@ import {
   SPRECH_PLAN,
   stimmeTelefon,
   LAGE_MARKE,
+  assistentUeberblick,
+  laeuftKlassisch,
   lageLesen,
   lageNachricht,
   lageText,
@@ -276,10 +278,35 @@ function stimmeAus(lage: Lage | null): { provider: string; voiceId: string; mode
   return lage?.stimme && /^[A-Za-z0-9]{10,40}$/.test(lage.stimme) ? stimmeTelefon(lage.stimme) : undefined;
 }
 
+/** Lucas Eintrag bei Vapi, wie er gerade ist (null, wenn Vapi nicht antwortet). Nur lesen. */
+async function lucaBeiVapi(): Promise<VapiAssistent | null> {
+  const id = lucaAssistent();
+  if (!id || !process.env.VAPI_API_KEY?.trim()) return null;
+  try {
+    return await vapi<VapiAssistent>(`/assistant/${id}`);
+  } catch (err) {
+    console.error("[luca] Assistent nicht lesbar:", err);
+    return null;
+  }
+}
+
+/** Die Stimme fürs Gespräch – nur, wenn Luca klassisch läuft. Im Zweifel keine: Dann nimmt Vapi, was bei Luca eingestellt ist,
+ * und der Anruf klappt immer (GPT Live lehnt fremde Stimmen samt Anruf ab). */
+async function stimmeFuerGespraech(lage: Lage | null) {
+  const wunsch = stimmeAus(lage);
+  if (!wunsch) return undefined;
+  return laeuftKlassisch(await lucaBeiVapi()) ? wunsch : undefined;
+}
+
+/** Für die Prüfung von der Zentrale aus: Was ist bei Luca gerade eingestellt? */
+export async function lucaEinstellungen() {
+  return assistentUeberblick((await lucaBeiVapi()) as Parameters<typeof assistentUeberblick>[0]);
+}
+
 /** Antwort auf assistant-request (David ruft an und hat die 1 gedrückt). */
 export async function assistentFuerEingang() {
   const [lage, notiz, frueher] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => [])]);
-  const stimme = stimmeAus(lage);
+  const stimme = await stimmeFuerGespraech(lage);
   return {
     assistantId: lucaAssistent(),
     assistantOverrides: {
@@ -300,7 +327,7 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
   const darf = anrufErlaubt(jetzt);
   if (!darf.ok) return darf;
   const [lage, notiz, frueher] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => [])]);
-  const stimme = stimmeAus(lage);
+  const stimme = await stimmeFuerGespraech(lage);
   try {
     await vapi("/call", {
       method: "POST",
@@ -382,9 +409,13 @@ export async function einrichten(): Promise<Record<string, unknown>> {
 
   const alle = await vapi<VapiAssistent[]>("/assistant?limit=100");
   const vorhanden = alle.find((a) => a.name === LUCA_NAME);
-  const luca = vorhanden
-    ? await vapi<VapiAssistent>(`/assistant/${vorhanden.id}`, { method: "PATCH", body: JSON.stringify(assistent) })
-    : await vapi<VapiAssistent>("/assistant", { method: "POST", body: JSON.stringify(assistent) });
+  // David hat Luca auf GPT Live umgestellt (oder eine eigene Stimme gesetzt): Diese Einstellungen nie überschreiben.
+  const beibehalten = Boolean(vorhanden && !laeuftKlassisch(vorhanden));
+  const luca = beibehalten
+    ? vorhanden!
+    : vorhanden
+      ? await vapi<VapiAssistent>(`/assistant/${vorhanden.id}`, { method: "PATCH", body: JSON.stringify(assistent) })
+      : await vapi<VapiAssistent>("/assistant", { method: "POST", body: JSON.stringify(assistent) });
 
   const alteSip = nummern.find((n) => n.name === LUCA_NAME);
   const sipUri = alteSip?.sipUri ?? `sip:luca-${abgeleitet("luca-sip-name", 12)}@sip.vapi.ai`;
@@ -401,6 +432,7 @@ export async function einrichten(): Promise<Record<string, unknown>> {
     assistent: luca.id,
     sipNummer: sip.id,
     sipUri: sip.sipUri ?? sipUri,
+    einstellungenBeibehalten: beibehalten,
     uebernommen: { modell: `${String(modell.provider)}/${String(modell.model)}`, erkennung: vorlage.transcriber ? String(vorlage.transcriber.provider) : "Vapi-Standard" },
   };
 }

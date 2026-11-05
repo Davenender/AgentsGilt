@@ -178,6 +178,47 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   }
 }
 
+// ------------------------------------------------------------------ GPT Live oder klassisch
+// David kann Luca im Vapi-Dashboard auf GPT Live umstellen („Revert to Classic“ stellt zurück). GPT Live nimmt nur seine
+// eigenen Stimmen an: Schicken wir beim Anruf trotzdem Daniel von ElevenLabs mit, lehnt Vapi den ganzen Anruf ab
+// („Only OpenAI Live voices may be used with GPT-Live models“). Also: Stimme nur mitschicken, wenn Luca gerade klassisch läuft.
+export function laeuftKlassisch(a: { voice?: { provider?: unknown } | null } | null | undefined): boolean {
+  return a?.voice?.provider === "11labs";
+}
+
+type AssistentRoh = {
+  id?: unknown;
+  voice?: { provider?: unknown; voiceId?: unknown; fallbackPlan?: unknown } | null;
+  transcriber?: { provider?: unknown } | null;
+  model?: { provider?: unknown; model?: unknown; tools?: { type?: unknown; function?: { name?: unknown } }[]; toolIds?: unknown[] } | null;
+  server?: { url?: unknown } | null;
+  serverMessages?: unknown;
+  analysisPlan?: unknown;
+  maxDurationSeconds?: unknown;
+  silenceTimeoutSeconds?: unknown;
+  firstMessageMode?: unknown;
+};
+
+/** Was bei Luca gerade eingestellt ist – ohne Prompt und ohne Geheimnisse (für die Prüfung von der Zentrale aus). */
+export function assistentUeberblick(a: AssistentRoh | null | undefined) {
+  if (!a) return null;
+  const werkzeuge = a.model?.tools ?? [];
+  return {
+    art: laeuftKlassisch(a) ? "klassisch" : "gpt-live-oder-eigene-stimme",
+    modell: `${String(a.model?.provider ?? "?")}/${String(a.model?.model ?? "?")}`,
+    stimme: `${String(a.voice?.provider ?? "?")}/${String(a.voice?.voiceId ?? "?")}`,
+    erkennung: String(a.transcriber?.provider ?? "?"),
+    werkzeuge: werkzeuge.map((w) => String(w.function?.name ?? w.type ?? "?")),
+    werkzeugIds: Array.isArray(a.model?.toolIds) ? a.model.toolIds.length : 0,
+    serverGesetzt: typeof a.server?.url === "string" && a.server.url.length > 0,
+    serverNachrichten: Array.isArray(a.serverMessages) ? a.serverMessages : null,
+    zusammenfassung: Boolean(a.analysisPlan),
+    maxSekunden: typeof a.maxDurationSeconds === "number" ? a.maxDurationSeconds : null,
+    stilleSekunden: typeof a.silenceTimeoutSeconds === "number" ? a.silenceTimeoutSeconds : null,
+    start: typeof a.firstMessageMode === "string" ? a.firstMessageMode : null,
+  };
+}
+
 // ------------------------------------------------------------------ Lagebericht
 
 /** Was die Zentrale jede Minute schickt (nur Titel und Zahlen, keine Mails, keine Kundendaten). */

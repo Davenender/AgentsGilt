@@ -3,6 +3,7 @@ import { briefAus } from "@/lib/luca-logik";
 import {
   assistentFuerEingang,
   einrichten,
+  lucaEinstellungen,
   gleich,
   holeLage,
   istLucaGespraech,
@@ -135,6 +136,7 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
         an: lucaAn(),
         kanal: Boolean(await lucaKanal()),
         lageStand: lage?.stand ?? null,
+        assistent: await lucaEinstellungen(),
         rufgruppe: { klingeln: nummern().length, team: teamEintraege(roh, ohne).map((e) => `${e.name ?? "?"} ${ende(e.roh)}`), david: ohne.flatMap((x) => (x ?? "").split(",")).filter((x) => x.trim()).map(ende) },
       });
     }
