@@ -188,9 +188,10 @@ export function laeuftKlassisch(a: { voice?: { provider?: unknown } | null } | n
 
 type AssistentRoh = {
   id?: unknown;
+  // GPT Live: model.speaker und model.reasoner
   voice?: { provider?: unknown; voiceId?: unknown; fallbackPlan?: unknown } | null;
   transcriber?: { provider?: unknown } | null;
-  model?: { provider?: unknown; model?: unknown; tools?: { type?: unknown; function?: { name?: unknown } }[]; toolIds?: unknown[] } | null;
+  model?: { provider?: unknown; model?: unknown; tools?: { type?: unknown; function?: { name?: unknown } }[]; toolIds?: unknown[]; speaker?: { instructions?: unknown } | null; reasoner?: { model?: unknown; reasoningEffort?: unknown; instructions?: unknown } | null } | null;
   server?: { url?: unknown } | null;
   serverMessages?: unknown;
   analysisPlan?: unknown;
@@ -210,6 +211,9 @@ export function assistentUeberblick(a: AssistentRoh | null | undefined) {
     erkennung: String(a.transcriber?.provider ?? "?"),
     werkzeuge: werkzeuge.map((w) => String(w.function?.name ?? w.type ?? "?")),
     werkzeugIds: Array.isArray(a.model?.toolIds) ? a.model.toolIds.length : 0,
+    reasoner: a.model?.reasoner ? `${String(a.model.reasoner.model ?? "?")}/${String(a.model.reasoner.reasoningEffort ?? "?")}` : null,
+    stimmeKenntLage: typeof a.model?.speaker?.instructions === "string" ? a.model.speaker.instructions.includes("{{lage}}") : null,
+    reasonerKenntLage: typeof a.model?.reasoner?.instructions === "string" ? a.model.reasoner.instructions.includes("{{lage}}") : null,
     serverGesetzt: typeof a.server?.url === "string" && a.server.url.length > 0,
     serverNachrichten: Array.isArray(a.serverMessages) ? a.serverMessages : null,
     zusammenfassung: Boolean(a.analysisPlan),

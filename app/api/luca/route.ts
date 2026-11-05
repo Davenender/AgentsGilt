@@ -1,9 +1,17 @@
 import { after, NextResponse } from "next/server";
 import { briefAus } from "@/lib/luca-logik";
+import { owntracksKonfig, owntracksLink, standortText } from "@/lib/standort-logik";
 import {
   assistentFuerEingang,
   einrichten,
+  aktualisiereWerkzeuge,
+  holeStandortSpeicher,
+  LUCA_ADRESSE,
   lucaEinstellungen,
+  schreibeStandortSpeicher,
+  setzeOrte,
+  standortPasswort,
+  STANDORT_BENUTZER,
   gleich,
   holeLage,
   istLucaGespraech,
@@ -124,6 +132,17 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
   try {
     if (req.method === "GET" && aktion === "briefkasten") return NextResponse.json(await briefkasten());
     if (req.method === "GET" && aktion === "gespraeche") return NextResponse.json({ gespraeche: await letzteGespraeche() });
+    if (req.method === "GET" && aktion === "standort") {
+      const s = await holeStandortSpeicher();
+      return NextResponse.json({ standort: s.standort, text: standortText(s.standort, new Date()), orte: s.orte, drin: s.drin, ereignisse: s.ereignisse });
+    }
+    if (req.method === "GET" && aktion === "standort-zugang") {
+      const passwort = standortPasswort();
+      if (!passwort) return NextResponse.json({ error: "HELFER_SECRET fehlt" }, { status: 503 });
+      const s = await holeStandortSpeicher();
+      const url = `${new URL(LUCA_ADRESSE).origin}/api/standort`;
+      return NextResponse.json({ link: owntracksLink(owntracksKonfig({ url, benutzer: STANDORT_BENUTZER, passwort, orte: s.orte })), orte: s.orte.map((o) => o.name) });
+    }
     if (req.method === "GET" && aktion === "status") {
       const lage = await holeLage();
       // Rufgruppe ohne Nummern: nur Anzahl, Namen und die letzten 3 Ziffern, damit man sieht, dass David draußen ist
@@ -160,6 +179,19 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       return NextResponse.json(r, { status: r.ok ? 200 : 409 });
     }
     if (aktion === "einrichten") return NextResponse.json(await einrichten());
+    if (aktion === "werkzeuge") return NextResponse.json({ assistent: await aktualisiereWerkzeuge() });
+    if (aktion === "standort-orte") {
+      const orte = (Array.isArray(body.orte) ? body.orte : [])
+        .map((o) => o as { name?: unknown; lat?: unknown; lon?: unknown; rad?: unknown })
+        .filter((o) => typeof o.name === "string" && o.name.trim() && Number.isFinite(o.lat) && Number.isFinite(o.lon))
+        .slice(0, 20)
+        .map((o) => ({ name: String(o.name).trim().slice(0, 60), lat: Number(o.lat), lon: Number(o.lon), rad: Math.min(1000, Math.max(50, Number(o.rad) || 150)) }));
+      return NextResponse.json({ ok: await setzeOrte(orte) });
+    }
+    if (aktion === "standort-loeschen") {
+      const s = await holeStandortSpeicher();
+      return NextResponse.json({ ok: await schreibeStandortSpeicher({ ...s, standort: null, ereignisse: [], drin: [] }) });
+    }
     if (aktion === "notiz") return NextResponse.json({ ok: await setzeNotiz(typeof body.text === "string" ? body.text : "") });
   } catch (err) {
     console.error(`[luca] ${aktion}:`, err);
