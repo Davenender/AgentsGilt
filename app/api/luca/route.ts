@@ -91,6 +91,7 @@ const ANTWORT: Record<string, string> = {
 
 const WERKZEUG_FRIST_MS = 15_000;
 const ZU_LANGE = "Das dauert gerade zu lange, ich habe noch kein Ergebnis. Sag David das kurz und ehrlich.";
+const FEHLER = "Das hat gerade nicht geklappt. Sag David das kurz und ehrlich.";
 const ERLEDIGT = new Map<string, string>();
 
 async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
@@ -117,7 +118,7 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
       // Stand, Standort, Route, Bus, Wetter, Änderungen: sofort, ohne Umweg über den Mac
       const live = await lucaLive(name, argumente(c)).catch((err) => {
         console.error(`[luca] ${name}:`, err);
-        return "Das hat gerade nicht geklappt. Sag David das kurz und ehrlich.";
+        return FEHLER;
       });
       if (live !== null) return live;
       lage ??= holeLage();
@@ -134,12 +135,16 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
         const schon = id ? ERLEDIGT.get(id) : undefined;
         if (schon !== undefined) return { toolCallId: c.id, result: schon };
         let uhr: ReturnType<typeof setTimeout> | undefined;
-        const arbeit = einer(c);
-        const result = await Promise.race([arbeit.catch(() => "Das hat gerade nicht geklappt. Sag David das kurz und ehrlich."), new Promise<string>((fertig) => (uhr = setTimeout(() => fertig(ZU_LANGE), WERKZEUG_FRIST_MS)))]);
+        const arbeit = einer(c).catch(() => FEHLER);
+        const result = await Promise.race([arbeit, new Promise<string>((fertig) => (uhr = setTimeout(() => fertig(ZU_LANGE), WERKZEUG_FRIST_MS)))]);
         clearTimeout(uhr);
-        // Schickt Vapi denselben Aufruf noch einmal, darf nichts doppelt passieren (kein zweiter Termin, kein zweiter Auftrag)
+        // Schickt Vapi denselben Aufruf noch einmal, darf nichts doppelt passieren (kein zweiter Termin, kein zweiter Auftrag).
+        // Ein Fehler zählt nicht: Da darf es Luca noch einmal versuchen. Läuft die Arbeit noch, wird sie zu Ende geführt und dann gemerkt.
         if (id) {
-          ERLEDIGT.set(id, result);
+          if (result === ZU_LANGE) {
+            ERLEDIGT.set(id, result);
+            after(() => arbeit.then((r) => (r === FEHLER ? ERLEDIGT.delete(id) : ERLEDIGT.set(id, r))).then(() => undefined));
+          } else if (result !== FEHLER) ERLEDIGT.set(id, result);
           if (ERLEDIGT.size > 300) ERLEDIGT.delete(ERLEDIGT.keys().next().value as string);
         }
         return { toolCallId: c.id, result };

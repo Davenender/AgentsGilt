@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { after } from "next/server";
 import { findChannelId } from "@/lib/discord";
 import { listeKunden } from "@/lib/notion-api";
 import { entschluessele, LEERER_SPEICHER, passendKlein, standortText, verschluessele, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
@@ -15,6 +16,7 @@ import {
   NOTIZ_MARKE,
   notizAus,
   festeNachVorn,
+  NACH_VORN_AB,
   notizTeile,
   GESPRAECH_MARKE,
   GESPRAECH_STATUS,
@@ -215,12 +217,20 @@ export function gespraechAus(nachr: Nachricht[], jetzt = new Date()): boolean {
   return m ? gespraechLaeuft(m.content, jetzt) : false;
 }
 
+/** Eine feste Nachricht nach vorn holen. Klappt das Löschen der alten nicht, fliegt die neue Kopie wieder raus: Sonst würde je Runde eine mehr, und gelesen würde die falsche. */
+async function nachVorn(kanal: string, altId: string, content: string): Promise<boolean> {
+  const neu = await poste(kanal, content);
+  if (!neu) return false;
+  const loesche = (id: string) => fetch(`${DISCORD}/channels/${kanal}/messages/${id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) }).catch(() => null);
+  const weg = await loesche(altId);
+  if (weg?.ok) return true;
+  await loesche(neu);
+  return false;
+}
+
 async function festeNachrichtenHalten(kanal: string, alle: Nachricht[]) {
-  const zuAlt = festeNachVorn(alle.map((m) => ({ id: m.id, content: m.content, istUnsere: istUnsere(m) })), [LAGE_MARKE, STANDORT_MARKE, NOTIZ_MARKE, GESPRAECH_STATUS]);
-  for (const m of zuAlt.slice(0, 3)) {
-    if (!(await poste(kanal, m.content))) return;
-    await fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) }).catch(() => null);
-  }
+  const zuAlt = festeNachVorn(alle.map((m) => ({ id: m.id, content: m.content, istUnsere: istUnsere(m) })), [STANDORT_MARKE, NOTIZ_MARKE, GESPRAECH_STATUS]);
+  for (const m of zuAlt.slice(0, 3)) if (!(await nachVorn(kanal, m.id, m.content))) return;
 }
 
 /** Die Zentrale schickt jede Minute ihren Lagebericht: eine einzige Bot-Nachricht, die immer wieder geändert wird. */
@@ -228,10 +238,13 @@ export async function setzeLage(l: Lage): Promise<boolean> {
   const kanal = await lucaKanal();
   if (!kanal) return false;
   const alle = await nachrichten(kanal);
-  const alt = alle.find((m) => istUnsere(m) && m.content.startsWith(LAGE_MARKE)) ?? null;
+  const stelle = alle.findIndex((m) => istUnsere(m) && m.content.startsWith(LAGE_MARKE));
+  const alt = stelle >= 0 ? alle[stelle] : null;
   const content = lageNachricht(l);
   if (content.length > 2000) return false;
   await festeNachrichtenHalten(kanal, alle).catch((err) => console.error("[luca] feste Nachrichten:", err));
+  // Der Stand selbst rückt mit seinem neuen Inhalt nach vorn
+  if (alt && stelle >= NACH_VORN_AB && (await nachVorn(kanal, alt.id, content))) return true;
   if (alt) {
     const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, {
       method: "PATCH",
@@ -462,10 +475,22 @@ async function gespraechsStand(): Promise<{ lage: Lage | null; notiz: string | n
   }
 }
 
+/** Die Stimme kommt von Vapi. Antwortet es langsam, bleibt die eingestellte: Vapi gibt uns beim Anruf nur wenige Sekunden. */
+async function stimmeMitFrist(lage: Lage | null) {
+  let uhr: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([stimmeFuerGespraech(lage), new Promise<undefined>((fertig) => (uhr = setTimeout(() => fertig(undefined), 2500)))]);
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(uhr);
+  }
+}
+
 /** Antwort auf assistant-request (David ruft an und hat die 1 gedrückt). */
 export async function assistentFuerEingang() {
   const { lage, notiz, frueher, kunden, standort } = await gespraechsStand();
-  const stimme = await stimmeFuerGespraech(lage);
+  const stimme = await stimmeMitFrist(lage);
   return {
     assistantId: lucaAssistent(),
     assistantOverrides: {
@@ -486,7 +511,7 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
   const darf = anrufErlaubt(jetzt);
   if (!darf.ok) return darf;
   const { lage, notiz, frueher, kunden, standort } = await gespraechsStand();
-  const stimme = await stimmeFuerGespraech(lage);
+  const stimme = await stimmeMitFrist(lage);
   const anruf = (mitMailbox: boolean) =>
     vapi<{ id?: string }>("/call", {
       method: "POST",
@@ -505,8 +530,10 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
     });
   let id: string | undefined;
   try {
-    // Nimmt Vapi die Mailbox-Erkennung bei dieser Einstellung nicht an, rufen wir lieber ohne an, als gar nicht
-    const call = await anruf(true).catch(async (err) => {
+    // Nimmt Vapi die Mailbox-Erkennung bei dieser Einstellung nicht an, rufen wir lieber ohne an, als gar nicht.
+    // Nur bei dieser Ablehnung: Bei einer Zeitüberschreitung könnte das Telefon schon klingeln, ein zweiter Versuch wäre ein zweiter Anruf.
+    const call = await anruf(true).catch(async (err: Error) => {
+      if (!/HTTP 4\d\d/.test(err.message)) throw err;
       console.error("[luca] Anruf mit Mailbox-Erkennung abgelehnt, versuche ohne:", err);
       return anruf(false);
     });
@@ -515,9 +542,11 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
     console.error("[luca] Anruf fehlgeschlagen:", err);
     return { ok: false, grund: "Vapi hat den Anruf abgelehnt." };
   }
-  // Das Telefon klingelt schon: Was jetzt schiefgeht, ist kein gescheiterter Anruf (sonst käme ein zweiter)
-  await poste(kanal, anrufNachricht(jetzt.toISOString(), grund, test)).catch((err) => console.error("[luca] Anruf-Notiz:", err));
-  await setzeGespraech(true).catch((err) => console.error("[luca] Gespräch-Status:", err));
+  // Das Telefon klingelt schon: Antworten, bevor die Zentrale aufgibt und es noch einmal versucht. Was jetzt schiefgeht, ist kein gescheiterter Anruf.
+  after(async () => {
+    await poste(kanal, anrufNachricht(jetzt.toISOString(), grund, test)).catch((err) => console.error("[luca] Anruf-Notiz:", err));
+    await setzeGespraech(true).catch((err) => console.error("[luca] Gespräch-Status:", err));
+  });
   return { ok: true, ...(id ? { id } : {}) };
 }
 

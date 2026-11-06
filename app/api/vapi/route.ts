@@ -253,8 +253,7 @@ function formatDuration(seconds: number | undefined): string {
 
 export async function POST(request: Request) {
   // Der Endpunkt ist öffentlich erreichbar. Ohne diese Prüfung könnte jeder
-  // Mails auslösen. Solange kein Secret gesetzt ist, laufen wir offen weiter,
-  // damit ein vergessenes Env-Var nicht stillschweigend alle Anrufe verschluckt.
+  // Mails auslösen.
   //
   // Vapi schickt das Secret je nach eingestellter Credential-Art anders: mal als
   // eigener Header, mal als Bearer-Token. Wir akzeptieren beide Wege, damit die
