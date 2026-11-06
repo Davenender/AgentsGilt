@@ -130,6 +130,26 @@ export async function holeKundenNr(seite: string | undefined | null): Promise<st
   }
 }
 
+/** Zahlungsmeldung von Stripe: setzt nur das Feld „Zahlungsstatus“ einer Kundenzeile. */
+export async function setzeZahlungsstatus(notionUrl: string, status: "Bezahlt" | "Offen"): Promise<boolean> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const seite = seitenId(notionUrl);
+  if (!token || !seite) return false;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/pages/${seite}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28", "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: { Zahlungsstatus: { select: { name: status } } } }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) console.error(`[notion] Zahlungsstatus setzen fehlgeschlagen: HTTP ${res.status}`);
+    return res.ok;
+  } catch (err) {
+    console.error("[notion] Zahlungsstatus setzen fehlgeschlagen:", err);
+    return false;
+  }
+}
+
 /** Legt aus einer Website-Anfrage einen neuen Lead in der Kunden-Datenbank an. */
 export async function legeLeadAusAnfrage(input: {
   name: string;
