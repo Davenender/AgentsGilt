@@ -141,3 +141,47 @@ export async function wetterText(o: { ort?: string }, w: Welt, abruf: Abruf = fe
   const jetzt = j.current?.temperature_2m !== undefined ? `Jetzt ${Math.round(j.current.temperature_2m)} Grad, ${wetterWort(j.current.weather_code ?? 0)}. ` : "";
   return `Wetter für ${ort.name}. ${jetzt}${tag(0, "Heute")}. ${(d.temperature_2m_max?.length ?? 0) > 1 ? `${tag(1, "Morgen")}.` : ""}`.trim();
 }
+
+const GELD = (n: number | null | undefined) => (typeof n === "number" ? `${n.toFixed(2).replace(".", ",")} Dollar` : "unbekannt");
+
+/** Was Twilio und Vapi kosten, zum Sagen. */
+export function kostenSatz(k: { twilio: { dieser: number | null; letzter: number | null; guthaben: number | null }; vapi: { dieser: { betrag: number; anrufe: number; minuten: number } | null; letzter: { betrag: number } | null } }): string {
+  const t = `Twilio: letzter Monat ${GELD(k.twilio.letzter)}, dieser Monat bisher ${GELD(k.twilio.dieser)}${k.twilio.guthaben !== null ? `, Guthaben ${GELD(k.twilio.guthaben)}` : ""}.`;
+  const v = `Vapi: letzter Monat ${GELD(k.vapi.letzter?.betrag)}, dieser Monat bisher ${GELD(k.vapi.dieser?.betrag)}${k.vapi.dieser ? ` bei ${k.vapi.dieser.anrufe} Anrufen und ${k.vapi.dieser.minuten} Minuten` : ""}.`;
+  return `${t} ${v} Die ganze Kostenliste steht in der Zentrale.`;
+}
+
+const UHR = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, hour: "2-digit", minute: "2-digit" }).format(d);
+const TAG = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, weekday: "long" }).format(d);
+const LOS_PUFFER = 10;
+
+/** Nächster Termin mit Ort: Fahrzeit mit Verkehr und wann David los muss. */
+export async function losSatz(termine: { titel: string; start: string; ganztags: boolean; ort?: string }[] | null, w: Welt, jetzt = new Date(), abruf: Abruf = fetch): Promise<string> {
+  if (termine === null) return "Der Kalender antwortet gerade nicht.";
+  const t = termine.filter((x) => !x.ganztags && x.ort && Date.parse(x.start) > jetzt.getTime()).sort((a, b) => a.start.localeCompare(b.start))[0];
+  if (!t) return "In den nächsten 36 Stunden steht kein Termin mit Ort im Kalender.";
+  const start = new Date(t.start);
+  const wann = `${TAG(start)} um ${UHR(start)} Uhr`;
+  const s = await strecke({ nach: t.ort }, w, abruf);
+  if (typeof s === "string") return `Nächster Termin: ${t.titel}, ${wann}, ${t.ort}. Die Fahrzeit kann ich nicht ausrechnen: ${s}`;
+  let min: number | null = null;
+  let stau = 0;
+  let live = false;
+  if (w.stauSchluessel) {
+    const j = await holeJson<{ routes?: { summary?: { travelTimeInSeconds?: number; trafficDelayInSeconds?: number } }[] }>(`${TOMTOM}/${s.von.lat},${s.von.lon}:${s.nach.lat},${s.nach.lon}/json?key=${encodeURIComponent(w.stauSchluessel)}&traffic=true&travelMode=car&routeType=fastest&routeRepresentation=summaryOnly`, abruf);
+    const su = j?.routes?.[0]?.summary;
+    if (su?.travelTimeInSeconds) {
+      min = Math.max(1, Math.round(su.travelTimeInSeconds / 60));
+      stau = Math.round((su.trafficDelayInSeconds ?? 0) / 60);
+      live = true;
+    }
+  }
+  if (min === null) {
+    const j = await holeJson<{ code?: string; routes?: { duration: number }[] }>(`https://routing.openstreetmap.de/${PROFIL.auto}/route/v1/driving/${s.von.lon},${s.von.lat};${s.nach.lon},${s.nach.lat}?overview=false`, abruf);
+    if (j?.code === "Ok" && j.routes?.[0]) min = Math.max(1, Math.round(j.routes[0].duration / 60));
+  }
+  if (min === null) return `Nächster Termin: ${t.titel}, ${wann}, ${t.ort}. Die Fahrzeit kann ich gerade nicht ausrechnen.`;
+  const los = new Date(start.getTime() - (min + LOS_PUFFER) * 60_000);
+  const zuSpaet = los.getTime() <= jetzt.getTime();
+  return `Nächster Termin: ${t.titel}, ${wann}, ${t.ort}. Fahrt etwa ${dauer(min)}${live ? (stau ? ` mit dem aktuellen Verkehr, davon ${dauer(stau)} Stau` : " mit dem aktuellen Verkehr") : ", ohne Stau gerechnet"}. ${zuSpaet ? "Er müsste jetzt los." : `Er muss um ${UHR(los)} Uhr los, mit ${LOS_PUFFER} Minuten Puffer.`}`;
+}

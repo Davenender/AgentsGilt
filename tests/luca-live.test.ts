@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { briefAus, kundeAenderung, terminAus, wetterWort } from "../lib/luca-logik.ts";
-import { findeOrt, ortsnameAus, routeText, verbindungText, wetterText } from "../lib/luca-unterwegs.ts";
+import { findeOrt, kostenSatz, losSatz, ortsnameAus, routeText, verbindungText, wetterText } from "../lib/luca-unterwegs.ts";
 
 const JETZT = new Date("2026-11-05T21:00:00.000Z");
 const tst = Math.floor(JETZT.getTime() / 1000) - 120;
@@ -145,4 +145,24 @@ test("Route mit Schlüssel: echter Verkehr von TomTom; scheitert das, ehrlich oh
   assert.equal(gefragt, false);
   // der Schlüssel taucht nie in dem auf, was Luca sagt
   assert.doesNotMatch(t, /test/);
+});
+
+test("Kosten zum Sagen: echte Zahlen, Fehlendes bleibt unbekannt", () => {
+  const t = kostenSatz({ twilio: { dieser: 3.5, letzter: 12, guthaben: 20 }, vapi: { dieser: { betrag: 1.2, anrufe: 3, minuten: 7 }, letzter: null } });
+  assert.match(t, /Twilio: letzter Monat 12,00 Dollar, dieser Monat bisher 3,50 Dollar, Guthaben 20,00 Dollar/);
+  assert.match(t, /Vapi: letzter Monat unbekannt, dieser Monat bisher 1,20 Dollar bei 3 Anrufen und 7 Minuten/);
+});
+
+test("Wann muss ich los: nächster Termin mit Ort, Fahrzeit mit Verkehr und 10 Minuten Puffer", async () => {
+  const w = { ...welt, stauSchluessel: "test", jetzt: JETZT, orte: [...welt.orte, { name: "Relax Fit", lat: 50.07, lon: 8.87 }] };
+  const start = new Date(JETZT.getTime() + 3 * 3600_000).toISOString();
+  const termine = [{ titel: "Ganztag", start, ganztags: true, ort: "X" }, { titel: "Ohne Ort", start, ganztags: false }, { titel: "Relax Fit: Demo", start, ganztags: false, ort: "Relax Fit" }];
+  const t = await losSatz(termine, w, JETZT, netz(() => ({ routes: [{ summary: { travelTimeInSeconds: 1500, trafficDelayInSeconds: 300 } }] })));
+  assert.match(t, /Nächster Termin: Relax Fit: Demo/);
+  assert.match(t, /Fahrt etwa 25 Minuten mit dem aktuellen Verkehr, davon 5 Minuten Stau/);
+  assert.match(t, /muss um \d\d:\d\d Uhr los, mit 10 Minuten Puffer/);
+  assert.equal(await losSatz(null, w, JETZT), "Der Kalender antwortet gerade nicht.");
+  assert.match(await losSatz([], w, JETZT), /kein Termin mit Ort/);
+  const knapp = [{ titel: "Gleich", start: new Date(JETZT.getTime() + 5 * 60_000).toISOString(), ganztags: false, ort: "Relax Fit" }];
+  assert.match(await losSatz(knapp, w, JETZT, netz(() => ({ routes: [{ summary: { travelTimeInSeconds: 1500 } }] }))), /Er müsste jetzt los/);
 });

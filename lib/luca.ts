@@ -380,6 +380,19 @@ export async function aktualisiereWerkzeuge() {
   return assistentUeberblick(neu as Parameters<typeof assistentUeberblick>[0]);
 }
 
+/** Prompts von Stimme und Reasoner ersetzen (GPT Live); alles andere bleibt. Beide müssen die Variablen behalten. */
+export async function setzePrompts(speaker: string, reasoner: string) {
+  const id = lucaAssistent();
+  if (!id) throw new Error("LUCA_ASSISTANT fehlt");
+  const a = await vapi<VapiAssistent>(`/assistant/${id}`);
+  const m = a.model as (VapiAssistent["model"] & { speaker?: Record<string, unknown>; reasoner?: Record<string, unknown> }) | undefined;
+  if (!m?.speaker || !m.reasoner) throw new Error("Luca läuft nicht auf GPT Live");
+  if (!speaker.includes("{{lage}}") || !reasoner.includes("{{lage}}")) throw new Error("In beiden Prompts muss {{lage}} stehen");
+  const model = { ...m, speaker: { ...m.speaker, instructions: speaker }, reasoner: { ...m.reasoner, instructions: reasoner } };
+  const neu = await vapi<VapiAssistent>(`/assistant/${id}`, { method: "PATCH", body: JSON.stringify({ model }) });
+  return assistentUeberblick(neu as Parameters<typeof assistentUeberblick>[0]);
+}
+
 /** Für die Prüfung von der Zentrale aus: Was ist bei Luca gerade eingestellt? */
 export async function lucaEinstellungen() {
   return assistentUeberblick((await lucaBeiVapi()) as Parameters<typeof assistentUeberblick>[0]);

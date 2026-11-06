@@ -1,12 +1,13 @@
-import { legeTerminAn } from "@/lib/google-calendar";
+import { legeTerminAn, listeTermine } from "@/lib/google-calendar";
+import { kostenStand } from "@/lib/kosten";
 import { holeLage, standortOderLeer } from "@/lib/luca";
 import { kundeAenderung, lageText, terminAus } from "@/lib/luca-logik";
-import { routeText, verbindungText, wetterText, type Welt } from "@/lib/luca-unterwegs";
+import { kostenSatz, losSatz, routeText, verbindungText, wetterText, type Welt } from "@/lib/luca-unterwegs";
 import { aendereKunde } from "@/lib/notion-api";
 import { standortText } from "@/lib/standort-logik";
 
 // Werkzeuge, die Luca im Anruf sofort beantwortet bekommt, ohne Umweg über den Mac. null = kein Sofort-Werkzeug (dann Brief).
-const LIVE = new Set(["stand_abfragen", "wo_ist_david", "route_berechnen", "verbindung_suchen", "wetter_abrufen", "kunde_aendern", "termin_anlegen"]);
+const LIVE = new Set(["stand_abfragen", "wo_ist_david", "route_berechnen", "verbindung_suchen", "wetter_abrufen", "kunde_aendern", "termin_anlegen", "kosten_abfragen", "wann_muss_ich_los"]);
 
 const text = (x: unknown) => (typeof x === "string" ? x.slice(0, 160) : undefined);
 
@@ -30,9 +31,15 @@ export async function lucaLive(name: string, a: Record<string, unknown>): Promis
     const r = await legeTerminAn(p);
     return r.ok ? `Termin angelegt: ${p.titel}, ${p.start.slice(8, 10)}.${p.start.slice(5, 7)}. um ${p.start.slice(11, 16)} Uhr, ${p.minuten} Minuten.` : `Nicht angelegt: ${r.grund}`;
   }
+  if (name === "kosten_abfragen") return kostenSatz(await kostenStand());
   const s = await standortOderLeer();
   if (name === "wo_ist_david") return s.standort ? `${standortText(s.standort, new Date())}${s.drin.length ? ` Er ist gerade bei: ${s.drin.join(", ")}.` : ""}` : "Davids Standort ist nicht bekannt: Vom iPhone kam noch nichts.";
   const welt: Welt = { standort: s.standort, orte: s.orte, stauSchluessel: process.env.TOMTOM_KEY };
+  if (name === "wann_muss_ich_los") {
+    const jetzt = new Date();
+    const t = await listeTermine(jetzt, new Date(jetzt.getTime() + 36 * 3600_000)).catch(() => null);
+    return losSatz(t, welt, jetzt);
+  }
   if (name === "route_berechnen") return routeText({ von: text(a.von), nach: text(a.nach), modus: text(a.modus) }, welt);
   if (name === "verbindung_suchen") return verbindungText({ von: text(a.von), nach: text(a.nach) }, welt);
   return wetterText({ ort: text(a.ort) }, welt);

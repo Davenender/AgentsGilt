@@ -307,3 +307,10 @@ test("Mailbox: Erkennung per Vapi, kurzer Satz ohne Inhalte", () => {
   assert.ok(MAILBOX.voicemailDetection.backoffPlan.frequencySeconds >= 2.5);
   assert.ok(MAILBOX.voicemailMessage.length < 120);
 });
+
+test("Notiz vom Telefon wird ein Brief; leere nicht", () => {
+  assert.deepEqual(briefAus("notiz_merken", { text: " Sporttasche packen " }, ""), { typ: "notiz", text: "Sporttasche packen" });
+  assert.equal(briefAus("notiz_merken", { text: "  " }, ""), null);
+  assert.deepEqual(briefAus("zeigen", { vorlage: "kosten" }, ""), { typ: "zeigen", vorlage: "kosten" });
+  assert.deepEqual(briefAus("zeigen", { vorlage: "cockpit", wunsch: "Relax Fit" }, ""), { typ: "zeigen", vorlage: "cockpit", wunsch: "Relax Fit" });
+});

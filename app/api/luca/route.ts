@@ -3,6 +3,7 @@ import { briefAus } from "@/lib/luca-logik";
 import { kostenStand } from "@/lib/kosten";
 import { lucaLive } from "@/lib/luca-live";
 import { ortsname } from "@/lib/luca-unterwegs";
+import { setzePrompts } from "@/lib/luca";
 import { owntracksKonfig, owntracksLink, standortText } from "@/lib/standort-logik";
 import {
   assistentFuerEingang,
@@ -84,6 +85,7 @@ const ANTWORT: Record<string, string> = {
   schule: "Das Schulportal wird gerade abgefragt, noch kein Ergebnis. Es kommt gleich im Gespräch nach.",
   erinnerung: "Die Erinnerung ist eingeplant: Luca ruft David an. Sag ihm kurz, wann. Zwischen 22 und 7 Uhr und im Unterricht ruft er nicht an, dann danach.",
   lerncheck: "Ist gemerkt.",
+  notiz: "Ist notiert, liegt in der Zentrale im Eingang.",
 };
 
 async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
@@ -205,6 +207,10 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       const text = typeof body.text === "string" ? body.text.trim().slice(0, 4000) : "";
       if (!anruf || !text) return NextResponse.json({ error: "anruf oder text fehlt" }, { status: 400 });
       return NextResponse.json(await sagImGespraech(anruf, text));
+    }
+    if (aktion === "prompt") {
+      if (typeof body.speaker !== "string" || typeof body.reasoner !== "string") return NextResponse.json({ error: "speaker und reasoner fehlen" }, { status: 400 });
+      return NextResponse.json(await setzePrompts(body.speaker.slice(0, 20_000), body.reasoner.slice(0, 20_000)));
     }
     if (aktion === "standort-orte") {
       const orte = (Array.isArray(body.orte) ? body.orte : [])
