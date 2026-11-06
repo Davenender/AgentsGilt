@@ -182,7 +182,67 @@ export default function DatenschutzPage() {
 
         <div>
           <h2 className="font-display text-lg font-bold text-ink">
-            7. Keine Tracking-Cookies
+            7. Bezahlung über Stripe
+          </h2>
+          <p className="mt-3">
+            Kundinnen und Kunden bezahlen unsere Leistungen über einen Zahlungslink
+            von Stripe. Die Bezahlseite, die Eingabe der Zahlungsdaten und die Seite
+            zum Erneuern einer Karte liegen direkt bei Stripe. Vollständige
+            Kartendaten sehen und speichern wir nicht.
+          </p>
+          <p className="mt-3">
+            Dabei werden verarbeitet: Name oder Firma, Rechnungsadresse,
+            E-Mail-Adresse, Zahlungsart und Zahlungsdaten sowie Betrag, Datum und
+            Status der Zahlungen. Stripe verschickt Belege, Rechnungen und Hinweise
+            zu fehlgeschlagenen Zahlungen oder ablaufenden Karten per E-Mail. Den
+            Zahlungsstatus halten wir in unserer Kundenverwaltung bei Notion Labs,
+            Inc. (USA) fest und melden ihn in einem internen, nur für unser Team
+            sichtbaren Kanal bei Discord Inc. (USA).
+          </p>
+          <p className="mt-3">
+            Anbieter sind die Stripe-Gesellschaften in Irland (Stripe Technology
+            Company, Limited und Stripe Payments Europe, Limited). Stripe handelt
+            teils als unser Auftragsverarbeiter und teils in eigener Verantwortung,
+            etwa zur Betrugsvermeidung und wegen gesetzlicher Pflichten. Näheres
+            steht in der{" "}
+            <a href="https://stripe.com/de/privacy" className="text-gold-dark hover:underline" target="_blank" rel="noreferrer">
+              Datenschutzerklärung von Stripe
+            </a>
+            . Eine Übermittlung in die USA erfolgt auf Grundlage der
+            EU-Standardvertragsklauseln.
+          </p>
+          <p className="mt-3">
+            Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Erfüllung des Vertrags)
+            und für Rechnungen Art. 6 Abs. 1 lit. c DSGVO (gesetzliche
+            Aufbewahrungspflichten). Rechnungsdaten bewahren wir so lange auf, wie
+            es das Steuer- und Handelsrecht verlangt.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="font-display text-lg font-bold text-ink">
+            8. Verträge über Docusign
+          </h2>
+          <p className="mt-3">
+            Verträge schicken wir zur elektronischen Unterschrift über Docusign.
+            Dabei werden verarbeitet: Namen und E-Mail-Adressen der Unterschreibenden,
+            die Vertragsdokumente samt eingetragener Firmendaten, die Unterschrift
+            sowie Zeitpunkt, IP-Adresse und Angaben zum Gerät als Nachweis der
+            Unterschrift. Das fertige Dokument bewahren wir bei uns auf.
+          </p>
+          <p className="mt-3">
+            Anbieter ist Docusign, Inc. (USA) mit ihren europäischen Gesellschaften,
+            als unser Auftragsverarbeiter. Eine Übermittlung in die USA erfolgt auf
+            Grundlage geeigneter Garantien wie der EU-Standardvertragsklauseln.
+            Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Abschluss und Erfüllung
+            des Vertrags). Die Daten werden gelöscht, sobald sie nicht mehr
+            erforderlich sind und keine Aufbewahrungspflichten entgegenstehen.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="font-display text-lg font-bold text-ink">
+            9. Keine Tracking-Cookies
           </h2>
           <p className="mt-3">
             Diese Website setzt keine Analyse- oder Marketing-Cookies und nutzt kein
@@ -193,7 +253,7 @@ export default function DatenschutzPage() {
 
         <div>
           <h2 className="font-display text-lg font-bold text-ink">
-            8. Deine Rechte
+            10. Deine Rechte
           </h2>
           <p className="mt-3">
             Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung
