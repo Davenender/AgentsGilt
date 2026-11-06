@@ -10,7 +10,7 @@ export type StandortSpeicher = { standort: Standort | null; orte: OrtMarke[]; dr
 export type OwnTracks = { art: "ort"; standort: Standort } | { art: "uebergang"; ereignis: OrtEreignis };
 
 export const LEERER_SPEICHER: StandortSpeicher = { standort: null, orte: [], drin: [], ereignisse: [] };
-const MAX_EREIGNISSE = 20;
+const MAX_EREIGNISSE = 8;
 /** Weiter weg als Kreis + Puffer erst zählt als „weg“ – sonst flattert es am Rand. */
 const PUFFER_M = 100;
 /** Ungenauer als das: Standort merken, aber keine Ankunft daraus schließen. */
@@ -50,6 +50,14 @@ export function abstandM(a: { lat: number; lon: number }, b: { lat: number; lon:
   const dl = ((b.lon - a.lon) * Math.PI) / 180;
   const h = Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
   return 2 * r * Math.asin(Math.sqrt(h));
+}
+
+/** Der Speicher muss in eine Discord-Nachricht passen, sonst scheitert jede Meldung vom iPhone. Erst fällt das Älteste weg, dann die zweiten Namen der Orte. */
+export function passendKlein(s: StandortSpeicher, laenge: (x: StandortSpeicher) => number, max: number): StandortSpeicher | null {
+  let x = s;
+  while (laenge(x) > max && x.ereignisse.length) x = { ...x, ereignisse: x.ereignisse.slice(1) };
+  if (laenge(x) > max) x = { ...x, orte: x.orte.map(({ auch: _auch, ...o }) => o) };
+  return laenge(x) <= max ? x : null;
 }
 
 function merke(s: StandortSpeicher, e: OrtEreignis): StandortSpeicher {

@@ -226,7 +226,8 @@ export async function findeAnruf(kunde?: string | null): Promise<AnrufSuche> {
     const passend = kunde ? offen.find((c) => ziffern(c.from) === ziffern(kunde) && ziffern(kunde)) : undefined;
     if (passend) return { ok: true, sid: passend.sid };
     if (offen.length === 1) return { ok: true, sid: offen[0].sid };
-    return { ok: true, sid: offen[0].sid }; // mehrere gleichzeitig und keiner passt: der neueste
+    // Mehrere gleichzeitig und keiner passt: nicht raten, sonst landet ein fremder Anrufer bei Jakob oder Mijo
+    return { ok: false, grund: "mehrere laufende Anrufe, keiner passt zum Kunden" };
   } catch (err) {
     return { ok: false, grund: err instanceof Error ? err.message : "Twilio nicht erreichbar" };
   }

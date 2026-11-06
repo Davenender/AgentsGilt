@@ -314,3 +314,10 @@ test("Notiz vom Telefon wird ein Brief; leere nicht", () => {
   assert.deepEqual(briefAus("zeigen", { vorlage: "kosten" }, ""), { typ: "zeigen", vorlage: "kosten" });
   assert.deepEqual(briefAus("zeigen", { vorlage: "cockpit", wunsch: "Relax Fit" }, ""), { typ: "zeigen", vorlage: "cockpit", wunsch: "Relax Fit" });
 });
+
+test("Feste Nachrichten rücken nach vorn, bevor sie aus dem Fenster fallen", async () => {
+  const { festeNachVorn } = await import("../lib/luca-logik.ts");
+  const alle = Array.from({ length: 100 }, (_, i) => ({ id: String(i), content: i === 80 ? "LAGE x" : i === 10 ? "LAGE y" : i === 90 ? "anderes" : "z", istUnsere: true }));
+  assert.deepEqual(festeNachVorn(alle, ["LAGE"]), [{ id: "80", content: "LAGE x" }]);
+  assert.deepEqual(festeNachVorn(alle.map((m) => ({ ...m, istUnsere: false })), ["LAGE"]), []);
+});

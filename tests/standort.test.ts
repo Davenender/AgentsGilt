@@ -109,3 +109,20 @@ test("Neue Orte kommen als Befehl zur App, die Region bleibt stabil", () => {
   assert.equal(abstandM({ lat: 50, lon: 8 }, { lat: 50, lon: 8 }), 0);
   assert.ok(Math.abs(abstandM({ lat: 50, lon: 8 }, { lat: 50.01, lon: 8 }) - 1112) < 5);
 });
+
+test("Speicher passt immer in eine Nachricht: Erst fällt das Älteste, dann die zweiten Namen", async () => {
+  const { passendKlein } = await import("../lib/standort-logik.ts");
+  const orte = [{ name: "Relax Fit", lat: 1, lon: 2, rad: 100, auch: ["A".repeat(500)] }];
+  const ereignisse = Array.from({ length: 8 }, (_, i) => ({ art: "ankunft" as const, ort: "x".repeat(100), tst: i }));
+  const s = { standort: null, orte, drin: [], ereignisse };
+  const laenge = (x: unknown) => JSON.stringify(x).length;
+  const mitte = passendKlein(s, laenge, 800);
+  assert.ok(mitte && laenge(mitte) <= 800);
+  assert.equal(mitte.ereignisse.at(-1)?.tst, 7);
+  assert.equal(mitte.orte[0].auch?.length, 1);
+  const klein = passendKlein(s, laenge, 200);
+  assert.ok(klein);
+  assert.equal(klein.ereignisse.length, 0);
+  assert.equal(klein.orte[0].auch, undefined);
+  assert.equal(passendKlein(s, laenge, 10), null);
+});

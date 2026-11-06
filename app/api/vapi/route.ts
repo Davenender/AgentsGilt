@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { after, NextResponse } from "next/server";
 import { buildEmbed, postWithBot, sendDiscord } from "@/lib/discord";
@@ -20,6 +21,13 @@ export const runtime = "nodejs";
 // und als Secret den Wert aus VAPI_SECRET (wird als x-vapi-secret geschickt).
 
 const MAX_TRANSCRIPT_CHARS = 6000;
+
+function secretPasst(gesendet: string | null | undefined, echt: string): boolean {
+  if (!gesendet) return false;
+  const a = Buffer.from(gesendet);
+  const b = Buffer.from(echt);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 interface ToolCall {
   id?: string;
@@ -251,14 +259,17 @@ export async function POST(request: Request) {
   // Vapi schickt das Secret je nach eingestellter Credential-Art anders: mal als
   // eigener Header, mal als Bearer-Token. Wir akzeptieren beide Wege, damit die
   // Einstellung in Vapi frei wählbar bleibt.
+  // Ohne eingetragenes Secret gar nicht annehmen: Sonst könnte jeder Termine und Mails auslösen.
   const expected = process.env.VAPI_SECRET;
-  if (expected) {
-    const headerSecret = request.headers.get("x-vapi-secret");
-    const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-    if (headerSecret !== expected && bearer !== expected) {
-      console.warn("[vapi] Aufruf mit falschem oder fehlendem Secret abgewiesen");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!expected) {
+    console.error("[vapi] VAPI_SECRET fehlt, Aufruf abgewiesen");
+    return NextResponse.json({ error: "Nicht eingerichtet" }, { status: 503 });
+  }
+  const headerSecret = request.headers.get("x-vapi-secret");
+  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  if (!secretPasst(headerSecret, expected) && !secretPasst(bearer, expected)) {
+    console.warn("[vapi] Aufruf mit falschem oder fehlendem Secret abgewiesen");
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let payload: VapiPayload;

@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { findChannelId } from "@/lib/discord";
 import { listeKunden } from "@/lib/notion-api";
-import { entschluessele, LEERER_SPEICHER, standortText, verschluessele, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
+import { entschluessele, LEERER_SPEICHER, passendKlein, standortText, verschluessele, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
 import {
   anrufErlaubt,
   anrufNachricht,
@@ -14,6 +14,7 @@ import {
   mitNotiz,
   NOTIZ_MARKE,
   notizAus,
+  festeNachVorn,
   notizTeile,
   GESPRAECH_MARKE,
   GESPRAECH_STATUS,
@@ -117,12 +118,20 @@ async function nachrichten(kanal: string, limit = 100): Promise<Nachricht[]> {
 }
 
 async function poste(kanal: string, content: string): Promise<string | null> {
-  const res = await fetch(`${DISCORD}/channels/${kanal}/messages`, {
-    method: "POST",
-    headers: kopf(),
-    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
-    signal: AbortSignal.timeout(6000),
-  });
+  const senden = () =>
+    fetch(`${DISCORD}/channels/${kanal}/messages`, {
+      method: "POST",
+      headers: kopf(),
+      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+      signal: AbortSignal.timeout(6000),
+    });
+  let res = await senden();
+  // Discord bremst: Eine Mitschrift hat mehrere Teile, sonst ginge ein Teil verloren
+  if (res.status === 429) {
+    const warte = Number(((await res.json().catch(() => ({}))) as { retry_after?: number }).retry_after) || 1;
+    await new Promise((r) => setTimeout(r, Math.min(3, warte) * 1000 + 100));
+    res = await senden();
+  }
   if (!res.ok) {
     console.error(`[luca] Discord-Nachricht fehlgeschlagen: HTTP ${res.status}`);
     return null;
@@ -206,13 +215,23 @@ export function gespraechAus(nachr: Nachricht[], jetzt = new Date()): boolean {
   return m ? gespraechLaeuft(m.content, jetzt) : false;
 }
 
+async function festeNachrichtenHalten(kanal: string, alle: Nachricht[]) {
+  const zuAlt = festeNachVorn(alle.map((m) => ({ id: m.id, content: m.content, istUnsere: istUnsere(m) })), [LAGE_MARKE, STANDORT_MARKE, NOTIZ_MARKE, GESPRAECH_STATUS]);
+  for (const m of zuAlt.slice(0, 3)) {
+    if (!(await poste(kanal, m.content))) return;
+    await fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) }).catch(() => null);
+  }
+}
+
 /** Die Zentrale schickt jede Minute ihren Lagebericht: eine einzige Bot-Nachricht, die immer wieder geändert wird. */
 export async function setzeLage(l: Lage): Promise<boolean> {
   const kanal = await lucaKanal();
   if (!kanal) return false;
-  const alt = await lageNachrichtFinden(kanal);
+  const alle = await nachrichten(kanal);
+  const alt = alle.find((m) => istUnsere(m) && m.content.startsWith(LAGE_MARKE)) ?? null;
   const content = lageNachricht(l);
   if (content.length > 2000) return false;
+  await festeNachrichtenHalten(kanal, alle).catch((err) => console.error("[luca] feste Nachrichten:", err));
   if (alt) {
     const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, {
       method: "PATCH",
@@ -338,8 +357,10 @@ export const standortOderLeer = () => holeStandortSpeicher().catch((err) => {
 export async function schreibeStandortSpeicher(s: StandortSpeicher): Promise<boolean> {
   const kanal = await lucaKanal();
   if (!kanal) return false;
-  const content = `${STANDORT_MARKE} ${verschluessele(s, geheimnis())}`;
-  if (content.length > 2000) return false;
+  const text = (x: StandortSpeicher) => `${STANDORT_MARKE} ${verschluessele(x, geheimnis())}`;
+  const klein = passendKlein(s, (x) => text(x).length, 2000);
+  if (!klein) return false;
+  const content = text(klein);
   const alt = await standortNachricht(kanal);
   if (alt) {
     const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, { method: "PATCH", headers: kopf(), body: JSON.stringify({ content, allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(6000) });
@@ -410,9 +431,40 @@ async function kundenFuerLuca(): Promise<KundeFuerLuca[] | null> {
   }
 }
 
+/** Was Luca zum Gespräch braucht, aus einem einzigen Discord-Abruf: Mehrere gleichzeitig bremst Discord, und Vapi gibt uns nur wenige Sekunden.
+ * Kommt in vier Sekunden nichts, startet Luca ohne Stand, statt dass der Anruf scheitert. */
+async function gespraechsStand(): Promise<{ lage: Lage | null; notiz: string | null; frueher: { zeit: string; text: string }[]; kunden: KundeFuerLuca[] | null; standort: StandortSpeicher | null }> {
+  const leer = { lage: null, notiz: null, frueher: [], kunden: null, standort: null };
+  let uhr: ReturnType<typeof setTimeout> | undefined;
+  const lesen = async () => {
+    const kanal = await lucaKanal();
+    if (!kanal) return leer;
+    const [alle, kunden] = await Promise.all([nachrichten(kanal), kundenFuerLuca()]);
+    const unsere = alle.filter(istUnsere);
+    const lageM = unsere.find((m) => m.content.startsWith(LAGE_MARKE));
+    const standortM = unsere.find((m) => m.content.startsWith(STANDORT_MARKE));
+    const inhalt = standortM?.content.slice(STANDORT_MARKE.length).trim();
+    return {
+      lage: lageM ? lageLesen(lageM.content) : null,
+      notiz: notizAus(unsere.filter((m) => m.content.startsWith(NOTIZ_MARKE)).map((m) => m.content)),
+      frueher: unsere.filter((m) => m.content.startsWith(GESPRAECH_MARKE)).map((m) => ({ zeit: m.timestamp, text: m.content })),
+      kunden,
+      standort: (inhalt && entschluessele<StandortSpeicher>(inhalt, geheimnis())) || null,
+    };
+  };
+  try {
+    return await Promise.race([lesen(), new Promise<typeof leer>((fertig) => (uhr = setTimeout(() => fertig(leer), 4000)))]);
+  } catch (err) {
+    console.error("[luca] Stand fürs Gespräch:", err);
+    return leer;
+  } finally {
+    clearTimeout(uhr);
+  }
+}
+
 /** Antwort auf assistant-request (David ruft an und hat die 1 gedrückt). */
 export async function assistentFuerEingang() {
-  const [lage, notiz, frueher, kunden, standort] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => []), kundenFuerLuca(), holeStandortSpeicher().catch(() => null)]);
+  const { lage, notiz, frueher, kunden, standort } = await gespraechsStand();
   const stimme = await stimmeFuerGespraech(lage);
   return {
     assistantId: lucaAssistent(),
@@ -425,7 +477,7 @@ export async function assistentFuerEingang() {
 }
 
 /** Luca ruft David an – nur Davids Nummer, nie 22–7 Uhr (keine Grenze pro Tag). */
-export async function rufeDavidAn(grund: string, test: boolean, info?: string): Promise<{ ok: true } | { ok: false; grund: string }> {
+export async function rufeDavidAn(grund: string, test: boolean, info?: string): Promise<{ ok: true; id?: string } | { ok: false; grund: string }> {
   if (!lucaAn()) return { ok: false, grund: "Luca am Telefon ist noch nicht eingerichtet." };
   if (!process.env.VAPI_API_KEY?.trim()) return { ok: false, grund: "VAPI_API_KEY fehlt." };
   const kanal = await lucaKanal();
@@ -433,10 +485,10 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
   const jetzt = new Date();
   const darf = anrufErlaubt(jetzt);
   if (!darf.ok) return darf;
-  const [lage, notiz, frueher, kunden, standort] = await Promise.all([holeLage(), holeNotiz(), letzteGespraeche().catch(() => []), kundenFuerLuca(), holeStandortSpeicher().catch(() => null)]);
+  const { lage, notiz, frueher, kunden, standort } = await gespraechsStand();
   const stimme = await stimmeFuerGespraech(lage);
   const anruf = (mitMailbox: boolean) =>
-    vapi("/call", {
+    vapi<{ id?: string }>("/call", {
       method: "POST",
       body: JSON.stringify({
         assistantId: lucaAssistent(),
@@ -451,19 +503,31 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
         },
       }),
     });
+  let id: string | undefined;
   try {
     // Nimmt Vapi die Mailbox-Erkennung bei dieser Einstellung nicht an, rufen wir lieber ohne an, als gar nicht
-    await anruf(true).catch(async (err) => {
+    const call = await anruf(true).catch(async (err) => {
       console.error("[luca] Anruf mit Mailbox-Erkennung abgelehnt, versuche ohne:", err);
       return anruf(false);
     });
+    id = call?.id;
   } catch (err) {
     console.error("[luca] Anruf fehlgeschlagen:", err);
     return { ok: false, grund: "Vapi hat den Anruf abgelehnt." };
   }
-  await poste(kanal, anrufNachricht(jetzt.toISOString(), grund, test));
-  await setzeGespraech(true);
-  return { ok: true };
+  // Das Telefon klingelt schon: Was jetzt schiefgeht, ist kein gescheiterter Anruf (sonst käme ein zweiter)
+  await poste(kanal, anrufNachricht(jetzt.toISOString(), grund, test)).catch((err) => console.error("[luca] Anruf-Notiz:", err));
+  await setzeGespraech(true).catch((err) => console.error("[luca] Gespräch-Status:", err));
+  return { ok: true, ...(id ? { id } : {}) };
+}
+
+/** Wie ist der Anruf ausgegangen? Die Zentrale hakt eine Erinnerung erst ab, wenn David abgenommen hat. Nur Lucas eigene Anrufe. */
+export async function anrufStand(id: string): Promise<{ status?: string; endedReason?: string; sekunden?: number } | null> {
+  if (!/^[0-9a-f-]{20,60}$/i.test(id)) return null;
+  const c = await vapi<{ status?: string; endedReason?: string; assistantId?: string; startedAt?: string; endedAt?: string }>(`/call/${id}`);
+  if (c.assistantId !== lucaAssistent()) return null;
+  const sekunden = c.startedAt && c.endedAt ? Math.round((Date.parse(c.endedAt) - Date.parse(c.startedAt)) / 1000) : undefined;
+  return { status: c.status, endedReason: c.endedReason, ...(sekunden !== undefined ? { sekunden } : {}) };
 }
 
 type VapiAssistent = { id: string; name?: string; model?: Record<string, unknown>; voice?: Record<string, unknown>; transcriber?: Record<string, unknown> };

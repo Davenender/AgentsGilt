@@ -10,6 +10,7 @@ import {
   einrichten,
   aktualisiereWerkzeuge,
   sagImGespraech,
+  anrufStand,
   holeStandortSpeicher,
   LUCA_ADRESSE,
   lucaEinstellungen,
@@ -88,6 +89,10 @@ const ANTWORT: Record<string, string> = {
   notiz: "Ist notiert, liegt in der Zentrale im Eingang.",
 };
 
+const WERKZEUG_FRIST_MS = 15_000;
+const ZU_LANGE = "Das dauert gerade zu lange, ich habe noch kein Ergebnis. Sag David das kurz und ehrlich.";
+const ERLEDIGT = new Map<string, string>();
+
 async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
   const msg = body.message;
   const typ = msg?.type;
@@ -106,29 +111,40 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
       return NextResponse.json({ results: calls.map((c) => ({ toolCallId: c.id, result: "Nicht erlaubt." })) });
     }
     // Den Stand nur holen, wenn ein Brief ihn braucht: Discord bremst sonst bei vielen Werkzeug-Aufrufen
-    let lage: Awaited<ReturnType<typeof holeLage>> | undefined;
-    const results = [];
-    for (const c of calls) {
+    let lage: ReturnType<typeof holeLage> | undefined;
+    const einer = async (c: ToolCall): Promise<string> => {
       const name = c.function?.name ?? c.name ?? "";
       // Stand, Standort, Route, Bus, Wetter, Änderungen: sofort, ohne Umweg über den Mac
       const live = await lucaLive(name, argumente(c)).catch((err) => {
         console.error(`[luca] ${name}:`, err);
         return "Das hat gerade nicht geklappt. Sag David das kurz und ehrlich.";
       });
-      if (live !== null) {
-        results.push({ toolCallId: c.id, result: live });
-        continue;
-      }
-      lage ??= await holeLage();
-      const brief = briefAus(name, argumente(c), lage?.stand ?? "");
-      if (!brief) {
-        results.push({ toolCallId: c.id, result: "Das hat nicht geklappt: Angaben unvollständig. Frag David noch einmal." });
-        continue;
-      }
+      if (live !== null) return live;
+      lage ??= holeLage();
+      const brief = briefAus(name, argumente(c), (await lage)?.stand ?? "");
+      if (!brief) return "Das hat nicht geklappt: Angaben unvollständig. Frag David noch einmal.";
       const ok = await posteBrief({ ...brief, zeit: new Date().toISOString(), ...(msg?.call?.id ? { anruf: msg.call.id } : {}) });
       if (brief.typ === "zeigen") after(() => setzeGespraech(true).then(() => undefined));
-      results.push({ toolCallId: c.id, result: ok ? ANTWORT[brief.typ] : "Der Briefkasten ist gerade nicht erreichbar. Sag David, er soll es in der Zentrale eintragen." });
-    }
+      return ok ? ANTWORT[brief.typ] : "Der Briefkasten ist gerade nicht erreichbar. Sag David, er soll es in der Zentrale eintragen.";
+    };
+    // Gleichzeitig und mit Frist: Ein langsames Werkzeug hält die anderen nicht auf, und Vapi bekommt immer eine Antwort
+    const results = await Promise.all(
+      calls.map(async (c) => {
+        const id = c.id ?? "";
+        const schon = id ? ERLEDIGT.get(id) : undefined;
+        if (schon !== undefined) return { toolCallId: c.id, result: schon };
+        let uhr: ReturnType<typeof setTimeout> | undefined;
+        const arbeit = einer(c);
+        const result = await Promise.race([arbeit.catch(() => "Das hat gerade nicht geklappt. Sag David das kurz und ehrlich."), new Promise<string>((fertig) => (uhr = setTimeout(() => fertig(ZU_LANGE), WERKZEUG_FRIST_MS)))]);
+        clearTimeout(uhr);
+        // Schickt Vapi denselben Aufruf noch einmal, darf nichts doppelt passieren (kein zweiter Termin, kein zweiter Auftrag)
+        if (id) {
+          ERLEDIGT.set(id, result);
+          if (ERLEDIGT.size > 300) ERLEDIGT.delete(ERLEDIGT.keys().next().value as string);
+        }
+        return { toolCallId: c.id, result };
+      }),
+    );
     return NextResponse.json({ results });
   }
 
@@ -154,6 +170,10 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
     if (req.method === "GET" && aktion === "briefkasten") return NextResponse.json(await briefkasten());
     if (req.method === "GET" && aktion === "gespraeche") return NextResponse.json({ gespraeche: await letzteGespraeche() });
     if (req.method === "GET" && aktion === "kosten") return NextResponse.json(await kostenStand());
+    if (req.method === "GET" && aktion === "anruf-stand") {
+      const s = await anrufStand(new URL(req.url).searchParams.get("id") ?? "");
+      return s ? NextResponse.json(s) : NextResponse.json({ error: "Unbekannter Anruf" }, { status: 404 });
+    }
     if (req.method === "GET" && aktion === "standort") {
       const s = await holeStandortSpeicher();
       return NextResponse.json({ standort: s.standort, text: standortText(s.standort, new Date()), orte: s.orte, drin: s.drin, ereignisse: s.ereignisse });
@@ -191,10 +211,12 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       const stand = typeof body.stand === "string" && !Number.isNaN(Date.parse(body.stand)) ? body.stand : new Date().toISOString();
       const stimme = typeof body.stimme === "string" && /^[A-Za-z0-9]{10,40}$/.test(body.stimme) ? body.stimme : undefined;
       if (!text) return NextResponse.json({ error: "text fehlt" }, { status: 400 });
-      return NextResponse.json({ ok: await setzeLage({ stand, text, ...(stimme ? { stimme } : {}) }) });
+      // Klappt es nicht, muss die Zentrale das erfahren: Sonst glaubt sie, Luca kenne den neuen Stand samt den Nummern
+      const ok = await setzeLage({ stand, text, ...(stimme ? { stimme } : {}) });
+      return NextResponse.json({ ok }, { status: ok ? 200 : 502 });
     }
     if (aktion === "anrufen") {
-      const grund = typeof body.grund === "string" ? body.grund.trim().slice(0, 300) : "";
+      const grund = typeof body.grund === "string" ? body.grund.trim().slice(0, 1200) : "";
       if (!grund) return NextResponse.json({ error: "grund fehlt" }, { status: 400 });
       const info = typeof body.info === "string" ? body.info.trim().slice(0, 3500) : undefined;
       const r = await rufeDavidAn(grund, body.test === true, info || undefined);
@@ -218,7 +240,8 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
         .filter((o) => typeof o.name === "string" && o.name.trim() && Number.isFinite(o.lat) && Number.isFinite(o.lon))
         .slice(0, 20)
         .map((o) => ({ name: String(o.name).trim().slice(0, 60), lat: Number(o.lat), lon: Number(o.lon), rad: Math.min(1000, Math.max(50, Number(o.rad) || 150)), ...(Array.isArray(o.auch) && o.auch.length ? { auch: o.auch.filter((a): a is string => typeof a === "string").slice(0, 6).map((a) => a.slice(0, 40)) } : {}) }));
-      return NextResponse.json({ ok: await setzeOrte(orte) });
+      const ok = await setzeOrte(orte);
+      return NextResponse.json({ ok }, { status: ok ? 200 : 502 });
     }
     if (aktion === "standort-name") {
       const s = await holeStandortSpeicher();

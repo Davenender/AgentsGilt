@@ -7,7 +7,8 @@ import { getClientIp, rateLimit } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 
 const contactSchema = z.object({
-  name: z.string().trim().min(1, "Bitte gib deinen Namen an").max(120),
+  // Der Name landet im Betreff der Mail: Zeilenumbrüche fliegen raus
+  name: z.string().trim().min(1, "Bitte gib deinen Namen an").max(120).transform((n) => n.replace(/[\r\n\t]+/g, " ")),
   email: z.string().trim().email("Bitte gib eine gültige E-Mail an").max(160),
   company: z.string().trim().max(160).optional().or(z.literal("")),
   service: z.string().trim().max(160).optional().or(z.literal("")),

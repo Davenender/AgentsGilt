@@ -588,3 +588,9 @@ export function mitNotiz(grund: string, notiz: string | null): string {
 
 export const ERSTER_SATZ_MIT_NOTIZ = "Hey Chef! Ich hätte noch kurz was von Claude für dich – oder was kann ich für dich tun?";
 
+/** Gelesen werden nur die letzten 100 Nachrichten. Rückt eine feste Nachricht (Stand, Standort, Notiz) zu weit nach hinten, kommt sie als
+ * neue Nachricht nach vorn und die alte, inhaltsgleiche fällt weg. Sonst wäre zum Beispiel der gespeicherte Standort irgendwann nicht mehr auffindbar. */
+export const NACH_VORN_AB = 70;
+export function festeNachVorn(alle: { id: string; content: string; istUnsere: boolean }[], marken: string[]): { id: string; content: string }[] {
+  return alle.flatMap((m, i) => (i >= NACH_VORN_AB && m.istUnsere && marken.some((x) => m.content.startsWith(x)) ? [{ id: m.id, content: m.content }] : []));
+}
