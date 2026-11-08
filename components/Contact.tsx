@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { contact, services, site } from "@/lib/content";
 import { PREFILL_CONTACT, type PrefillContactDetail } from "@/lib/events";
+import { antwortAuswerten, NETZ_FEHLER } from "@/lib/kontakt-ablauf";
 
 type Status = "idle" | "sending" | "success" | "error";
 
@@ -71,30 +72,34 @@ export function Contact() {
       website: String(fd.get("website") || ""), // Honeypot
     };
 
+    let res: Response;
     try {
-      const res = await fetch("/api/contact", {
+      res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Etwas ist schiefgelaufen. Bitte versuch es erneut.");
-        setStatus("error");
-        return;
-      }
-      setStatus("success");
-      form.reset();
-      setService("");
-      setName("");
-      setEmail("");
-      setCompany("");
-      setMessage("");
-      setPrefilled(false);
     } catch {
-      setError("Verbindung fehlgeschlagen. Bitte versuch es später erneut.");
+      // Nur echte Netzwerkfehler: Die Anfrage hat den Server nicht erreicht
+      setError(NETZ_FEHLER);
       setStatus("error");
+      return;
     }
+    // Auch eine Antwort ohne JSON (z. B. eine Fehlerseite) ist kein Verbindungsfehler
+    const ergebnis = antwortAuswerten(res.ok, await res.text().catch(() => ""));
+    if ("error" in ergebnis) {
+      setError(ergebnis.error);
+      setStatus("error");
+      return;
+    }
+    setStatus("success");
+    form.reset();
+    setService("");
+    setName("");
+    setEmail("");
+    setCompany("");
+    setMessage("");
+    setPrefilled(false);
   }
 
   const isOther = service === OTHER;
