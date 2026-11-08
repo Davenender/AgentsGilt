@@ -1,5 +1,6 @@
 import type { Analyse } from "@/lib/lead-analyse";
 import { notionPeople } from "@/lib/zustaendige";
+import { bogenBloecke, type RohBlock } from "@/lib/gespraech";
 
 // Legt einen neuen Lead als Zeile in der Kunden-Datenbank an.
 // Danach löst die bestehende Notion-Automation den Kunden-Kanal in Discord aus.
@@ -69,11 +70,15 @@ export async function legeKundenZeileAn(input: {
       body: JSON.stringify({
         parent: { database_id: DATABASE_ID },
         properties,
-        children: zeilen.map((z) => ({
-          object: "block",
-          type: "paragraph",
-          paragraph: { rich_text: text(z) },
-        })),
+        // Analyse bzw. Anfrage oben, darunter der Gesprächsbogen (Plan 1, Etappe 4).
+        children: [
+          ...zeilen.map((z) => ({
+            object: "block",
+            type: "paragraph",
+            paragraph: { rich_text: text(z) },
+          })),
+          ...bogenBloecke(),
+        ],
       }),
       signal: AbortSignal.timeout(10_000),
     });
@@ -247,11 +252,15 @@ export async function legeLeadAusAnfrage(input: {
       body: JSON.stringify({
         parent: { database_id: DATABASE_ID },
         properties,
-        children: zeilen.map((z) => ({
-          object: "block",
-          type: "paragraph",
-          paragraph: { rich_text: text(z) },
-        })),
+        // Analyse bzw. Anfrage oben, darunter der Gesprächsbogen (Plan 1, Etappe 4).
+        children: [
+          ...zeilen.map((z) => ({
+            object: "block",
+            type: "paragraph",
+            paragraph: { rich_text: text(z) },
+          })),
+          ...bogenBloecke(),
+        ],
       }),
       signal: AbortSignal.timeout(10_000),
     });
@@ -408,4 +417,129 @@ export async function aendereKunde(nr: string, felder: { status?: string; naechs
     return { ok: false, grund: "Notion hat die Änderung nicht angenommen." };
   }
   return { ok: true, name: kunde.name };
+}
+
+// ------------------------------------------------- Gesprächsbogen (Etappe 4)
+
+const kopf = (token: string) => ({ Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28", "Content-Type": "application/json" });
+
+/** Alle Blöcke einer Seite (mit Unterpunkten bis zur zweiten Ebene), höchstens 400. */
+export async function leseBloecke(notionUrl: string): Promise<RohBlock[] | null> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const seite = seitenId(notionUrl);
+  if (!token || !seite) return null;
+  let anzahl = 0;
+  const lies = async (id: string, tiefe: number): Promise<RohBlock[] | null> => {
+    const out: RohBlock[] = [];
+    let cursor: string | undefined;
+    do {
+      const res = await fetch(`https://api.notion.com/v1/blocks/${id}/children?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`, {
+        headers: kopf(token),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) {
+        console.error(`[notion] Blöcke lesen fehlgeschlagen: HTTP ${res.status}`);
+        return null;
+      }
+      const data = (await res.json()) as { results?: (RohBlock & { has_children?: boolean })[]; has_more?: boolean; next_cursor?: string | null };
+      for (const bl of data.results ?? []) {
+        if (++anzahl > 400) return out;
+        if (bl.has_children && tiefe < 2 && bl.type !== "child_page" && bl.type !== "child_database") bl.kinder = (await lies(bl.id, tiefe + 1)) ?? [];
+        out.push(bl);
+      }
+      cursor = data.has_more && data.next_cursor ? data.next_cursor : undefined;
+    } while (cursor);
+    return out;
+  };
+  try {
+    return await lies(seite, 0);
+  } catch (err) {
+    console.error("[notion] Blöcke lesen fehlgeschlagen:", err);
+    return null;
+  }
+}
+
+/** Hängt Blöcke an eine Seite (oder hinter einen bestimmten Block) und gibt die neuen Block-IDs zurück. */
+export async function haengeAn(notionUrl: string, kinder: unknown[], nach?: string): Promise<string[] | null> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const seite = seitenId(notionUrl);
+  if (!token || !seite) return null;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/blocks/${seite}/children`, {
+      method: "PATCH",
+      headers: kopf(token),
+      body: JSON.stringify({ children: kinder, ...(nach ? { after: nach } : {}) }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      console.error(`[notion] Blöcke anhängen fehlgeschlagen: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`);
+      return null;
+    }
+    return (((await res.json()) as { results?: { id: string }[] }).results ?? []).map((r) => r.id);
+  } catch (err) {
+    console.error("[notion] Blöcke anhängen fehlgeschlagen:", err);
+    return null;
+  }
+}
+
+/** Nimmt einen Block weg (Notion legt ihn in den Papierkorb, er lässt sich wiederherstellen). */
+export async function entferneBlock(id: string): Promise<boolean> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  if (!token) return false;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/blocks/${id}`, { method: "DELETE", headers: kopf(token), signal: AbortSignal.timeout(10_000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Die Auswahlwerte für Angebot und Quelle aus der Kunden-Datenbank. */
+export async function auswahlWerte(): Promise<{ angebote: string[]; quellen: string[] } | null> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/databases/${DATABASE_ID}`, { headers: kopf(token), signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const props = ((await res.json()) as { properties?: Record<string, { select?: { options?: { name: string }[] } }> }).properties ?? {};
+    const namen = (feld: string) => (props[feld]?.select?.options ?? []).map((o) => o.name);
+    return { angebote: namen("Angebot"), quellen: namen("Quelle") };
+  } catch {
+    return null;
+  }
+}
+
+/** Liest Angebot und Quelle einer Seite (für „nur füllen, wenn leer“). */
+export async function leseAngebotQuelle(notionUrl: string): Promise<{ angebot: string | null; quelle: string | null } | null> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const seite = seitenId(notionUrl);
+  if (!token || !seite) return null;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/pages/${seite}`, { headers: kopf(token), signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const props = ((await res.json()) as { properties?: Record<string, { select?: { name?: string } | null }> }).properties ?? {};
+    return { angebot: props["Angebot"]?.select?.name ?? null, quelle: props["Quelle"]?.select?.name ?? null };
+  } catch {
+    return null;
+  }
+}
+
+/** Setzt beliebige (vorher geprüfte) Eigenschaften einer Kundenseite. */
+export async function setzeFelder(notionUrl: string, properties: Record<string, unknown>): Promise<boolean> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const seite = seitenId(notionUrl);
+  if (!token || !seite) return false;
+  if (!Object.keys(properties).length) return true;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/pages/${seite}`, {
+      method: "PATCH",
+      headers: kopf(token),
+      body: JSON.stringify({ properties }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) console.error(`[notion] Felder setzen fehlgeschlagen: HTTP ${res.status}`);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

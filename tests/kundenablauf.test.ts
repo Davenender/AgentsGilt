@@ -41,16 +41,17 @@ test("Verlustgründe wie in Notion", () => {
 });
 
 test("Knöpfe an der Karte hängen vom Status ab", () => {
-  assert.deepEqual(ids(kartenKnoepfe("Lead")), ["knd:zust", "knd:verloren"]);
-  assert.deepEqual(ids(kartenKnoepfe("Angebot gesendet")), ["knd:zust", "knd:verloren"]);
-  assert.deepEqual(ids(kartenKnoepfe("Verloren")), ["knd:zust", "knd:wieder"]);
+  assert.deepEqual(ids(kartenKnoepfe("Lead")), ["knd:zust", "knd:bogen", "knd:auswerten", "knd:verloren"]);
+  assert.deepEqual(ids(kartenKnoepfe("Angebot gesendet")), ["knd:zust", "knd:bogen", "knd:auswerten", "knd:verloren"]);
+  assert.deepEqual(ids(kartenKnoepfe("Verloren")), ["knd:zust", "knd:bogen", "knd:wieder"]);
   assert.equal(knoepfePassen(kartenKnoepfe("Lead"), "Lead"), true);
   assert.equal(knoepfePassen(kartenKnoepfe("Lead"), "Verloren"), false);
   assert.equal(knoepfePassen([], "Lead"), false);
   assert.equal(knoepfePassen(undefined, "Lead"), false);
   // So kommen die Knöpfe von Discord zurück (mit zusätzlichen Feldern)
-  const vonDiscord = [{ type: 1, id: 1, components: [{ type: 2, id: 2, custom_id: "knd:zust", label: "Zuständige" }, { type: 2, id: 3, custom_id: "knd:verloren" }] }];
+  const vonDiscord = [{ type: 1, id: 1, components: ["knd:zust", "knd:bogen", "knd:auswerten", "knd:verloren"].map((custom_id, i) => ({ type: 2, id: i + 2, custom_id, label: "x" })) }];
   assert.equal(knoepfePassen(vonDiscord, "Lead"), true);
+  assert.equal(knoepfePassen([{ type: 1, components: [{ custom_id: "knd:zust" }, { custom_id: "knd:verloren" }] }], "Lead"), false, "alte Karte aus Etappe 2 bekommt die neuen Knöpfe");
 });
 
 test("Status aus der Karte", () => {

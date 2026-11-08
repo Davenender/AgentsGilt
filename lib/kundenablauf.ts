@@ -18,13 +18,18 @@ export const statusAusKarte = (karte: EmbedLike | null | undefined): string =>
 
 export const zielKategorie = (status: string) => (status === VERLOREN ? ARCHIV_KATEGORIE : KUNDEN_KATEGORIE);
 
-/** Knöpfe unter der Karte: „👥 Zuständige“ und je nach Status „⚪ Verloren“ oder „↩️ Wieder aufnehmen“. */
+/**
+ * Knöpfe unter der Karte: „👥 Zuständige“, „📝 Gesprächsbogen“, „🧠 Gespräch auswerten“ und „⚪ Verloren“.
+ * Im Archiv statt Auswerten und Verloren nur „↩️ Wieder aufnehmen“.
+ */
 export function kartenKnoepfe(status: string) {
   return [
     {
       type: 1,
       components: [
         { type: 2, style: 2, label: "Zuständige", emoji: { name: "👥" }, custom_id: "knd:zust" },
+        { type: 2, style: 2, label: "Gesprächsbogen", emoji: { name: "📝" }, custom_id: "knd:bogen" },
+        ...(status === VERLOREN ? [] : [{ type: 2, style: 1, label: "Gespräch auswerten", emoji: { name: "🧠" }, custom_id: "knd:auswerten" }]),
         status === VERLOREN
           ? { type: 2, style: 3, label: "Wieder aufnehmen", emoji: { name: "↩️" }, custom_id: "knd:wieder" }
           : { type: 2, style: 2, label: "Verloren", emoji: { name: "⚪" }, custom_id: "knd:verloren" },
