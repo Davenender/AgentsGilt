@@ -310,6 +310,10 @@ export interface KundeKurz {
   /** „Demo-Status“ und „Demo-Link“ (Etappe 5) */
   demoStatus?: string | null;
   demoLink?: string | null;
+  /** Für die Statistik (Etappe 6) */
+  verlustgrund?: string | null;
+  angebotRaus?: boolean;
+  erstellt?: string | null;
 }
 
 /** Alle Kunden aus Notion (für die Auswahl "Bestehender Kunde?"), neueste zuerst. */
@@ -344,6 +348,7 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
         results?: {
           url?: string;
           last_edited_time?: string;
+          created_time?: string;
           properties?: Record<
             string,
             {
@@ -384,6 +389,9 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
           zustaendig: (props["Zuständig"]?.people ?? []).map((u) => u.id ?? "").filter(Boolean),
           demoStatus: props["Demo-Status"]?.select?.name ?? null,
           demoLink: props["Demo-Link"]?.url ?? null,
+          verlustgrund: props["Verlustgrund"]?.select?.name ?? null,
+          angebotRaus: props["Angebot raus"]?.checkbox ?? false,
+          erstellt: p.created_time ?? null,
         });
       }
       if (!data.has_more || !data.next_cursor) break;

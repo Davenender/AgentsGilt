@@ -19,6 +19,7 @@ export const CH_SUCHE = "lead-suche";
 export const CH_SUCHE_SPEICHER = "lead-suche-speicher";
 export const CH_ANFRAGEN = "anfragen";
 export const CH_POSTEINGANG = "posteingang";
+export const CH_STATISTIK = "statistik";
 export const NEEDED = 2; // so viele gleiche Stimmen entscheiden
 
 export type LeadState = "vote" | "confirm" | "accepted" | "active" | "archived";
@@ -119,7 +120,9 @@ async function ensureChannel(token: string, name: string): Promise<string | null
               ? "Anfragen von Kunden über die Website: übernehmen, kontaktieren, als Lead anlegen."
               : name === CH_POSTEINGANG
                 ? "Privater Posteingang: Werbung, Verdächtiges und Unbekanntes. Hier entscheidet David, was weitergeht."
-                : "Merkzettel des Bots (abgelehnte Firmen). Nicht löschen.";
+                : name === CH_STATISTIK
+                  ? "Kunden-Statistik: kommt am 1. jedes Monats neu, mit 🔄 jederzeit aktualisieren."
+                  : "Merkzettel des Bots (abgelehnte Firmen). Nicht löschen.";
   const created = await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, {
     name,
     type: 0,
@@ -164,6 +167,7 @@ export const kartenKanal = (t: string) => ensureChannel(t, CH_KARTEN);
 export const ablageKanal = (t: string) => ensureChannel(t, CH_ABLAGE);
 export const speicherKanal = (t: string) => ensureChannel(t, CH_SPEICHER);
 export const sucheKanal = (t: string) => ensureChannel(t, CH_SUCHE);
+export const statistikKanal = (t: string) => ensureChannel(t, CH_STATISTIK);
 export const sucheSpeicherKanal = (t: string) => ensureChannel(t, CH_SUCHE_SPEICHER);
 export const anfragenKanal = (t: string) => ensureChannel(t, CH_ANFRAGEN);
 export const posteingangKanal = (t: string) => ensureChannel(t, CH_POSTEINGANG);
@@ -224,7 +228,7 @@ export interface Bestehend {
   datum?: string;
 }
 
-const cardDomain = (m: Msg) => {
+export const cardDomain = (m: Msg) => {
   const f = m.embeds?.[0]?.footer?.text;
   return f?.startsWith("lead:") ? f.slice(5).split(SEP)[0].trim() : null;
 };
