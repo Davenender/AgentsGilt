@@ -38,6 +38,7 @@ import { handleLeadButton, handleLeadCommand } from "@/lib/lead-handlers";
 import { handleAnfrage, handlePosteingang, type AnfInteraction } from "@/lib/anfrage-handlers";
 import { handleKundenKnopf } from "@/lib/kunden-handlers";
 import { handleStatistikKnopf } from "@/lib/statistik-handler";
+import { handleAkademie } from "@/lib/akademie-handler";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
 import { OWNER_ID, setzeAntwort } from "@/lib/leads";
 import { closeTicketChannel, FOR_CUSTOMER, SHOW_NAMES, ticketComponents } from "@/lib/support";
@@ -282,6 +283,7 @@ async function antworte(request: Request) {
   if (customId.startsWith("ticket:")) return handleTicket(interaction, who, ownerTag, token);
   if (customId.startsWith("knd:")) return handleKundenKnopf(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("stat:")) return handleStatistikKnopf(interaction, token);
+  if (customId.startsWith("ak:")) return handleAkademie(interaction as unknown as Parameters<typeof handleAkademie>[0], token);
 
   // ---------------------------------------------------- Fenster abgeschickt
   if (interaction.type === 5) {

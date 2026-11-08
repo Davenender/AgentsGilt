@@ -13,7 +13,7 @@ const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 const SPERRE_MIN = bit(11) | bit(35) | bit(36);
 
 let botId: string | null = null;
-async function eigeneId(token: string): Promise<string | null> {
+export async function eigeneId(token: string): Promise<string | null> {
   if (!botId) botId = (await call<{ id: string }>(token, "GET", "/users/@me"))?.id ?? null;
   return botId;
 }
