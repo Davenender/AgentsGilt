@@ -259,21 +259,7 @@ export const ANLEITUNGEN: Anleitung[] = [
   {
     titel: "So läuft ein Anruf",
     sucht: [],
-    text: z(
-      "**1. Anruf kommt rein.** Der Telefonassistent nimmt an, fragt Name, Betrieb, Anliegen und Wunschtermin und trägt den Termin als „VORLÄUFIG“ in den Kalender ein. Der Kunde hört: Der Termin ist vorgemerkt, eine SMS folgt.",
-      "",
-      "**2. Karte in #anrufe.** Wer den Anruf bearbeitet, klickt **Übernehmen**. Die Karte wird blau, der Name steht als Bearbeiter dabei.",
-      "",
-      "**3. Termin passt:** **Termin bestätigen (SMS)**. Der Kunde bekommt eine SMS, der Kalendereintrag verliert das „VORLÄUFIG“, und die Karte wird grün.",
-      "",
-      "**4. Termin passt nicht:** **Anderen Termin vorschlagen**, Datum und Uhrzeit eintragen (werktags 9 bis 17 Uhr). Der Kunde bekommt eine SMS mit dem Vorschlag und einem Link. Dort sagt er „Passt“ oder wählt eine andere Zeit. Seine Antwort erscheint auf der Karte (violett), und ihr könnt bestätigen oder neu vorschlagen. Ist die Zeit im Kalender schon belegt, geht keine SMS raus.",
-      "",
-      "**5. Nur Rückruf, kein Termin:** Nach dem Zurückrufen auf **Erledigt** klicken.",
-      "",
-      "**6. Vor dem Termin** erinnert der Bot in **#termine**, am Vortag und eine Stunde vorher.",
-      "",
-      "Farben: 🟡 offen · 🔵 übernommen · 🟠 wartet auf den Kunden · 🟣 Kunde wünscht anderen Termin · 🟢 Termin steht · ⚪ erledigt.",
-    ),
+    text: "**1. Anruf kommt rein.** Der Telefonassistent nimmt an, fragt Name, Betrieb, Anliegen und Wunschtermin und trägt den Termin als \"VORLÄUFIG\" in den Kalender ein. Der Kunde hört: Der Termin ist vorgemerkt, wir melden uns per SMS oder Rückruf.\n\n**2. Meldung in #anrufe.** Wer den Anruf bearbeitet, klickt **Übernehmen** (Meldung wird blau, der Name steht als Bearbeiter dabei).\n\n**3. Termin passt:** **Termin bestätigen (SMS)**. Der Kunde bekommt eine SMS, der Kalendereintrag verliert das \"VORLÄUFIG\", und die Meldung wird grün.\n\n**4. Termin passt nicht:** **Anderen Termin vorschlagen**, Datum und Uhrzeit eintragen (werktags, Uhrzeit frei). Der Kunde bekommt eine SMS mit dem Vorschlag und einem kurzen Link. Auf der Seite sagt er \"Passt\" oder wählt eine andere Zeit. Seine Antwort erscheint in der Meldung (violett), und ihr könnt bestätigen oder neu vorschlagen. Ist die Zeit im Kalender schon belegt, geht keine SMS raus.\n\n**5. Geht keine SMS (z. B. Festnetz):** Die Meldung zeigt dann statt der SMS-Knöpfe **Termin per Rückruf bestätigen** und **Anderen Termin per Rückruf vorschlagen**. Der KI-Assistent ruft den Kunden an und klärt es am Telefon (Details in der Anleitung „Anrufe\").\n\n**6. Nur Rückruf, kein Termin:** Klickt nach dem Zurückrufen auf **Erledigt**.\n\n**7. Vor dem Termin:** Der Bot erinnert in #termine.\n\nFarben: 🟡 offen, 🔵 übernommen, 🟠 wartet auf den Kunden, 🟣 Kunde wünscht anderen Termin, 🟢 Termin steht, ⚪ erledigt.",
   },
   {
     titel: "📖 Anleitung: Anrufe (Karten in #anrufe)",
