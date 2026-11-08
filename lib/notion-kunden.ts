@@ -1,4 +1,5 @@
 import type { EmbedLike } from "@/lib/discord-calls";
+import { alsMentions } from "./zustaendige.ts";
 
 // Aus einem Notion-Webhook (Automation "Webhook senden") wird die Kundenkarte
 // für den Discord-Kanal des Kunden gebaut, und es wird verglichen, was sich
@@ -146,7 +147,7 @@ export const CARD_MARKER = "Kundenkarte";
 const OHNE_MELDUNG = new Set(["Zeit gesamt", "Fortschritt", "Notion"]);
 
 /** Baut die Karte, die im Kundenkanal steht und bei Änderungen überschrieben wird. */
-export function kundenKarte(k: Kunde): EmbedLike {
+export function kundenKarte(k: Kunde, zustaendige?: string[]): EmbedLike {
   const w = (n: string) => wert(k.props[n]);
   const fields: { name: string; value: string; inline: boolean }[] = [];
   const add = (name: string, value: string, inline = true) => {
@@ -155,7 +156,8 @@ export function kundenKarte(k: Kunde): EmbedLike {
 
   add("Status", w("Status"));
   add("Angebot", w("Angebot"));
-  add("Zuständig", w("Zuständig"));
+  // Mit den Zuständigen aus dem Bot (Erwähnungen) steht das Feld immer da, sonst die Namen aus Notion.
+  add("Zuständig", zustaendige ? alsMentions(zustaendige) : w("Zuständig"));
   add("Fortschritt", prozent(w("Fortschritt (%)")));
   add("Zeit gesamt", stunden(w("Gesamtstunden")));
   add("Zahlungsstatus", w("Zahlungsstatus"));
@@ -195,6 +197,8 @@ export function aenderungen(alt: EmbedLike | null, neu: EmbedLike): string[] {
     if (OHNE_MELDUNG.has(name)) continue;
     const before = a.get(name) ?? "";
     if (before === value) continue;
+    // Umstellung alter Karten von Namen aus Notion auf Erwähnungen: keine eigene Zeile.
+    if (name === "Zuständig" && !/<@|^niemand$/.test(before)) continue;
     if (name === "Checkliste") {
       // Pro Punkt eine Zeile: nur was sich wirklich geändert hat.
       const lines = (t: string) => new Map(t.split("\n").map((l) => [l.slice(2), l.slice(0, 1)]));

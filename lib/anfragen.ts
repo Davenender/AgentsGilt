@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createTextChannel, findCategoryId, findChannelId, messageLink, ohneStatusPunkt, postEmbed } from "@/lib/discord";
+import { findChannelId, messageLink, ohneStatusPunkt, postEmbed } from "@/lib/discord";
+import { legeKundenkanalAn } from "@/lib/kundenkanal";
 import type { EmbedField, EmbedLike } from "@/lib/discord-calls";
 import {
   alleNachrichten,
@@ -279,10 +280,7 @@ export async function inKundenkanal(
     await new Promise((r) => setTimeout(r, 4000));
     kanal = await findChannelId(token, name);
   }
-  if (!kanal) {
-    const kategorie = await findCategoryId(token, "KUNDEN");
-    kanal = await createTextChannel(token, name, kategorie, `${nr} · ${kundenName}`);
-  }
+  if (!kanal) kanal = await legeKundenkanalAn(token, name, `${nr} · ${kundenName}`);
   if (!kanal) return { ok: false, fehler: `Der Kanal ${name} ist nicht erreichbar oder konnte nicht angelegt werden.` };
 
   const d = datenAusKarte(karte);

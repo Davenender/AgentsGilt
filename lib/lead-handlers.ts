@@ -327,7 +327,8 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
         begruendung: passtZu?.includes(" – ") ? passtZu.split(" – ").slice(1).join(" – ") : null,
       };
       const url = embed.description?.match(/🔗\s*(\S+)/)?.[1] ?? `https://${domain}`;
-      const res = await legeKundenZeileAn({ analyse, url, domain });
+      // Zuständig wird, wer den Lead übernommen hat (drückt David ohne Übernahme, dann David).
+      const res = await legeKundenZeileAn({ analyse, url, domain, zustaendig: [besitzer ?? user.id] });
       if (!res.ok) {
         await postKarteHinweis(token, channelId, messageId, `⚠️ Lead aktiv hat nicht geklappt: ${res.fehler}`);
         return;

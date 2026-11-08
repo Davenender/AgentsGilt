@@ -1,18 +1,8 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { after, NextResponse } from "next/server";
-import {
-  createTextChannel,
-  editMessage,
-  findCategoryId,
-  findChannelId,
-  listMessages,
-  postEmbed,
-  postText,
-  setzeKanalName,
-} from "@/lib/discord";
+import { editMessage, findChannelId, postText, setzeKanalName } from "@/lib/discord";
 import {
   aenderungen,
-  CARD_MARKER,
   kanalName,
   kanalNameMitPunkt,
   kundenKarte,
@@ -20,8 +10,10 @@ import {
   statusPunkt,
   wert,
 } from "@/lib/notion-kunden";
-import { call } from "@/lib/leads";
-import { holeKundenNr, seitenId } from "@/lib/notion-api";
+import { call, postKarte } from "@/lib/leads";
+import { findeKarte, hatKnopf, legeKundenkanalAn, zustaendigHinweis } from "@/lib/kundenkanal";
+import { holeKundenNr, seitenId, setzeZustaendig } from "@/lib/notion-api";
+import { ausKarte, KARTEN_KNOEPFE, wahrheit } from "@/lib/zustaendige";
 import type { Kunde } from "@/lib/notion-kunden";
 
 export const runtime = "nodejs";
@@ -118,15 +110,14 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
   const name = kanalName(kunde.nr);
   const status = wert(kunde.props["Status"]);
   const mitPunkt = kanalNameMitPunkt(kunde.nr, status);
-  const karte = kundenKarte(kunde);
 
   let kanal = await findChannelId(token, name);
   let neu = false;
-  if (!kanal) {
-    const kategorie = await findCategoryId(token, "KUNDEN");
-    kanal = await createTextChannel(token, mitPunkt, kategorie, `${kunde.nr} · ${kunde.name}`);
+  if (!kanal && token) {
+    // Neuer Kanal: gleich so, dass nur der Bot schreibt.
+    kanal = await legeKundenkanalAn(token, mitPunkt, `${kunde.nr} · ${kunde.name}`);
     neu = true;
-  } else if (statusPunkt(status)) {
+  } else if (kanal && statusPunkt(status)) {
     // Farbpunkt vor dem Kanalnamen an den Status anpassen (🔴knd_004 -> 🟡knd_004).
     await setzeKanalName(token, kanal, mitPunkt);
   }
@@ -138,20 +129,32 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
   }
 
   // Die bestehende Karte suchen: erste Bot-Nachricht mit unserer Fußzeile.
-  const messages = await listMessages(token, kanal, 100);
-  const alt = messages.find(
-    (m) => m.author.bot && m.embeds[0]?.footer?.text?.startsWith(CARD_MARKER),
-  );
+  const alt = token ? await findeKarte(token, kanal) : null;
+
+  // Zuständig: Die Karte gilt. Wurde es in Notion von Hand geändert, wird Notion zurückgesetzt.
+  // Schickt Notion das Feld nicht mit, bleibt es beim Stand der Karte (und es wird nichts zurückgesetzt).
+  const zust = kunde.props["Zuständig"]
+    ? wahrheit(alt?.embeds[0] ?? null, kunde.props["Zuständig"])
+    : { ids: ausKarte(alt?.embeds[0]), zuruecksetzen: false, ausNotion: false };
+  const karte = kundenKarte(kunde, zust.ids ?? undefined);
+  const notionSeite = kunde.url ?? seite;
+  if (zust.zuruecksetzen && zust.ids && notionSeite && (await setzeZustaendig(notionSeite, zust.ids))) {
+    await postText(token, kanal, zustaendigHinweis(zust.ids));
+  }
 
   if (alt) {
     const aender = aenderungen(alt.embeds[0], karte);
     if (aender.length === 0) {
+      // Alte Karte ohne Knopf oder mit Namen statt Erwähnungen: still erneuern.
+      if (!hatKnopf(alt.components) || zust.ausNotion) {
+        await editMessage(token, kanal, alt.id, { embeds: [karte], components: KARTEN_KNOEPFE });
+      }
       return {
         res: NextResponse.json({ ok: true, geaendert: 0 }),
         protokoll: `${kunde.nr} · ${kunde.name}: Notion-Meldung erhalten, nichts Wichtiges geändert.`,
       };
     }
-    await editMessage(token, kanal, alt.id, { embeds: [karte], components: [] });
+    await editMessage(token, kanal, alt.id, { embeds: [karte], components: KARTEN_KNOEPFE });
     await postText(token, kanal, `🔄 ${aender.join("\n")}`);
     return {
       res: NextResponse.json({ ok: true, geaendert: aender.length }),
@@ -159,7 +162,7 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
     };
   }
 
-  await postEmbed(token, kanal, karte);
+  if (token) await postKarte(token, kanal, karte, KARTEN_KNOEPFE);
   console.log(`[notion] Karte für ${kunde.nr} angelegt${neu ? " (neuer Kanal)" : ""}`);
   return {
     res: NextResponse.json({ ok: true, neu }),

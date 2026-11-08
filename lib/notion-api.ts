@@ -1,4 +1,5 @@
 import type { Analyse } from "@/lib/lead-analyse";
+import { notionPeople } from "@/lib/zustaendige";
 
 // Legt einen neuen Lead als Zeile in der Kunden-Datenbank an.
 // Danach löst die bestehende Notion-Automation den Kunden-Kanal in Discord aus.
@@ -25,6 +26,8 @@ export async function legeKundenZeileAn(input: {
   analyse: Analyse;
   url: string;
   domain: string;
+  /** Discord-Kennungen der Zuständigen (wer den Lead übernommen hat). */
+  zustaendig?: string[];
 }): Promise<{ ok: true; seite: string; nr: string | null } | { ok: false; fehler: string }> {
   const token = process.env.NOTION_TOKEN?.trim();
   if (!token) return { ok: false, fehler: "Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel)." };
@@ -41,6 +44,7 @@ export async function legeKundenZeileAn(input: {
   };
   if (a.email) properties["E-Mail"] = { email: a.email };
   if (a.telefon) properties["Telefon"] = { phone_number: a.telefon };
+  if (input.zustaendig?.length) properties["Zuständig"] = notionPeople(input.zustaendig);
   const angebot = a.passt ? ANGEBOT[a.passt] : null;
   if (angebot) properties["Angebot"] = { select: { name: angebot } };
 
@@ -130,6 +134,26 @@ export async function holeKundenNr(seite: string | undefined | null): Promise<st
   }
 }
 
+/** Setzt nur das Personenfeld „Zuständig“ einer Kundenzeile (Discord-Kennungen von David, Jakob, Mijo). */
+export async function setzeZustaendig(notionUrl: string, zustaendig: string[]): Promise<boolean> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const seite = seitenId(notionUrl);
+  if (!token || !seite) return false;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/pages/${seite}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28", "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: { Zuständig: notionPeople(zustaendig) } }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) console.error(`[notion] Zuständig setzen fehlgeschlagen: HTTP ${res.status}`);
+    return res.ok;
+  } catch (err) {
+    console.error("[notion] Zuständig setzen fehlgeschlagen:", err);
+    return false;
+  }
+}
+
 /** Zahlungsmeldung von Stripe: setzt nur das Feld „Zahlungsstatus“ einer Kundenzeile. */
 export async function setzeZahlungsstatus(notionUrl: string, status: "Bezahlt" | "Offen"): Promise<boolean> {
   const token = process.env.NOTION_TOKEN?.trim();
@@ -159,6 +183,8 @@ export async function legeLeadAusAnfrage(input: {
   message: string;
   /** Wie der Kontakt zu uns kam, Vorgabe: Website / Chatbot (bei Mails: Sonstiges). */
   quelle?: string;
+  /** Discord-Kennungen der Zuständigen (wer die Anfrage übernommen hat). */
+  zustaendig?: string[];
 }): Promise<{ ok: true; seite: string; nr: string | null; titel: string } | { ok: false; fehler: string }> {
   const token = process.env.NOTION_TOKEN?.trim();
   if (!token) return { ok: false, fehler: "Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel)." };
@@ -173,6 +199,7 @@ export async function legeLeadAusAnfrage(input: {
     "Nächster Schritt": { rich_text: text("Erstkontakt aufnehmen", 200) },
   };
   if (input.email) properties["E-Mail"] = { email: input.email };
+  if (input.zustaendig?.length) properties["Zuständig"] = notionPeople(input.zustaendig);
   const angebot = input.service ? ANGEBOT[input.service] : null;
   if (angebot) properties["Angebot"] = { select: { name: angebot } };
 
@@ -244,6 +271,8 @@ export interface KundeKurz {
   live?: boolean;
   notionUrl?: string | null;
   geaendert?: string | null;
+  /** Notion-IDs im Personenfeld „Zuständig“ */
+  zustaendig?: string[];
 }
 
 /** Alle Kunden aus Notion (für die Auswahl "Bestehender Kunde?"), neueste zuerst. */
@@ -290,6 +319,7 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
               date?: { start?: string | null } | null;
               url?: string | null;
               checkbox?: boolean;
+              people?: { id?: string }[];
             }
           >;
         }[];
@@ -314,6 +344,7 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
           live: props["Live / Übergeben"]?.checkbox ?? false,
           notionUrl: p.url ?? null,
           geaendert: p.last_edited_time ?? null,
+          zustaendig: (props["Zuständig"]?.people ?? []).map((u) => u.id ?? "").filter(Boolean),
         });
       }
       if (!data.has_more || !data.next_cursor) break;

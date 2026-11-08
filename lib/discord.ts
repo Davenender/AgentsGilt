@@ -349,7 +349,7 @@ export async function listMessages(
   token: string | undefined,
   channelId: string,
   limit = 100,
-): Promise<{ id: string; author: { bot?: boolean }; embeds: EmbedLike[] }[]> {
+): Promise<{ id: string; author: { bot?: boolean }; embeds: EmbedLike[]; components?: unknown[] }[]> {
   if (!token) return [];
   try {
     const res = await fetch(`${API}/channels/${channelId}/messages?limit=${limit}`, {

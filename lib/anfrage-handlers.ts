@@ -213,7 +213,7 @@ export function handleAnfrage(i: AnfInteraction, token: string | undefined) {
     if (anfrageStatusWort(embed) !== "Kontaktiert") return ephemeral("Erst auf „Kontaktiert“ setzen, dann „Lead aktiv“.");
     if (!notionConfigured()) return ephemeral("Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel). Der Status bleibt unverändert.");
     after(async () => {
-      const res = await legeLeadAn(token, embed);
+      const res = await legeLeadAn(token, embed, [besitzerId(embed) ?? user.id]); // zuständig: wer die Anfrage übernommen hat
       if (!res.ok) return void (await followupPrivate(appId, itoken, `⚠️ ${res.fehler}`));
       if (res.verschoben) {
         await loescheNachricht(token, channelId, messageId);
@@ -233,6 +233,7 @@ export function handleAnfrage(i: AnfInteraction, token: string | undefined) {
 async function legeLeadAn(
   token: string,
   karte: EmbedLike,
+  zustaendig: string[],
 ): Promise<
   | { ok: true; verschoben: true; nr: string; kanalId: string }
   | { ok: true; verschoben: false; nr: string | null; notiz: string; hinweis: string }
@@ -240,7 +241,7 @@ async function legeLeadAn(
 > {
   const d = datenAusKarte(karte);
   const ausMail = Boolean(posteingangMailId(karte));
-  const res = await legeLeadAusAnfrage(ausMail ? { ...d, quelle: "Sonstiges" } : d);
+  const res = await legeLeadAusAnfrage({ ...d, ...(ausMail ? { quelle: "Sonstiges" } : {}), zustaendig });
   if (!res.ok) return res;
   let nr = res.nr;
   if (!nr) {
@@ -370,7 +371,7 @@ export function handlePosteingang(i: AnfInteraction, token: string | undefined) 
   if (id === "lead") {
     if (!notionConfigured()) return ephemeral("Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel).");
     after(async () => {
-      const res = await legeLeadAn(token, embed);
+      const res = await legeLeadAn(token, embed, [user.id]); // Posteingang gehört David
       if (!res.ok) return void (await followupPrivate(appId, itoken, `⚠️ ${res.fehler}`));
       let was = res.verschoben ? `Lead ${res.nr} angelegt, Anfrage liegt im Kundenkanal` : `Lead ${res.nr ?? ""} angelegt (${res.hinweis})`;
       if (mailId && res.nr) {
