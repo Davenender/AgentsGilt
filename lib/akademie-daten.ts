@@ -79,9 +79,12 @@ async function kategorie(token: string, kanaele: Kanal[]): Promise<string | null
 }
 
 /** Der unsichtbare Merkzettel-Kanal (nur der Bot, David sieht ihn als Besitzer). */
-async function speicherKanal(token: string): Promise<string | null> {
+const speicherKanal = (token: string) => nurDavidKanal(token, SPEICHER, "Merkzettel der Akademie (wer freigeschaltet ist, was gelesen ist). Nicht löschen.");
+
+/** Ein Kanal, den außer dem Bot nur David sieht (als Serverbesitzer). */
+async function nurDavidKanal(token: string, name: string, topic: string): Promise<string | null> {
   const kanaele = (await alleKanaele(token)) ?? [];
-  const da = kanaele.find((c) => c.type === 0 && c.name === SPEICHER);
+  const da = kanaele.find((c) => c.type === 0 && c.name === name);
   if (da) return da.id;
   const [kat, team, bot] = await Promise.all([kategorie(token, kanaele), teamRolle(token), eigeneId(token)]);
   if (!bot) return null;
@@ -90,9 +93,9 @@ async function speicherKanal(token: string): Promise<string | null> {
   return (
     (
       await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, {
-        name: SPEICHER,
+        name,
         type: 0,
-        topic: "Merkzettel der Akademie (wer freigeschaltet ist, was gelesen ist). Nicht löschen.",
+        topic,
         ...(kat ? { parent_id: kat } : {}),
         permission_overwrites: rechte,
       })
@@ -110,12 +113,15 @@ export const merke = (token: string, speicher: string, zeile: string) =>
   call(token, "POST", `/channels/${speicher}/messages`, { content: zeile, allowed_mentions: { parse: [] } });
 
 const START_TEXT =
-  "Hier lernt ihr Schritt für Schritt alles, was ihr für die Arbeit mit Kunden braucht: wie bei Duolingo, mit Lektionen, Tests und später Übungen.\n\n" +
-  "**So geht es los:** Nach der Unterschrift der Vertraulichkeitsvereinbarung schaltet David euch frei. Dann bekommt jeder zwei eigene Kanäle, die nur er und David sehen:\n" +
-  "• 📖 **Lernpfad**: Lektionen lesen, Tests machen, Schritt für Schritt weiter\n" +
-  "• 📚 **Bibliothek**: alles, was ihr schon gelesen habt, zum Nachschlagen\n\n" +
-  "Hier im Kanal wird nicht geschrieben.";
+  "Hier lernt ihr Schritt für Schritt alles, was ihr für die Arbeit mit Kunden braucht. Mit Lektionen, Tests und Übungen, aufgebaut wie bei Duolingo.\n\n" +
+  "**So geht es los:** Nach der Unterschrift der Vertraulichkeitsvereinbarung werdet ihr freigeschaltet. Dann bekommt jeder eigene Kanäle, die nur er sehen kann:\n" +
+  "• 📖 **Lernpfad:** Lektionen lesen, Tests machen, Schritt für Schritt weiter\n" +
+  "• 📚 **Bibliothek:** alles, was ihr schon gelesen habt, zum Nachschlagen";
 
+const VERWALTUNG = "akademie-verwaltung";
+export const VERWALTUNG_TITEL = "🔧 Akademie verwalten";
+
+/** Die Knöpfe nur für David, im Kanal #akademie-verwaltung (den sieht nur er). */
 export const START_KNOEPFE = [
   {
     type: 1,
@@ -126,27 +132,40 @@ export const START_KNOEPFE = [
   },
 ];
 
-/** Kategorie, Startkanal mit Karte und Merkzettel anlegen (läuft mehrfach ohne Doppelungen). */
-export async function richteEin(token: string): Promise<{ start: string | null; speicher: string | null }> {
+/** Kategorie, Startkanal mit Karte, Verwaltung und Merkzettel anlegen (läuft mehrfach ohne Doppelungen). */
+export async function richteEin(token: string): Promise<{ start: string | null; speicher: string | null; verwaltung: string | null }> {
   const speicher = await speicherKanal(token);
+  const verwaltung = await nurDavidKanal(token, VERWALTUNG, "Nur für David: Personen für die Akademie freischalten, eigener Bereich.");
+  if (verwaltung) {
+    const vm = await alleNachrichten(token, verwaltung, 50);
+    if (!vm.some((m) => m.author.bot && m.embeds[0]?.title === VERWALTUNG_TITEL)) {
+      const msg = await call<{ id: string }>(token, "POST", `/channels/${verwaltung}/messages`, {
+        embeds: [{ title: VERWALTUNG_TITEL, description: "Nur du siehst diesen Kanal.\n🔓 **Person freischalten:** erst nach der unterschriebenen Vertraulichkeitsvereinbarung.\n🏠 **Mein Bereich:** dein eigener Lernpfad und deine Bibliothek.", color: 0x8b5cf6 } as EmbedLike],
+        components: START_KNOEPFE,
+        allowed_mentions: { parse: [] },
+      });
+      if (msg) await call(token, "PUT", `/channels/${verwaltung}/pins/${msg.id}`);
+    }
+  }
   const kanaele = (await alleKanaele(token)) ?? [];
   const kat = await kategorie(token, kanaele);
   let start = kanaele.find((c) => c.type === 0 && c.name === START)?.id ?? null;
   if (!start) {
     start = (await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: START, type: 0, topic: "Die Akademie: lernen, testen, nachschlagen.", ...(kat ? { parent_id: kat } : {}) }))?.id ?? null;
   }
-  if (!start) return { start, speicher };
+  if (!start) return { start, speicher, verwaltung };
   await sperreKundenkanal(token, start);
   const msgs = await alleNachrichten(token, start, 50);
-  if (!msgs.some((m) => m.author.bot && m.embeds[0]?.title === START_TITEL)) {
-    const msg = await call<{ id: string }>(token, "POST", `/channels/${start}/messages`, {
-      embeds: [{ title: START_TITEL, description: START_TEXT, color: 0x8b5cf6 } as EmbedLike],
-      components: START_KNOEPFE,
-      allowed_mentions: { parse: [] },
-    });
+  const karte = { embeds: [{ title: START_TITEL, description: START_TEXT, color: 0x8b5cf6 } as EmbedLike], components: [], allowed_mentions: { parse: [] } };
+  const alt = msgs.find((m) => m.author.bot && m.embeds[0]?.title === START_TITEL);
+  if (alt) {
+    // Text aktuell halten, Knöpfe gehören nicht hierher (die hat nur David in #akademie-verwaltung).
+    if (alt.embeds[0]?.description !== START_TEXT || alt.components?.length) await call(token, "PATCH", `/channels/${start}/messages/${alt.id}`, karte);
+  } else {
+    const msg = await call<{ id: string }>(token, "POST", `/channels/${start}/messages`, karte);
     if (msg) await call(token, "PUT", `/channels/${start}/pins/${msg.id}`);
   }
-  return { start, speicher };
+  return { start, speicher, verwaltung };
 }
 
 /** Schaltet eine Person frei: zwei private Kanäle, Pfad-Karte und Inhaltsverzeichnis. Doppelt geht nicht. */
