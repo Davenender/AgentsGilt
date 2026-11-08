@@ -18,7 +18,7 @@ import {
 } from "@/lib/akademie";
 import { pfadLektionen } from "@/lib/akademie";
 import {
-  gelesenVon,
+  bibliothekVon,
   holeInhalt,
   holeSeiten,
   holeText,
@@ -234,7 +234,7 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
       const [ak, inhalt] = await Promise.all([leseAkademie(token), holeInhalt()]);
       const b = ak && besitzer(ak.personen, kanal, "bibliothek");
       const l = inhalt?.lektionen.find((x) => x.id === lid);
-      if (!b || !inhalt || !l || !b[1].gelesen.has(l.id)) return void (await privat(appId, itoken, "Diese Lektion ist (noch) nicht in der Bibliothek."));
+      if (!b || !inhalt || !l || !bibliothekVon(b[1], inhalt).some((x) => x.id === l.id)) return void (await privat(appId, itoken, "Diese Lektion ist (noch) nicht in der Bibliothek."));
       const text = await holeText(l);
       if (text === null) return void (await privat(appId, itoken, FEHLER.content));
       for (const n of lektionNachrichten(l, text)) await call(token, "POST", `/channels/${kanal}/messages`, { ...n, allowed_mentions: { parse: [] } });
@@ -249,7 +249,7 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
       const [ak, inhalt] = await Promise.all([leseAkademie(token), holeInhalt()]);
       const b = ak && besitzer(ak.personen, kanal, "bibliothek");
       if (!b || !inhalt) return void (await ersetze(appId, itoken, FEHLER));
-      const liste = gelesenVon(b[1], inhalt).filter((l) => l.einheit === einheit);
+      const liste = bibliothekVon(b[1], inhalt).filter((l) => l.einheit === einheit);
       await ersetze(appId, itoken, { content: "Welche Lektion?", components: lektionAuswahl(liste) });
     });
     return NextResponse.json(DEFER_PRIVAT);
@@ -269,7 +269,7 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
       const [ak, inhalt] = await Promise.all([leseAkademie(token), holeInhalt()]);
       const b = ak && besitzer(ak.personen, kanal, "bibliothek");
       if (!b || !inhalt) return void (await ersetze(appId, itoken, FEHLER));
-      const gelesen = gelesenVon(b[1], inhalt);
+      const gelesen = bibliothekVon(b[1], inhalt);
       // Höchstens drei Notion-Abfragen gleichzeitig (Notion bremst sonst).
       const liste: { lektion: (typeof gelesen)[number]; text: string }[] = [];
       for (let k = 0; k < gelesen.length; k += 3) {
@@ -277,7 +277,7 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
         liste.push(...teil);
       }
       const treffer = sucheTreffer(liste, begriff);
-      if (!treffer.length) return void (await ersetze(appId, itoken, { content: `🔎 Zu „${begriff}“ steht nichts in deinen gelesenen Lektionen.` }));
+      if (!treffer.length) return void (await ersetze(appId, itoken, { content: `🔎 Zu „${begriff}“ steht nichts in deinen gelesenen Lektionen und im Branchenwissen.` }));
       await ersetze(appId, itoken, {
         content: `🔎 **${treffer.length} Treffer zu „${begriff}“**\n${treffer.slice(0, 10).map((t) => `• **${t.lektion.nr} ${t.lektion.titel}**: ${t.ausschnitt}`).join("\n")}`.slice(0, 1900),
         components: lektionAuswahl(treffer.map((t) => t.lektion), "Treffer anzeigen …"),

@@ -12,6 +12,7 @@ import {
   leseSpeicher,
   pfadKarte,
   pfadLektionen,
+  wissenSeiten,
   privatRechte,
   rolleVon,
   schritte,
@@ -92,6 +93,8 @@ export async function holeSeiten(l: Lektion): Promise<string[] | null> {
 
 export const schritteVon = (p: Person, inhalt: Inhalt) => schritte(pfadLektionen(inhalt.lektionen, p.rolle), inhalt.fragen, p.rolle);
 export const gelesenVon = (p: Person, inhalt: Inhalt) => pfadLektionen(inhalt.lektionen, p.rolle).filter((l) => p.gelesen.has(l.id));
+/** Was in der Bibliothek steht: gelesene Lektionen und das Branchenwissen. */
+export const bibliothekVon = (p: Person, inhalt: Inhalt) => [...gelesenVon(p, inhalt), ...wissenSeiten(inhalt.lektionen, p.rolle)];
 
 // ----------------------------------------------------------------- Discord
 
@@ -166,7 +169,7 @@ const START_TEXT = [
 export async function zeichne(token: string, userId: string, p: Person, inhalt: Inhalt) {
   const name = nameVon(userId);
   await call(token, "PATCH", `/channels/${p.lernpfad}/messages/${p.pfadMsg}`, { ...pfadKarte(name, schritteVon(p, inhalt), p.gelesen, p.bestanden), allowed_mentions: { parse: [] } });
-  await call(token, "PATCH", `/channels/${p.bibliothek}/messages/${p.tocMsg}`, { ...bibliothekKarte(name, gelesenVon(p, inhalt)), allowed_mentions: { parse: [] } });
+  await call(token, "PATCH", `/channels/${p.bibliothek}/messages/${p.tocMsg}`, { ...bibliothekKarte(name, bibliothekVon(p, inhalt)), allowed_mentions: { parse: [] } });
 }
 
 /** Die Fortschritts-Karte in #akademie-verwaltung (nur David) neu zeichnen. */

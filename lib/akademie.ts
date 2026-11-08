@@ -19,6 +19,8 @@ export interface Lektion {
   fuer: ("Team" | "David")[];
   minuten: number | null;
   freigegeben: boolean;
+  /** Branchenwissen (Art „Wissen“): nur zum Nachschlagen in der Bibliothek, nie im Lernpfad. */
+  wissen?: boolean;
 }
 
 export type Rolle = "team" | "david";
@@ -36,7 +38,8 @@ const text = (v: unknown) => ((v as { plain_text?: string }[] | undefined) ?? []
 export function lektionAusNotion(seite: { id: string; url?: string; properties?: Record<string, NotionProp> }): Lektion | null {
   const p = seite.properties ?? {};
   const nr = text(p["Nr"]?.rich_text);
-  if (!nr || (p["Art"]?.select as { name?: string } | null)?.name === "Testfrage") return null;
+  const art = (p["Art"]?.select as { name?: string } | null)?.name;
+  if (!nr || art === "Testfrage") return null;
   const zahl = (n: string) => (typeof p[n]?.number === "number" ? (p[n].number as number) : null);
   return {
     id: seite.id,
@@ -51,6 +54,7 @@ export function lektionAusNotion(seite: { id: string; url?: string; properties?:
       .filter((n): n is "Team" | "David" => n === "Team" || n === "David"),
     minuten: zahl("Minuten"),
     freigegeben: p["Freigegeben"]?.checkbox === true,
+    ...(art === "Wissen" ? { wissen: true } : {}),
   };
 }
 
@@ -156,6 +160,7 @@ export function frageAusNotion(seite: { id: string; properties?: Record<string, 
 /** Die Lektionen im Pfad: Team nur Freigegebenes, David alles (auch Entwürfe und seine eigenen). */
 export function pfadLektionen(alle: Lektion[], rolle: Rolle): Lektion[] {
   return alle
+    .filter((l) => !l.wissen)
     .filter((l) => (rolle === "david" ? l.fuer.includes("Team") || l.fuer.includes("David") : l.fuer.includes("Team") && l.freigegeben))
     .sort((a, b) => a.reihenfolge - b.reihenfolge || a.nr.localeCompare(b.nr, "de", { numeric: true }));
 }
@@ -407,6 +412,13 @@ export function ergebnisAnsicht(a: ReturnType<typeof auswertung>, lektionen: Lek
 
 // ------------------------------------------------------------ Bibliothek
 
+/** Branchenwissen für die Bibliothek: Team nur Freigegebenes, David alles. Muss nicht erst gelesen werden. */
+export function wissenSeiten(alle: Lektion[], rolle: Rolle): Lektion[] {
+  return alle
+    .filter((l) => l.wissen && (rolle === "david" || (l.fuer.includes("Team") && l.freigegeben)))
+    .sort((a, b) => a.reihenfolge - b.reihenfolge || a.nr.localeCompare(b.nr, "de", { numeric: true }));
+}
+
 /** Inhaltsverzeichnis der gelesenen Lektionen mit Auswahl zum Anzeigen und Suchknopf. */
 export function bibliothekKarte(name: string, gelesen: Lektion[]) {
   const sortiert = [...gelesen].sort((a, b) => a.reihenfolge - b.reihenfolge || a.nr.localeCompare(b.nr, "de", { numeric: true }));
@@ -428,8 +440,9 @@ export function bibliothekKarte(name: string, gelesen: Lektion[]) {
   };
   const erklaerung =
     "Wähle unten eine Lektion aus, dann erscheint sie hier im Kanal. Du kannst mehrere öffnen.\n" +
-    "🔎 **Suchen**: findet ein Stichwort in allen Lektionen, die du schon gelesen hast.\n" +
-    "🧹 **Aufräumen**: nimmt alle angezeigten Lektionen wieder weg. Über das Inhaltsverzeichnis holst du sie jederzeit wieder her.";
+    "🔎 **Suchen**: findet ein Stichwort in allen Lektionen, die du schon gelesen hast, und im Branchenwissen.\n" +
+    "🧹 **Aufräumen**: nimmt alle angezeigten Lektionen wieder weg. Über das Inhaltsverzeichnis holst du sie jederzeit wieder her.\n" +
+    "📘 **Branchenwissen**: Tipps und typische Einsatzzwecke je Branche zum Nachschlagen vor einem Kundengespräch. Das steht von Anfang an hier, ohne Lernpfad.";
   const auswahl = auswahlRow(sortiert, "ak:bw", "ak:be", "Lektion anzeigen …");
   return {
     embeds: [

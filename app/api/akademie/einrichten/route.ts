@@ -26,8 +26,10 @@ export async function GET(req: Request) {
   const i = await holeInhalt();
   return NextResponse.json({
     notion: i !== null,
-    lektionen: i?.lektionen.length ?? 0,
-    freigegeben: i?.lektionen.filter((x) => x.freigegeben).length ?? 0,
+    lektionen: i?.lektionen.filter((x) => !x.wissen).length ?? 0,
+    freigegeben: i?.lektionen.filter((x) => !x.wissen && x.freigegeben).length ?? 0,
+    branchenwissen: i?.lektionen.filter((x) => x.wissen).length ?? 0,
+    branchenwissenFreigegeben: i?.lektionen.filter((x) => x.wissen && x.freigegeben).length ?? 0,
     testfragen: i?.fragen.length ?? 0,
     testfragenFreigegeben: i?.fragen.filter((x) => x.freigegeben).length ?? 0,
   });

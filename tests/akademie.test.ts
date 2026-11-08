@@ -25,6 +25,7 @@ import {
   standSchritte,
   sucheTreffer,
   verwaltungKarte,
+  wissenSeiten,
   zeileFrei,
   zeileGelesen,
   zeileTest,
@@ -316,4 +317,41 @@ test("Notion: Lektionen, Testfragen und Text", () => {
     { id: "7", type: "callout", callout: { rich_text: rt("Wichtig") } },
   ];
   assert.equal(lektionText(bloecke), "Wir **bauen** schnell.\n\n• Punkt\n  • Unterpunkt\n\n---\n\n1. Eins\n2. Zwei\n\n**Titel**\n\n> Wichtig");
+});
+
+// ------------------------------------------------------------ Branchenwissen (Etappe 5)
+
+test("Branchenwissen: Art „Wissen“ wird erkannt und kommt nie in den Lernpfad", () => {
+  const seite = {
+    id: "w1",
+    properties: {
+      Titel: { type: "title", title: [{ plain_text: "Ärzte" }] },
+      Nr: { type: "rich_text", rich_text: [{ plain_text: "B1" }] },
+      Art: { type: "select", select: { name: "Wissen" } },
+      Einheit: { type: "number", number: 100 },
+      "Einheit-Name": { type: "select", select: { name: "📘 Branchenwissen" } },
+      Reihenfolge: { type: "number", number: 1001 },
+      Für: { type: "multi_select", multi_select: [{ name: "Team" }, { name: "David" }] },
+      Freigegeben: { type: "checkbox", checkbox: true },
+    } as never,
+  };
+  const w = lektionAusNotion(seite);
+  assert.equal(w?.wissen, true);
+  const mit = [...alle, w!, L("B2", 1002, { wissen: true, freigegeben: false })];
+  assert.deepEqual(pfadLektionen(mit, "team").map((l) => l.nr), ["1.1", "1.2", "2.1"]);
+  assert.deepEqual(pfadLektionen(mit, "david").map((l) => l.nr), ["1.1", "1.2", "1.3", "2.1", "9.1"]);
+});
+
+test("Branchenwissen: Team sieht nur Freigegebenes, David alles, sortiert", () => {
+  const w = [L("B2", 1002, { wissen: true }), L("B1", 1001, { wissen: true }), L("B3", 1003, { wissen: true, freigegeben: false }), L("1.1", 1)];
+  assert.deepEqual(wissenSeiten(w, "team").map((l) => l.nr), ["B1", "B2"]);
+  assert.deepEqual(wissenSeiten(w, "david").map((l) => l.nr), ["B1", "B2", "B3"]);
+});
+
+test("Bibliothek zeigt Branchenwissen unter eigener Überschrift und erklärt es", () => {
+  const liste = [L("1.1", 1), L("B1", 1001, { wissen: true, titel: "Ärzte", einheit: 100, einheitName: "📘 Branchenwissen" })];
+  const k = bibliothekKarte("Mijo", liste);
+  const d = k.embeds[0].description ?? "";
+  assert.match(d, /\*\*📘 Branchenwissen\*\*\nB1 Ärzte/);
+  assert.match(d, /Branchenwissen/);
 });
