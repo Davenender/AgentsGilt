@@ -3,7 +3,7 @@ import { aendereKarte, call, teamRolle } from "@/lib/leads";
 import { setzeZustaendig } from "@/lib/notion-api";
 import { CARD_MARKER } from "@/lib/notion-kunden";
 import { alsMentions, bit, kanalRechte, mitZustaendig, SPERRE, wahrheit, type Overwrite } from "@/lib/zustaendige";
-import { kartenKnoepfe, knoepfePassen, zielKategorie } from "@/lib/kundenablauf";
+import { ARCHIV_KATEGORIE, archivReihenfolge, kartenKnoepfe, KUNDEN_KATEGORIE, knoepfePassen, zielKategorie } from "@/lib/kundenablauf";
 
 // Kundenkanäle (🔴knd_00X): nur der Bot schreibt dort (Karte und Änderungszeilen), alle anderen
 // lesen und drücken Knöpfe. Wer zuständig ist, steht in der Karte und gilt auch für Notion.
@@ -58,6 +58,31 @@ export async function findeKarte(token: string, kanal: string) {
   return messages.find((m) => m.author.bot && m.embeds[0]?.footer?.text?.startsWith(CARD_MARKER)) ?? null;
 }
 
+type GildenKanal = { id: string; name: string; type: number; position: number; permission_overwrites?: Overwrite[] };
+
+/**
+ * Sorgt dafür, dass es die Kategorie KUNDENARCHIV gibt: mit denselben Sichtrechten wie KUNDEN,
+ * direkt über dem Ticket-ARCHIV. Gibt ihre ID zurück.
+ */
+export async function sichereKundenarchiv(token: string): Promise<string | null> {
+  const alle = await call<GildenKanal[]>(token, "GET", `/guilds/${GUILD_ID}/channels`);
+  if (!alle) return null;
+  const istKat = (c: GildenKanal, n: string) => c.type === 4 && c.name.toLowerCase() === n.toLowerCase();
+  let archiv = alle.find((c) => istKat(c, ARCHIV_KATEGORIE));
+  if (!archiv) {
+    const vorbild = alle.find((c) => istKat(c, KUNDEN_KATEGORIE))?.permission_overwrites ?? [];
+    const neu =
+      (await call<GildenKanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: ARCHIV_KATEGORIE, type: 4, permission_overwrites: vorbild })) ??
+      (await call<GildenKanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: ARCHIV_KATEGORIE, type: 4 }));
+    if (!neu) return null;
+    archiv = neu;
+    alle.push(neu);
+  }
+  const reihenfolge = archivReihenfolge(alle);
+  if (reihenfolge.length) await call(token, "PATCH", `/guilds/${GUILD_ID}/channels`, reihenfolge);
+  return archiv.id;
+}
+
 /**
  * Schiebt den Kanal in die Kategorie, die zum Status passt: „Verloren“ ins KUNDENARCHIV, sonst nach
  * KUNDEN. Fehlt die Kategorie, wird sie angelegt. Die Kanalrechte bleiben dabei, wie sie sind.
@@ -71,7 +96,12 @@ export async function ordneKanalEin(token: string, kanal: string, status: string
   if (!info || !alle) return false;
   let kategorie = alle.find((c) => c.type === 4 && c.name.toLowerCase() === ziel.toLowerCase())?.id;
   if (info.parent_id && info.parent_id === kategorie) return true;
-  if (!kategorie) kategorie = (await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: ziel, type: 4 }))?.id;
+  if (!kategorie) {
+    kategorie =
+      ziel === ARCHIV_KATEGORIE
+        ? ((await sichereKundenarchiv(token)) ?? undefined)
+        : (await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: ziel, type: 4 }))?.id;
+  }
   if (!kategorie) return false;
   return (await call(token, "PATCH", `/channels/${kanal}`, { parent_id: kategorie, lock_permissions: false })) !== null;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findChannelId, setzeKanalName } from "@/lib/discord";
-import { gleicheZustaendigAb, ordneKanalEin, sperreKundenkanal } from "@/lib/kundenkanal";
+import { gleicheZustaendigAb, ordneKanalEin, sichereKundenarchiv, sperreKundenkanal } from "@/lib/kundenkanal";
 import { listeKunden } from "@/lib/notion-api";
 import { kanalName, kanalNameMitPunkt, statusPunkt } from "@/lib/notion-kunden";
 import { zeitplanGebremst } from "@/lib/zeitplan";
@@ -29,6 +29,9 @@ async function laufen() {
   const kunden = await listeKunden();
   if (!kunden) return NextResponse.json({ error: "Notion nicht erreichbar" }, { status: 502 });
 
+  // Die Kategorie KUNDENARCHIV gibt es immer, direkt über dem Ticket-ARCHIV.
+  const kundenarchiv = Boolean(await sichereKundenarchiv(token));
+
   let geprueft = 0;
   let fehler = 0;
   let gesperrt = 0;
@@ -45,7 +48,7 @@ async function laufen() {
     if (z === "zurückgesetzt") zuruecksetzungen.push(k.nr);
     if (z === "Notion-Fehler") fehler++;
   }
-  return NextResponse.json({ ok: true, kunden: kunden.length, geprueft, gesperrt, zuruecksetzungen, fehler });
+  return NextResponse.json({ ok: true, kunden: kunden.length, kundenarchiv, geprueft, gesperrt, zuruecksetzungen, fehler });
 }
 
 export async function GET() {

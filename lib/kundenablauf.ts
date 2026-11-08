@@ -100,3 +100,20 @@ export const wiederZeile = (von: string, zeit: string) =>
 /** „08.11.2026, 21:30“ in deutscher Zeit. */
 export const jetztText = (d = new Date()) =>
   d.toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/**
+ * Neue Reihenfolge der Kategorien, damit KUNDENARCHIV direkt über dem Ticket-ARCHIV steht.
+ * Leer, wenn sie schon stimmt oder eine der beiden fehlt.
+ */
+export function archivReihenfolge(kanaele: { id: string; name: string; type: number; position: number }[]): { id: string; position: number }[] {
+  const kats = kanaele
+    .filter((c) => c.type === 4)
+    .sort((a, b) => a.position - b.position || (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  const name = (n: string) => kats.findIndex((c) => c.name.toLowerCase() === n.toLowerCase());
+  const k = name(ARCHIV_KATEGORIE);
+  const a = name("ARCHIV");
+  if (k < 0 || a < 0 || k === a - 1) return [];
+  const [kundenarchiv] = kats.splice(k, 1);
+  kats.splice(name("ARCHIV"), 0, kundenarchiv);
+  return kats.map((c, i) => ({ id: c.id, position: i }));
+}

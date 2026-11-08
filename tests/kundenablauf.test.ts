@@ -118,3 +118,21 @@ test("Kundenkarte zeigt den Verlustgrund hinter dem Status", () => {
   const nachKnopf = alsVerloren(kundenKarte({ ...k, props: { ...k.props, Status: { type: "select", select: { name: "Lead" } }, Verlustgrund: { type: "select", select: null } } }, []), "Keine Antwort");
   assert.deepEqual(aenderungen(nachKnopf, c), []);
 });
+
+test("KUNDENARCHIV steht direkt über ARCHIV", async () => {
+  const { archivReihenfolge } = await import("../lib/kundenablauf.ts");
+  const kat = (id: string, name: string, position: number) => ({ id, name, type: 4, position });
+  const alle = [kat("1", "INFO", 0), kat("2", "KUNDEN", 1), kat("3", "ARCHIV", 2), kat("4", "KUNDENARCHIV", 3), { id: "9", name: "allgemein", type: 0, position: 0 }];
+  assert.deepEqual(archivReihenfolge(alle), [
+    { id: "1", position: 0 },
+    { id: "2", position: 1 },
+    { id: "4", position: 2 },
+    { id: "3", position: 3 },
+  ]);
+  // Steht schon richtig: nichts zu tun
+  assert.deepEqual(archivReihenfolge([kat("1", "INFO", 0), kat("4", "KUNDENARCHIV", 1), kat("3", "ARCHIV", 2)]), []);
+  // Ohne ARCHIV oder ohne KUNDENARCHIV: nichts
+  assert.deepEqual(archivReihenfolge([kat("1", "INFO", 0), kat("4", "KUNDENARCHIV", 1)]), []);
+  // Gleiche Positionen (kommt bei Discord vor): nach id sortiert, trotzdem richtig
+  assert.deepEqual(archivReihenfolge([kat("3", "ARCHIV", 5), kat("4", "Kundenarchiv", 5)]), [{ id: "4", position: 0 }, { id: "3", position: 1 }]);
+});
