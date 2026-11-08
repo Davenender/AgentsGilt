@@ -147,7 +147,7 @@ export const CARD_MARKER = "Kundenkarte";
 const OHNE_MELDUNG = new Set(["Zeit gesamt", "Fortschritt", "Notion"]);
 
 /** Baut die Karte, die im Kundenkanal steht und bei Änderungen überschrieben wird. */
-export function kundenKarte(k: Kunde, zustaendige?: string[]): EmbedLike {
+export function kundenKarte(k: Kunde, zustaendige?: string[], demo?: string | null): EmbedLike {
   const w = (n: string) => wert(k.props[n]);
   const fields: { name: string; value: string; inline: boolean }[] = [];
   const add = (name: string, value: string, inline = true) => {
@@ -159,6 +159,7 @@ export function kundenKarte(k: Kunde, zustaendige?: string[]): EmbedLike {
   add("Angebot", w("Angebot"));
   // Mit den Zuständigen aus dem Bot (Erwähnungen) steht das Feld immer da, sonst die Namen aus Notion.
   add("Zuständig", zustaendige ? alsMentions(zustaendige) : w("Zuständig"));
+  if (demo) add("Demo", demo, false);
   add("Fortschritt", prozent(w("Fortschritt (%)")));
   add("Zeit gesamt", stunden(w("Gesamtstunden")));
   add("Zahlungsstatus", w("Zahlungsstatus"));

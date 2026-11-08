@@ -9,8 +9,14 @@
 
 const SERVER = process.env.NTFY_SERVER?.trim() || "https://ntfy.sh";
 
-export async function pushe(titel: string, text: string, link?: string): Promise<{ gesetzt: boolean; laenge: number; status: number | null }> {
-  const topic = process.env.NTFY_TOPIC?.trim();
+export async function pushe(
+  titel: string,
+  text: string,
+  link?: string,
+  /** Anderer Sender als der des Teams (z. B. nur David). */
+  eigenerTopic?: string,
+): Promise<{ gesetzt: boolean; laenge: number; status: number | null }> {
+  const topic = eigenerTopic ?? process.env.NTFY_TOPIC?.trim();
   if (!topic) {
     console.warn(`[ntfy] NTFY_TOPIC fehlt, Push "${titel}" wird übersprungen`);
     return { gesetzt: false, laenge: 0, status: null };
@@ -36,4 +42,14 @@ export async function pushe(titel: string, text: string, link?: string): Promise
     console.error("[ntfy] Push fehlgeschlagen:", err);
     return { gesetzt: true, laenge: topic.length, status: null };
   }
+}
+
+/** Push nur an David (eigener Sender NTFY_TOPIC_DAVID). Fehlt er, wird nichts geschickt, nie an das Team. */
+export async function pusheDavid(titel: string, text: string, link?: string) {
+  const topic = process.env.NTFY_TOPIC_DAVID?.trim();
+  if (!topic) {
+    console.warn(`[ntfy] NTFY_TOPIC_DAVID fehlt, Push "${titel}" wird übersprungen`);
+    return { gesetzt: false, laenge: 0, status: null };
+  }
+  return pushe(titel, text, link, topic);
 }

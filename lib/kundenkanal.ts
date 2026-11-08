@@ -116,15 +116,16 @@ export const zustaendigHinweis = (ids: string[]) =>
 export async function gleicheZustaendigAb(
   token: string,
   kanal: string,
-  kunde: { notionUrl?: string | null; zustaendig?: string[]; status?: string },
+  kunde: { notionUrl?: string | null; zustaendig?: string[]; status?: string; demoStatus?: string | null },
 ): Promise<"ok" | "keine Karte" | "zurückgesetzt" | "Notion-Fehler"> {
   const karte = await findeKarte(token, kanal);
   if (!karte) return "keine Karte";
   const w = wahrheit(karte.embeds[0], kunde.zustaendig ?? []);
   const status = kunde.status ?? "";
   // Alte Karten und Karten, deren Knöpfe nicht zum Status passen (Status direkt in Notion geändert).
-  if (w.ausNotion || !knoepfePassen(karte.components, status)) {
-    await aendereKarte(token, kanal, karte.id, mitZustaendig(karte.embeds[0], w.ids), kartenKnoepfe(status));
+  const demo = kunde.demoStatus ?? null;
+  if (w.ausNotion || !knoepfePassen(karte.components, status, demo)) {
+    await aendereKarte(token, kanal, karte.id, mitZustaendig(karte.embeds[0], w.ids), kartenKnoepfe(status, demo));
   }
   if (!w.zuruecksetzen || !kunde.notionUrl) return "ok";
   if (!(await setzeZustaendig(kunde.notionUrl, w.ids))) return "Notion-Fehler";

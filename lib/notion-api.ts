@@ -307,6 +307,9 @@ export interface KundeKurz {
   geaendert?: string | null;
   /** Notion-IDs im Personenfeld „Zuständig“ */
   zustaendig?: string[];
+  /** „Demo-Status“ und „Demo-Link“ (Etappe 5) */
+  demoStatus?: string | null;
+  demoLink?: string | null;
 }
 
 /** Alle Kunden aus Notion (für die Auswahl "Bestehender Kunde?"), neueste zuerst. */
@@ -379,6 +382,8 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
           notionUrl: p.url ?? null,
           geaendert: p.last_edited_time ?? null,
           zustaendig: (props["Zuständig"]?.people ?? []).map((u) => u.id ?? "").filter(Boolean),
+          demoStatus: props["Demo-Status"]?.select?.name ?? null,
+          demoLink: props["Demo-Link"]?.url ?? null,
         });
       }
       if (!data.has_more || !data.next_cursor) break;

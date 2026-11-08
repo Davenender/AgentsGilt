@@ -22,14 +22,21 @@ export const zielKategorie = (status: string) => (status === VERLOREN ? ARCHIV_K
  * Knöpfe unter der Karte: „👥 Zuständige“, „📝 Gesprächsbogen“, „🧠 Gespräch auswerten“ und „⚪ Verloren“.
  * Im Archiv statt Auswerten und Verloren nur „↩️ Wieder aufnehmen“.
  */
-export function kartenKnoepfe(status: string) {
+export function kartenKnoepfe(status: string, demoStatus: string | null = null) {
+  // Solange eine Demo-Anfrage offen ist, ist „Demo anfragen“ gesperrt (keine doppelten Anfragen).
+  const demoGesperrt = demoStatus === "angefragt" || demoStatus === "bestätigt" || demoStatus === "in Arbeit";
   return [
     {
       type: 1,
       components: [
         { type: 2, style: 2, label: "Zuständige", emoji: { name: "👥" }, custom_id: "knd:zust" },
         { type: 2, style: 2, label: "Gesprächsbogen", emoji: { name: "📝" }, custom_id: "knd:bogen" },
-        ...(status === VERLOREN ? [] : [{ type: 2, style: 1, label: "Gespräch auswerten", emoji: { name: "🧠" }, custom_id: "knd:auswerten" }]),
+        ...(status === VERLOREN
+          ? []
+          : [
+              { type: 2, style: 1, label: "Gespräch auswerten", emoji: { name: "🧠" }, custom_id: "knd:auswerten" },
+              { type: 2, style: 2, label: "Demo anfragen", emoji: { name: "🎨" }, custom_id: "knd:demo", disabled: demoGesperrt },
+            ]),
         status === VERLOREN
           ? { type: 2, style: 3, label: "Wieder aufnehmen", emoji: { name: "↩️" }, custom_id: "knd:wieder" }
           : { type: 2, style: 2, label: "Verloren", emoji: { name: "⚪" }, custom_id: "knd:verloren" },
@@ -40,11 +47,14 @@ export function kartenKnoepfe(status: string) {
 
 const knopfIds = (components: unknown) =>
   JSON.stringify(
-    ((components ?? []) as { components?: { custom_id?: string }[] }[]).flatMap((r) => (r.components ?? []).map((c) => c.custom_id ?? "")),
+    ((components ?? []) as { components?: { custom_id?: string; disabled?: boolean }[] }[]).flatMap((r) =>
+      (r.components ?? []).map((c) => `${c.custom_id ?? ""}${c.disabled ? ":aus" : ""}`),
+    ),
   );
 
-/** Stehen an der Karte schon die richtigen Knöpfe für diesen Status? */
-export const knoepfePassen = (components: unknown, status: string) => knopfIds(components) === knopfIds(kartenKnoepfe(status));
+/** Stehen an der Karte schon die richtigen Knöpfe für diesen Status (und Demo-Stand)? */
+export const knoepfePassen = (components: unknown, status: string, demoStatus: string | null = null) =>
+  knopfIds(components) === knopfIds(kartenKnoepfe(status, demoStatus));
 
 /** Schritt 1 nach „⚪ Verloren“: Grund auswählen (nur für die Person sichtbar). */
 export const verlustMenue = (kartenId: string) => [

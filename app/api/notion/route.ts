@@ -13,6 +13,7 @@ import {
 import { call, postKarte } from "@/lib/leads";
 import { findeKarte, legeKundenkanalAn, ordneKanalEin, zustaendigHinweis } from "@/lib/kundenkanal";
 import { kartenKnoepfe, knoepfePassen } from "@/lib/kundenablauf";
+import { demoFeldAusNotion } from "@/lib/demo";
 import { holeKundenNr, seitenId, setzeZustaendig } from "@/lib/notion-api";
 import { ausKarte, wahrheit } from "@/lib/zustaendige";
 import type { Kunde } from "@/lib/notion-kunden";
@@ -124,7 +125,8 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
   }
   // „Verloren“ liegt im KUNDENARCHIV, alles andere unter KUNDEN (auch wenn der Status direkt in Notion geändert wurde).
   if (kanal && token && statusPunkt(status)) await ordneKanalEin(token, kanal, status);
-  const knoepfe = kartenKnoepfe(status);
+  const demoStatus = wert(kunde.props["Demo-Status"]) || null;
+  const knoepfe = kartenKnoepfe(status, demoStatus);
   if (!kanal) {
     return {
       res: NextResponse.json({ error: "Kanal nicht verfügbar" }, { status: 502 }),
@@ -140,7 +142,8 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
   const zust = kunde.props["Zuständig"]
     ? wahrheit(alt?.embeds[0] ?? null, kunde.props["Zuständig"])
     : { ids: ausKarte(alt?.embeds[0]), zuruecksetzen: false, ausNotion: false };
-  const karte = kundenKarte(kunde, zust.ids ?? undefined);
+  // Demo-Feld aus Notion; wer wann angefragt hat, steht nur in der Karte und bleibt erhalten.
+  const karte = kundenKarte(kunde, zust.ids ?? undefined, demoFeldAusNotion(demoStatus ?? "", wert(kunde.props["Demo-Link"]), alt?.embeds[0]));
   const notionSeite = kunde.url ?? seite;
   if (zust.zuruecksetzen && zust.ids && notionSeite && (await setzeZustaendig(notionSeite, zust.ids))) {
     await postText(token, kanal, zustaendigHinweis(zust.ids));
@@ -150,7 +153,7 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
     const aender = aenderungen(alt.embeds[0], karte);
     if (aender.length === 0) {
       // Alte Karte ohne Knopf oder mit Namen statt Erwähnungen: still erneuern.
-      if (!knoepfePassen(alt.components, status) || zust.ausNotion) {
+      if (!knoepfePassen(alt.components, status, demoStatus) || zust.ausNotion) {
         await editMessage(token, kanal, alt.id, { embeds: [karte], components: knoepfe });
       }
       return {
