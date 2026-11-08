@@ -154,6 +154,31 @@ export async function setzeZustaendig(notionUrl: string, zustaendig: string[]): 
   }
 }
 
+/**
+ * Kundenkarte „Verloren“ / „Wieder aufnehmen“: setzt den Status und den Verlustgrund
+ * (null = Verlustgrund leeren, undefined = nicht anfassen).
+ */
+export async function setzeStatus(notionUrl: string, status: string, verlustgrund?: string | null): Promise<boolean> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const seite = seitenId(notionUrl);
+  if (!token || !seite) return false;
+  const properties: Record<string, unknown> = { Status: { select: { name: status } } };
+  if (verlustgrund !== undefined) properties.Verlustgrund = { select: verlustgrund ? { name: verlustgrund } : null };
+  try {
+    const res = await fetch(`https://api.notion.com/v1/pages/${seite}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28", "Content-Type": "application/json" },
+      body: JSON.stringify({ properties }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) console.error(`[notion] Status setzen fehlgeschlagen: HTTP ${res.status}`);
+    return res.ok;
+  } catch (err) {
+    console.error("[notion] Status setzen fehlgeschlagen:", err);
+    return false;
+  }
+}
+
 /** Zahlungsmeldung von Stripe: setzt nur das Feld „Zahlungsstatus“ einer Kundenzeile. */
 export async function setzeZahlungsstatus(notionUrl: string, status: "Bezahlt" | "Offen"): Promise<boolean> {
   const token = process.env.NOTION_TOKEN?.trim();

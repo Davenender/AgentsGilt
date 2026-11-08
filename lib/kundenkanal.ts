@@ -2,7 +2,8 @@ import { createTextChannel, findCategoryId, listMessages, postText } from "@/lib
 import { aendereKarte, call, teamRolle } from "@/lib/leads";
 import { setzeZustaendig } from "@/lib/notion-api";
 import { CARD_MARKER } from "@/lib/notion-kunden";
-import { alsMentions, bit, kanalRechte, KARTEN_KNOEPFE, mitZustaendig, SPERRE, wahrheit, type Overwrite } from "@/lib/zustaendige";
+import { alsMentions, bit, kanalRechte, mitZustaendig, SPERRE, wahrheit, type Overwrite } from "@/lib/zustaendige";
+import { kartenKnoepfe, knoepfePassen, zielKategorie } from "@/lib/kundenablauf";
 
 // Kundenkanäle (🔴knd_00X): nur der Bot schreibt dort (Karte und Änderungszeilen), alle anderen
 // lesen und drücken Knöpfe. Wer zuständig ist, steht in der Karte und gilt auch für Notion.
@@ -57,7 +58,23 @@ export async function findeKarte(token: string, kanal: string) {
   return messages.find((m) => m.author.bot && m.embeds[0]?.footer?.text?.startsWith(CARD_MARKER)) ?? null;
 }
 
-export const hatKnopf = (components: unknown[] | undefined) => JSON.stringify(components ?? []).includes("knd:zust");
+/**
+ * Schiebt den Kanal in die Kategorie, die zum Status passt: „Verloren“ ins KUNDENARCHIV, sonst nach
+ * KUNDEN. Fehlt die Kategorie, wird sie angelegt. Die Kanalrechte bleiben dabei, wie sie sind.
+ */
+export async function ordneKanalEin(token: string, kanal: string, status: string): Promise<boolean> {
+  const ziel = zielKategorie(status);
+  const [info, alle] = await Promise.all([
+    call<{ parent_id?: string | null }>(token, "GET", `/channels/${kanal}`),
+    call<{ id: string; name: string; type: number }[]>(token, "GET", `/guilds/${GUILD_ID}/channels`),
+  ]);
+  if (!info || !alle) return false;
+  let kategorie = alle.find((c) => c.type === 4 && c.name.toLowerCase() === ziel.toLowerCase())?.id;
+  if (info.parent_id && info.parent_id === kategorie) return true;
+  if (!kategorie) kategorie = (await call<{ id: string }>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: ziel, type: 4 }))?.id;
+  if (!kategorie) return false;
+  return (await call(token, "PATCH", `/channels/${kanal}`, { parent_id: kategorie, lock_permissions: false })) !== null;
+}
 
 export const zustaendigHinweis = (ids: string[]) =>
   `↩️ **Zuständig** in Notion passte nicht zur Karte und ist wieder: ${alsMentions(ids)}. Ändern geht nur über den Knopf „👥 Zuständige“ an der Karte.`;
@@ -69,13 +86,15 @@ export const zustaendigHinweis = (ids: string[]) =>
 export async function gleicheZustaendigAb(
   token: string,
   kanal: string,
-  kunde: { notionUrl?: string | null; zustaendig?: string[] },
+  kunde: { notionUrl?: string | null; zustaendig?: string[]; status?: string },
 ): Promise<"ok" | "keine Karte" | "zurückgesetzt" | "Notion-Fehler"> {
   const karte = await findeKarte(token, kanal);
   if (!karte) return "keine Karte";
   const w = wahrheit(karte.embeds[0], kunde.zustaendig ?? []);
-  if (w.ausNotion || !hatKnopf(karte.components)) {
-    await aendereKarte(token, kanal, karte.id, mitZustaendig(karte.embeds[0], w.ids), KARTEN_KNOEPFE);
+  const status = kunde.status ?? "";
+  // Alte Karten und Karten, deren Knöpfe nicht zum Status passen (Status direkt in Notion geändert).
+  if (w.ausNotion || !knoepfePassen(karte.components, status)) {
+    await aendereKarte(token, kanal, karte.id, mitZustaendig(karte.embeds[0], w.ids), kartenKnoepfe(status));
   }
   if (!w.zuruecksetzen || !kunde.notionUrl) return "ok";
   if (!(await setzeZustaendig(kunde.notionUrl, w.ids))) return "Notion-Fehler";

@@ -12,7 +12,6 @@ import {
   gleich,
   idsAusNotionProp,
   kanalRechte,
-  KARTEN_KNOEPFE,
   mitZustaendig,
   NIEMAND,
   notionIdFuer,
@@ -24,6 +23,7 @@ import {
   zustaendigZeile,
 } from "../lib/zustaendige.ts";
 import { aenderungen, kundenKarte, type Kunde } from "../lib/notion-kunden.ts";
+import { kartenKnoepfe } from "../lib/kundenablauf.ts";
 
 const DAVID = "806859236768088114";
 const JAKOB = "523479048727560205";
@@ -115,7 +115,7 @@ test("Karte: Feld wird ersetzt oder hinter Angebot eingefügt", () => {
 });
 
 test("Knopf und Auswahlmenü", () => {
-  const knopf = KARTEN_KNOEPFE[0].components[0];
+  const knopf = kartenKnoepfe("Lead")[0].components[0];
   assert.equal(knopf.custom_id, "knd:zust");
   assert.equal(knopf.type, 2);
   const menue = auswahlMenue("1234", [JAKOB]);

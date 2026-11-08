@@ -11,9 +11,10 @@ import {
   wert,
 } from "@/lib/notion-kunden";
 import { call, postKarte } from "@/lib/leads";
-import { findeKarte, hatKnopf, legeKundenkanalAn, zustaendigHinweis } from "@/lib/kundenkanal";
+import { findeKarte, legeKundenkanalAn, ordneKanalEin, zustaendigHinweis } from "@/lib/kundenkanal";
+import { kartenKnoepfe, knoepfePassen } from "@/lib/kundenablauf";
 import { holeKundenNr, seitenId, setzeZustaendig } from "@/lib/notion-api";
-import { ausKarte, KARTEN_KNOEPFE, wahrheit } from "@/lib/zustaendige";
+import { ausKarte, wahrheit } from "@/lib/zustaendige";
 import type { Kunde } from "@/lib/notion-kunden";
 
 export const runtime = "nodejs";
@@ -121,6 +122,9 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
     // Farbpunkt vor dem Kanalnamen an den Status anpassen (🔴knd_004 -> 🟡knd_004).
     await setzeKanalName(token, kanal, mitPunkt);
   }
+  // „Verloren“ liegt im KUNDENARCHIV, alles andere unter KUNDEN (auch wenn der Status direkt in Notion geändert wurde).
+  if (kanal && token && statusPunkt(status)) await ordneKanalEin(token, kanal, status);
+  const knoepfe = kartenKnoepfe(status);
   if (!kanal) {
     return {
       res: NextResponse.json({ error: "Kanal nicht verfügbar" }, { status: 502 }),
@@ -146,15 +150,15 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
     const aender = aenderungen(alt.embeds[0], karte);
     if (aender.length === 0) {
       // Alte Karte ohne Knopf oder mit Namen statt Erwähnungen: still erneuern.
-      if (!hatKnopf(alt.components) || zust.ausNotion) {
-        await editMessage(token, kanal, alt.id, { embeds: [karte], components: KARTEN_KNOEPFE });
+      if (!knoepfePassen(alt.components, status) || zust.ausNotion) {
+        await editMessage(token, kanal, alt.id, { embeds: [karte], components: knoepfe });
       }
       return {
         res: NextResponse.json({ ok: true, geaendert: 0 }),
         protokoll: `${kunde.nr} · ${kunde.name}: Notion-Meldung erhalten, nichts Wichtiges geändert.`,
       };
     }
-    await editMessage(token, kanal, alt.id, { embeds: [karte], components: KARTEN_KNOEPFE });
+    await editMessage(token, kanal, alt.id, { embeds: [karte], components: knoepfe });
     await postText(token, kanal, `🔄 ${aender.join("\n")}`);
     return {
       res: NextResponse.json({ ok: true, geaendert: aender.length }),
@@ -162,7 +166,7 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
     };
   }
 
-  if (token) await postKarte(token, kanal, karte, KARTEN_KNOEPFE);
+  if (token) await postKarte(token, kanal, karte, knoepfe);
   console.log(`[notion] Karte für ${kunde.nr} angelegt${neu ? " (neuer Kanal)" : ""}`);
   return {
     res: NextResponse.json({ ok: true, neu }),

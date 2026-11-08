@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findChannelId, setzeKanalName } from "@/lib/discord";
-import { gleicheZustaendigAb, sperreKundenkanal } from "@/lib/kundenkanal";
+import { gleicheZustaendigAb, ordneKanalEin, sperreKundenkanal } from "@/lib/kundenkanal";
 import { listeKunden } from "@/lib/notion-api";
 import { kanalName, kanalNameMitPunkt, statusPunkt } from "@/lib/notion-kunden";
 import { zeitplanGebremst } from "@/lib/zeitplan";
@@ -17,6 +17,7 @@ export const maxDuration = 60;
 // Außerdem je Kundenkanal (Plan 1, Etappe 1):
 //   - Kanalrechte: nur der Bot schreibt, alle anderen lesen und drücken Knöpfe.
 //   - Karte: alte Karten bekommen das Feld „Zuständig“ (Erwähnungen) und den Knopf „👥 Zuständige“.
+//   - Kategorie: „Verloren“ liegt im KUNDENARCHIV, alles andere unter KUNDEN; die Knöpfe passen zum Status.
 //   - Zuständig: Die Karte gilt. Wurde das Feld in Notion von Hand geändert, wird es zurückgesetzt.
 // Der Aufruf braucht kein Geheimnis: Er stellt nur den gültigen Stand wieder her.
 
@@ -37,6 +38,7 @@ async function laufen() {
     if (!kanal) continue;
     geprueft++;
     if (statusPunkt(k.status) && !(await setzeKanalName(token, kanal, kanalNameMitPunkt(k.nr, k.status)))) fehler++;
+    if (statusPunkt(k.status) && !(await ordneKanalEin(token, kanal, k.status))) fehler++;
     if (await sperreKundenkanal(token, kanal)) gesperrt++;
     else fehler++;
     const z = await gleicheZustaendigAb(token, kanal, k);

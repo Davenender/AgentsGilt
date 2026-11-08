@@ -88,13 +88,6 @@ export function mitZustaendig(karte: EmbedLike, ids: string[]): EmbedLike {
   return { ...karte, fields };
 }
 
-export const KARTEN_KNOEPFE = [
-  {
-    type: 1,
-    components: [{ type: 2, style: 2, label: "Zuständige", emoji: { name: "👥" }, custom_id: "knd:zust" }],
-  },
-];
-
 /** Auswahl der Zuständigen (nur für die Person sichtbar). */
 export const auswahlMenue = (kartenId: string, aktuell: string[]) => [
   {

@@ -155,6 +155,7 @@ export function kundenKarte(k: Kunde, zustaendige?: string[]): EmbedLike {
   };
 
   add("Status", w("Status"));
+  add("Verlustgrund", w("Verlustgrund"));
   add("Angebot", w("Angebot"));
   // Mit den Zuständigen aus dem Bot (Erwähnungen) steht das Feld immer da, sonst die Namen aus Notion.
   add("Zuständig", zustaendige ? alsMentions(zustaendige) : w("Zuständig"));
