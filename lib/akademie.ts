@@ -1,6 +1,6 @@
 import type { EmbedLike } from "@/lib/discord-calls";
 import type { RohBlock } from "./gespraech.ts";
-import { BOT_DARF, CHEF_ID, SPERRE, type Overwrite } from "./zustaendige.ts";
+import { BOT_DARF, CHEF_ID, SPERRE, TEAM, type Overwrite } from "./zustaendige.ts";
 
 // Akademie in Discord (Plan 2). Reine Logik ohne Netz, damit sie getestet werden kann.
 //
@@ -36,7 +36,7 @@ const text = (v: unknown) => ((v as { plain_text?: string }[] | undefined) ?? []
 export function lektionAusNotion(seite: { id: string; url?: string; properties?: Record<string, NotionProp> }): Lektion | null {
   const p = seite.properties ?? {};
   const nr = text(p["Nr"]?.rich_text);
-  if (!nr) return null;
+  if (!nr || (p["Art"]?.select as { name?: string } | null)?.name === "Testfrage") return null;
   const zahl = (n: string) => (typeof p[n]?.number === "number" ? (p[n].number as number) : null);
   return {
     id: seite.id,
@@ -112,6 +112,45 @@ export function lektionText(bloecke: RohBlock[]): string {
   return out.trim();
 }
 
+export interface Testfrage {
+  id: string;
+  nr: string;
+  einheit: number;
+  frage: string;
+  antworten: string[];
+  richtig: "A" | "B" | "C" | "D";
+  zuLektion: string | null;
+  erklaerung: string | null;
+  fuer: ("Team" | "David")[];
+  freigegeben: boolean;
+  reihenfolge: number;
+}
+
+const BUCHSTABEN = ["A", "B", "C", "D"] as const;
+
+/** Eine Testfrage aus der Akademie-Datenbank (Art = Testfrage), sonst null. */
+export function frageAusNotion(seite: { id: string; properties?: Record<string, NotionProp> }): Testfrage | null {
+  const p = seite.properties ?? {};
+  if ((p["Art"]?.select as { name?: string } | null)?.name !== "Testfrage") return null;
+  const nr = text(p["Nr"]?.rich_text);
+  const richtig = (p["Richtig"]?.select as { name?: string } | null)?.name;
+  const antworten = BUCHSTABEN.map((b) => text(p[`Antwort ${b}`]?.rich_text)).filter(Boolean);
+  if (!nr || !richtig || !BUCHSTABEN.includes(richtig as "A") || antworten.length < 2) return null;
+  return {
+    id: seite.id,
+    nr,
+    einheit: typeof p["Einheit"]?.number === "number" ? (p["Einheit"].number as number) : Number(nr.replace(/^\D+/, "").split(".")[0]) || 0,
+    frage: text(p["Titel"]?.title),
+    antworten,
+    richtig: richtig as Testfrage["richtig"],
+    zuLektion: text(p["Zu Lektion"]?.rich_text) || null,
+    erklaerung: text(p["Erklärung"]?.rich_text) || null,
+    fuer: ((p["Für"]?.multi_select as { name: string }[] | undefined) ?? []).map((o) => o.name).filter((n): n is "Team" | "David" => n === "Team" || n === "David"),
+    freigegeben: p["Freigegeben"]?.checkbox === true,
+    reihenfolge: typeof p["Reihenfolge"]?.number === "number" ? (p["Reihenfolge"].number as number) : 9999,
+  };
+}
+
 // ------------------------------------------------------------- Lernpfad
 
 /** Die Lektionen im Pfad: Team nur Freigegebenes, David alles (auch Entwürfe und seine eigenen). */
@@ -121,17 +160,50 @@ export function pfadLektionen(alle: Lektion[], rolle: Rolle): Lektion[] {
     .sort((a, b) => a.reihenfolge - b.reihenfolge || a.nr.localeCompare(b.nr, "de", { numeric: true }));
 }
 
-export function stand(pfad: Lektion[], gelesen: Set<string>) {
+export type Schritt =
+  | { art: "lektion"; lektion: Lektion }
+  | { art: "test"; einheit: number; einheitName: string; fragen: Testfrage[]; entwurf: boolean };
+
+export const schrittId = (s: Schritt) => (s.art === "lektion" ? s.lektion.id : `test:${s.einheit}`);
+const testName = (einheit: number) => `📝 Test Einheit ${einheit}`;
+
+/** Lektionen und Tests in Reihenfolge: Nach der letzten Lektion einer Einheit kommt ihr Test (wenn es Fragen gibt). */
+export function schritte(pfad: Lektion[], fragen: Testfrage[], rolle: Rolle): Schritt[] {
+  const sichtbar = fragen
+    .filter((f) => (rolle === "david" ? true : f.fuer.includes("Team") && f.freigegeben))
+    .sort((a, b) => a.reihenfolge - b.reihenfolge || a.nr.localeCompare(b.nr, "de", { numeric: true }));
+  const out: Schritt[] = [];
+  pfad.forEach((l, i) => {
+    out.push({ art: "lektion", lektion: l });
+    const naechste = pfad[i + 1];
+    if (!naechste || naechste.einheit !== l.einheit) {
+      const f = sichtbar.filter((x) => x.einheit === l.einheit);
+      if (f.length) out.push({ art: "test", einheit: l.einheit, einheitName: l.einheitName, fragen: f, entwurf: f.some((x) => !x.freigegeben) });
+    }
+  });
+  return out;
+}
+
+type Hat = { has(k: string): boolean };
+
+export function standSchritte(sch: Schritt[], gelesen: Hat, bestanden: Set<number>) {
   const status: Record<string, "fertig" | "jetzt" | "gesperrt"> = {};
-  let aktuelle: Lektion | null = null;
-  for (const l of pfad) {
-    if (gelesen.has(l.id)) status[l.id] = "fertig";
+  let aktuelle: Schritt | null = null;
+  for (const s of sch) {
+    const erledigt = s.art === "lektion" ? gelesen.has(s.lektion.id) : bestanden.has(s.einheit);
+    if (erledigt) status[schrittId(s)] = "fertig";
     else if (!aktuelle) {
-      aktuelle = l;
-      status[l.id] = "jetzt";
-    } else status[l.id] = "gesperrt";
+      aktuelle = s;
+      status[schrittId(s)] = "jetzt";
+    } else status[schrittId(s)] = "gesperrt";
   }
-  return { status, aktuelle, fertig: pfad.filter((l) => gelesen.has(l.id)).length };
+  return { status, aktuelle, fertig: sch.filter((s) => status[schrittId(s)] === "fertig").length, gesamt: sch.length };
+}
+
+/** Für die Tests der ersten Etappe: Stand nur aus Lektionen. */
+export function stand(pfad: Lektion[], gelesen: Hat) {
+  const s = standSchritte(pfad.map((lektion) => ({ art: "lektion" as const, lektion })), gelesen, new Set());
+  return { status: s.status, aktuelle: s.aktuelle?.art === "lektion" ? s.aktuelle.lektion : null, fertig: s.fertig };
 }
 
 export function fortschrittBalken(fertig: number, gesamt: number, breite = 10): string {
@@ -140,28 +212,31 @@ export function fortschrittBalken(fertig: number, gesamt: number, breite = 10): 
 }
 
 const WEITER_KNOPF = { type: 2, style: 1, label: "Weiterlernen", emoji: { name: "📖" }, custom_id: "ak:weiter" };
+const ENTWURF = " ✏️";
 
 /** Die Karte oben im Lernpfad-Kanal. */
-export function pfadKarte(name: string, pfad: Lektion[], gelesen: Set<string>) {
-  const s = stand(pfad, gelesen);
+export function pfadKarte(name: string, sch: Schritt[], gelesen: Hat, bestanden: Set<number>) {
+  const s = standSchritte(sch, gelesen, bestanden);
   const zeilen: string[] = [];
   let einheit = "";
-  for (const l of pfad) {
-    if (l.einheitName !== einheit) {
-      einheit = l.einheitName;
+  for (const x of sch) {
+    const en = x.art === "lektion" ? x.lektion.einheitName : x.einheitName;
+    if (en !== einheit) {
+      einheit = en;
       zeilen.push(`${zeilen.length ? "\n" : ""}**${einheit}**`);
     }
-    const entwurf = l.freigegeben ? "" : " 📝";
-    const st = s.status[l.id];
-    zeilen.push(st === "fertig" ? `✅ ${l.nr} ${l.titel}${entwurf}` : st === "jetzt" ? `📖 **${l.nr} ${l.titel}** ← jetzt dran${entwurf}` : `🔒 ${l.nr} ${l.titel}${entwurf}`);
+    const titel = x.art === "lektion" ? `${x.lektion.nr} ${x.lektion.titel}` : testName(x.einheit);
+    const entwurf = (x.art === "lektion" ? !x.lektion.freigegeben : x.entwurf) ? ENTWURF : "";
+    const st = s.status[schrittId(x)];
+    zeilen.push(st === "fertig" ? `✅ ${titel}${entwurf}` : st === "jetzt" ? `📖 **${titel}** ← jetzt dran${entwurf}` : `🔒 ${titel}${entwurf}`);
   }
   return {
     embeds: [
       {
         title: `📖 Lernpfad von ${name}`,
         color: FARBE,
-        description: `${fortschrittBalken(s.fertig, pfad.length)}\n\n${zeilen.join("\n") || "Noch keine Lektionen."}`.slice(0, 4000),
-        footer: { text: s.aktuelle ? "Mit „📖 Weiterlernen“ geht es weiter." : pfad.length ? "Alles gelesen. Neue Lektionen kommen hier dazu." : "Bald geht es los." },
+        description: `${fortschrittBalken(s.fertig, s.gesamt)}\n\n${zeilen.join("\n") || "Noch keine Lektionen."}`.slice(0, 4000),
+        footer: { text: s.aktuelle ? "Mit „📖 Weiterlernen“ geht es weiter." : sch.length ? "Alles geschafft. Neue Lektionen kommen hier dazu." : "Bald geht es los." },
       } as EmbedLike,
     ],
     components: [{ type: 1, components: [WEITER_KNOPF] }],
@@ -185,69 +260,166 @@ export function seiten(t: string, max = 3500): string[] {
   return out.length ? out : ["(Diese Lektion ist noch leer.)"];
 }
 
-/** Eine Seite einer Lektion mit Blättern; „Gelesen“ gibt es nur auf der letzten Seite. */
-export function lektionsAnsicht(l: Lektion, s: string[], i: number, entwurf: boolean) {
+export const ANZEIGE = "📚 Anzeige";
+
+/**
+ * Eine Seite einer Lektion. Modus „lernen“: Gelesen auf der letzten Seite. „lesen“: Nachlesen nach einem Test,
+ * danach weiter. „bib“: Anzeige in der Bibliothek für alle im Kanal, mit Schließen.
+ */
+export function lektionsAnsicht(l: Lektion, s: string[], i: number, entwurf: boolean, modus: "lernen" | "lesen" | "bib" = "lernen") {
   const letzte = i >= s.length - 1;
+  const p = modus === "lernen" ? "s" : modus === "lesen" ? "z" : "b";
+  const fuss =
+    modus === "bib"
+      ? `${ANZEIGE} · Seite ${i + 1} von ${s.length} · verschwindet nach etwa einer Stunde`
+      : `${l.einheitName} · Seite ${i + 1} von ${s.length}${l.minuten ? ` · etwa ${l.minuten} Min.` : ""}${entwurf ? " · ✏️ Entwurf, noch nicht freigegeben" : ""}`;
+  const zurueck = { type: 2, style: 2, label: "◀ Zurück", custom_id: `ak:${p}:${l.id}:${Math.max(0, i - 1)}`, disabled: i === 0 };
+  const weiter = { type: 2, style: 1, label: "Weiter ▶", custom_id: `ak:${p}:${l.id}:${i + 1}`, disabled: letzte };
+  const knoepfe =
+    modus === "bib"
+      ? [zurueck, weiter, { type: 2, style: 4, label: "Schließen", custom_id: "ak:bx" }]
+      : !letzte
+        ? [zurueck, weiter]
+        : modus === "lernen"
+          ? [zurueck, { type: 2, style: 3, label: "Gelesen", emoji: { name: "✅" }, custom_id: `ak:g:${l.id}` }]
+          : [zurueck, WEITER_KNOPF];
   return {
+    embeds: [{ title: `${l.nr} · ${l.titel}`, color: FARBE, description: s[i] ?? "", footer: { text: fuss } } as EmbedLike],
+    components: [{ type: 1, components: knoepfe }],
+  };
+}
+
+export function gelesenAnsicht(l: Lektion, naechste: string | null) {
+  return {
+    content: `✅ **${l.nr} ${l.titel}** gelesen und in deiner Bibliothek abgelegt.${naechste ? `\nAls Nächstes: **${naechste}**` : "\nDas war alles, was gerade frei ist."}`,
+    embeds: [],
+    components: naechste ? [{ type: 1, components: [WEITER_KNOPF] }] : [],
+  };
+}
+
+export const schrittLabel = (s: Schritt | null) => (!s ? null : s.art === "lektion" ? `${s.lektion.nr} ${s.lektion.titel}` : testName(s.einheit));
+
+// ----------------------------------------------------------------- Tests
+
+export const BESTEHEN = 80;
+
+/** Eine Frage des Tests. Die bisherigen Antworten stecken im Knopf (z. B. „ak:t:1:BC“). */
+export function frageAnsicht(einheitName: string, fragen: Testfrage[], antworten: string) {
+  const i = antworten.length;
+  const f = fragen[i];
+  const einheit = fragen[0]?.einheit ?? 0;
+  return {
+    content: "",
     embeds: [
       {
-        title: `${l.nr} · ${l.titel}`,
-        color: FARBE,
-        description: s[i] ?? "",
-        footer: { text: `${l.einheitName} · Seite ${i + 1} von ${s.length}${l.minuten ? ` · etwa ${l.minuten} Min.` : ""}${entwurf ? " · 📝 Entwurf, noch nicht freigegeben" : ""}` },
+        title: `📝 Test · ${einheitName} · Frage ${i + 1} von ${fragen.length}`,
+        color: 0xf59e0b,
+        description: `${f.frage}\n\n${f.antworten.map((a, j) => `**${BUCHSTABEN[j]})** ${a}`).join("\n")}`,
+        footer: { text: `Ab ${BESTEHEN} % bestanden.` },
       } as EmbedLike,
     ],
+    components: [{ type: 1, components: f.antworten.map((_, j) => ({ type: 2, style: 2, label: BUCHSTABEN[j], custom_id: `ak:t:${einheit}:${antworten}${BUCHSTABEN[j]}` })) }],
+  };
+}
+
+export function auswertung(fragen: Testfrage[], antworten: string) {
+  const falsch = fragen.filter((f, i) => antworten[i] !== f.richtig);
+  const richtig = fragen.length - falsch.length;
+  const prozent = fragen.length ? Math.round((richtig / fragen.length) * 100) : 0;
+  return { richtig, gesamt: fragen.length, prozent, bestanden: prozent >= BESTEHEN, falsch };
+}
+
+export function ergebnisAnsicht(a: ReturnType<typeof auswertung>, lektionen: Lektion[], einheit: number) {
+  if (a.bestanden) {
+    return {
+      content: `✅ **Bestanden!** ${a.prozent} % (${a.richtig} von ${a.gesamt}). Die nächste Einheit ist frei.${a.falsch.length ? `\n\nDaneben lagst du bei: ${a.falsch.map((f) => `„${f.frage}“ (richtig: ${f.richtig})`).join(", ")}` : ""}`,
+      embeds: [],
+      components: [{ type: 1, components: [WEITER_KNOPF] }],
+    };
+  }
+  const nach = [...new Set(a.falsch.map((f) => f.zuLektion).filter((x): x is string => Boolean(x)))]
+    .map((nr) => lektionen.find((l) => l.nr === nr))
+    .filter((l): l is Lektion => Boolean(l));
+  const fehler = a.falsch
+    .map((f) => `• ${f.frage} → richtig: **${f.richtig})** ${f.antworten[BUCHSTABEN.indexOf(f.richtig)] ?? ""}${f.erklaerung ? `. ${f.erklaerung}` : ""}`)
+    .join("\n");
+  return {
+    content:
+      `❌ **Noch nicht bestanden:** ${a.prozent} % (${a.richtig} von ${a.gesamt}). Du brauchst ${BESTEHEN} %.\n\n**Daneben:**\n${fehler}` +
+      (nach.length ? `\n\nLies am besten nochmal nach: ${nach.map((l) => `**${l.nr} ${l.titel}**`).join(", ")}` : "") +
+      "\nDanach kannst du den Test sofort wiederholen.",
+    embeds: [],
     components: [
       {
         type: 1,
         components: [
-          { type: 2, style: 2, label: "◀ Zurück", custom_id: `ak:s:${l.id}:${Math.max(0, i - 1)}`, disabled: i === 0 },
-          letzte
-            ? { type: 2, style: 3, label: "Gelesen", emoji: { name: "✅" }, custom_id: `ak:g:${l.id}` }
-            : { type: 2, style: 1, label: "Weiter ▶", custom_id: `ak:s:${l.id}:${i + 1}` },
+          ...nach.slice(0, 4).map((l) => ({ type: 2, style: 2, label: `${l.nr} nochmal lesen`.slice(0, 80), emoji: { name: "📖" }, custom_id: `ak:z:${l.id}:0` })),
+          { type: 2, style: 1, label: "Test wiederholen", emoji: { name: "🔁" }, custom_id: `ak:t:${einheit}:` },
         ],
       },
     ],
   };
 }
 
-export function gelesenAnsicht(l: Lektion, naechste: Lektion | null) {
-  return {
-    content: `✅ **${l.nr} ${l.titel}** gelesen und in deiner Bibliothek abgelegt.${naechste ? `\nAls Nächstes: **${naechste.nr} ${naechste.titel}**` : "\nDas war die letzte Lektion, die gerade frei ist."}`,
-    embeds: [],
-    components: naechste ? [{ type: 1, components: [WEITER_KNOPF] }] : [],
-  };
-}
-
 // ------------------------------------------------------------ Bibliothek
 
-/** Eine gelesene Lektion als Eintrag in der Bibliothek (eine Karte pro Seite). */
-export function bibliothekEmbeds(l: Lektion, s: string[]): EmbedLike[] {
-  return s.map((seite, i) => ({
-    ...(i === 0 ? { title: `${l.nr} · ${l.titel}` } : {}),
-    color: FARBE,
-    description: seite,
-    ...(i === s.length - 1 ? { footer: { text: l.einheitName } } : {}),
-  }));
-}
-
-export function inhaltsverzeichnis(name: string, eintraege: { nr: string; titel: string; einheitName: string; link: string }[]): EmbedLike {
-  const sortiert = [...eintraege].sort((a, b) => a.nr.localeCompare(b.nr, "de", { numeric: true }));
+/** Inhaltsverzeichnis der gelesenen Lektionen mit Auswahl zum Anzeigen und Suchknopf. */
+export function bibliothekKarte(name: string, gelesen: Lektion[]) {
+  const sortiert = [...gelesen].sort((a, b) => a.reihenfolge - b.reihenfolge || a.nr.localeCompare(b.nr, "de", { numeric: true }));
   const zeilen: string[] = [];
   let einheit = "";
-  for (const e of sortiert) {
-    if (e.einheitName !== einheit) {
-      einheit = e.einheitName;
+  for (const l of sortiert) {
+    if (l.einheitName !== einheit) {
+      einheit = l.einheitName;
       zeilen.push(`${zeilen.length ? "\n" : ""}**${einheit}**`);
     }
-    zeilen.push(`[${e.nr} ${e.titel}](${e.link})`);
+    zeilen.push(`${l.nr} ${l.titel}`);
   }
+  const suchen = { type: 1, components: [{ type: 2, style: 2, label: "Suchen", emoji: { name: "🔎" }, custom_id: "ak:bs" }] };
+  const einheiten = [...new Map(sortiert.map((l) => [l.einheit, l.einheitName])).entries()];
+  const auswahl = !sortiert.length
+    ? []
+    : sortiert.length <= 25
+      ? [{ type: 1, components: [{ type: 3, custom_id: "ak:bw", placeholder: "Lektion anzeigen …", options: sortiert.map((l) => ({ label: `${l.nr} ${l.titel}`.slice(0, 100), value: l.id })) }] }]
+      : [{ type: 1, components: [{ type: 3, custom_id: "ak:be", placeholder: "Einheit wählen …", options: einheiten.slice(0, 25).map(([e, n]) => ({ label: n.slice(0, 100), value: String(e) })) }] }];
   return {
-    title: `📚 Bibliothek von ${name}`,
-    color: FARBE,
-    description: (zeilen.length ? zeilen.join("\n") : "Noch nichts gelesen. Jede gelesene Lektion landet hier.").slice(0, 4000),
-    footer: { text: "Klick auf eine Lektion springt hin. Suchen: Discord-Suche oben rechts." },
+    embeds: [
+      {
+        title: `📚 Bibliothek von ${name}`,
+        color: FARBE,
+        description: (zeilen.length ? zeilen.join("\n") : "Noch nichts gelesen. Jede gelesene Lektion steht dann hier.").slice(0, 4000),
+        footer: { text: "Lektion auswählen: Sie erscheint hier und verschwindet nach etwa einer Stunde wieder." },
+      } as EmbedLike,
+    ],
+    components: [...auswahl, suchen],
   };
+}
+
+export const lektionAuswahl = (lektionen: Lektion[], placeholder = "Lektion anzeigen …") => [
+  { type: 1, components: [{ type: 3, custom_id: "ak:bw", placeholder, options: lektionen.slice(0, 25).map((l) => ({ label: `${l.nr} ${l.titel}`.slice(0, 100), value: l.id })) }] },
+];
+
+export const SUCH_MODAL = {
+  type: 9,
+  data: {
+    custom_id: "ak:bsuche",
+    title: "In der Bibliothek suchen",
+    components: [{ type: 1, components: [{ type: 4, custom_id: "begriff", label: "Wonach suchst du?", style: 1, required: true, min_length: 2, max_length: 60 }] }],
+  },
+};
+
+/** Treffer für einen Suchbegriff: erst Titel, dann Text, mit kurzem Ausschnitt. */
+export function sucheTreffer(liste: { lektion: Lektion; text: string }[], begriff: string): { lektion: Lektion; ausschnitt: string }[] {
+  const b = begriff.trim().toLowerCase();
+  if (!b) return [];
+  const titel = liste.filter((x) => x.lektion.titel.toLowerCase().includes(b));
+  const inhalt = liste.filter((x) => !titel.includes(x) && x.text.toLowerCase().includes(b));
+  const schnitt = (t: string) => {
+    const i = t.toLowerCase().indexOf(b);
+    if (i < 0) return t.slice(0, 120).replace(/\s+/g, " ");
+    return `${i > 60 ? "…" : ""}${t.slice(Math.max(0, i - 60), i + b.length + 60).replace(/\s+/g, " ")}${i + b.length + 60 < t.length ? "…" : ""}`;
+  };
+  return [...titel, ...inhalt].map((x) => ({ lektion: x.lektion, ausschnitt: schnitt(x.text) }));
 }
 
 // ------------------------------------------------------------ Merkzettel
@@ -255,7 +427,16 @@ export function inhaltsverzeichnis(name: string, eintraege: { nr: string; titel:
 export const zeileFrei = (user: string, rolle: Rolle, lernpfad: string, bibliothek: string, pfadMsg: string, tocMsg: string) =>
   ["frei", user, rolle, lernpfad, bibliothek, pfadMsg, tocMsg].join(SEP);
 export const zeileGelesen = (user: string, lektion: string, nr: string, zeit: string) => ["gelesen", user, lektion, nr, zeit].join(SEP);
-export const zeileBib = (user: string, lektion: string, nr: string, link: string) => ["bib", user, lektion, nr, link].join(SEP);
+export const zeileTest = (user: string, einheit: number, richtig: number, gesamt: number, bestanden: boolean, zeit: string) =>
+  ["test", user, String(einheit), String(richtig), String(gesamt), bestanden ? "ja" : "nein", zeit].join(SEP);
+
+export interface TestErgebnis {
+  einheit: number;
+  richtig: number;
+  gesamt: number;
+  bestanden: boolean;
+  zeit: string;
+}
 
 export interface Person {
   rolle: Rolle;
@@ -263,28 +444,121 @@ export interface Person {
   bibliothek: string;
   pfadMsg: string;
   tocMsg: string;
-  gelesen: Set<string>;
-  bib: Map<string, { nr: string; link: string }>;
+  gelesen: Map<string, { nr: string; zeit: string }>;
+  tests: TestErgebnis[];
+  bestanden: Set<number>;
 }
 
 export function leseSpeicher(nachrichten: { id: string; content: string }[]): Map<string, Person> {
   const m = new Map<string, Person>();
-  // Älteste zuerst, damit spätere Einträge gelten.
-  for (const n of [...nachrichten].reverse()) {
-    const t = n.content.split(SEP);
+  const zeilen = [...nachrichten].reverse().map((n) => n.content.split(SEP));
+  for (const t of zeilen) {
     if (t[0] === "frei" && t.length >= 7) {
       const alt = m.get(t[1]);
-      m.set(t[1], { rolle: t[2] === "david" ? "david" : "team", lernpfad: t[3], bibliothek: t[4], pfadMsg: t[5], tocMsg: t[6], gelesen: alt?.gelesen ?? new Set(), bib: alt?.bib ?? new Map() });
+      m.set(t[1], {
+        rolle: t[2] === "david" ? "david" : "team",
+        lernpfad: t[3],
+        bibliothek: t[4],
+        pfadMsg: t[5],
+        tocMsg: t[6],
+        gelesen: alt?.gelesen ?? new Map(),
+        tests: alt?.tests ?? [],
+        bestanden: alt?.bestanden ?? new Set(),
+      });
     }
   }
-  for (const n of [...nachrichten].reverse()) {
-    const t = n.content.split(SEP);
+  for (const t of zeilen) {
     const p = m.get(t[1]);
     if (!p) continue;
-    if (t[0] === "gelesen" && t[2]) p.gelesen.add(t[2]);
-    if (t[0] === "bib" && t[2] && t[4]) p.bib.set(t[2], { nr: t[3], link: t[4] });
+    if (t[0] === "gelesen" && t[2]) p.gelesen.set(t[2], { nr: t[3] ?? "", zeit: t[4] ?? "" });
+    if (t[0] === "test" && t.length >= 7) {
+      const e = { einheit: Number(t[2]), richtig: Number(t[3]), gesamt: Number(t[4]), bestanden: t[5] === "ja", zeit: t[6] };
+      p.tests.push(e);
+      if (e.bestanden) p.bestanden.add(e.einheit);
+    }
   }
   return m;
+}
+
+// --------------------------------------------------- Fortschritt (David)
+
+export const zeitText = (iso: string) =>
+  iso
+    ? new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(/^(\d\d\.\d\d\.), /, "$1, ")
+    : "";
+
+const testText = (t: TestErgebnis) => `Test Einheit ${t.einheit}: ${t.richtig} von ${t.gesamt} (${t.gesamt ? Math.round((t.richtig / t.gesamt) * 100) : 0} %), ${t.bestanden ? "bestanden" : "nicht bestanden"}`;
+
+export function fortschritt(name: string, p: Person, sch: Schritt[]) {
+  const s = standSchritte(sch, p.gelesen, p.bestanden);
+  const ereignisse = [
+    ...[...p.gelesen.entries()].map(([id, g]) => {
+      const l = sch.find((x) => x.art === "lektion" && x.lektion.id === id);
+      return { was: `${g.nr}${l?.art === "lektion" ? ` ${l.lektion.titel}` : ""} gelesen`, zeit: g.zeit };
+    }),
+    ...p.tests.map((t) => ({ was: testText(t), zeit: t.zeit })),
+  ].sort((a, b) => b.zeit.localeCompare(a.zeit));
+  return {
+    id: TEAM.find((t) => t.name === name)?.discord ?? "",
+    name,
+    fertig: s.fertig,
+    gesamt: s.gesamt,
+    prozent: s.gesamt ? Math.round((s.fertig / s.gesamt) * 100) : 0,
+    jetzt: s.aktuelle ? (s.aktuelle.art === "lektion" ? `📖 ${s.aktuelle.lektion.nr} ${s.aktuelle.lektion.titel}` : testName(s.aktuelle.einheit)) : null,
+    zuletzt: ereignisse[0] ?? null,
+    letzte: ereignisse.slice(0, 5),
+    tests: p.tests,
+  };
+}
+
+export function verwaltungKarte(liste: ReturnType<typeof fortschritt>[]) {
+  return {
+    embeds: [
+      {
+        title: "🔧 Akademie: Fortschritt",
+        color: FARBE,
+        description:
+          liste
+            .map(
+              (f) =>
+                `**${f.name}**\n${fortschrittBalken(f.fertig, f.gesamt)} (${f.prozent} %)\nJetzt: ${f.jetzt ?? "alles geschafft"}\nZuletzt: ${f.zuletzt ? `${f.zuletzt.was} · ${zeitText(f.zuletzt.zeit)}` : "noch nichts"}`,
+            )
+            .join("\n\n") || "Noch niemand in der Akademie.",
+        footer: { text: "Nur du siehst diesen Kanal. Aktualisiert sich bei jedem Schritt, mit 🔄 sofort." },
+      } as EmbedLike,
+    ],
+    components: [
+      {
+        type: 1,
+        components: [
+          ...liste.filter((f) => f.id).slice(0, 4).map((f) => ({ type: 2, style: 2, label: f.name, emoji: { name: "👤" }, custom_id: `ak:vp:${f.id}` })),
+          { type: 2, style: 2, label: "Aktualisieren", emoji: { name: "🔄" }, custom_id: "ak:vr" },
+        ],
+      },
+    ],
+  };
+}
+
+/** Die Details einer Person: jeder Schritt mit Zeit, Tests und die letzten Aktivitäten. */
+export function personDetail(f: ReturnType<typeof fortschritt>, p: Person, sch: Schritt[]): EmbedLike {
+  const s = standSchritte(sch, p.gelesen, p.bestanden);
+  const zeilen = sch.map((x) => {
+    const st = s.status[schrittId(x)];
+    const zeichen = st === "fertig" ? "✅" : st === "jetzt" ? "📖" : "🔒";
+    if (x.art === "lektion") {
+      const g = p.gelesen.get(x.lektion.id);
+      return `${zeichen} ${x.lektion.nr} ${x.lektion.titel}${g?.zeit ? ` · ${zeitText(g.zeit)}` : ""}`;
+    }
+    const versuche = p.tests.filter((t) => t.einheit === x.einheit);
+    const best = versuche.sort((a, b) => b.richtig / b.gesamt - a.richtig / a.gesamt)[0];
+    return `${zeichen} ${testName(x.einheit)}${versuche.length ? ` · ${versuche.length} Versuch${versuche.length > 1 ? "e" : ""}, bestes Ergebnis ${best.richtig} von ${best.gesamt}` : ""}`;
+  });
+  const letzte = f.letzte.map((e) => `• ${e.was} · ${zeitText(e.zeit)}`).join("\n");
+  return {
+    title: `👤 ${f.name} in der Akademie`,
+    color: FARBE,
+    description: `${fortschrittBalken(f.fertig, f.gesamt)} (${f.prozent} %)\nJetzt: ${f.jetzt ?? "alles geschafft"}\n\n${zeilen.join("\n")}${letzte ? `\n\n**Zuletzt**\n${letzte}` : ""}`.slice(0, 4000),
+  };
 }
 
 // --------------------------------------------------------------- Kanäle

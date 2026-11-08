@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { findChannelId, setzeKanalName } from "@/lib/discord";
 import { gleicheZustaendigAb, ordneKanalEin, sichereKundenarchiv, sperreKundenkanal } from "@/lib/kundenkanal";
+import { raeumeBibliothekAuf } from "@/lib/akademie-daten";
 import { listeKunden } from "@/lib/notion-api";
 import { kanalName, kanalNameMitPunkt, statusPunkt } from "@/lib/notion-kunden";
 import { zeitplanGebremst } from "@/lib/zeitplan";
@@ -48,7 +49,9 @@ async function laufen() {
     if (z === "zurückgesetzt") zuruecksetzungen.push(k.nr);
     if (z === "Notion-Fehler") fehler++;
   }
-  return NextResponse.json({ ok: true, kunden: kunden.length, kundenarchiv, geprueft, gesperrt, zuruecksetzungen, fehler });
+  // Akademie: Lektions-Anzeigen in den Bibliotheken verschwinden nach etwa einer Stunde.
+  const bibliothekAufgeraeumt = await raeumeBibliothekAuf(token, { abMinuten: 30 });
+  return NextResponse.json({ ok: true, kunden: kunden.length, kundenarchiv, bibliothekAufgeraeumt, geprueft, gesperrt, zuruecksetzungen, fehler });
 }
 
 export async function GET() {

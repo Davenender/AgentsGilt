@@ -2,7 +2,10 @@ import { call, alleNachrichten, teamRolle } from "@/lib/leads";
 import { eigeneId, sperreKundenkanal } from "@/lib/kundenkanal";
 import { leseBloecke } from "@/lib/notion-api";
 import {
-  inhaltsverzeichnis,
+  ANZEIGE,
+  bibliothekKarte,
+  fortschritt,
+  frageAusNotion,
   kanalNamen,
   lektionAusNotion,
   lektionText,
@@ -11,31 +14,43 @@ import {
   pfadLektionen,
   privatRechte,
   rolleVon,
+  schritte,
   seiten,
+  verwaltungKarte,
   zeileFrei,
   type Lektion,
   type Person,
+  type Testfrage,
 } from "@/lib/akademie";
+import { snowflakeZeit } from "@/lib/statistik";
+import { TEAM } from "@/lib/zustaendige";
 import type { EmbedLike } from "@/lib/discord-calls";
 
-// Akademie: Notion lesen, Kanäle und Merkzettel in Discord (Plan 2, Etappe 1).
+// Akademie: Notion lesen, Kanäle, Karten und Merkzettel in Discord (Plan 2).
+// Jeder aus dem Team (David, Jakob, Mijo) hat seinen Lernpfad und seine Bibliothek, ohne Freischalten.
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 export const AKADEMIE_DB = process.env.NOTION_AKADEMIE_DB || "a003ad728d3741f7874216ac8ab030d2";
 const KATEGORIE = "AKADEMIE";
 const START = "akademie";
 const SPEICHER = "akademie-speicher";
+const VERWALTUNG = "akademie-verwaltung";
 export const START_TITEL = "🎓 Akademie von Agents Gilt";
+const VERWALTUNG_TITEL_ALT = "🔧 Akademie verwalten";
 
 type Kanal = { id: string; name: string; type: number; parent_id?: string | null };
+export type Inhalt = { lektionen: Lektion[]; fragen: Testfrage[] };
+
+export const nameVon = (id: string) => TEAM.find((t) => t.discord === id)?.name ?? "Person";
 
 // ------------------------------------------------------------------ Notion
 
-/** Alle Lektionen aus der Notion-Datenbank (null = Notion nicht erreichbar oder kein Zugriff). */
-export async function holeLektionen(): Promise<Lektion[] | null> {
+/** Lektionen und Testfragen aus der Notion-Datenbank (null = Notion nicht erreichbar oder kein Zugriff). */
+export async function holeInhalt(): Promise<Inhalt | null> {
   const token = process.env.NOTION_TOKEN?.trim();
   if (!token) return null;
-  const out: Lektion[] = [];
+  const lektionen: Lektion[] = [];
+  const fragen: Testfrage[] = [];
   let cursor: string | undefined;
   try {
     do {
@@ -46,27 +61,37 @@ export async function holeLektionen(): Promise<Lektion[] | null> {
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) {
-        console.error(`[akademie] Lektionen lesen fehlgeschlagen: HTTP ${res.status}`);
+        console.error(`[akademie] Notion lesen fehlgeschlagen: HTTP ${res.status}`);
         return null;
       }
       const data = (await res.json()) as { results?: Parameters<typeof lektionAusNotion>[0][]; has_more?: boolean; next_cursor?: string | null };
       for (const s of data.results ?? []) {
         const l = lektionAusNotion(s);
-        if (l) out.push(l);
+        if (l) lektionen.push(l);
+        const f = frageAusNotion(s);
+        if (f) fragen.push(f);
       }
       cursor = data.has_more && data.next_cursor ? data.next_cursor : undefined;
     } while (cursor);
-    return out;
+    return { lektionen, fragen };
   } catch (err) {
-    console.error("[akademie] Lektionen lesen fehlgeschlagen:", err);
+    console.error("[akademie] Notion lesen fehlgeschlagen:", err);
     return null;
   }
 }
 
-export async function holeSeiten(l: Lektion): Promise<string[] | null> {
+export async function holeText(l: Lektion): Promise<string | null> {
   const bloecke = await leseBloecke(l.id);
-  return bloecke ? seiten(lektionText(bloecke)) : null;
+  return bloecke ? lektionText(bloecke) : null;
 }
+
+export async function holeSeiten(l: Lektion): Promise<string[] | null> {
+  const t = await holeText(l);
+  return t === null ? null : seiten(t);
+}
+
+export const schritteVon = (p: Person, inhalt: Inhalt) => schritte(pfadLektionen(inhalt.lektionen, p.rolle), inhalt.fragen, p.rolle);
+export const gelesenVon = (p: Person, inhalt: Inhalt) => pfadLektionen(inhalt.lektionen, p.rolle).filter((l) => p.gelesen.has(l.id));
 
 // ----------------------------------------------------------------- Discord
 
@@ -78,9 +103,6 @@ async function kategorie(token: string, kanaele: Kanal[]): Promise<string | null
   return (await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: KATEGORIE, type: 4 }))?.id ?? null;
 }
 
-/** Der unsichtbare Merkzettel-Kanal (nur der Bot, David sieht ihn als Besitzer). */
-const speicherKanal = (token: string) => nurDavidKanal(token, SPEICHER, "Merkzettel der Akademie (wer freigeschaltet ist, was gelesen ist). Nicht löschen.");
-
 /** Ein Kanal, den außer dem Bot nur David sieht (als Serverbesitzer). */
 async function nurDavidKanal(token: string, name: string, topic: string): Promise<string | null> {
   const kanaele = (await alleKanaele(token)) ?? [];
@@ -88,20 +110,13 @@ async function nurDavidKanal(token: string, name: string, topic: string): Promis
   if (da) return da.id;
   const [kat, team, bot] = await Promise.all([kategorie(token, kanaele), teamRolle(token), eigeneId(token)]);
   if (!bot) return null;
-  // Wie die privaten Kanäle, nur ohne Person: Es sieht ihn niemand außer dem Bot (und David als Besitzer).
-  const rechte = privatRechte(bot, { everyone: GUILD_ID, team, bot }).slice(0, -1); // ohne den Eintrag „Person“ (das wäre der Bot selbst)
-  return (
-    (
-      await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, {
-        name,
-        type: 0,
-        topic,
-        ...(kat ? { parent_id: kat } : {}),
-        permission_overwrites: rechte,
-      })
-    )?.id ?? null
-  );
+  // Wie die privaten Kanäle, nur ohne Person (das wäre der Bot selbst).
+  const rechte = privatRechte(bot, { everyone: GUILD_ID, team, bot }).slice(0, -1);
+  return (await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name, type: 0, topic, ...(kat ? { parent_id: kat } : {}), permission_overwrites: rechte }))?.id ?? null;
 }
+
+const speicherKanal = (token: string) => nurDavidKanal(token, SPEICHER, "Merkzettel der Akademie (Bereiche, Gelesenes, Tests). Nicht löschen.");
+const verwaltungKanal = (token: string) => nurDavidKanal(token, VERWALTUNG, "Nur für David: Fortschritt von Mijo, Jakob und David in der Akademie.");
 
 export async function leseAkademie(token: string): Promise<{ speicher: string; personen: Map<string, Person> } | null> {
   const speicher = await speicherKanal(token);
@@ -114,91 +129,117 @@ export const merke = (token: string, speicher: string, zeile: string) =>
 
 const START_TEXT =
   "Hier lernt ihr Schritt für Schritt alles, was ihr für die Arbeit mit Kunden braucht. Mit Lektionen, Tests und Übungen, aufgebaut wie bei Duolingo.\n\n" +
-  "**So geht es los:** Nach der Unterschrift der Vertraulichkeitsvereinbarung werdet ihr freigeschaltet. Dann bekommt jeder eigene Kanäle, die nur er sehen kann:\n" +
+  "Jeder hat eigene Kanäle, die nur er sehen kann:\n" +
   "• 📖 **Lernpfad:** Lektionen lesen, Tests machen, Schritt für Schritt weiter\n" +
   "• 📚 **Bibliothek:** alles, was ihr schon gelesen habt, zum Nachschlagen";
 
-const VERWALTUNG = "akademie-verwaltung";
-export const VERWALTUNG_TITEL = "🔧 Akademie verwalten";
-
-/** Die Knöpfe nur für David, im Kanal #akademie-verwaltung (den sieht nur er). */
-export const START_KNOEPFE = [
-  {
-    type: 1,
-    components: [
-      { type: 2, style: 1, label: "Person freischalten", emoji: { name: "🔓" }, custom_id: "ak:frei" },
-      { type: 2, style: 2, label: "Mein Bereich (David)", emoji: { name: "🏠" }, custom_id: "ak:meins" },
-    ],
-  },
-];
-
-/** Kategorie, Startkanal mit Karte, Verwaltung und Merkzettel anlegen (läuft mehrfach ohne Doppelungen). */
-export async function richteEin(token: string): Promise<{ start: string | null; speicher: string | null; verwaltung: string | null }> {
-  const speicher = await speicherKanal(token);
-  const verwaltung = await nurDavidKanal(token, VERWALTUNG, "Nur für David: Personen für die Akademie freischalten, eigener Bereich.");
-  if (verwaltung) {
-    const vm = await alleNachrichten(token, verwaltung, 50);
-    if (!vm.some((m) => m.author.bot && m.embeds[0]?.title === VERWALTUNG_TITEL)) {
-      const msg = await call<{ id: string }>(token, "POST", `/channels/${verwaltung}/messages`, {
-        embeds: [{ title: VERWALTUNG_TITEL, description: "Nur du siehst diesen Kanal.\n🔓 **Person freischalten:** erst nach der unterschriebenen Vertraulichkeitsvereinbarung.\n🏠 **Mein Bereich:** dein eigener Lernpfad und deine Bibliothek.", color: 0x8b5cf6 } as EmbedLike],
-        components: START_KNOEPFE,
-        allowed_mentions: { parse: [] },
-      });
-      if (msg) await call(token, "PUT", `/channels/${verwaltung}/pins/${msg.id}`);
-    }
-  }
-  const kanaele = (await alleKanaele(token)) ?? [];
-  const kat = await kategorie(token, kanaele);
-  let start = kanaele.find((c) => c.type === 0 && c.name === START)?.id ?? null;
-  if (!start) {
-    start = (await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: START, type: 0, topic: "Die Akademie: lernen, testen, nachschlagen.", ...(kat ? { parent_id: kat } : {}) }))?.id ?? null;
-  }
-  if (!start) return { start, speicher, verwaltung };
-  await sperreKundenkanal(token, start);
-  const msgs = await alleNachrichten(token, start, 50);
-  const karte = { embeds: [{ title: START_TITEL, description: START_TEXT, color: 0x8b5cf6 } as EmbedLike], components: [], allowed_mentions: { parse: [] } };
-  const alt = msgs.find((m) => m.author.bot && m.embeds[0]?.title === START_TITEL);
-  if (alt) {
-    // Text aktuell halten, Knöpfe gehören nicht hierher (die hat nur David in #akademie-verwaltung).
-    if (alt.embeds[0]?.description !== START_TEXT || alt.components?.length) await call(token, "PATCH", `/channels/${start}/messages/${alt.id}`, karte);
-  } else {
-    const msg = await call<{ id: string }>(token, "POST", `/channels/${start}/messages`, karte);
-    if (msg) await call(token, "PUT", `/channels/${start}/pins/${msg.id}`);
-  }
-  return { start, speicher, verwaltung };
+/** Lernpfad- und Bibliothek-Karte einer Person neu zeichnen. */
+export async function zeichne(token: string, userId: string, p: Person, inhalt: Inhalt) {
+  const name = nameVon(userId);
+  await call(token, "PATCH", `/channels/${p.lernpfad}/messages/${p.pfadMsg}`, { ...pfadKarte(name, schritteVon(p, inhalt), p.gelesen, p.bestanden), allowed_mentions: { parse: [] } });
+  await call(token, "PATCH", `/channels/${p.bibliothek}/messages/${p.tocMsg}`, { ...bibliothekKarte(name, gelesenVon(p, inhalt)), allowed_mentions: { parse: [] } });
 }
 
-/** Schaltet eine Person frei: zwei private Kanäle, Pfad-Karte und Inhaltsverzeichnis. Doppelt geht nicht. */
-export async function schalteFrei(token: string, userId: string, name: string): Promise<{ ok: true; person: Person; neu: boolean } | { ok: false; grund: string }> {
-  const ak = await leseAkademie(token);
-  if (!ak) return { ok: false, grund: "Der Merkzettel der Akademie ist nicht erreichbar." };
-  const da = ak.personen.get(userId);
-  if (da) return { ok: true, person: da, neu: false };
-  const lektionen = await holeLektionen();
-  if (!lektionen) return { ok: false, grund: "Die Akademie-Datenbank in Notion ist nicht erreichbar. Ist der Bot dort verbunden?" };
+/** Die Fortschritts-Karte in #akademie-verwaltung (nur David) neu zeichnen. */
+export async function zeichneVerwaltung(token: string, personen: Map<string, Person>, inhalt: Inhalt) {
+  const kanal = await verwaltungKanal(token);
+  if (!kanal) return;
+  const liste = TEAM.filter((t) => personen.has(t.discord)).map((t) => fortschritt(t.name, personen.get(t.discord)!, schritteVon(personen.get(t.discord)!, inhalt)));
+  const karte = verwaltungKarte(liste);
+  const msgs = await alleNachrichten(token, kanal, 50);
+  const alt = msgs.find((m) => m.author.bot && (m.embeds[0]?.title === karte.embeds[0].title || m.embeds[0]?.title === VERWALTUNG_TITEL_ALT));
+  if (alt) await call(token, "PATCH", `/channels/${kanal}/messages/${alt.id}`, { ...karte, allowed_mentions: { parse: [] } });
+  else {
+    const m = await call<{ id: string }>(token, "POST", `/channels/${kanal}/messages`, { ...karte, allowed_mentions: { parse: [] } });
+    if (m) await call(token, "PUT", `/channels/${kanal}/pins/${m.id}`);
+  }
+}
 
+/** Legt Lernpfad und Bibliothek einer Person an (doppelt geht nicht). */
+async function legeBereichAn(token: string, speicher: string, userId: string, inhalt: Inhalt): Promise<Person | null> {
   const kanaele = (await alleKanaele(token)) ?? [];
   const [kat, team, bot] = await Promise.all([kategorie(token, kanaele), teamRolle(token), eigeneId(token)]);
-  if (!bot) return { ok: false, grund: "Der Bot konnte sich nicht selbst finden." };
+  if (!bot) return null;
+  const name = nameVon(userId);
   const rechte = privatRechte(userId, { everyone: GUILD_ID, team, bot });
   const namen = kanalNamen(name);
-  const lege = (n: string, topic: string) =>
-    call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: n, type: 0, topic, ...(kat ? { parent_id: kat } : {}), permission_overwrites: rechte });
+  const lege = (n: string, topic: string) => call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: n, type: 0, topic, ...(kat ? { parent_id: kat } : {}), permission_overwrites: rechte });
   const lernpfad = await lege(namen.lernpfad, `Lernpfad von ${name}: Lektionen und Tests. Nur ${name} und David sehen diesen Kanal.`);
   const bibliothek = await lege(namen.bibliothek, `Bibliothek von ${name}: alles Gelesene zum Nachschlagen. Nur ${name} und David sehen diesen Kanal.`);
-  if (!lernpfad || !bibliothek) return { ok: false, grund: "Die Kanäle konnten nicht angelegt werden (Rechte des Bots prüfen)." };
-
+  if (!lernpfad || !bibliothek) return null;
   const rolle = rolleVon(userId);
-  const karte = pfadKarte(name, pfadLektionen(lektionen, rolle), new Set());
-  const pfadMsg = await call<{ id: string }>(token, "POST", `/channels/${lernpfad.id}/messages`, { ...karte, allowed_mentions: { parse: [] } });
-  const tocMsg = await call<{ id: string }>(token, "POST", `/channels/${bibliothek.id}/messages`, { embeds: [inhaltsverzeichnis(name, [])], allowed_mentions: { parse: [] } });
-  if (!pfadMsg || !tocMsg) return { ok: false, grund: "Die Karten konnten nicht gepostet werden." };
+  const leer: Person = { rolle, lernpfad: lernpfad.id, bibliothek: bibliothek.id, pfadMsg: "", tocMsg: "", gelesen: new Map(), tests: [], bestanden: new Set() };
+  const pfadMsg = await call<{ id: string }>(token, "POST", `/channels/${lernpfad.id}/messages`, { ...pfadKarte(name, schritteVon(leer, inhalt), leer.gelesen, leer.bestanden), allowed_mentions: { parse: [] } });
+  const tocMsg = await call<{ id: string }>(token, "POST", `/channels/${bibliothek.id}/messages`, { ...bibliothekKarte(name, []), allowed_mentions: { parse: [] } });
+  if (!pfadMsg || !tocMsg) return null;
   await call(token, "PUT", `/channels/${lernpfad.id}/pins/${pfadMsg.id}`);
   await call(token, "PUT", `/channels/${bibliothek.id}/pins/${tocMsg.id}`);
-  await merke(token, ak.speicher, zeileFrei(userId, rolle, lernpfad.id, bibliothek.id, pfadMsg.id, tocMsg.id));
-  return {
-    ok: true,
-    neu: true,
-    person: { rolle, lernpfad: lernpfad.id, bibliothek: bibliothek.id, pfadMsg: pfadMsg.id, tocMsg: tocMsg.id, gelesen: new Set(), bib: new Map() },
-  };
+  await merke(token, speicher, zeileFrei(userId, rolle, lernpfad.id, bibliothek.id, pfadMsg.id, tocMsg.id));
+  return { ...leer, pfadMsg: pfadMsg.id, tocMsg: tocMsg.id };
+}
+
+/**
+ * Alles einrichten und auf den neuesten Stand bringen (läuft mehrfach ohne Doppelungen):
+ * Kategorie, #akademie mit Startkarte, Merkzettel, Verwaltung, Bereiche für David, Jakob und Mijo, alle Karten.
+ */
+export async function richteEin(token: string): Promise<{ start: string | null; speicher: string | null; bereiche: Record<string, string>; fehler?: string }> {
+  const inhalt = await holeInhalt();
+  const ak = await leseAkademie(token);
+  if (!ak) return { start: null, speicher: null, bereiche: {}, fehler: "Merkzettel nicht erreichbar" };
+  const kanaele = (await alleKanaele(token)) ?? [];
+  const kat = await kategorie(token, kanaele);
+
+  // #akademie: nur die Startkarte, ohne Knöpfe
+  let start = kanaele.find((c) => c.type === 0 && c.name === START)?.id ?? null;
+  if (!start) start = (await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: START, type: 0, topic: "Die Akademie: lernen, testen, nachschlagen.", ...(kat ? { parent_id: kat } : {}) }))?.id ?? null;
+  if (start) {
+    await sperreKundenkanal(token, start);
+    const karte = { embeds: [{ title: START_TITEL, description: START_TEXT, color: 0x8b5cf6 } as EmbedLike], components: [], allowed_mentions: { parse: [] } };
+    const alt = (await alleNachrichten(token, start, 50)).find((m) => m.author.bot && m.embeds[0]?.title === START_TITEL);
+    if (alt) {
+      if (alt.embeds[0]?.description !== START_TEXT || alt.components?.length) await call(token, "PATCH", `/channels/${start}/messages/${alt.id}`, karte);
+    } else {
+      const msg = await call<{ id: string }>(token, "POST", `/channels/${start}/messages`, karte);
+      if (msg) await call(token, "PUT", `/channels/${start}/pins/${msg.id}`);
+    }
+  }
+  if (!inhalt) return { start, speicher: ak.speicher, bereiche: {}, fehler: "Notion nicht erreichbar" };
+
+  const bereiche: Record<string, string> = {};
+  for (const t of TEAM) {
+    let p = ak.personen.get(t.discord);
+    if (!p) {
+      p = (await legeBereichAn(token, ak.speicher, t.discord, inhalt)) ?? undefined;
+      if (p) ak.personen.set(t.discord, p);
+    } else await zeichne(token, t.discord, p, inhalt);
+    bereiche[t.name] = p ? `lernpfad ${p.lernpfad}, bibliothek ${p.bibliothek}` : "Fehler beim Anlegen";
+  }
+  await zeichneVerwaltung(token, ak.personen, inhalt);
+  return { start, speicher: ak.speicher, bereiche };
+}
+
+// ------------------------------------------------------------- Aufräumen
+
+/**
+ * Nimmt Lektions-Anzeigen aus den Bibliotheken wieder weg: alle außer `ausser` im angegebenen Kanal
+ * oder (ohne Kanal) alle, die älter als `abMinuten` sind. Läuft beim Anzeigen und stündlich im Abgleich.
+ */
+export async function raeumeBibliothekAuf(token: string, opt: { kanal?: string; ausser?: string; abMinuten?: number } = {}): Promise<number> {
+  let kanaele: string[] = [];
+  if (opt.kanal) kanaele = [opt.kanal];
+  else {
+    const ak = await leseAkademie(token);
+    kanaele = ak ? [...ak.personen.values()].map((p) => p.bibliothek) : [];
+  }
+  const grenze = Date.now() - (opt.abMinuten ?? 0) * 60_000;
+  let weg = 0;
+  for (const k of kanaele) {
+    for (const m of await alleNachrichten(token, k, 100)) {
+      if (!m.author.bot || m.id === opt.ausser) continue;
+      if (!(m.embeds[0]?.footer as { text?: string } | undefined)?.text?.startsWith(ANZEIGE)) continue;
+      if (opt.abMinuten !== undefined && snowflakeZeit(m.id) > grenze) continue;
+      if ((await call(token, "DELETE", `/channels/${k}/messages/${m.id}`)) !== null) weg++;
+    }
+  }
+  return weg;
 }

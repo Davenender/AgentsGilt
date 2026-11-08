@@ -1,16 +1,15 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { holeLektionen, richteEin, schalteFrei } from "@/lib/akademie-daten";
-import { CHEF_ID } from "@/lib/zustaendige";
+import { holeInhalt, richteEin } from "@/lib/akademie-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // Akademie einrichten (Plan 2). Nur für David: geschützt mit HELFER_SECRET.
-//   GET  → prüft, ob der Bot die Notion-Datenbank lesen kann (Anzahl Lektionen)
-//   POST → legt Kategorie AKADEMIE, #akademie mit Startkarte und den Merkzettel an (doppelt geht nicht);
-//          mit ?david=1 zusätzlich Davids eigenen Bereich (Lernpfad und Bibliothek)
+//   GET  → prüft, ob der Bot die Notion-Datenbank lesen kann (Lektionen, Testfragen)
+//   POST → richtet alles ein und bringt alle Karten auf den neuesten Stand (doppelt geht nicht):
+//          Kategorie AKADEMIE, #akademie, Merkzettel, #akademie-verwaltung, Bereiche für David, Jakob und Mijo
 
 function erlaubt(req: Request): boolean {
   const geheim = process.env.HELFER_SECRET?.trim();
@@ -22,15 +21,19 @@ function erlaubt(req: Request): boolean {
 
 export async function GET(req: Request) {
   if (!erlaubt(req)) return NextResponse.json({ error: "nicht erlaubt" }, { status: 401 });
-  const l = await holeLektionen();
-  return NextResponse.json({ notion: l !== null, lektionen: l?.length ?? 0, freigegeben: l?.filter((x) => x.freigegeben).length ?? 0 });
+  const i = await holeInhalt();
+  return NextResponse.json({
+    notion: i !== null,
+    lektionen: i?.lektionen.length ?? 0,
+    freigegeben: i?.lektionen.filter((x) => x.freigegeben).length ?? 0,
+    testfragen: i?.fragen.length ?? 0,
+    testfragenFreigegeben: i?.fragen.filter((x) => x.freigegeben).length ?? 0,
+  });
 }
 
 export async function POST(req: Request) {
   if (!erlaubt(req)) return NextResponse.json({ error: "nicht erlaubt" }, { status: 401 });
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) return NextResponse.json({ error: "Kein Bot-Token" }, { status: 500 });
-  const e = await richteEin(token);
-  const david = new URL(req.url).searchParams.get("david") === "1" ? await schalteFrei(token, CHEF_ID, "David") : null;
-  return NextResponse.json({ ...e, david: david ? (david.ok ? { lernpfad: david.person.lernpfad, bibliothek: david.person.bibliothek, neu: david.neu } : { fehler: david.grund }) : null });
+  return NextResponse.json(await richteEin(token));
 }
