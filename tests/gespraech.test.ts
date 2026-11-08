@@ -42,9 +42,11 @@ test("Bogen: Aufbau nach Kurs Modul 10 mit Notizen und Ergebnis", () => {
   const titel = bloecke.filter((x) => x.type.startsWith("heading")).map((x) => (x as never as { [k: string]: { rich_text: { text: { content: string } }[] } })[x.type].rich_text[0].text.content);
   assert.deepEqual(titel, [BOGEN_TITEL, "1. Vor dem Gespräch", "2. Leitfaden (Kurs Modul 10.1)", "3. Fragen", "4. Notizen", "5. Ergebnis"]);
   const text = JSON.stringify(bloecke);
-  for (const muss of ["Was kostet euch das", "außerhalb der Öffnungszeiten", "Wer müsste intern zustimmen", "Budget", "Zeitrahmen", "Logo", "Impressum", "Domain", "§ 201 StGB"]) {
+  for (const muss of ["Was kostet euch das", "außerhalb der Öffnungszeiten", "Wer müsste intern zustimmen", "Budget", "Zeitrahmen", "§ 201 StGB"]) {
     assert.ok(text.includes(muss), muss);
   }
+  // Website-Pflichtfragen klärt David selbst (08.11.)
+  for (const nicht of ["Relax Fit", "Logo", "Impressum", "Domain und Hosting"]) assert.equal(text.includes(nicht), false, nicht);
   assert.ok(bloecke.length <= 100, "Notion nimmt höchstens 100 Blöcke auf einmal");
   assert.ok(bloecke.some((x) => x.type === "to_do"), "Fragen zum Abhaken");
 });
