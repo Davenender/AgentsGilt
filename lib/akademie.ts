@@ -375,7 +375,17 @@ export function bibliothekKarte(name: string, gelesen: Lektion[]) {
     }
     zeilen.push(`${l.nr} ${l.titel}`);
   }
-  const suchen = { type: 1, components: [{ type: 2, style: 2, label: "Suchen", emoji: { name: "🔎" }, custom_id: "ak:bs" }] };
+  const suchen = {
+    type: 1,
+    components: [
+      { type: 2, style: 2, label: "Suchen", emoji: { name: "🔎" }, custom_id: "ak:bs" },
+      { type: 2, style: 2, label: "Aufräumen", emoji: { name: "🧹" }, custom_id: "ak:bc" },
+    ],
+  };
+  const erklaerung =
+    "Wähle unten eine Lektion aus, dann erscheint sie hier im Kanal. Du kannst mehrere öffnen.\n" +
+    "🔎 **Suchen**: findet ein Stichwort in allen Lektionen, die du schon gelesen hast.\n" +
+    "🧹 **Aufräumen**: nimmt alle angezeigten Lektionen wieder weg. Von selbst verschwinden sie nach etwa einer Stunde.";
   const einheiten = [...new Map(sortiert.map((l) => [l.einheit, l.einheitName])).entries()];
   const auswahl = !sortiert.length
     ? []
@@ -387,8 +397,7 @@ export function bibliothekKarte(name: string, gelesen: Lektion[]) {
       {
         title: `📚 Bibliothek von ${name}`,
         color: FARBE,
-        description: (zeilen.length ? zeilen.join("\n") : "Noch nichts gelesen. Jede gelesene Lektion steht dann hier.").slice(0, 4000),
-        footer: { text: "Lektion auswählen: Sie erscheint hier und verschwindet nach etwa einer Stunde wieder." },
+        description: `${erklaerung}\n\n${zeilen.length ? zeilen.join("\n") : "Noch nichts gelesen. Jede gelesene Lektion steht dann hier."}`.slice(0, 4000),
       } as EmbedLike,
     ],
     components: [...auswahl, suchen],

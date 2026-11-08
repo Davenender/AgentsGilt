@@ -167,11 +167,12 @@ test("Bibliothek: Inhaltsverzeichnis mit Auswahl und Suche", () => {
   const k = bibliothekKarte("Mijo", gelesen);
   assert.equal(k.embeds[0].title, "📚 Bibliothek von Mijo");
   assert.match(k.embeds[0].description ?? "", /\*\*1 · Einheit\*\*\n1\.1 Lektion 1\.1\n1\.2 Lektion 1\.2/);
+  assert.match(k.embeds[0].description ?? "", /🔎 \*\*Suchen\*\*.*\n🧹 \*\*Aufräumen\*\*/, "Erklärung der Knöpfe");
   const sel = k.components[0].components[0] as { type: number; custom_id: string; options: { value: string }[] };
   assert.equal(sel.type, 3);
   assert.equal(sel.custom_id, "ak:bw");
   assert.deepEqual(sel.options.map((o) => o.value), ["id-1.1", "id-1.2"]);
-  assert.equal(k.components[1].components[0].custom_id, "ak:bs");
+  assert.deepEqual(k.components[1].components.map((c) => c.custom_id), ["ak:bs", "ak:bc"], "Suchen und rechts daneben Aufräumen");
   const leer = bibliothekKarte("Mijo", []);
   assert.match(leer.embeds[0].description ?? "", /Noch nichts gelesen/);
   assert.equal(leer.components.length, 1, "ohne Lektionen nur der Suchknopf");

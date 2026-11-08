@@ -35,7 +35,7 @@ import { CHEF_ID, TEAM } from "@/lib/zustaendige";
 
 // Knöpfe der Akademie (ak:).
 //   Lernpfad: ak:weiter, ak:s (blättern), ak:g (gelesen), ak:z (nachlesen), ak:t (Test). Lektionen und Tests sieht nur die Person.
-//   Bibliothek: ak:bw (anzeigen), ak:be (Einheit), ak:b (blättern), ak:bx (schließen), ak:bs/ak:bsuche (suchen).
+//   Bibliothek: ak:bw (anzeigen), ak:be (Einheit), ak:b (blättern), ak:bx (schließen), ak:bs/ak:bsuche (suchen), ak:bc (aufräumen).
 //   Verwaltung (nur David): ak:vp (Person), ak:vr (aktualisieren).
 
 interface AkInteraction {
@@ -193,8 +193,7 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
       if (!b || !inhalt || !l || !b[1].gelesen.has(l.id)) return void (await privat(appId, itoken, "Diese Lektion ist (noch) nicht in der Bibliothek."));
       const seiten = await holeSeiten(l);
       if (!seiten) return void (await privat(appId, itoken, FEHLER.content));
-      const m = await call<{ id: string }>(token, "POST", `/channels/${kanal}/messages`, { ...lektionsAnsicht(l, seiten, 0, false, "bib"), allowed_mentions: { parse: [] } });
-      await raeumeBibliothekAuf(token, { kanal, ausser: m?.id });
+      await call(token, "POST", `/channels/${kanal}/messages`, { ...lektionsAnsicht(l, seiten, 0, false, "bib"), allowed_mentions: { parse: [] } });
     });
     return NextResponse.json(DEFER_UPDATE);
   }
@@ -222,6 +221,11 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
       if (!l || !seiten || !msg) return;
       await call(token, "PATCH", `/channels/${kanal}/messages/${msg}`, { ...lektionsAnsicht(l, seiten, Math.min(Math.max(0, Number(nr) || 0), seiten.length - 1), false, "bib"), allowed_mentions: { parse: [] } });
     });
+    return NextResponse.json(DEFER_UPDATE);
+  }
+  // 🧹 Aufräumen: alle angezeigten Lektionen weg, das Inhaltsverzeichnis bleibt
+  if (id === "bc") {
+    after(async () => void (await raeumeBibliothekAuf(token, { kanal })));
     return NextResponse.json(DEFER_UPDATE);
   }
   if (id === "bx") {
