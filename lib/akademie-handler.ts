@@ -5,11 +5,10 @@ import {
   ergebnisAnsicht,
   fortschritt,
   frageAnsicht,
-  gelesenAnsicht,
   lektionAuswahl,
+  lektionNachrichten,
   lektionsAnsicht,
   personDetail,
-  schrittLabel,
   standSchritte,
   SUCH_MODAL,
   sucheTreffer,
@@ -17,6 +16,7 @@ import {
   zeileTest,
   type Person,
 } from "@/lib/akademie";
+import { pfadLektionen } from "@/lib/akademie";
 import {
   gelesenVon,
   holeInhalt,
@@ -34,8 +34,9 @@ import {
 import { CHEF_ID, TEAM } from "@/lib/zustaendige";
 
 // Knöpfe der Akademie (ak:).
-//   Lernpfad: ak:weiter, ak:s (blättern), ak:g (gelesen), ak:z (nachlesen), ak:t (Test). Lektionen und Tests sieht nur die Person.
-//   Bibliothek: ak:bw (anzeigen), ak:be (Einheit), ak:b (blättern), ak:bx (schließen), ak:bs/ak:bsuche (suchen), ak:bc (aufräumen).
+//   Lernpfad: ak:weiter, ak:s (blättern), ak:g (gelesen), ak:z (nachlesen), ak:t (Test), ak:pw/ak:pe (wiederholen).
+//             Lektionen und Tests sieht nur die Person.
+//   Bibliothek: ak:bw (anzeigen), ak:be (Einheit), ak:bs/ak:bsuche (suchen), ak:bc (aufräumen).
 //   Verwaltung (nur David): ak:vp (Person), ak:vr (aktualisieren).
 
 interface AkInteraction {
@@ -63,6 +64,27 @@ async function ersetze(appId: string, itoken: string, body: Record<string, unkno
     signal: AbortSignal.timeout(8000),
   }).catch(() => {});
 }
+
+/** Die private Nachricht dieser Interaktion löschen. */
+async function loesche(appId: string, itoken: string) {
+  await fetch(`${API}/webhooks/${appId}/${itoken}/messages/@original`, { method: "DELETE", signal: AbortSignal.timeout(8000) }).catch(() => {});
+}
+
+/** Weitere private Nachricht mit Karten (für sehr lange Lektionen). */
+async function privatKarten(appId: string, itoken: string, body: Record<string, unknown>) {
+  await fetch(`${API}/webhooks/${appId}/${itoken}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, flags: 64, allowed_mentions: { parse: [] } }),
+    signal: AbortSignal.timeout(8000),
+  }).catch(() => {});
+}
+
+/** Auswahl aus der Bibliothek auf „Wiederholen“ im Lernpfad umstellen. */
+const alsWiederholen = (row: ReturnType<typeof lektionAuswahl>[number]) => ({
+  ...row,
+  components: row.components.map((c) => ({ ...c, custom_id: "ak:pw" })),
+});
 
 async function privat(appId: string, itoken: string, content: string) {
   await fetch(`${API}/webhooks/${appId}/${itoken}`, {
@@ -153,7 +175,8 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
           await merke(token, ak.speicher, zeileGelesen(user.id, l.id, l.nr, zeit));
           p.gelesen.set(l.id, { nr: l.nr, zeit });
         }
-        await ersetze(appId, itoken, gelesenAnsicht(l, schrittLabel(standSchritte(sch, p.gelesen, p.bestanden).aktuelle)));
+        // Die Lektion verschwindet, auf der Karte ist sie abgehakt. Weiter geht es mit „📖 Weiterlernen“.
+        await loesche(appId, itoken);
         await nachher(token, user.id, p, ak.personen, inhalt);
       }),
     );
@@ -181,6 +204,27 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
     return NextResponse.json(isPrivat(i) ? DEFER_UPDATE : DEFER_PRIVAT);
   }
 
+  // 🔁 Wiederholen: eine gelesene Lektion komplett, nur für die Person
+  if (id === "pw" || id === "pe") {
+    const wert = i.data?.values?.[0] ?? "";
+    after(() =>
+      imLernpfad(async (_ak, inhalt, p) => {
+        if (id === "pe") {
+          const liste = pfadLektionen(inhalt.lektionen, p.rolle).filter((l) => l.einheit === Number(wert) && p.gelesen.has(l.id));
+          return void (await ersetze(appId, itoken, { content: "Welche Lektion?", components: lektionAuswahl(liste, "Lektion wiederholen …").map(alsWiederholen) }));
+        }
+        const l = inhalt.lektionen.find((x) => x.id === wert);
+        if (!l || !p.gelesen.has(l.id)) return void (await ersetze(appId, itoken, { content: "Diese Lektion hast du noch nicht gelesen." }));
+        const text = await holeText(l);
+        if (text === null) return void (await ersetze(appId, itoken, FEHLER));
+        const [erste, ...rest] = lektionNachrichten(l, text);
+        await ersetze(appId, itoken, erste);
+        for (const n of rest) await privatKarten(appId, itoken, n);
+      }),
+    );
+    return NextResponse.json(id === "pw" && isPrivat(i) ? DEFER_UPDATE : DEFER_PRIVAT);
+  }
+
   // -------------------------------------------------------------- Bibliothek
 
   // Lektion anzeigen: für alle im Kanal, ältere Anzeigen verschwinden
@@ -191,9 +235,9 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
       const b = ak && besitzer(ak.personen, kanal, "bibliothek");
       const l = inhalt?.lektionen.find((x) => x.id === lid);
       if (!b || !inhalt || !l || !b[1].gelesen.has(l.id)) return void (await privat(appId, itoken, "Diese Lektion ist (noch) nicht in der Bibliothek."));
-      const seiten = await holeSeiten(l);
-      if (!seiten) return void (await privat(appId, itoken, FEHLER.content));
-      await call(token, "POST", `/channels/${kanal}/messages`, { ...lektionsAnsicht(l, seiten, 0, false, "bib"), allowed_mentions: { parse: [] } });
+      const text = await holeText(l);
+      if (text === null) return void (await privat(appId, itoken, FEHLER.content));
+      for (const n of lektionNachrichten(l, text)) await call(token, "POST", `/channels/${kanal}/messages`, { ...n, allowed_mentions: { parse: [] } });
     });
     return NextResponse.json(DEFER_UPDATE);
   }
@@ -211,26 +255,9 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
     return NextResponse.json(DEFER_PRIVAT);
   }
 
-  // Blättern und Schließen in einer Anzeige
-  if (id.startsWith("b:")) {
-    const [lid, nr] = id.slice(2).split(":");
-    const msg = i.message?.id;
-    after(async () => {
-      const l = (await holeInhalt())?.lektionen.find((x) => x.id === lid);
-      const seiten = l ? await holeSeiten(l) : null;
-      if (!l || !seiten || !msg) return;
-      await call(token, "PATCH", `/channels/${kanal}/messages/${msg}`, { ...lektionsAnsicht(l, seiten, Math.min(Math.max(0, Number(nr) || 0), seiten.length - 1), false, "bib"), allowed_mentions: { parse: [] } });
-    });
-    return NextResponse.json(DEFER_UPDATE);
-  }
   // 🧹 Aufräumen: alle angezeigten Lektionen weg, das Inhaltsverzeichnis bleibt
   if (id === "bc") {
     after(async () => void (await raeumeBibliothekAuf(token, { kanal })));
-    return NextResponse.json(DEFER_UPDATE);
-  }
-  if (id === "bx") {
-    const msg = i.message?.id;
-    if (msg) after(async () => void (await call(token, "DELETE", `/channels/${kanal}/messages/${msg}`)));
     return NextResponse.json(DEFER_UPDATE);
   }
 

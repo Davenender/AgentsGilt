@@ -127,11 +127,40 @@ export async function leseAkademie(token: string): Promise<{ speicher: string; p
 export const merke = (token: string, speicher: string, zeile: string) =>
   call(token, "POST", `/channels/${speicher}/messages`, { content: zeile, allowed_mentions: { parse: [] } });
 
-const START_TEXT =
-  "Hier lernt ihr Schritt für Schritt alles, was ihr für die Arbeit mit Kunden braucht. Mit Lektionen, Tests und Übungen, aufgebaut wie bei Duolingo.\n\n" +
-  "Jeder hat eigene Kanäle, die nur er sehen kann:\n" +
-  "• 📖 **Lernpfad:** Lektionen lesen, Tests machen, Schritt für Schritt weiter\n" +
-  "• 📚 **Bibliothek:** alles, was ihr schon gelesen habt, zum Nachschlagen";
+const START_TEXT = [
+  "Hier lernt ihr Schritt für Schritt alles, was ihr für die Arbeit mit Kunden braucht. Mit Lektionen, Tests und Übungen, aufgebaut wie bei Duolingo.",
+  "",
+  "**Eure Kanäle**",
+  "Jeder hat zwei eigene Kanäle, die nur er sehen kann:",
+  "• 📖 **Lernpfad**: Hier lernst du.",
+  "• 📚 **Bibliothek**: Hier schlägst du nach, was du schon gelernt hast.",
+  "",
+  "**📖 So funktioniert der Lernpfad**",
+  "1. Oben im Kanal steht deine Karte mit allen Einheiten und Lektionen: ✅ fertig · 📖 jetzt dran · 🔒 noch gesperrt. Der Balken zeigt, wie weit du bist.",
+  "2. Drück **„📖 Weiterlernen“**. Die nächste Lektion erscheint, und nur du siehst sie.",
+  "3. Lies sie in Ruhe. Mit **„Weiter ▶“** und **„◀ Zurück“** blätterst du zwischen den Seiten.",
+  "4. Auf der letzten Seite drückst du **„✅ Gelesen“**. Die Lektion verschwindet, ist auf deiner Karte abgehakt und steht ab jetzt in deiner Bibliothek. Die nächste ist frei.",
+  "5. Mit **„📖 Weiterlernen“** geht es weiter, so lange du willst.",
+  "",
+  "**🔁 Wiederholen**",
+  "Unter deiner Karte kannst du jede Lektion auswählen, die du schon gelesen hast. Sie erscheint dann komplett auf einmal, nur für dich.",
+  "",
+  "**📝 Tests**",
+  "• Nach der letzten Lektion einer Einheit kommt ein kurzer Test. Bei jeder Frage klickst du auf A, B, C oder D. Alle Antworten stehen in den Lektionen davor.",
+  "• Ab **80 %** richtig ist der Test bestanden, und die nächste Einheit wird frei.",
+  "• Unter 80 % zeigt dir der Bot, welche Fragen falsch waren, was richtig gewesen wäre und welche Lektionen du nochmal lesen solltest. Mit **„📖 … nochmal lesen“** öffnest du sie direkt, mit **„🔁 Test wiederholen“** startest du neu. Das geht sofort und so oft du willst.",
+  "",
+  "**📚 So funktioniert die Bibliothek**",
+  "• Oben steht das Inhaltsverzeichnis mit allem, was du schon gelesen hast, nach Einheiten geordnet.",
+  "• Wählst du darunter eine Lektion aus, erscheint sie komplett im Kanal. Du kannst mehrere gleichzeitig öffnen.",
+  "• **🔎 Suchen**: Gib ein Stichwort ein, zum Beispiel „Retainer“ oder „Friseur“. Du bekommst alle gelesenen Lektionen, in denen es vorkommt, mit einem kurzen Ausschnitt, und kannst sie direkt öffnen.",
+  "• **🧹 Aufräumen**: nimmt alle angezeigten Lektionen wieder weg. Das Inhaltsverzeichnis bleibt, und du kannst jede Lektion jederzeit wieder öffnen.",
+  "",
+  "**Gut zu wissen**",
+  "• In den Akademie-Kanälen schreibt nur der Bot, ihr drückt Knöpfe.",
+  "• Später kommen Übungen dazu, bei denen ihr Kundengespräche mit einem KI-Kunden übt.",
+  "• Fragen oder klappt etwas nicht? In #allgemein schreiben.",
+].join("\n");
 
 /** Lernpfad- und Bibliothek-Karte einer Person neu zeichnen. */
 export async function zeichne(token: string, userId: string, p: Person, inhalt: Inhalt) {
@@ -237,6 +266,20 @@ export async function raeumeBibliothekAuf(token: string, opt: { kanal?: string; 
       const anzeige = (m.embeds[0]?.footer as { text?: string } | undefined)?.text?.startsWith(ANZEIGE);
       if (anzeige && opt.abMinuten !== undefined && snowflakeZeit(m.id) > grenze) continue;
       if ((await call(token, "DELETE", `/channels/${p.bibliothek}/messages/${m.id}`)) !== null) weg++;
+    }
+  }
+  return weg;
+}
+
+/** Setzt den Lernstand einer Person zurück (Gelesenes und Tests). Bereich und Kanäle bleiben. */
+export async function setzeZurueck(token: string, userId: string): Promise<number> {
+  const speicher = await speicherKanal(token);
+  if (!speicher) return 0;
+  let weg = 0;
+  for (const m of await alleNachrichten(token, speicher, 3000)) {
+    const t = m.content.split(" · ");
+    if ((t[0] === "gelesen" || t[0] === "test") && t[1] === userId) {
+      if ((await call(token, "DELETE", `/channels/${speicher}/messages/${m.id}`)) !== null) weg++;
     }
   }
   return weg;

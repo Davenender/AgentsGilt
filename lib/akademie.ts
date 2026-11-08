@@ -217,6 +217,7 @@ const ENTWURF = " ✏️";
 /** Die Karte oben im Lernpfad-Kanal. */
 export function pfadKarte(name: string, sch: Schritt[], gelesen: Hat, bestanden: Set<number>) {
   const s = standSchritte(sch, gelesen, bestanden);
+  const gelesenListe = sch.flatMap((x) => (x.art === "lektion" && gelesen.has(x.lektion.id) ? [x.lektion] : []));
   const zeilen: string[] = [];
   let einheit = "";
   for (const x of sch) {
@@ -236,11 +237,23 @@ export function pfadKarte(name: string, sch: Schritt[], gelesen: Hat, bestanden:
         title: `📖 Lernpfad von ${name}`,
         color: FARBE,
         description: `${fortschrittBalken(s.fertig, s.gesamt)}\n\n${zeilen.join("\n") || "Noch keine Lektionen."}`.slice(0, 4000),
-        footer: { text: s.aktuelle ? "Mit „📖 Weiterlernen“ geht es weiter." : sch.length ? "Alles geschafft. Neue Lektionen kommen hier dazu." : "Bald geht es los." },
+        footer: {
+          text: `${s.aktuelle ? "Mit „📖 Weiterlernen“ geht es weiter." : sch.length ? "Alles geschafft. Neue Lektionen kommen hier dazu." : "Bald geht es los."}${gelesenListe.length ? " Zum Wiederholen unten eine Lektion auswählen." : ""}`,
+        },
       } as EmbedLike,
     ],
-    components: [{ type: 1, components: [WEITER_KNOPF] }],
+    components: [{ type: 1, components: [WEITER_KNOPF] }, ...auswahlRow(gelesenListe, "ak:pw", "ak:pe", "Lektion wiederholen …")],
   };
+}
+
+/** Auswahl gelesener Lektionen: bis 25 direkt, sonst erst die Einheit. */
+function auswahlRow(lektionen: Lektion[], lektionId: string, einheitId: string, placeholder: string) {
+  if (!lektionen.length) return [];
+  if (lektionen.length <= 25) {
+    return [{ type: 1, components: [{ type: 3, custom_id: lektionId, placeholder, options: lektionen.map((l) => ({ label: `${l.nr} ${l.titel}`.slice(0, 100), value: l.id })) }] }];
+  }
+  const einheiten = [...new Map(lektionen.map((l) => [l.einheit, l.einheitName])).entries()];
+  return [{ type: 1, components: [{ type: 3, custom_id: einheitId, placeholder: "Einheit wählen …", options: einheiten.slice(0, 25).map(([e, n]) => ({ label: n.slice(0, 100), value: String(e) })) }] }];
 }
 
 /** Teilt eine Lektion in Seiten: an jeder Trennlinie und sonst an Absätzen, wenn sie zu lang wird. */
@@ -266,35 +279,66 @@ export const ANZEIGE = "📚 Anzeige";
  * Eine Seite einer Lektion. Modus „lernen“: Gelesen auf der letzten Seite. „lesen“: Nachlesen nach einem Test,
  * danach weiter. „bib“: Anzeige in der Bibliothek für alle im Kanal, mit Schließen.
  */
-export function lektionsAnsicht(l: Lektion, s: string[], i: number, entwurf: boolean, modus: "lernen" | "lesen" | "bib" = "lernen") {
+export function lektionsAnsicht(l: Lektion, s: string[], i: number, entwurf: boolean, modus: "lernen" | "lesen" = "lernen") {
   const letzte = i >= s.length - 1;
-  const p = modus === "lernen" ? "s" : modus === "lesen" ? "z" : "b";
-  const fuss =
-    modus === "bib"
-      ? `${ANZEIGE} · Seite ${i + 1} von ${s.length} · verschwindet nach etwa einer Stunde`
-      : `${l.einheitName} · Seite ${i + 1} von ${s.length}${l.minuten ? ` · etwa ${l.minuten} Min.` : ""}${entwurf ? " · ✏️ Entwurf, noch nicht freigegeben" : ""}`;
+  const p = modus === "lernen" ? "s" : "z";
+  const fuss = `${l.einheitName} · Seite ${i + 1} von ${s.length}${l.minuten ? ` · etwa ${l.minuten} Min.` : ""}${entwurf ? " · ✏️ Entwurf, noch nicht freigegeben" : ""}`;
   const zurueck = { type: 2, style: 2, label: "◀ Zurück", custom_id: `ak:${p}:${l.id}:${Math.max(0, i - 1)}`, disabled: i === 0 };
   const weiter = { type: 2, style: 1, label: "Weiter ▶", custom_id: `ak:${p}:${l.id}:${i + 1}`, disabled: letzte };
-  const knoepfe =
-    modus === "bib"
-      ? [zurueck, weiter, { type: 2, style: 4, label: "Schließen", custom_id: "ak:bx" }]
-      : !letzte
-        ? [zurueck, weiter]
-        : modus === "lernen"
-          ? [zurueck, { type: 2, style: 3, label: "Gelesen", emoji: { name: "✅" }, custom_id: `ak:g:${l.id}` }]
-          : [zurueck, WEITER_KNOPF];
+  const knoepfe = !letzte
+    ? [zurueck, weiter]
+    : modus === "lernen"
+      ? [zurueck, { type: 2, style: 3, label: "Gelesen", emoji: { name: "✅" }, custom_id: `ak:g:${l.id}` }]
+      : [zurueck, WEITER_KNOPF];
   return {
     embeds: [{ title: `${l.nr} · ${l.titel}`, color: FARBE, description: s[i] ?? "", footer: { text: fuss } } as EmbedLike],
     components: [{ type: 1, components: knoepfe }],
   };
 }
 
-export function gelesenAnsicht(l: Lektion, naechste: string | null) {
-  return {
-    content: `✅ **${l.nr} ${l.titel}** gelesen und in deiner Bibliothek abgelegt.${naechste ? `\nAls Nächstes: **${naechste}**` : "\nDas war alles, was gerade frei ist."}`,
-    embeds: [],
-    components: naechste ? [{ type: 1, components: [WEITER_KNOPF] }] : [],
-  };
+/**
+ * Eine ganze Lektion auf einmal (Bibliothek und Wiederholen): Trennlinien werden zu Abständen, der Text kommt
+ * in Karten bis knapp 4.000 Zeichen und die Karten in Nachrichten bis 6.000 Zeichen (so viel erlaubt Discord).
+ */
+export function lektionNachrichten(l: Lektion, t: string): { embeds: EmbedLike[] }[] {
+  const absaetze = t
+    .split(/\n\s*-{3,}\s*\n/)
+    .flatMap((teil) => teil.trim().split("\n\n"))
+    .filter((a) => a.trim());
+  const stuecke: string[] = [];
+  let akt = "";
+  for (const a of absaetze.length ? absaetze : ["(Diese Lektion ist noch leer.)"]) {
+    for (let i = 0; i < a.length; i += 3900) {
+      const teil = a.slice(i, i + 3900);
+      if (akt && akt.length + 2 + teil.length > 3900) {
+        stuecke.push(akt);
+        akt = "";
+      }
+      akt = akt ? `${akt}\n\n${teil}` : teil;
+    }
+  }
+  if (akt) stuecke.push(akt);
+  const titel = `${l.nr} · ${l.titel}`;
+  const fuss = `${ANZEIGE} · ${l.einheitName}`;
+  const nachrichten: { embeds: EmbedLike[] }[] = [];
+  let embeds: EmbedLike[] = [];
+  let laenge = 0;
+  stuecke.forEach((st, i) => {
+    const e: EmbedLike = { color: FARBE, description: st, ...(i === 0 ? { title: titel } : {}) };
+    const n = st.length + (i === 0 ? titel.length : 0) + (i === stuecke.length - 1 ? fuss.length : 0);
+    if (embeds.length && (embeds.length >= 10 || laenge + n > 5800)) {
+      nachrichten.push({ embeds });
+      embeds = [];
+      laenge = 0;
+    }
+    embeds.push(e);
+    laenge += n;
+  });
+  if (embeds.length) {
+    embeds[embeds.length - 1].footer = { text: fuss };
+    nachrichten.push({ embeds });
+  }
+  return nachrichten;
 }
 
 export const schrittLabel = (s: Schritt | null) => (!s ? null : s.art === "lektion" ? `${s.lektion.nr} ${s.lektion.titel}` : testName(s.einheit));
@@ -385,13 +429,8 @@ export function bibliothekKarte(name: string, gelesen: Lektion[]) {
   const erklaerung =
     "Wähle unten eine Lektion aus, dann erscheint sie hier im Kanal. Du kannst mehrere öffnen.\n" +
     "🔎 **Suchen**: findet ein Stichwort in allen Lektionen, die du schon gelesen hast.\n" +
-    "🧹 **Aufräumen**: nimmt alle angezeigten Lektionen wieder weg. Von selbst verschwinden sie nach etwa einer Stunde.";
-  const einheiten = [...new Map(sortiert.map((l) => [l.einheit, l.einheitName])).entries()];
-  const auswahl = !sortiert.length
-    ? []
-    : sortiert.length <= 25
-      ? [{ type: 1, components: [{ type: 3, custom_id: "ak:bw", placeholder: "Lektion anzeigen …", options: sortiert.map((l) => ({ label: `${l.nr} ${l.titel}`.slice(0, 100), value: l.id })) }] }]
-      : [{ type: 1, components: [{ type: 3, custom_id: "ak:be", placeholder: "Einheit wählen …", options: einheiten.slice(0, 25).map(([e, n]) => ({ label: n.slice(0, 100), value: String(e) })) }] }];
+    "🧹 **Aufräumen**: nimmt alle angezeigten Lektionen wieder weg. Über das Inhaltsverzeichnis holst du sie jederzeit wieder her.";
+  const auswahl = auswahlRow(sortiert, "ak:bw", "ak:be", "Lektion anzeigen …");
   return {
     embeds: [
       {

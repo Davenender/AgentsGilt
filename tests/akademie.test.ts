@@ -9,10 +9,10 @@ import {
   fortschrittBalken,
   frageAnsicht,
   frageAusNotion,
-  gelesenAnsicht,
   kanalNamen,
   lektionAusNotion,
   lektionsAnsicht,
+  lektionNachrichten,
   lektionText,
   leseSpeicher,
   pfadKarte,
@@ -103,6 +103,11 @@ test("Pfad-Karte mit Einheiten, Test und Knopf zum Weiterlernen", () => {
   assert.match(text, /\*\*1 · Einheit\*\*/);
   assert.match(text, /📝/, "Entwürfe sind für David markiert");
   assert.equal(k.components[0].components[0].custom_id, "ak:weiter");
+  const wdh = k.components[1].components[0] as { type: number; custom_id: string; options: { value: string }[] };
+  assert.equal(wdh.type, 3);
+  assert.equal(wdh.custom_id, "ak:pw", "gelesene Lektionen einzeln wiederholen");
+  assert.deepEqual(wdh.options.map((o) => o.value), ["id-1.1"]);
+  assert.equal(pfadKarte("David", sch, new Set(), new Set()).components.length, 1, "ohne Gelesenes keine Auswahl");
 });
 
 test("Seiten: an der Trennlinie und bei zu langem Text", () => {
@@ -127,13 +132,24 @@ test("Lektion anzeigen: Lernen, Nachlesen und Anzeige in der Bibliothek", () => 
   assert.match(letzte.embeds[0].footer?.text ?? "", /Entwurf/);
   const nach = lektionsAnsicht(l, ["S1", "S2"], 1, false, "lesen");
   assert.deepEqual(nach.components[0].components.map((c) => c.custom_id), ["ak:z:id-1.1:0", "ak:weiter"], "Nachlesen: kein Gelesen, danach weiter");
-  const bib = lektionsAnsicht(l, ["S1", "S2"], 0, false, "bib");
-  assert.deepEqual(bib.components[0].components.map((c) => c.custom_id), ["ak:b:id-1.1:0", "ak:b:id-1.1:1", "ak:bx"]);
-  assert.match(bib.embeds[0].footer?.text ?? "", /^📚 Anzeige/);
-  const g = gelesenAnsicht(l, "1.2 Lektion 1.2");
-  assert.match(g.content, /✅ \*\*1\.1 Lektion 1\.1\*\* gelesen/);
-  assert.equal(g.components[0].components[0].custom_id, "ak:weiter");
-  assert.deepEqual(gelesenAnsicht(l, null).components, []);
+});
+
+test("Ganze Lektion auf einmal (Bibliothek und Wiederholen)", () => {
+  const l = L("1.1", 1);
+  const kurz = lektionNachrichten(l, "Teil A\n\n---\n\nTeil B");
+  assert.equal(kurz.length, 1, "eine Nachricht");
+  assert.equal(kurz[0].embeds[0].title, "1.1 · Lektion 1.1");
+  assert.equal(kurz[0].embeds.map((e) => e.description).join("\n\n"), "Teil A\n\nTeil B", "Trennlinien werden einfach Abstände");
+  assert.match(kurz[0].embeds.at(-1)?.footer?.text ?? "", /^📚 Anzeige/);
+  const lang = Array.from({ length: 40 }, (_, i) => `Absatz ${i} ${"x".repeat(300)}`).join("\n\n");
+  const viele = lektionNachrichten(l, lang);
+  assert.ok(viele.length >= 2, "sehr lange Lektionen: mehrere Nachrichten direkt hintereinander");
+  for (const n of viele) {
+    assert.ok(n.embeds.length <= 10);
+    assert.ok(n.embeds.reduce((a, e) => a + (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0), 0) <= 6000);
+    assert.ok(n.embeds.every((e) => (e.description?.length ?? 0) <= 4096));
+  }
+  assert.equal(viele.flatMap((n) => n.embeds.map((e) => e.description)).join("\n\n"), lang, "nichts geht verloren");
 });
 
 test("Test: Fragen, Auswertung, Nachlese-Vorschläge", () => {
@@ -168,6 +184,7 @@ test("Bibliothek: Inhaltsverzeichnis mit Auswahl und Suche", () => {
   assert.equal(k.embeds[0].title, "📚 Bibliothek von Mijo");
   assert.match(k.embeds[0].description ?? "", /\*\*1 · Einheit\*\*\n1\.1 Lektion 1\.1\n1\.2 Lektion 1\.2/);
   assert.match(k.embeds[0].description ?? "", /🔎 \*\*Suchen\*\*.*\n🧹 \*\*Aufräumen\*\*/, "Erklärung der Knöpfe");
+  assert.doesNotMatch(k.embeds[0].description ?? "", /von selbst/i, "nichts verschwindet von selbst");
   const sel = k.components[0].components[0] as { type: number; custom_id: string; options: { value: string }[] };
   assert.equal(sel.type, 3);
   assert.equal(sel.custom_id, "ak:bw");
