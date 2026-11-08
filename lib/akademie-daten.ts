@@ -221,24 +221,22 @@ export async function richteEin(token: string): Promise<{ start: string | null; 
 // ------------------------------------------------------------- Aufräumen
 
 /**
- * Nimmt Lektions-Anzeigen aus den Bibliotheken wieder weg: alle außer `ausser` im angegebenen Kanal
- * oder (ohne Kanal) alle, die älter als `abMinuten` sind. Läuft beim Anzeigen und stündlich im Abgleich.
+ * Räumt die Bibliotheken auf. Es bleibt nur das Inhaltsverzeichnis (und `ausser`). Lektions-Anzeigen gehen weg,
+ * wenn sie älter als `abMinuten` sind (ohne Angabe: sofort). Alte Einträge aus der ersten Fassung gehen immer weg.
+ * Läuft beim Anzeigen einer Lektion (nur dieser Kanal) und stündlich im Abgleich (alle).
  */
 export async function raeumeBibliothekAuf(token: string, opt: { kanal?: string; ausser?: string; abMinuten?: number } = {}): Promise<number> {
-  let kanaele: string[] = [];
-  if (opt.kanal) kanaele = [opt.kanal];
-  else {
-    const ak = await leseAkademie(token);
-    kanaele = ak ? [...ak.personen.values()].map((p) => p.bibliothek) : [];
-  }
+  const ak = await leseAkademie(token);
+  if (!ak) return 0;
   const grenze = Date.now() - (opt.abMinuten ?? 0) * 60_000;
   let weg = 0;
-  for (const k of kanaele) {
-    for (const m of await alleNachrichten(token, k, 100)) {
-      if (!m.author.bot || m.id === opt.ausser) continue;
-      if (!(m.embeds[0]?.footer as { text?: string } | undefined)?.text?.startsWith(ANZEIGE)) continue;
-      if (opt.abMinuten !== undefined && snowflakeZeit(m.id) > grenze) continue;
-      if ((await call(token, "DELETE", `/channels/${k}/messages/${m.id}`)) !== null) weg++;
+  for (const p of ak.personen.values()) {
+    if (opt.kanal && p.bibliothek !== opt.kanal) continue;
+    for (const m of await alleNachrichten(token, p.bibliothek, 100)) {
+      if (!m.author.bot || m.id === p.tocMsg || m.id === opt.ausser) continue;
+      const anzeige = (m.embeds[0]?.footer as { text?: string } | undefined)?.text?.startsWith(ANZEIGE);
+      if (anzeige && opt.abMinuten !== undefined && snowflakeZeit(m.id) > grenze) continue;
+      if ((await call(token, "DELETE", `/channels/${p.bibliothek}/messages/${m.id}`)) !== null) weg++;
     }
   }
   return weg;
