@@ -32,6 +32,10 @@ export interface Statistik {
   personen: { name: string; uebernommen: number; gewonnen: number }[];
 }
 
+/** Test- und Übungskunden, die nicht in die Statistik gehören (KND-002 Friseur Graziella = Übungs-Demo). */
+const TEST_KUNDEN = new Set(["KND-002"]);
+export const zaehltMit = (nr: string) => !TEST_KUNDEN.has(nr);
+
 const NACH_GESPRAECH = new Set(["Angebot gesendet", "Kunde", "Retainer läuft"]);
 const GEWONNEN = new Set(["Kunde", "Retainer läuft"]);
 

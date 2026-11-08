@@ -72,3 +72,10 @@ test("Zeitpunkt aus einer Discord-Kennung", () => {
   assert.equal(new Date(snowflakeZeit("806859236768088114")).getUTCFullYear(), 2021);
   assert.equal(snowflakeZeit("0"), 1420070400000);
 });
+
+test("Test-Kunden zählen nicht mit (KND-002 Friseur Graziella ist die Übungs-Demo)", async () => {
+  const { zaehltMit } = await import("../lib/statistik.ts");
+  assert.equal(zaehltMit("KND-002"), false);
+  assert.equal(zaehltMit("KND-003"), true);
+  assert.equal(zaehltMit("KND-010"), true);
+});

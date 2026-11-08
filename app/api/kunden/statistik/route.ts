@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { sammleStatistik, zeigeStatistik } from "@/lib/statistik-daten";
+import { sammleStatistik, sperreStatistik, zeigeStatistik } from "@/lib/statistik-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +28,6 @@ export async function GET(req: Request) {
   const s = await sammleStatistik(token);
   if (!s) return NextResponse.json({ error: "Notion nicht erreichbar" }, { status: 502 });
   const posten = vonCron || new URL(req.url).searchParams.get("posten") === "1";
-  const gepostet = posten ? await zeigeStatistik(token, s) : false;
-  return NextResponse.json({ ...s, gepostet });
+  const ergebnis = posten ? await zeigeStatistik(token, s) : { gepostet: false, gesperrt: await sperreStatistik(token) };
+  return NextResponse.json({ ...s, ...ergebnis });
 }
