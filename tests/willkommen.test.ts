@@ -1,7 +1,7 @@
 // Tests für die Anleitungen in #willkommen: `npm test`. Nur reine Logik.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ANLEITUNGEN, alsEmbed, planeReihenfolge, planeWillkommen, pruefeLaengen, type Anleitung } from "../lib/willkommen.ts";
+import { ANLEITUNGEN, alsEmbed, planePlaetze, planeReihenfolge, planeWillkommen, gleich, pruefeLaengen, type Anleitung } from "../lib/willkommen.ts";
 
 const a = (titel: string, sucht: string[] = [], nurWennDa = false): Anleitung => ({ titel, sucht, text: "x", nurWennDa });
 
@@ -98,4 +98,30 @@ test("Reihenfolge lässt Anleitungen aus, die nur geändert werden sollen und fe
     { art: "auslassen", titel: "L" },
     { art: "neu", titel: "B" },
   ]);
+});
+
+test("Plätze: Bot-Nachrichten werden streng der Reihe nach belegt, auch bei doppelten Titeln", () => {
+  const n = [
+    { id: "1", bot: true, titel: "A" },
+    { id: "2", bot: true, titel: "A" },
+    { id: "m", bot: false, titel: "Mensch" },
+    { id: "3", bot: true, titel: "Z" },
+  ];
+  assert.deepEqual(planePlaetze(n, [a("A"), a("B"), a("C"), a("D")]), [
+    { art: "aendern", id: "1", titel: "A" },
+    { art: "aendern", id: "2", titel: "B" },
+    { art: "aendern", id: "3", titel: "C" },
+    { art: "neu", titel: "D" },
+  ]);
+});
+
+test("Plätze verweigert, wenn es mehr Bot-Nachrichten als Anleitungen gibt", () => {
+  assert.equal(planePlaetze([{ id: "1", bot: true, titel: "A" }, { id: "2", bot: true, titel: "B" }], [a("A")]), null);
+});
+
+test("gleich erkennt, ob eine Nachricht schon den gewünschten Inhalt hat", () => {
+  const soll = { title: "T", description: "d", color: 1, fields: [{ name: "n", value: "v", inline: false }] };
+  assert.equal(gleich({ title: "T", description: "d", fields: [{ name: "n", value: "v" }] }, soll), true);
+  assert.equal(gleich({ title: "T", description: "anders" }, soll), false);
+  assert.equal(gleich({ title: "T", description: "d" }, { title: "T", description: "d", color: 1 }), true);
 });

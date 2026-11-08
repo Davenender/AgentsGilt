@@ -50,6 +50,25 @@ export function planeReihenfolge(nachrichten: Nachricht[], anleitungen: Anleitun
   });
 }
 
+/**
+ * Belegt alle Bot-Nachrichten (älteste zuerst) streng der Reihe nach mit den Anleitungen, ohne auf Titel zu achten,
+ * der Rest kommt hinten dazu. Für den Fall, dass Titel doppelt oder vertauscht sind. Gibt es mehr Bot-Nachrichten
+ * als Anleitungen, würde eine übrig bleiben: dann null (verweigert, gelöscht wird nichts).
+ */
+export function planePlaetze(nachrichten: Nachricht[], anleitungen: Anleitung[]): Schritt[] | null {
+  const plaetze = nachrichten.filter((n) => n.bot).map((n) => n.id);
+  if (plaetze.length > anleitungen.length) return null;
+  return anleitungen.map((a, i) => (i < plaetze.length ? { art: "aendern", id: plaetze[i], titel: a.titel } : { art: "neu", titel: a.titel }));
+}
+
+type EmbedVergleich = { title?: string; description?: string; fields?: { name: string; value: string }[] };
+
+/** Hat die Nachricht schon genau diesen Titel, Text und diese Felder? Dann muss sie nicht geändert werden. */
+export function gleich(ist: EmbedVergleich, soll: EmbedVergleich): boolean {
+  const felder = (e: EmbedVergleich) => JSON.stringify((e.fields ?? []).map((f) => [f.name, f.value]));
+  return (ist.title ?? "") === (soll.title ?? "") && (ist.description ?? "") === (soll.description ?? "") && felder(ist) === felder(soll);
+}
+
 /** Discord-Grenzen: Text 4096, Feldname 256, Feldwert 1024, Titel 256, alles zusammen 6000. */
 export function pruefeLaengen(anleitungen: Anleitung[]): string[] {
   const fehler: string[] = [];
