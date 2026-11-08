@@ -321,6 +321,7 @@ export const ANLEITUNGEN: Anleitung[] = [
       "• **Test:** Ab **80 %** richtig ist er bestanden. Sonst zeigt der Bot, welche Lektionen ihr nachlesen solltet, und ihr könnt sofort noch einmal.",
       "• **Wiederholen:** Auf der Lernpfad-Karte über die Auswahl **Lektion wiederholen** jede gelesene Lektion noch einmal öffnen.",
       "• **📚 Bibliothek (euer eigener Kanal):** das Inhaltsverzeichnis aller freigegebenen Lektionen zum Nachschlagen. Eine Lektion auswählen, und sie erscheint ganz. Mit **🔎 Suchen** nach einem Wort suchen, mit **🧹 Aufräumen** alles wieder wegräumen.",
+      "• **📘 Branchenwissen** (unten in der Bibliothek): je Branche, was Betriebe oft brauchen und worauf es ankommt. Gut zum Nachlesen vor einem Kundengespräch.",
       "",
       "Lernpfad und Bibliothek seht nur ihr selbst (und David). Neue Lektionen kommen nach und nach dazu.",
     ),

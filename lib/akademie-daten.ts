@@ -158,6 +158,7 @@ const START_TEXT = [
   "• Wählst du darunter eine Lektion aus, erscheint sie komplett im Kanal. Du kannst mehrere gleichzeitig öffnen.",
   "• **🔎 Suchen**: Gib ein Stichwort ein, zum Beispiel „Retainer“ oder „Friseur“. Du bekommst alle gelesenen Lektionen, in denen es vorkommt, mit einem kurzen Ausschnitt, und kannst sie direkt öffnen.",
   "• **🧹 Aufräumen**: nimmt alle angezeigten Lektionen wieder weg. Das Inhaltsverzeichnis bleibt, und du kannst jede Lektion jederzeit wieder öffnen.",
+  "• **📘 Branchenwissen**: Ganz unten im Inhaltsverzeichnis stehen Seiten zu einzelnen Branchen (Ärzte, Handwerker, Restaurants …). Dort steht, was Betriebe dieser Branche oft brauchen und worauf es ankommt. Diese Seiten sind von Anfang an da, ohne Lernpfad und ohne Test. Lies die passende Seite vor einem Kundengespräch. Die Suche findet sie auch.",
   "",
   "**Gut zu wissen**",
   "• In den Akademie-Kanälen schreibt nur der Bot, ihr drückt Knöpfe.",
