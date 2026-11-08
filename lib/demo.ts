@@ -7,7 +7,7 @@ import type { EmbedLike } from "@/lib/discord-calls";
 
 export const F_DEMO = "Demo";
 export const DEMO_STATUS = ["angefragt", "bestätigt", "in Arbeit", "fertig"] as const;
-export type DemoAktion = "bestaetigen" | "in-arbeit" | "fertig";
+export type DemoAktion = "bestaetigen" | "in-arbeit" | "fertig" | "ablehnen";
 
 export const demoOffen = (status: string | null | undefined) => status === "angefragt" || status === "bestätigt" || status === "in Arbeit";
 
@@ -65,12 +65,20 @@ export const demoBestaetigung = (kartenId: string) => ({
   ],
 });
 
-export function pruefeDemoAktion(body: unknown): { ok: true; nr: string; aktion: DemoAktion; link: string | null } | { ok: false; grund: string } {
-  const b = (body ?? {}) as { nr?: unknown; aktion?: unknown; link?: unknown };
+export function pruefeDemoAktion(
+  body: unknown,
+): { ok: true; nr: string; aktion: DemoAktion; link: string | null; grund?: string } | { ok: false; grund: string } {
+  const b = (body ?? {}) as { nr?: unknown; aktion?: unknown; link?: unknown; grund?: unknown };
   const nr = typeof b.nr === "string" ? b.nr.trim().toUpperCase() : "";
   if (!/^KND-\d{3,}$/.test(nr)) return { ok: false, grund: "nr fehlt oder ist ungültig (z. B. KND-003)" };
   const aktion = b.aktion;
-  if (aktion !== "bestaetigen" && aktion !== "in-arbeit" && aktion !== "fertig") return { ok: false, grund: "aktion muss bestaetigen, in-arbeit oder fertig sein" };
+  if (aktion !== "bestaetigen" && aktion !== "in-arbeit" && aktion !== "fertig" && aktion !== "ablehnen") {
+    return { ok: false, grund: "aktion muss bestaetigen, in-arbeit, fertig oder ablehnen sein" };
+  }
+  if (aktion === "ablehnen") {
+    const g = typeof b.grund === "string" ? b.grund.trim().slice(0, 300) : "";
+    return { ok: true, nr, aktion, link: null, ...(g ? { grund: g } : {}) };
+  }
   let link: string | null = null;
   if (aktion === "fertig") {
     try {
@@ -84,9 +92,10 @@ export function pruefeDemoAktion(body: unknown): { ok: true; nr: string; aktion:
   return { ok: true, nr, aktion, link };
 }
 
-export const statusNachAktion = (a: DemoAktion) => (a === "bestaetigen" ? "bestätigt" : a === "in-arbeit" ? "in Arbeit" : "fertig");
+/** Neuer Demo-Status; null = leeren (abgebrochen). */
+export const statusNachAktion = (a: DemoAktion) => (a === "bestaetigen" ? "bestätigt" : a === "in-arbeit" ? "in Arbeit" : a === "fertig" ? "fertig" : null);
 
-export function demoZeile(art: "anfrage" | "sofort" | DemoAktion, d: { von?: string | null; zeit?: string; link?: string | null }): string {
+export function demoZeile(art: "anfrage" | "sofort" | DemoAktion, d: { von?: string | null; zeit?: string; link?: string | null; grund?: string }): string {
   switch (art) {
     case "anfrage":
       return `🎨 **Demo angefragt** von <@${d.von}> am ${d.zeit}. David bestätigt sie in der Zentrale.`;
@@ -98,6 +107,8 @@ export function demoZeile(art: "anfrage" | "sofort" | DemoAktion, d: { von?: str
       return "🔨 **Demo in Arbeit.**";
     case "fertig":
       return `🌐 **Die Demo ist fertig:** ${d.link}${d.von ? `\n<@${d.von}>, schau sie dir an.` : ""}`;
+    case "ablehnen":
+      return `❌ **Demo-Anfrage abgebrochen.**${d.von ? ` <@${d.von}>,` : ""} David hat sie nicht bestätigt.${d.grund ? ` Grund: ${d.grund}` : ""}`;
   }
 }
 
@@ -110,5 +121,6 @@ export const demoPush = (kunde: string, von: string) => ({
 export function erlaubteAktion(aktuell: string | null | undefined, aktion: DemoAktion): boolean {
   if (aktion === "bestaetigen") return aktuell === "angefragt";
   if (aktion === "in-arbeit") return aktuell === "angefragt" || aktuell === "bestätigt";
+  if (aktion === "ablehnen") return demoOffen(aktuell);
   return demoOffen(aktuell);
 }

@@ -134,3 +134,14 @@ test("Erlaubte Schritte: angefragt → bestätigt → in Arbeit → fertig", asy
   assert.equal(erlaubteAktion("fertig", "fertig"), false, "schon fertig");
   assert.equal(erlaubteAktion(null, "bestaetigen"), false, "keine Anfrage");
 });
+
+test("Abbrechen: offene Anfrage zurücksetzen, die Person bekommt Bescheid", async () => {
+  const m = await import("../lib/demo.ts");
+  assert.deepEqual(m.pruefeDemoAktion({ nr: "KND-003", aktion: "ablehnen", grund: "  passt gerade nicht " }), { ok: true, nr: "KND-003", aktion: "ablehnen", link: null, grund: "passt gerade nicht" });
+  assert.equal(m.erlaubteAktion("angefragt", "ablehnen"), true);
+  assert.equal(m.erlaubteAktion("in Arbeit", "ablehnen"), true);
+  assert.equal(m.erlaubteAktion("fertig", "ablehnen"), false);
+  assert.equal(m.statusNachAktion("ablehnen"), null, "Demo-Status wird geleert");
+  assert.equal(m.demoZeile("ablehnen", { von: MIJO }), `❌ **Demo-Anfrage abgebrochen.** <@${MIJO}>, David hat sie nicht bestätigt.`);
+  assert.equal(m.demoZeile("ablehnen", { von: MIJO, grund: "erst Angebot" }), `❌ **Demo-Anfrage abgebrochen.** <@${MIJO}>, David hat sie nicht bestätigt. Grund: erst Angebot`);
+});
