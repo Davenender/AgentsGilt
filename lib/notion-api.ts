@@ -39,7 +39,7 @@ export async function legeKundenZeileAn(input: {
     Status: { select: { name: "Lead" } },
     Quelle: { select: { name: "Sonstiges" } },
     Erstkontakt: { date: { start: heute } },
-    "Domain / Anbieter": { rich_text: text(input.domain, 200) },
+    ...(input.domain ? { "Domain / Anbieter": { rich_text: text(input.domain, 200) } } : {}),
     "Nächster Schritt": { rich_text: text("Erstkontakt aufnehmen", 200) },
   };
   if (a.email) properties["E-Mail"] = { email: a.email };
@@ -53,7 +53,7 @@ export async function legeKundenZeileAn(input: {
     a.branche && `Branche: ${a.branche}`,
     a.ansprechpartner && `Ansprechpartner: ${a.ansprechpartner}`,
     a.adresse && `Adresse: ${a.adresse}`,
-    `Webseite: ${input.url}`,
+    input.url && `Webseite: ${input.url}`,
     a.auffaelligkeiten.length ? `Auffälligkeiten:\n${a.auffaelligkeiten.map((x) => `• ${x}`).join("\n")}` : null,
     a.passt && `Passt zu: ${a.passt}${a.begruendung ? ` (${a.begruendung})` : ""}`,
   ].filter((x): x is string => Boolean(x));

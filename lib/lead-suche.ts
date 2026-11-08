@@ -3,6 +3,7 @@ import type { EmbedLike } from "@/lib/discord-calls";
 import { analysiere, domainKey, type Analyse } from "@/lib/lead-analyse";
 import { findChannelId } from "@/lib/discord";
 import { linkSecret } from "@/lib/termin";
+import { erlaubterMapsHost, mapsHinweise, PLATZ_FELDER, platzAusApi, webArt, type Platz as MapsPlatz, type WebArt } from "@/lib/lead-ohne-website";
 import { alleNachrichten, call, CH_ABLAGE, CH_KARTEN, CH_SPEICHER, COLOR, sucheSpeicherKanal, SEP } from "@/lib/leads";
 
 // Lead-Suche: Der Bot findet Firmen über Google Maps (Places API (New)), das Team wählt in
@@ -314,11 +315,7 @@ async function suchePlaces(key: string, begriff: string, mitte: Ort, radiusKm: n
 const KETTEN =
   /\b(mcdonald|burger king|subway|starbucks|rewe|aldi|lidl|edeka|kaufland|netto|penny|dm[- ]drogerie|rossmann|müller|sparkasse|volksbank|raiffeisen|commerzbank|deutsche bank|postbank|hypovereinsbank|deutsche post|dhl|hermes|dpd|ups|tchibo|ikea|obi|hornbach|bauhaus|toom|lloyd|ernsting|kik|takko|h&m|zara|primark|fressnapf|apollo|fielmann|mrs\.? ?sporty|mcfit|john reed|clever ?fit|fitx|ihre apotheke|stadtverwaltung|rathaus|polizei|feuerwehr|bundesagentur|jobcenter|finanzamt|amtsgericht|kirche|friedhof|schule|kita|kindergarten)\b/i;
 
-const VERZEICHNISSE =
-  /(facebook|instagram|linktr\.ee|tiktok|youtube|business\.site|google\.[a-z]+\/maps|yelp|treatwell|fresha|booksy|jameda|gelbeseiten|dasoertliche|11880|cylex|golocal|branchen|wix\.com\/?$)/i;
-
-export type WebArt = "keine" | "social" | "site";
-const webArt = (url: string | null): WebArt => (!url ? "keine" : VERZEICHNISSE.test(url) ? "social" : "site");
+export type { WebArt } from "@/lib/lead-ohne-website";
 
 const SCHLECHT = /veraltet|nicht (responsiv|mobil)|unübersichtlich|defekt|im aufbau|baustelle|kein ssl|unsicher|©\s*(19\d\d|200\d|201\d)|alt(modisch)?e?s? design/i;
 
@@ -617,4 +614,100 @@ export async function wochenUebersicht(token: string): Promise<{ diese: Woche; l
     }
   }
   return { diese: wochen[0], letzte: wochen[1] };
+}
+
+
+// ------------------------------------------------- Lead ohne Website (/lead)
+
+/** Sucht eine einzelne Firma bei Google Maps (für /lead name: … ort: … und Maps-Links). */
+export async function findeFirma(text: string, nahe?: { lat: number; lon: number } | null): Promise<MapsPlatz | null> {
+  const key = process.env.GOOGLE_PLACES_KEY?.trim();
+  if (!key || !text.trim()) return null;
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key, "X-Goog-FieldMask": PLATZ_FELDER.map((f) => `places.${f}`).join(",") },
+      body: JSON.stringify({
+        textQuery: text.trim().slice(0, 200),
+        languageCode: "de",
+        regionCode: "DE",
+        pageSize: 3,
+        // Ohne Koordinaten: bevorzugt rund um Mühlheim (nur bevorzugt, nicht beschränkt).
+        locationBias: {
+          circle: {
+            center: { latitude: nahe?.lat ?? STANDARD_LAT, longitude: nahe?.lon ?? STANDARD_LON },
+            radius: nahe ? 2000 : 50000,
+          },
+        },
+      }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) {
+      console.error(`[lead] Places-Suche HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
+      return null;
+    }
+    const data = (await res.json()) as { places?: Parameters<typeof platzAusApi>[0][] };
+    for (const p of data.places ?? []) {
+      const platz = platzAusApi(p);
+      if (platz) return platz;
+    }
+    return null;
+  } catch (err) {
+    console.error("[lead] Places-Suche nicht erreichbar:", err);
+    return null;
+  }
+}
+
+/** Holt eine Firma über ihre Place-ID. */
+export async function holePlatz(placeId: string): Promise<MapsPlatz | null> {
+  const key = process.env.GOOGLE_PLACES_KEY?.trim();
+  if (!key || !/^[A-Za-z0-9_-]{10,300}$/.test(placeId)) return null;
+  try {
+    const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}?languageCode=de`, {
+      headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": PLATZ_FELDER.join(",") },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    return platzAusApi((await res.json()) as Parameters<typeof platzAusApi>[0]);
+  } catch {
+    return null;
+  }
+}
+
+/** Löst einen Maps-Kurzlink auf. Weiterleitungen folgt der Bot nur innerhalb von Google. */
+export async function loeseMapsLink(link: string): Promise<string> {
+  let url = /^https?:\/\//i.test(link.trim()) ? link.trim() : `https://${link.trim()}`;
+  for (let i = 0; i < 5; i++) {
+    if (!erlaubterMapsHost(url)) break;
+    const u = new URL(url);
+    // Zustimmungsseite: Das eigentliche Ziel steht in "continue".
+    if (u.hostname.startsWith("consent.")) {
+      const weiter = u.searchParams.get("continue");
+      if (weiter && erlaubterMapsHost(weiter)) url = weiter;
+      break;
+    }
+    if (mapsHinweise(url).name || mapsHinweise(url).placeId) break;
+    try {
+      const res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(6000) });
+      const ziel = res.headers.get("location");
+      if (!ziel || res.status < 300 || res.status >= 400) break;
+      const naechste = new URL(ziel, url).toString();
+      if (!erlaubterMapsHost(naechste)) break;
+      url = naechste;
+    } catch {
+      break;
+    }
+  }
+  return url;
+}
+
+/** Die Firma hinter einem Maps-Link (oder null, wenn sie sich nicht bestimmen lässt). */
+export async function platzAusMapsLink(link: string): Promise<MapsPlatz | null> {
+  const h = mapsHinweise(await loeseMapsLink(link));
+  if (h.placeId) {
+    const p = await holePlatz(h.placeId);
+    if (p) return p;
+  }
+  if (h.name) return findeFirma(h.name, h.lat !== null && h.lon !== null ? { lat: h.lat, lon: h.lon } : null);
+  return null;
 }

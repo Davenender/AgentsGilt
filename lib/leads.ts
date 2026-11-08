@@ -88,6 +88,7 @@ export const NUR_LESEN_KLICKEN = String(BigInt(2048) + (BigInt(1) << BigInt(35))
 export const USAGE_TEXT =
   "**So legst du eine Lead-Karte an**\n" +
   "Schreib im Kanal **#lead-befehle** `/lead` und füge den Link der Firmenwebsite ein, zum Beispiel `/lead link: www.beispiel.de`. Nur dort funktioniert der Befehl.\n" +
+  "Ohne Website: einen **Google-Maps-Link** einfügen oder `/lead name: Bäckerei Schmitt ort: Mühlheim` schreiben. Findet der Bot nichts, gibt es ein Formular zum Ausfüllen.\n" +
   "Der Bot liest die Seite, fasst sie zusammen und legt hier eine Karte an. Danach stimmt ihr mit **Passt** oder **Passt nicht** ab, zwei gleiche Stimmen entscheiden.\n" +
   "Hier im Kanal kann man nur Knöpfe klicken, nicht schreiben. Hinweis: Nur kontaktieren, wenn es rechtlich zulässig ist (Kaltakquise).";
 
@@ -278,12 +279,12 @@ export async function aendereKarte(token: string, channelId: string, messageId: 
 }
 
 /** Antwort auf den Befehl (nur für die Person sichtbar) durch einen Text ersetzen. */
-export async function setzeAntwort(appId: string, interactionToken: string, content: string): Promise<void> {
+export async function setzeAntwort(appId: string, interactionToken: string, content: string, components: unknown[] = []): Promise<void> {
   try {
     await fetch(`${API}/webhooks/${appId}/${interactionToken}/messages/@original`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, embeds: [], components: [], allowed_mentions: { parse: [] } }),
+      body: JSON.stringify({ content, embeds: [], components, allowed_mentions: { parse: [] } }),
       signal: AbortSignal.timeout(8000),
     });
   } catch (err) {
@@ -330,7 +331,7 @@ export function kartenEmbed(a: Analyse, url: string, domain: string, von: string
   );
   return {
     title: clip(sauber(a.firma), 250),
-    description: `${sauber(clip(a.zusammenfassung, 700))}\n\n🔗 ${url}`,
+    description: url ? `${sauber(clip(a.zusammenfassung, 700))}\n\n🔗 ${url}` : sauber(clip(a.zusammenfassung, 700)),
     color: COLOR.vote,
     fields,
     footer: { text: `lead:${domain}${SEP}angelegt von ${von}${SEP}${FOOTER_HINWEIS}` },

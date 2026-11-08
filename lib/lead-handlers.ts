@@ -6,7 +6,6 @@ import {
   ablageKanal,
   besitzerId,
   mitBesitzer,
-  kanalInfo,
   letzterFehler,
   ablehnungAbbrechen,
   aendereKarte,
@@ -31,6 +30,9 @@ import {
 } from "@/lib/leads";
 import { SHOW_NAMES } from "@/lib/support";
 import { legeKundenZeileAn, notionConfigured } from "@/lib/notion-api";
+import type { Analyse } from "@/lib/lead-analyse";
+import { analyseAusFormular, analyseAusPlatz, formularModal, formularWerte, istMapsLink, manuellerSchluessel, webArt, type Platz } from "@/lib/lead-ohne-website";
+import { findeFirma, platzAusMapsLink } from "@/lib/lead-suche";
 
 // Befehle /lead und /lead-delete und die Knöpfe unter den Lead-Karten.
 
@@ -39,7 +41,12 @@ export interface LeadInteraction {
   token?: string;
   application_id?: string;
   channel_id?: string;
-  data?: { name?: string; custom_id?: string; options?: { name: string; value?: unknown }[] };
+  data?: {
+    name?: string;
+    custom_id?: string;
+    options?: { name: string; value?: unknown }[];
+    components?: { components?: { custom_id: string; value?: string }[] }[];
+  };
   member?: { user?: { id: string; username?: string; global_name?: string | null }; nick?: string | null };
   message?: { id: string; embeds?: EmbedLike[] };
 }
@@ -57,9 +64,88 @@ const uhrzeit = () =>
     timeZone: "Europe/Berlin",
   });
 
-function linkOption(i: LeadInteraction): string {
-  const v = i.data?.options?.find((o) => o.name === "link")?.value;
-  return typeof v === "string" ? v : "";
+function option(i: LeadInteraction, name: string): string {
+  const v = i.data?.options?.find((o) => o.name === name)?.value;
+  return typeof v === "string" ? v.trim() : "";
+}
+const linkOption = (i: LeadInteraction) => option(i, "link");
+
+/** Knopf, der das Formular öffnet (Discord erlaubt ein Formular nur als direkte Antwort auf einen Klick). */
+const formularKnopf = (name = "", ort = "") => [
+  {
+    type: 1,
+    components: [
+      {
+        type: 2,
+        style: 1,
+        label: "Formular öffnen",
+        emoji: { name: "📝" },
+        custom_id: `lead:formular:${name.replace(/\|/g, " ").slice(0, 40)}|${ort.replace(/\|/g, " ").slice(0, 30)}`,
+      },
+    ],
+  },
+];
+
+/**
+ * Legt die Lead-Karte in #leads an (nach der Prüfung auf doppelte Karten) und meldet das Ergebnis
+ * dem, der /lead ausgeführt hat.
+ */
+async function veroeffentliche(token: string, appId: string, itoken: string, analyse: Analyse, url: string, schluessel: string, von: string, pruefen = true) {
+  if (pruefen) {
+    const bestehend = await findeBestehend(token, schluessel);
+    if (bestehend?.art === "abgelehnt") {
+      await setzeAntwort(appId, itoken, `🚫 **${analyse.firma}** wurde schon abgelehnt (am ${bestehend.datum ?? "?"}). Nur David kann das aufheben.`);
+      return;
+    }
+    if (bestehend) {
+      const wo = bestehend.art === "ablage" ? "in der Ablage (Kein Interesse)" : "als Karte";
+      await setzeAntwort(appId, itoken, `ℹ️ Zu **${analyse.firma}** gibt es bereits eine Karte ${wo}: ${kanalLink(bestehend.channelId, bestehend.messageId)}${bestehend.status ? `\nStand: ${bestehend.status}` : ""}`);
+      return;
+    }
+  }
+  const kanal = await kartenKanal(token);
+  if (!kanal) {
+    await setzeAntwort(appId, itoken, "⚠️ Den Kanal #leads konnte ich nicht anlegen. Bitte die Rechte des Bots prüfen.");
+    return;
+  }
+  const rolle = await teamRolle(token);
+  const id = await postKarte(
+    token,
+    kanal,
+    kartenEmbed(analyse, url, schluessel, von),
+    leadComponents("vote"),
+    rolle ? { content: `<@&${rolle}> Neuer Lead: **${analyse.firma.replace(/[*_~`|>@]/g, "")}** – jetzt abstimmen`, roleId: rolle } : undefined,
+  );
+  if (!id) {
+    await setzeAntwort(appId, itoken, `⚠️ Die Karte konnte ich nicht anlegen. Bitte nochmal versuchen. (${letzterFehler.slice(0, 150)})`);
+    return;
+  }
+  const luecke = !analyse.telefon && !analyse.email;
+  await setzeAntwort(
+    appId,
+    itoken,
+    `✅ Karte zu **${analyse.firma}** liegt in #leads: ${kanalLink(kanal, id)}` + (luecke ? "\n⚠️ Telefon und E-Mail fehlen noch. Bitte selbst nachschauen." : ""),
+  );
+}
+
+/** Karte aus einem Google-Maps-Eintrag. Hat die Firma eine echte Website, wird sie wie bei /lead ausgewertet. */
+async function karteAusPlatz(token: string, appId: string, itoken: string, p: Platz, von: string) {
+  let analyse = analyseAusPlatz(p);
+  let url = p.maps ?? `https://www.google.com/maps/place/?q=place_id:${p.id}`;
+  let schluessel = `gmaps-${p.id}`;
+  const dom = p.website && webArt(p.website) === "site" ? domainKey(p.website) : null;
+  if (p.website && dom) {
+    schluessel = dom;
+    url = p.website;
+    await setzeAntwort(appId, itoken, `🔎 Gefunden: **${p.name}**. Ich schaue mir die Website an …`);
+    const res = await analysiere(p.website);
+    if (res.ok) {
+      analyse = { ...res.analyse, firma: res.analyse.firma || p.name, telefon: res.analyse.telefon ?? p.telefon, adresse: res.analyse.adresse ?? p.adresse };
+      url = res.url;
+      schluessel = res.domain;
+    }
+  }
+  await veroeffentliche(token, appId, itoken, analyse, url, schluessel, von);
 }
 
 const kanalLink = (channelId: string, messageId: string) =>
@@ -97,10 +183,55 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
   }
 
   const eingabe = linkOption(i);
+  const name = option(i, "name");
+  const ort = option(i, "ort");
+  const von = SHOW_NAMES[user.id] ?? who;
+
+  // ---- Ohne Link und ohne Namen: gleich das Formular anbieten
+  if (!eingabe && !name) {
+    return NextResponse.json({
+      type: 4,
+      data: {
+        flags: 64,
+        content:
+          "So legst du einen Lead an:\n• `/lead link: www.firma.de` mit Website\n• `/lead link:` mit einem **Google-Maps-Link**\n• `/lead name: Bäckerei Schmitt ort: Mühlheim` ohne Website\nOder trag die Firma von Hand ein:",
+        components: formularKnopf(),
+        allowed_mentions: { parse: [] },
+      },
+    });
+  }
+
+  // ---- Google-Maps-Link oder Name + Ort: Firma über Google Maps suchen
+  if (!eingabe || istMapsLink(eingabe)) {
+    const text = eingabe ? "" : [name, ort].filter(Boolean).join(" ");
+    after(async () => {
+      try {
+        await setzeAntwort(appId, itoken, eingabe ? "🔎 Ich schaue bei Google Maps nach …" : `🔎 Ich suche **${text.replace(/[*_~`|>@]/g, "")}** bei Google Maps …`);
+        const platz = eingabe ? await platzAusMapsLink(eingabe) : await findeFirma(text);
+        if (!platz) {
+          await setzeAntwort(
+            appId,
+            itoken,
+            eingabe
+              ? "Zu diesem Link habe ich bei Google Maps keine Firma gefunden. Trag sie hier von Hand ein:"
+              : "Bei Google Maps habe ich die Firma nicht gefunden. Trag sie hier von Hand ein:",
+            formularKnopf(name, ort),
+          );
+          return;
+        }
+        await karteAusPlatz(token, appId, itoken, platz, von);
+      } catch (err) {
+        console.error("[lead] /lead (Maps) fehlgeschlagen:", err);
+        await setzeAntwort(appId, itoken, "⚠️ Das hat leider nicht geklappt. Bitte nochmal versuchen.");
+      }
+    });
+    return NextResponse.json(DEFERRED_EPHEMERAL);
+  }
+
   const url = normalizeUrl(eingabe);
   const domain = url ? domainKey(url) : null;
   if (!url || !domain) {
-    return ephemeral("Das ist keine gültige Webadresse. Beispiel: `/lead link: www.beispiel.de`");
+    return ephemeral("Das ist keine gültige Webadresse. Beispiel: `/lead link: www.beispiel.de` (oder ein Google-Maps-Link, oder `/lead name: … ort: …`)");
   }
 
   after(async () => {
@@ -130,31 +261,7 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
         await setzeAntwort(appId, itoken, `⚠️ ${res.fehler}`);
         return;
       }
-      const kanal = await kartenKanal(token);
-      if (!kanal) {
-        await setzeAntwort(appId, itoken, "⚠️ Den Kanal #leads konnte ich nicht anlegen. Bitte die Rechte des Bots prüfen.");
-        return;
-      }
-      const embed = kartenEmbed(res.analyse, res.url, res.domain, SHOW_NAMES[user.id] ?? who);
-      const rolle = await teamRolle(token);
-      const id = await postKarte(
-        token,
-        kanal,
-        embed,
-        leadComponents("vote"),
-        rolle ? { content: `<@&${rolle}> Neuer Lead: **${res.analyse.firma.replace(/[*_~`|>@]/g, "")}** – jetzt abstimmen`, roleId: rolle } : undefined,
-      );
-      if (!id) {
-        await setzeAntwort(appId, itoken, `⚠️ Die Karte konnte ich nicht anlegen. Bitte nochmal versuchen. (${letzterFehler.slice(0, 150)} | ${kanalInfo.slice(0, 250)})`);
-        return;
-      }
-      const luecke = !res.analyse.telefon && !res.analyse.email;
-      await setzeAntwort(
-        appId,
-        itoken,
-        `✅ Karte zu **${res.analyse.firma}** liegt in #leads: ${kanalLink(kanal, id)}` +
-          (luecke ? "\n⚠️ Ich habe weder Telefon noch E-Mail gefunden. Schaut bitte selbst auf der Seite nach." : ""),
-      );
+      await veroeffentliche(token, appId, itoken, res.analyse, res.url, res.domain, von, false);
     } catch (err) {
       console.error("[lead] /lead fehlgeschlagen:", err);
       await setzeAntwort(appId, itoken, "⚠️ Das hat leider nicht geklappt. Bitte nochmal versuchen.");
@@ -171,6 +278,22 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
   const messageId = i.message?.id;
   const channelId = i.channel_id;
   const action = (i.data?.custom_id ?? "").slice("lead:".length);
+
+  // ---- Lead von Hand: Formular öffnen und abschicken (ohne Karte, deshalb vor der Kartenprüfung)
+  if (action === "formular" || action.startsWith("formular:")) {
+    const [name = "", ort = ""] = action.slice("formular:".length).split("|");
+    return NextResponse.json(formularModal(name, ort));
+  }
+  if (action === "formab") {
+    const appId = i.application_id;
+    const itoken = i.token;
+    if (!user || !token || !appId || !itoken) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
+    const w = formularWerte(i.data?.components);
+    if (!w.firma || !w.ort) return ephemeral("Firma und Ort fehlen. Bitte nochmal mit `/lead` anfangen.");
+    const von = SHOW_NAMES[user.id] ?? (i.member?.nick || user.global_name || user.username || "Unbekannt");
+    after(() => veroeffentliche(token, appId, itoken, analyseAusFormular(w), "", manuellerSchluessel(w.firma, w.ort), von));
+    return NextResponse.json(DEFERRED_EPHEMERAL);
+  }
 
   // ---- Aussortieren: Bestätigung (kommt aus der privaten Rückfrage, deshalb vor der Kartenprüfung)
   if (action === "dropno") {
@@ -305,7 +428,7 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
       return ephemeral("Notion ist noch nicht verbunden (NOTION_TOKEN fehlt bei Vercel). Der Status bleibt unverändert.");
     }
     after(async () => {
-      const domain = (domainOfCard(embed) ?? "").replace(/^gmaps-.*/, "");
+      const domain = (domainOfCard(embed) ?? "").replace(/^(gmaps|manuell)-.*/, "");
       const f = (name: string) => {
         const v = embed.fields?.find((x) => x.name === name)?.value;
         return v && v !== "nicht gefunden" ? v.replace(/​/g, "") : null;
@@ -326,7 +449,7 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
         passt: passtZu ? passtZu.split(" – ")[0] : null,
         begruendung: passtZu?.includes(" – ") ? passtZu.split(" – ").slice(1).join(" – ") : null,
       };
-      const url = embed.description?.match(/🔗\s*(\S+)/)?.[1] ?? `https://${domain}`;
+      const url = embed.description?.match(/🔗\s*(\S+)/)?.[1] ?? (domain ? `https://${domain}` : "");
       // Zuständig wird, wer den Lead übernommen hat (drückt David ohne Übernahme, dann David).
       const res = await legeKundenZeileAn({ analyse, url, domain, zustaendig: [besitzer ?? user.id] });
       if (!res.ok) {
