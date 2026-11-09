@@ -22,7 +22,7 @@ export function istDavid(von: string | null | undefined, davids: Nummern): boole
 
 // ------------------------------------------------------------------ Menü (TwiML)
 
-export const MENUE_TEXT = "Hallo David. Für Luca drück die 1. Für den Kunden-Assistenten drück die 2.";
+export const MENUE_TEXT = "Hallo! Für Luca, drücke die Eins. Für den Kunden-Assistenten, drücke die Zwei.";
 /** Jede Runde dauert etwa 9 Sekunden (Ansage + Warten) – 15 Runden sind gut 2 Minuten. */
 export const MAX_MENUE = 15;
 const STIMME = `language="de-DE" voice="Polly.Vicki-Generative"`;

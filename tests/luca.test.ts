@@ -52,7 +52,9 @@ test("Menü: Ansage mit 1/2, ohne Taste geht es mit der nächsten Runde weiter, 
   const url = (n: number) => `https://x/api/rufgruppe?a=menue&n=${n}&k=abc`;
   const eins = twimlMenue(url, 1);
   assert.match(eins, /<Gather input="dtmf" numDigits="1"[^>]*action="https:\/\/x\/api\/rufgruppe\?a=menue&amp;n=1&amp;k=abc"/);
-  assert.match(eins, /Für Luca drück die 1\. Für den Kunden-Assistenten drück die 2\./);
+  assert.match(eins, /Für Luca, drücke die Eins\. Für den Kunden-Assistenten, drücke die Zwei\./);
+  assert.equal(/David/.test(eins), false, "kein Name in der Ansage");
+  assert.equal(/die [0-9]/.test(eins), false, "Zahlen als Wort, damit die Stimme sie richtig sagt");
   assert.match(eins, /<Redirect method="POST">https:\/\/x\/api\/rufgruppe\?a=menue&amp;n=2&amp;k=abc<\/Redirect>/);
   assert.match(twimlMenue(url, MAX_MENUE), /<Gather/);
   assert.equal(twimlMenue(url, MAX_MENUE + 1).includes("<Hangup/>"), true);
