@@ -18,6 +18,7 @@ import {
   lageLesen,
   lageNachricht,
   lageText,
+  lageTeile,
   MAX_MENUE,
   menuewahl,
   nameZu,
@@ -201,6 +202,10 @@ test("Stufe 6: zeigen – Brief für die Bühne der Zentrale, nur bekannte Vorla
   assert.deepEqual(briefAus("zeigen", { vorlage: "schulwoche" }, "s"), { typ: "zeigen", vorlage: "schulwoche" });
   assert.deepEqual(briefAus("zeigen", { vorlage: "kunden", wunsch: "  Relax Fit " }, "s"), { typ: "zeigen", vorlage: "kunden", wunsch: "Relax Fit" });
   assert.deepEqual(briefAus("zeigen", { vorlage: "route", wunsch: "von Mühlheim nach Offenbach" }, "s"), { typ: "zeigen", vorlage: "route", wunsch: "von Mühlheim nach Offenbach" });
+  // 09.11.: Luca zeigt selbst einen Plan (Schritte mit |), dafür darf der Wunsch länger sein
+  const plan = `Kunden anrufen: ${Array.from({ length: 8 }, (_, i) => `Schritt ${i + 1} – kurze Erklärung dazu`).join(" | ")}`;
+  const planBrief = briefAus("zeigen", { vorlage: "plan", wunsch: plan }, "s");
+  assert.equal(planBrief && planBrief.typ === "zeigen" && planBrief.wunsch, plan);
   assert.equal(briefAus("zeigen", { vorlage: "aufgaben" }, "s"), null); // nichts über die Zentrale selbst
   assert.deepEqual(briefAus("zeigen", { vorlage: "wetter" }, "s"), { typ: "zeigen", vorlage: "wetter" });
   assert.deepEqual(briefAus("zeigen", { vorlage: "treffpunkt", wunsch: "Offenbach|Hanau" }, "s"), { typ: "zeigen", vorlage: "treffpunkt", wunsch: "Offenbach|Hanau" });
@@ -322,4 +327,17 @@ test("Feste Nachrichten rücken nach vorn, bevor sie aus dem Fenster fallen", as
   const alle = Array.from({ length: 100 }, (_, i) => ({ id: String(i), content: i === 80 ? "LAGE x" : i === 10 ? "LAGE y" : i === 90 ? "anderes" : "z", istUnsere: true }));
   assert.deepEqual(festeNachVorn(alle, ["LAGE"]), [{ id: "80", content: "LAGE x" }]);
   assert.deepEqual(festeNachVorn(alle.map((m) => ({ ...m, istUnsere: false })), ["LAGE"]), []);
+});
+
+test("Lagebericht in Teile: Schule und Termine als eigene Variablen, der Rest bleibt Lage (09.11.)", () => {
+  const text = "Schule:\nHeute (Mo 09.11.): 3./4. Englisch\nMorgen (Di 10.11.): 2. Englisch – entfällt\n\nTermine (Geschäft und privat):\n- heute 15:30 Zahnarzt\n\nWartet auf David: nichts.\n\nLäuft gerade: nichts.";
+  const t = lageTeile(text);
+  assert.equal(t.schule, "Heute (Mo 09.11.): 3./4. Englisch\nMorgen (Di 10.11.): 2. Englisch – entfällt");
+  assert.equal(t.termine, "- heute 15:30 Zahnarzt");
+  assert.equal(t.rest, "Wartet auf David: nichts.\n\nLäuft gerade: nichts.");
+  const ohne = lageTeile("Wartet auf David: nichts.");
+  assert.equal(ohne.schule, "");
+  assert.equal(ohne.termine, "");
+  assert.equal(ohne.rest, "Wartet auf David: nichts.");
+  assert.equal(lageTeile("Termine heute und morgen: keine.\n\nWartet auf David: nichts.").termine, "keine");
 });

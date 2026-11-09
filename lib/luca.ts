@@ -22,6 +22,7 @@ import {
   GESPRAECH_STATUS,
   gespraechLaeuft,
   gedaechtnisAus,
+  lageTeile,
   gespraechNachrichten,
   gespraechText,
   SPRECH_PLAN,
@@ -280,8 +281,15 @@ async function vapi<T>(pfad: string, init: RequestInit = {}): Promise<T> {
 
 /** Was Luca beim Gespräch weiß (Lagebericht), warum er anruft, was er erklären/fragen soll und die Notiz von Claude. */
 function variablen(lage: Lage | null, grund: string | null, info?: string, notiz: string | null = null, gedaechtnis = "(noch keine früheren Gespräche)", kunden: KundeFuerLuca[] | null = null, standort: StandortSpeicher | null = null) {
+  // 09.11.: eigene Variablen für Zeit, Ort, Schule und Termine – der Rest bleibt {{lage}}
+  const jetzt = new Date();
+  const teile = lageTeile(lage?.text ?? "");
   return {
-    lage: `Heute ist ${new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}.\n${standort?.standort ? `${standortText(standort.standort, new Date())}\n` : ""}${lageText(lage, new Date())}\n\n${kundenText(kunden, new Date())}`,
+    jetzt: `${new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(jetzt)}, ${new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(jetzt)} Uhr`,
+    standort: standort?.standort ? standortText(standort.standort, jetzt) : "unbekannt",
+    schule: teile.schule || "(kein Stand aus dem Schulportal – lass mit schule_aktualisieren frisch nachschauen)",
+    termine: teile.termine || "keine",
+    lage: `${lageText(lage ? { ...lage, text: teile.rest } : null, jetzt)}\n\n${kundenText(kunden, jetzt)}`,
     gedaechtnis,
     grund: mitNotiz(grund ? `Du rufst David an. Grund: ${grund}${info ? `\n\nDas sollst du ihm erklären und fragen:\n${info}` : ""}` : "David hat dich angerufen.", notiz),
   };

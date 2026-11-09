@@ -121,7 +121,7 @@ export const LAGE_MARKE = "📋 Lagebericht";
 export const ANRUF_MARKE = "📞 Luca ruft David an";
 
 /** Stufe 6: was Luca am Telefon auf der Bühne der Zentrale zeigen kann (Vorlagen der Zentrale) – „schliessen“ macht sie zu. */
-export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "schliessen"] as const;
+export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "schliessen"] as const;
 
 export type Brief =
   | { typ: "zeigen"; vorlage: string; wunsch?: string }
@@ -146,7 +146,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
   if (werkzeug === "zeigen") {
     const vorlage = typeof args.vorlage === "string" ? args.vorlage.trim().toLowerCase() : "";
     if (!(ZEIG_VORLAGEN as readonly string[]).includes(vorlage)) return null;
-    const wunsch = typeof args.wunsch === "string" ? args.wunsch.replace(/\s+/g, " ").trim().slice(0, 120) : "";
+    const wunsch = typeof args.wunsch === "string" ? args.wunsch.replace(/\s+/g, " ").trim().slice(0, vorlage === "plan" ? 1200 : 120) : "";
     return wunsch ? { typ: "zeigen", vorlage, wunsch } : { typ: "zeigen", vorlage };
   }
   if (werkzeug === "rueckruf_planen") {
@@ -303,6 +303,20 @@ export function lageText(o: { stand: string; text: string } | null, jetzt: Date)
   return `${kopf}\n${o.text.slice(0, 3000)}`;
 }
 
+/** Lagebericht in Teile (09.11.): Schule und Termine bekommt Luca als eigene Variablen, der Rest bleibt {{lage}}. */
+export function lageTeile(text: string): { schule: string; termine: string; rest: string } {
+  let schule = "";
+  let termine = "";
+  const rest: string[] = [];
+  for (const block of text.split(/\n\n+/)) {
+    if (block.startsWith("Schule:")) schule = block.replace(/^Schule:\s*\n?/, "").trim();
+    else if (/^Termine heute und morgen: keine/.test(block)) termine = "keine";
+    else if (block.startsWith("Termine")) termine = block.replace(/^Termine[^\n]*\n?/, "").trim();
+    else if (block.trim()) rest.push(block);
+  }
+  return { schule, termine, rest: rest.join("\n\n") };
+}
+
 export function lageNachricht(l: Lage): string {
   return `${LAGE_MARKE} (nur für Luca am Telefon, wird automatisch aktualisiert)\n\`\`\`json\n${JSON.stringify(l).replace(/`/g, "'")}\n\`\`\``;
 }
@@ -453,8 +467,8 @@ export const LUCA_WERKZEUGE = [
       parameters: {
         type: "object",
         properties: {
-          vorlage: { type: "string", enum: [...ZEIG_VORLAGEN], description: "Was gezeigt wird: ort (Karte mit dem Gebäude – wunsch = Firma, Ort oder Adresse), route (wunsch = „von X nach Y“ oder „nach Y“, auch „mit dem Rad“/„zu Fuß“), wetter (wunsch = Ort, leer = Mühlheim), bahn (Bus und Bahn – wunsch = „von X nach Y“ oder „nach Y“), treffpunkt (wunsch = „Ort A|Ort B“), schulwoche, kunden (wunsch = Kundenname), website (letzte Prüfung), karte (die Gegend), schliessen (Bühne zu)." },
-          wunsch: { type: "string", description: "Für ort und route nötig, sonst optional: z. B. „Relax Fit Obertshausen“ oder „von Mühlheim nach Offenbach“." },
+          vorlage: { type: "string", enum: [...ZEIG_VORLAGEN], description: "Was gezeigt wird: ort (Karte mit dem Gebäude – wunsch = Firma, Ort oder Adresse), route (wunsch = „von X nach Y“ oder „nach Y“, auch „mit dem Rad“/„zu Fuß“), wetter (wunsch = Ort, leer = Mühlheim), bahn (Bus und Bahn – wunsch = „von X nach Y“ oder „nach Y“), treffpunkt (wunsch = „Ort A|Ort B“), schulwoche, kunden (wunsch = Kundenname), website (letzte Prüfung), karte (die Gegend), kosten, tag, plan (du zeigst selbst einen Plan, eine Skizze oder Liste: wunsch = „Titel: Schritt 1 | Schritt 2 – kurze Erklärung | …“, bis 10 Schritte), schliessen (Bühne zu)." },
+          wunsch: { type: "string", description: "Für ort, route und plan nötig, sonst optional: z. B. „Relax Fit Obertshausen“, „von Mühlheim nach Offenbach“ oder „Kunden anrufen: Vorbereiten | Eröffnen | Bedarf fragen | Termin vorschlagen“." },
         },
         required: ["vorlage"],
       },
