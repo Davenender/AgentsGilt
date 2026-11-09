@@ -28,9 +28,11 @@ import {
   raeumeBibliothekAuf,
   schritteVon,
   zeichne,
+  zeichneUebung,
   zeichneVerwaltung,
   type Inhalt,
 } from "@/lib/akademie-daten";
+import { handleUebung, type UeInteraction } from "@/lib/uebung-handler";
 import { CHEF_ID, TEAM } from "@/lib/zustaendige";
 
 // Knöpfe der Akademie (ak:).
@@ -38,6 +40,7 @@ import { CHEF_ID, TEAM } from "@/lib/zustaendige";
 //             Lektionen und Tests sieht nur die Person.
 //   Bibliothek: ak:bw (anzeigen), ak:be (Einheit), ak:bs/ak:bsuche (suchen), ak:bc (aufräumen).
 //   Verwaltung (nur David): ak:vp (Person), ak:vr (aktualisieren).
+//   Übungen: ak:us, ak:uw, ak:ua/um/uf/ux:<start> (siehe lib/uebung-handler.ts).
 
 interface AkInteraction {
   type: number;
@@ -114,6 +117,7 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
   const itoken = i.token;
   const id = (i.data?.custom_id ?? "").slice("ak:".length);
   if (!user || !token || !kanal || !appId || !itoken) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
+  if (id === "us" || id === "uw" || /^u[afmx]:/.test(id)) return handleUebung(i as UeInteraction, token, id);
 
   /** Lernpfad-Aktionen gehen nur im eigenen Lernpfad. */
   const imLernpfad = async (weiter: (ak: NonNullable<Awaited<ReturnType<typeof leseAkademie>>>, inhalt: Inhalt, p: Person) => Promise<void>) => {
@@ -199,6 +203,8 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
         if (a.bestanden) p.bestanden.add(einheit);
         await ersetze(appId, itoken, ergebnisAnsicht(a, inhalt.lektionen, einheit));
         await nachher(token, user.id, p, ak.personen, inhalt);
+        // Ein bestandener Test kann Übungen frei machen.
+        if (a.bestanden && inhalt.uebungen.some((u) => u.voraussetzung === einheit)) await zeichneUebung(token, user.id, p, inhalt);
       }),
     );
     return NextResponse.json(isPrivat(i) ? DEFER_UPDATE : DEFER_PRIVAT);

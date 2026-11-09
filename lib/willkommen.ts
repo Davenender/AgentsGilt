@@ -322,8 +322,9 @@ export const ANLEITUNGEN: Anleitung[] = [
       "• **Wiederholen:** Auf der Lernpfad-Karte über die Auswahl **Lektion wiederholen** jede gelesene Lektion noch einmal öffnen.",
       "• **📚 Bibliothek (euer eigener Kanal):** das Inhaltsverzeichnis aller freigegebenen Lektionen zum Nachschlagen. Eine Lektion auswählen, und sie erscheint ganz. Mit **🔎 Suchen** nach einem Wort suchen, mit **🧹 Aufräumen** alles wieder wegräumen.",
       "• **📘 Branchenwissen** (unten in der Bibliothek): je Branche, was Betriebe oft brauchen und worauf es ankommt. Gut zum Nachlesen vor einem Kundengespräch.",
+      "• **🎭 Übungen (euer eigener Kanal):** Nach dem Test von Einheit 6 übt ihr dort Kundengespräche mit einem KI-Kunden. **🎭 Übung starten**, eine Lage wählen, dann mit **💬 Antworten** schreiben, was ihr sagen würdet. Mit **✅ Fertig** gibt es Punkte von 0 bis 100 und eine Rückmeldung nach dem Gesprächsleitfaden.",
       "",
-      "Lernpfad und Bibliothek seht nur ihr selbst (und David). Neue Lektionen kommen nach und nach dazu.",
+      "Lernpfad, Bibliothek und Übungen seht nur ihr selbst (und David). Neue Lektionen und Lagen kommen nach und nach dazu.",
     ),
   },
   {

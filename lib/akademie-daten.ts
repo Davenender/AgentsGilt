@@ -19,12 +19,14 @@ import {
   seiten,
   verwaltungKarte,
   zeileFrei,
+  zeileUebKanal,
   type Lektion,
   type Person,
   type Testfrage,
 } from "@/lib/akademie";
 import { snowflakeZeit } from "@/lib/statistik";
 import { TEAM } from "@/lib/zustaendige";
+import { sichtbareUebungen, uebungAusNotion, uebungKarte, type Uebung } from "@/lib/uebung";
 import type { EmbedLike } from "@/lib/discord-calls";
 
 // Akademie: Notion lesen, Kanäle, Karten und Merkzettel in Discord (Plan 2).
@@ -40,7 +42,7 @@ export const START_TITEL = "🎓 Akademie von Agents Gilt";
 const VERWALTUNG_TITEL_ALT = "🔧 Akademie verwalten";
 
 type Kanal = { id: string; name: string; type: number; parent_id?: string | null };
-export type Inhalt = { lektionen: Lektion[]; fragen: Testfrage[] };
+export type Inhalt = { lektionen: Lektion[]; fragen: Testfrage[]; uebungen: Uebung[] };
 
 export const nameVon = (id: string) => TEAM.find((t) => t.discord === id)?.name ?? "Person";
 
@@ -52,6 +54,7 @@ export async function holeInhalt(): Promise<Inhalt | null> {
   if (!token) return null;
   const lektionen: Lektion[] = [];
   const fragen: Testfrage[] = [];
+  const uebungen: Uebung[] = [];
   let cursor: string | undefined;
   try {
     do {
@@ -71,10 +74,12 @@ export async function holeInhalt(): Promise<Inhalt | null> {
         if (l) lektionen.push(l);
         const f = frageAusNotion(s);
         if (f) fragen.push(f);
+        const u = uebungAusNotion(s);
+        if (u) uebungen.push(u);
       }
       cursor = data.has_more && data.next_cursor ? data.next_cursor : undefined;
     } while (cursor);
-    return { lektionen, fragen };
+    return { lektionen, fragen, uebungen };
   } catch (err) {
     console.error("[akademie] Notion lesen fehlgeschlagen:", err);
     return null;
@@ -162,7 +167,7 @@ const START_TEXT = [
   "",
   "**Gut zu wissen**",
   "• In den Akademie-Kanälen schreibt nur der Bot, ihr drückt Knöpfe.",
-  "• Später kommen Übungen dazu, bei denen ihr Kundengespräche mit einem KI-Kunden übt.",
+  "• 🎭 **Übungen**: Jeder hat dazu einen dritten Kanal, 🎭uebungen-<name>. Dort übst du Kundengespräche mit einem KI-Kunden, sobald du den Test von Einheit 6 bestanden hast. Wie das geht, steht oben in deinem Übungskanal.",
   "• Fragen oder klappt etwas nicht? In #allgemein schreiben.",
 ].join("\n");
 
@@ -171,6 +176,39 @@ export async function zeichne(token: string, userId: string, p: Person, inhalt: 
   const name = nameVon(userId);
   await call(token, "PATCH", `/channels/${p.lernpfad}/messages/${p.pfadMsg}`, { ...pfadKarte(name, schritteVon(p, inhalt), p.gelesen, p.bestanden), allowed_mentions: { parse: [] } });
   await call(token, "PATCH", `/channels/${p.bibliothek}/messages/${p.tocMsg}`, { ...bibliothekKarte(name, bibliothekVon(p, inhalt)), allowed_mentions: { parse: [] } });
+}
+
+/** Die Karte oben im Übungskanal einer Person neu zeichnen. */
+export async function zeichneUebung(token: string, userId: string, p: Person, inhalt: Inhalt) {
+  if (!p.uebKanal) return;
+  await call(token, "PATCH", `/channels/${p.uebKanal.kanal}/messages/${p.uebKanal.karte}`, {
+    ...uebungKarte(nameVon(userId), sichtbareUebungen(inhalt.uebungen, p.rolle), p),
+    allowed_mentions: { parse: [] },
+  });
+}
+
+/** Legt den Übungskanal einer Person an (doppelt geht nicht). */
+async function legeUebungAn(token: string, speicher: string, userId: string, p: Person, inhalt: Inhalt): Promise<Person["uebKanal"] | null> {
+  const kanaele = (await alleKanaele(token)) ?? [];
+  const [kat, team, bot] = await Promise.all([kategorie(token, kanaele), teamRolle(token), eigeneId(token)]);
+  if (!bot) return null;
+  const name = nameVon(userId);
+  const kanal = await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, {
+    name: kanalNamen(name).uebungen,
+    type: 0,
+    topic: `Übungen von ${name}: Kundengespräche mit einem KI-Kunden. Nur ${name} und David sehen diesen Kanal.`,
+    ...(kat ? { parent_id: kat } : {}),
+    permission_overwrites: privatRechte(userId, { everyone: GUILD_ID, team, bot }),
+  });
+  if (!kanal) return null;
+  const karte = await call<{ id: string }>(token, "POST", `/channels/${kanal.id}/messages`, {
+    ...uebungKarte(name, sichtbareUebungen(inhalt.uebungen, p.rolle), p),
+    allowed_mentions: { parse: [] },
+  });
+  if (!karte) return null;
+  await call(token, "PUT", `/channels/${kanal.id}/pins/${karte.id}`);
+  await merke(token, speicher, zeileUebKanal(userId, kanal.id, karte.id));
+  return { kanal: kanal.id, karte: karte.id };
 }
 
 /** Die Fortschritts-Karte in #akademie-verwaltung (nur David) neu zeichnen. */
@@ -245,7 +283,11 @@ export async function richteEin(token: string): Promise<{ start: string | null; 
       p = (await legeBereichAn(token, ak.speicher, t.discord, inhalt)) ?? undefined;
       if (p) ak.personen.set(t.discord, p);
     } else await zeichne(token, t.discord, p, inhalt);
-    bereiche[t.name] = p ? `lernpfad ${p.lernpfad}, bibliothek ${p.bibliothek}` : "Fehler beim Anlegen";
+    if (p && !p.uebKanal) {
+      const u = await legeUebungAn(token, ak.speicher, t.discord, p, inhalt);
+      if (u) p.uebKanal = u;
+    } else if (p) await zeichneUebung(token, t.discord, p, inhalt);
+    bereiche[t.name] = p ? `lernpfad ${p.lernpfad}, bibliothek ${p.bibliothek}, übungen ${p.uebKanal?.kanal ?? "Fehler beim Anlegen"}` : "Fehler beim Anlegen";
   }
   await zeichneVerwaltung(token, ak.personen, inhalt);
   return { start, speicher: ak.speicher, bereiche };
@@ -275,14 +317,14 @@ export async function raeumeBibliothekAuf(token: string, opt: { kanal?: string; 
   return weg;
 }
 
-/** Setzt den Lernstand einer Person zurück (Gelesenes und Tests). Bereich und Kanäle bleiben. */
+/** Setzt den Lernstand einer Person zurück (Gelesenes, Tests und Übungsergebnisse). Bereich und Kanäle bleiben. */
 export async function setzeZurueck(token: string, userId: string): Promise<number> {
   const speicher = await speicherKanal(token);
   if (!speicher) return 0;
   let weg = 0;
   for (const m of await alleNachrichten(token, speicher, 3000)) {
     const t = m.content.split(" · ");
-    if ((t[0] === "gelesen" || t[0] === "test") && t[1] === userId) {
+    if ((t[0] === "gelesen" || t[0] === "test" || t[0] === "uebung") && t[1] === userId) {
       if ((await call(token, "DELETE", `/channels/${speicher}/messages/${m.id}`)) !== null) weg++;
     }
   }

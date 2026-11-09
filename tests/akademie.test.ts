@@ -244,8 +244,8 @@ test("Fortschritt für die Verwaltung und die Zentrale", () => {
 });
 
 test("Kanäle nur für die Person und David", () => {
-  assert.deepEqual(kanalNamen("Mijo"), { lernpfad: "📖lernpfad-mijo", bibliothek: "📚bibliothek-mijo" });
-  assert.deepEqual(kanalNamen("Jakob Börke"), { lernpfad: "📖lernpfad-jakob-boerke", bibliothek: "📚bibliothek-jakob-boerke" });
+  assert.deepEqual(kanalNamen("Mijo"), { lernpfad: "📖lernpfad-mijo", bibliothek: "📚bibliothek-mijo", uebungen: "🎭uebungen-mijo" });
+  assert.deepEqual(kanalNamen("Jakob Börke"), { lernpfad: "📖lernpfad-jakob-boerke", bibliothek: "📚bibliothek-jakob-boerke", uebungen: "🎭uebungen-jakob-boerke" });
   const r = privatRechte(MIJO, { everyone: "999", team: "888", bot: "777" });
   const von = (id: string) => r.find((o) => o.id === id)!;
   assert.equal(BigInt(von("999").deny) & BigInt(1024), BigInt(1024), "alle anderen sehen nichts");

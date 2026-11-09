@@ -39,7 +39,7 @@ export function lektionAusNotion(seite: { id: string; url?: string; properties?:
   const p = seite.properties ?? {};
   const nr = text(p["Nr"]?.rich_text);
   const art = (p["Art"]?.select as { name?: string } | null)?.name;
-  if (!nr || art === "Testfrage") return null;
+  if (!nr || art === "Testfrage" || art === "Übung") return null;
   const zahl = (n: string) => (typeof p[n]?.number === "number" ? (p[n].number as number) : null);
   return {
     id: seite.id,
@@ -490,12 +490,24 @@ export const zeileFrei = (user: string, rolle: Rolle, lernpfad: string, biblioth
 export const zeileGelesen = (user: string, lektion: string, nr: string, zeit: string) => ["gelesen", user, lektion, nr, zeit].join(SEP);
 export const zeileTest = (user: string, einheit: number, richtig: number, gesamt: number, bestanden: boolean, zeit: string) =>
   ["test", user, String(einheit), String(richtig), String(gesamt), bestanden ? "ja" : "nein", zeit].join(SEP);
+/** Der Übungskanal einer Person und ihre Karte darin. */
+export const zeileUebKanal = (user: string, kanal: string, karte: string) => ["uebkanal", user, kanal, karte].join(SEP);
+/** Ergebnis einer bewerteten Übung (Punkte 0 bis 100). */
+export const zeileUebung = (user: string, nr: string, titel: string, punkte: number, zeit: string) =>
+  ["uebung", user, nr, String(punkte), zeit, titel.replace(/ · /g, " - ")].join(SEP);
 
 export interface TestErgebnis {
   einheit: number;
   richtig: number;
   gesamt: number;
   bestanden: boolean;
+  zeit: string;
+}
+
+export interface UebungErgebnis {
+  nr: string;
+  titel: string;
+  punkte: number;
   zeit: string;
 }
 
@@ -508,6 +520,10 @@ export interface Person {
   gelesen: Map<string, { nr: string; zeit: string }>;
   tests: TestErgebnis[];
   bestanden: Set<number>;
+  /** Übungskanal mit Karte (fehlt, solange er nicht angelegt ist). */
+  uebKanal?: { kanal: string; karte: string };
+  /** Bewertete Übungen, älteste zuerst. */
+  uebungen?: UebungErgebnis[];
 }
 
 export function leseSpeicher(nachrichten: { id: string; content: string }[]): Map<string, Person> {
@@ -525,6 +541,8 @@ export function leseSpeicher(nachrichten: { id: string; content: string }[]): Ma
         gelesen: alt?.gelesen ?? new Map(),
         tests: alt?.tests ?? [],
         bestanden: alt?.bestanden ?? new Set(),
+        ...(alt?.uebKanal ? { uebKanal: alt.uebKanal } : {}),
+        uebungen: alt?.uebungen ?? [],
       });
     }
   }
@@ -537,6 +555,8 @@ export function leseSpeicher(nachrichten: { id: string; content: string }[]): Ma
       p.tests.push(e);
       if (e.bestanden) p.bestanden.add(e.einheit);
     }
+    if (t[0] === "uebkanal" && t.length >= 4) p.uebKanal = { kanal: t[2], karte: t[3] };
+    if (t[0] === "uebung" && t.length >= 6) (p.uebungen ??= []).push({ nr: t[2], punkte: Number(t[3]) || 0, zeit: t[4], titel: t.slice(5).join(SEP) });
   }
   return m;
 }
@@ -548,6 +568,7 @@ export const zeitText = (iso: string) =>
     ? new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(/^(\d\d\.\d\d\.), /, "$1, ")
     : "";
 
+const uebungText = (u: UebungErgebnis) => `🎭 Übung ${u.nr} ${u.titel}: ${u.punkte} von 100 Punkten`;
 const testText = (t: TestErgebnis) => `Test Einheit ${t.einheit}: ${t.richtig} von ${t.gesamt} (${t.gesamt ? Math.round((t.richtig / t.gesamt) * 100) : 0} %), ${t.bestanden ? "bestanden" : "nicht bestanden"}`;
 
 export function fortschritt(name: string, p: Person, sch: Schritt[]) {
@@ -558,6 +579,7 @@ export function fortschritt(name: string, p: Person, sch: Schritt[]) {
       return { was: `${g.nr}${l?.art === "lektion" ? ` ${l.lektion.titel}` : ""} gelesen`, zeit: g.zeit };
     }),
     ...p.tests.map((t) => ({ was: testText(t), zeit: t.zeit })),
+    ...(p.uebungen ?? []).map((u) => ({ was: uebungText(u), zeit: u.zeit })),
   ].sort((a, b) => b.zeit.localeCompare(a.zeit));
   return {
     id: TEAM.find((t) => t.name === name)?.discord ?? "",
@@ -569,6 +591,7 @@ export function fortschritt(name: string, p: Person, sch: Schritt[]) {
     zuletzt: ereignisse[0] ?? null,
     letzte: ereignisse.slice(0, 5),
     tests: p.tests,
+    uebungen: p.uebungen ?? [],
   };
 }
 
@@ -615,10 +638,11 @@ export function personDetail(f: ReturnType<typeof fortschritt>, p: Person, sch: 
     return `${zeichen} ${testName(x.einheit)}${versuche.length ? ` · ${versuche.length} Versuch${versuche.length > 1 ? "e" : ""}, bestes Ergebnis ${best.richtig} von ${best.gesamt}` : ""}`;
   });
   const letzte = f.letzte.map((e) => `• ${e.was} · ${zeitText(e.zeit)}`).join("\n");
+  const uebungen = (p.uebungen ?? []).slice(-5).reverse().map((u) => `• ${u.nr} ${u.titel}: **${u.punkte}** von 100 · ${zeitText(u.zeit)}`).join("\n");
   return {
     title: `👤 ${f.name} in der Akademie`,
     color: FARBE,
-    description: `${fortschrittBalken(f.fertig, f.gesamt)} (${f.prozent} %)\nJetzt: ${f.jetzt ?? "alles geschafft"}\n\n${zeilen.join("\n")}${letzte ? `\n\n**Zuletzt**\n${letzte}` : ""}`.slice(0, 4000),
+    description: `${fortschrittBalken(f.fertig, f.gesamt)} (${f.prozent} %)\nJetzt: ${f.jetzt ?? "alles geschafft"}\n\n${zeilen.join("\n")}${uebungen ? `\n\n**🎭 Übungen**\n${uebungen}` : ""}${letzte ? `\n\n**Zuletzt**\n${letzte}` : ""}`.slice(0, 4000),
   };
 }
 
@@ -634,7 +658,7 @@ const slug = (s: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-export const kanalNamen = (name: string) => ({ lernpfad: `📖lernpfad-${slug(name)}`, bibliothek: `📚bibliothek-${slug(name)}` });
+export const kanalNamen = (name: string) => ({ lernpfad: `📖lernpfad-${slug(name)}`, bibliothek: `📚bibliothek-${slug(name)}`, uebungen: `🎭uebungen-${slug(name)}` });
 
 const SEHEN = BigInt(1024);
 const LESEN = BigInt(1024 + 65536);
