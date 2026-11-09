@@ -308,11 +308,13 @@ export async function richteEin(token: string): Promise<{ start: string | null; 
     if (p && !p.uebKanal) {
       const u = await legeUebungAn(token, ak.speicher, t.discord, p, inhalt);
       if (u) p.uebKanal = u;
-    } else if (p?.uebKanal) {
-      await zeichneUebung(token, t.discord, p, inhalt);
-      await erlaubeSchreiben(token, p.uebKanal.kanal, t.discord);
     }
-    bereiche[t.name] = p ? `lernpfad ${p.lernpfad}, bibliothek ${p.bibliothek}, übungen ${p.uebKanal?.kanal ?? "Fehler beim Anlegen"}` : "Fehler beim Anlegen";
+    let schreiben = "";
+    if (p?.uebKanal) {
+      await zeichneUebung(token, t.discord, p, inhalt);
+      schreiben = (await erlaubeSchreiben(token, p.uebKanal.kanal, t.discord)) ? " (schreiben erlaubt)" : " (schreiben NICHT gesetzt)";
+    }
+    bereiche[t.name] = p ? `lernpfad ${p.lernpfad}, bibliothek ${p.bibliothek}, übungen ${p.uebKanal?.kanal ?? "Fehler beim Anlegen"}${schreiben}` : "Fehler beim Anlegen";
   }
   await zeichneVerwaltung(token, ak.personen, inhalt);
   bereiche.befehl = (await meldeAntwortBefehlAn(token)) ? "/a angemeldet" : "/a nicht angemeldet";
