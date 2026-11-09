@@ -4,6 +4,7 @@ import { gleicheZustaendigAb, ordneKanalEin, sichereKundenarchiv, sperreKundenka
 import { listeKunden } from "@/lib/notion-api";
 import { kanalName, kanalNameMitPunkt, statusPunkt } from "@/lib/notion-kunden";
 import { zeitplanGebremst } from "@/lib/zeitplan";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,7 @@ async function laufen() {
   const bremse = zeitplanGebremst("kunden");
   if (bremse) return bremse;
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   if (!token) return NextResponse.json({ error: "Kein Bot-Token" }, { status: 500 });
   const kunden = await listeKunden();
   if (!kunden) return NextResponse.json({ error: "Notion nicht erreichbar" }, { status: 502 });

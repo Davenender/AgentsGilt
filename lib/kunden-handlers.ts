@@ -36,7 +36,8 @@ import {
   pruefeAuswertung,
 } from "@/lib/gespraech";
 import { kanalNameMitPunkt } from "@/lib/notion-kunden";
-import { ausKarte, auswahlMenue, CHEF_ID, darf, gleich, mitZustaendig, NUR_ZUSTAENDIGE, pruefeAuswahl, TEAM, zustaendigZeile } from "@/lib/zustaendige";
+import { ausKarte, auswahlMenue, CHEF_ID, darf, gleich, mitZustaendig, NUR_ZUSTAENDIGE, pruefeAuswahl, zustaendigZeile } from "@/lib/zustaendige";
+import { team } from "@/lib/team";
 
 // Knöpfe an der Kundenkarte im Kundenkanal (knd:):
 //   „👥 Zuständige“, „📝 Gesprächsbogen“, „🧠 Gespräch auswerten“, „⚪ Verloren“ (Grund wählen,
@@ -85,7 +86,7 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
       type: 4,
       data: {
         flags: 64,
-        content: "👥 **Wer soll zuständig sein?** Wähle alle aus, die zuständig sein sollen. Möglich sind David, Jakob und Mijo.",
+        content: "👥 **Wer soll zuständig sein?** Wähle alle aus, die zuständig sein sollen. Möglich ist jeder, der gerade im Team ist.",
         components: auswahlMenue(messageId, ausKarte(karte) ?? []),
         allowed_mentions: { parse: [] },
       },
@@ -141,7 +142,7 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
   // ---- 🧠 Gespräch auswerten: Bogen und Notizen lesen, KI fasst zusammen, Notion wird ausgefüllt
   if (id === "auswerten" && karte) {
     if (statusAusKarte(karte) === VERLOREN) return ephemeral("Dieser Kunde ist als verloren markiert.");
-    const von = TEAM.find((t) => t.discord === user.id)?.name ?? user.global_name ?? user.username ?? "Team";
+    const von = team().find((t) => t.discord === user.id)?.name ?? user.global_name ?? user.username ?? "Team";
     after(async () => {
       const seite = notionAusKarte(karte);
       const bloecke = seite ? await leseBloecke(seite) : null;
@@ -213,7 +214,7 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
   // ---- Schritt 2: bestätigt. Notion „Demo-Status“, Karte, Zeile im Kanal, Push nur an David.
   if (id.startsWith("demoja:")) {
     const kartenId = id.slice("demoja:".length);
-    const von = TEAM.find((t) => t.discord === user.id)?.name ?? user.global_name ?? user.username ?? "Jemand";
+    const von = team().find((t) => t.discord === user.id)?.name ?? user.global_name ?? user.username ?? "Jemand";
     after(async () => {
       const k = await holeKarte(token, channelId, kartenId);
       if (!k) return void (await antwort("Die Karte ist nicht mehr da."));

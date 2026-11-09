@@ -50,7 +50,7 @@ import {
   sucheKanal,
   teamRolle,
 } from "@/lib/leads";
-import { SHOW_NAMES } from "@/lib/support";
+import { aktive, nameVon } from "@/lib/team";
 
 // Bedienung der Lead-Suche in Discord (Kanal #lead-suche). Alles läuft über Knöpfe, Auswahlfelder
 // und kleine Fenster. Die Suchzentrale ist eine private Nachricht (nur für den, der geklickt hat).
@@ -341,7 +341,7 @@ export async function handleSuche(i: SucheInteraction, token: string | undefined
   if (["ls:ok", "ls:no", "ls:undo", "ls:later", "ls:note", "ls:notemodal"].includes(id)) return karteKlick(i, token, id);
 
   // Alles andere nur für die drei aus dem Team.
-  if (!SHOW_NAMES[user.id]) return ephemeral("Die Lead-Suche ist nur für das Team.");
+  if (!aktive().some((m) => m.discord === user.id)) return ephemeral("Die Lead-Suche ist nur für das Team.");
 
   // ---- Suche starten: Code schicken (oder direkt öffnen, wenn schon freigeschaltet).
   // Das dauert mehrere Zugriffe auf den Merkzettel, deshalb erst quittieren und dann antworten.
@@ -554,7 +554,7 @@ function karteKnoepfe(maps: string | null) {
 }
 
 async function fuehreSucheAus(i: SucheInteraction, token: string, userId: string, z: Zustand): Promise<void> {
-  const name = SHOW_NAMES[userId] ?? "Team";
+  const name = nameVon(userId) ?? "Team";
   const buchung = await verbrauchSuche(token, userId);
   const zeigeZentrale = async (hinweis: string, k?: Kontingent) => {
     const kk = k ?? (await kontingent(token));
@@ -670,7 +670,7 @@ async function karteKlick(i: SucheInteraction, token: string, aktion: string): P
   const von = teile.find((t) => t.startsWith("suche:"))?.slice(6);
   if (!domain || !von) return ephemeral("Diese Karte ist nicht mehr aktuell.");
   if (von !== user.id) return ephemeral("Das ist nicht deine Suche.");
-  const name = SHOW_NAMES[user.id] ?? "Team";
+  const name = nameVon(user.id) ?? "Team";
   const erledigt = (text: string, farbe: number): EmbedLike => ({
     ...embed,
     color: farbe,
@@ -778,7 +778,7 @@ export async function handleSucheClose(i: SucheInteraction, token: string | unde
   const user = i.member?.user;
   const kanalId = i.channel_id;
   if (!token || !user || !kanalId) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
-  if (!SHOW_NAMES[user.id]) return ephemeral("Die Lead-Suche ist nur für das Team.");
+  if (!aktive().some((m) => m.discord === user.id)) return ephemeral("Die Lead-Suche ist nur für das Team.");
 
   const [ch, parent] = await Promise.all([
     call<{ type: number; name?: string; parent_id?: string }>(token, "GET", `/channels/${kanalId}`),
@@ -787,7 +787,7 @@ export async function handleSucheClose(i: SucheInteraction, token: string | unde
   if (!ch || ch.type !== 12 || !parent || ch.parent_id !== parent) {
     return ephemeral("`/close` funktioniert nur in einem Such-Thread aus der Lead-Suche. Tipp den Befehl dort ein.");
   }
-  const name = SHOW_NAMES[user.id];
+  const name = nameVon(user.id) ?? "Team";
   if (!(ch.name ?? "").startsWith(`${name} ·`) && user.id !== OWNER_ID) {
     return ephemeral("Das ist nicht dein Such-Thread.");
   }

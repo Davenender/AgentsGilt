@@ -28,7 +28,7 @@ import {
   teamRolle,
   vergissAbgelehnt,
 } from "@/lib/leads";
-import { SHOW_NAMES } from "@/lib/support";
+import { nameVon } from "@/lib/team";
 import { legeKundenZeileAn, notionConfigured } from "@/lib/notion-api";
 import type { Analyse } from "@/lib/lead-analyse";
 import { analyseAusFormular, analyseAusPlatz, formularModal, formularWerte, istMapsLink, manuellerSchluessel, webArt, type Platz } from "@/lib/lead-ohne-website";
@@ -185,7 +185,7 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
   const eingabe = linkOption(i);
   const name = option(i, "name");
   const ort = option(i, "ort");
-  const von = SHOW_NAMES[user.id] ?? who;
+  const von = nameVon(user.id) ?? who;
 
   // ---- Ohne Link und ohne Namen: gleich das Formular anbieten
   if (!eingabe && !name) {
@@ -290,7 +290,7 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
     if (!user || !token || !appId || !itoken) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
     const w = formularWerte(i.data?.components);
     if (!w.firma || !w.ort) return ephemeral("Firma und Ort fehlen. Bitte nochmal mit `/lead` anfangen.");
-    const von = SHOW_NAMES[user.id] ?? (i.member?.nick || user.global_name || user.username || "Unbekannt");
+    const von = nameVon(user.id) ?? (i.member?.nick || user.global_name || user.username || "Unbekannt");
     after(() => veroeffentliche(token, appId, itoken, analyseAusFormular(w), "", manuellerSchluessel(w.firma, w.ort), von));
     return NextResponse.json(DEFERRED_EPHEMERAL);
   }

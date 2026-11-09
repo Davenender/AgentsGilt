@@ -7,14 +7,11 @@ import type { EmbedLike } from "@/lib/discord-calls";
 // in Notion von Hand geändert, setzt der Bot es zurück. Alte Karten (mit Namen aus Notion oder ohne
 // Feld) übernehmen einmal den Stand aus Notion.
 
-export const TEAM = [
-  { discord: "806859236768088114", notion: "42dc06f2-4850-4c87-b958-a8bf40505986", name: "David" },
-  { discord: "523479048727560205", notion: "405d872b-594c-814f-92f2-00022b1d1178", name: "Jakob" },
-  { discord: "1363529531939492133", notion: "233d872b-594c-81cb-98c0-0002013ab53c", name: "Mijo" },
-] as const;
+// Wer im Team ist, steht seit Plan 4 im Team-Register (lib/team.ts), nicht mehr fest im Code.
+import { aktive, DAVID_ID, team } from "./team.ts";
 
 /** David: darf an jeder Kundenkarte alles. */
-export const CHEF_ID: string = TEAM[0].discord;
+export const CHEF_ID: string = DAVID_ID;
 export const F_ZUSTAENDIG = "Zuständig";
 export const NIEMAND = "niemand";
 export const NUR_ZUSTAENDIGE = "Nur die Zuständigen können das.";
@@ -22,12 +19,12 @@ export const NUR_ZUSTAENDIGE = "Nur die Zuständigen können das.";
 const ohneStriche = (id: string) => id.replace(/-/g, "").toLowerCase();
 const reihenfolge = (ids: Iterable<string>) => {
   const set = new Set(ids);
-  return TEAM.map((t) => t.discord).filter((d) => set.has(d));
+  return team().map((t) => t.discord).filter((d) => set.has(d));
 };
 
-export const notionIdFuer = (discord: string): string | null => TEAM.find((t) => t.discord === discord)?.notion ?? null;
+export const notionIdFuer = (discord: string): string | null => team().find((t) => t.discord === discord)?.notion || null;
 export const discordIdFuer = (notion: string): string | null =>
-  TEAM.find((t) => ohneStriche(t.notion) === ohneStriche(notion))?.discord ?? null;
+  team().find((t) => t.notion && ohneStriche(t.notion) === ohneStriche(notion))?.discord ?? null;
 
 /** Discord-Kennungen aus dem Notion-Personenfeld (oder einer Liste von Notion-IDs). Fremde fallen weg. */
 export function idsAusNotionProp(prop: unknown): string[] {
@@ -71,7 +68,7 @@ export const darf = (userId: string, zustaendige: string[]) => userId === CHEF_I
 export function pruefeAuswahl(values: string[] | undefined): { ok: true; ids: string[] } | { ok: false; grund: string } {
   const ids = [...new Set(values ?? [])];
   if (!ids.length) return { ok: false, grund: "Bitte mindestens eine Person auswählen." };
-  if (ids.some((id) => !notionIdFuer(id))) return { ok: false, grund: "Zuständig können nur David, Jakob und Mijo sein." };
+  if (ids.some((id) => !aktive().some((m) => m.discord === id && m.notion))) return { ok: false, grund: "Zuständig kann nur sein, wer gerade im Team ist (nicht in Pause)." };
   return { ok: true, ids: reihenfolge(ids) };
 }
 
@@ -98,7 +95,7 @@ export const auswahlMenue = (kartenId: string, aktuell: string[]) => [
         custom_id: `knd:zustwahl:${kartenId}`,
         placeholder: "Zuständige auswählen",
         min_values: 1,
-        max_values: TEAM.length,
+        max_values: Math.max(1, aktive().length),
         default_values: aktuell.map((id) => ({ id, type: "user" })),
       },
     ],

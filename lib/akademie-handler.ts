@@ -33,7 +33,8 @@ import {
   type Inhalt,
 } from "@/lib/akademie-daten";
 import { handleUebung, type UeInteraction } from "@/lib/uebung-handler";
-import { CHEF_ID, TEAM } from "@/lib/zustaendige";
+import { CHEF_ID } from "@/lib/zustaendige";
+import { team } from "@/lib/team";
 
 // Knöpfe der Akademie (ak:).
 //   Lernpfad: ak:weiter, ak:s (blättern), ak:g (gelesen), ak:z (nachlesen), ak:t (Test), ak:pw/ak:pe (wiederholen).
@@ -303,7 +304,7 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
       if (!ziel) return void (await zeichneVerwaltung(token, ak.personen, inhalt));
       const p = ak.personen.get(ziel);
       if (!p) return void (await ersetze(appId, itoken, { content: "Diese Person hat noch keinen Bereich." }));
-      const name = TEAM.find((t) => t.discord === ziel)?.name ?? "Person";
+      const name = team().find((t) => t.discord === ziel)?.name ?? "Person";
       const sch = schritteVon(p, inhalt);
       await ersetze(appId, itoken, { embeds: [personDetail(fortschritt(name, p, sch), p, sch)] });
     });

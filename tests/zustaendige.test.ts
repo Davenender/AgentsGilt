@@ -95,13 +95,13 @@ test("Rechte: David darf immer, sonst nur Zuständige", () => {
   assert.equal(darf(FREMD, [JAKOB, MIJO]), false);
 });
 
-test("Auswahl: nur David, Jakob und Mijo, mindestens eine Person", () => {
+test("Auswahl: nur wer im Team ist, mindestens eine Person", () => {
   assert.deepEqual(pruefeAuswahl([MIJO, JAKOB]), { ok: true, ids: [JAKOB, MIJO] });
   assert.equal(pruefeAuswahl([]).ok, false);
   assert.equal(pruefeAuswahl(undefined).ok, false);
   const fremd = pruefeAuswahl([JAKOB, FREMD]);
   assert.equal(fremd.ok, false);
-  assert.match(fremd.ok ? "" : fremd.grund, /David, Jakob und Mijo/);
+  assert.match(fremd.ok ? "" : fremd.grund, /im Team/);
 });
 
 test("Karte: Feld wird ersetzt oder hinter Angebot eingefügt", () => {

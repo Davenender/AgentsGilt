@@ -17,6 +17,7 @@ import { demoFeldAusNotion } from "@/lib/demo";
 import { holeKundenNr, seitenId, setzeZustaendig } from "@/lib/notion-api";
 import { ausKarte, wahrheit } from "@/lib/zustaendige";
 import type { Kunde } from "@/lib/notion-kunden";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -109,6 +110,7 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
   }
 
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   const name = kanalName(kunde.nr);
   const status = wert(kunde.props["Status"]);
   const mitPunkt = kanalNameMitPunkt(kunde.nr, status);
@@ -204,6 +206,7 @@ async function merkeWarten(token: string, log: string, seite: string, marke: str
 
 async function protokolliere(protokoll: string) {
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   const log = await findChannelId(token, "notion");
   if (log) await postText(token, log, protokoll);
 }
@@ -218,6 +221,7 @@ export async function POST(request: Request) {
   if (AUSGENOMMEN.some((re) => re.test(kunde.name))) return NextResponse.json({ ok: true, uebersprungen: "ausgenommen" });
   const seite = seitenId(kunde.url ?? pageId(payload));
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   const log = await findChannelId(token, "notion");
   const marke = randomUUID().slice(0, 8);
 

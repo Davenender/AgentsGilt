@@ -42,8 +42,10 @@ import { handleAkademie } from "@/lib/akademie-handler";
 import { handleAntwortBefehl } from "@/lib/uebung-handler";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
 import { OWNER_ID, setzeAntwort } from "@/lib/leads";
-import { closeTicketChannel, FOR_CUSTOMER, SHOW_NAMES, ticketComponents } from "@/lib/support";
+import { closeTicketChannel, FOR_CUSTOMER, ticketComponents } from "@/lib/support";
+import { nameVon } from "@/lib/team";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 // /lead liest Webseiten und lässt sie auswerten, das dauert länger als ein Knopfdruck.
@@ -98,7 +100,7 @@ const DEFERRED_EPHEMERAL = { type: 5, data: { flags: 64 } };
 function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: string | undefined) {
   const id = i.data?.custom_id ?? "";
   // So heißen die Leute im Chat der Besucher, unabhängig vom Discord-Namen.
-  const who = SHOW_NAMES[i.member?.user?.id ?? ""] ?? whoRaw;
+  const who = nameVon(i.member?.user?.id ?? "") ?? whoRaw;
   const channel = i.channel_id;
   if (!channel) return ephemeral("Der Kanal ist nicht bekannt.");
 
@@ -273,6 +275,7 @@ async function antworte(request: Request) {
   const ownerTag = `<@${user.id}>`;
   const customId = interaction.data?.custom_id ?? "";
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   const channelId = interaction.channel_id ?? process.env.DISCORD_CHANNEL_ANRUFE;
 
   if (interaction.type === 2 && interaction.data?.name === "close") return handleSucheClose(interaction as unknown as SucheInteraction, token);

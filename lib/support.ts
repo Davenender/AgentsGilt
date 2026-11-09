@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { nameVon } from "@/lib/team";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { linkSecret } from "@/lib/termin";
 
@@ -213,12 +214,7 @@ export function ticketComponents(state: "open" | "claimed" | "closed") {
 
 // ------------------------------------------------------------------ Nachrichten
 
-/** Anzeigenamen im Chat der Besucher, unabhängig vom Discord-Namen (nach Discord-Nutzer-ID). */
-export const SHOW_NAMES: Record<string, string> = {
-  "806859236768088114": "David",
-  "523479048727560205": "Jakob",
-  "1363529531939492133": "Mijo",
-};
+// Anzeigenamen im Chat der Besucher kommen aus dem Team-Register (lib/team.ts), unabhängig vom Discord-Namen.
 
 export interface Relayed {
   id: string;
@@ -278,7 +274,7 @@ export async function relayMessages(
       if (text.startsWith("//")) continue;
       out.push({
         id: m.id,
-        von: SHOW_NAMES[m.author.id ?? ""] ?? "Team",
+        von: nameVon(m.author.id ?? "") ?? "Team",
         text: await korrigiere(clip(text, 1500)),
       });
     }

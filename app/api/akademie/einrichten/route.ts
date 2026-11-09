@@ -1,7 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { holeInhalt, richteEin, setzeZurueck } from "@/lib/akademie-daten";
-import { TEAM } from "@/lib/zustaendige";
+import { team } from "@/lib/team";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,9 +39,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   if (!erlaubt(req)) return NextResponse.json({ error: "nicht erlaubt" }, { status: 401 });
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   if (!token) return NextResponse.json({ error: "Kein Bot-Token" }, { status: 500 });
   const wen = new URL(req.url).searchParams.get("zuruecksetzen");
-  const person = wen ? TEAM.find((t) => t.name.toLowerCase() === wen.toLowerCase()) : null;
+  const person = wen ? team().find((t) => t.name.toLowerCase() === wen.toLowerCase()) : null;
   if (wen && !person) return NextResponse.json({ error: "Unbekannte Person" }, { status: 400 });
   const zurueckgesetzt = person ? await setzeZurueck(token, person.discord) : 0;
   return NextResponse.json({ ...(await richteEin(token)), ...(person ? { zurueckgesetzt: `${person.name}: ${zurueckgesetzt} Einträge gelöscht` } : {}) });

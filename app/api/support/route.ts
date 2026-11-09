@@ -3,6 +3,7 @@ import { messageLink } from "@/lib/discord";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { pushe } from "@/lib/ntfy";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
+import { ladeTeam } from "@/lib/team-daten";
 import {
   checkTicketToken,
   openTicket,
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
   }
 
   const bot = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(bot);
   if (!bot) return fehler("Der Support-Chat ist gerade nicht verfügbar. Bitte nutze das Kontaktformular.", 503);
   const ip = getClientIp(request);
 
@@ -127,6 +129,7 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   const bot = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(bot);
   if (!bot) return fehler("Nicht verfügbar", 503);
 
   const url = new URL(request.url);

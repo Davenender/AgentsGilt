@@ -1,6 +1,7 @@
 import type { EmbedLike } from "@/lib/discord-calls";
 import type { RohBlock } from "./gespraech.ts";
-import { BOT_DARF, CHEF_ID, SPERRE, TEAM, type Overwrite } from "./zustaendige.ts";
+import { BOT_DARF, CHEF_ID, SPERRE, type Overwrite } from "./zustaendige.ts";
+import { team } from "./team.ts";
 
 // Akademie in Discord (Plan 2). Reine Logik ohne Netz, damit sie getestet werden kann.
 //
@@ -585,7 +586,7 @@ export function fortschritt(name: string, p: Person, sch: Schritt[]) {
     ...(p.uebungen ?? []).map((u) => ({ was: uebungText(u), zeit: u.zeit })),
   ].sort((a, b) => b.zeit.localeCompare(a.zeit));
   return {
-    id: TEAM.find((t) => t.name === name)?.discord ?? "",
+    id: team().find((t) => t.name === name)?.discord ?? "",
     name,
     fertig: s.fertig,
     gesamt: s.gesamt,

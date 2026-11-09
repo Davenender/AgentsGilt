@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { uebungTakt } from "@/lib/uebung-handler";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ function erlaubt(req: Request): boolean {
 export async function POST(req: Request) {
   if (!erlaubt(req)) return NextResponse.json({ error: "nicht erlaubt" }, { status: 401 });
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   if (!token) return NextResponse.json({ error: "Kein Bot-Token" }, { status: 500 });
   return NextResponse.json(await uebungTakt(token));
 }

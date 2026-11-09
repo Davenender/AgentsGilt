@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { sammleStatistik, sperreStatistik, zeigeStatistik } from "@/lib/statistik-daten";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export async function GET(req: Request) {
   const vonCron = gleich(gesendet, process.env.CRON_SECRET);
   if (!vonCron && !gleich(gesendet, process.env.HELFER_SECRET)) return NextResponse.json({ error: "nicht erlaubt" }, { status: 401 });
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   if (!token) return NextResponse.json({ error: "Kein Bot-Token" }, { status: 500 });
   const s = await sammleStatistik(token);
   if (!s) return NextResponse.json({ error: "Notion nicht erreichbar" }, { status: 502 });

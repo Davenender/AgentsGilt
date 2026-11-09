@@ -7,7 +7,8 @@ import { kartenKnoepfe, statusAusKarte } from "@/lib/kundenablauf";
 import { aendereKarte } from "@/lib/leads";
 import { listeKunden, setzeFelder } from "@/lib/notion-api";
 import { kanalName } from "@/lib/notion-kunden";
-import { TEAM } from "@/lib/zustaendige";
+import { team } from "@/lib/team";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,11 +31,12 @@ function erlaubt(req: Request): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-const name = (id: string | null) => (id ? (TEAM.find((t) => t.discord === id)?.name ?? null) : null);
+const name = (id: string | null) => (id ? (team().find((t) => t.discord === id)?.name ?? null) : null);
 
 export async function GET(req: Request) {
   if (!erlaubt(req)) return NextResponse.json({ error: "nicht erlaubt" }, { status: 401 });
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   const kunden = await listeKunden();
   if (!token || !kunden) return NextResponse.json({ error: "Notion oder Discord nicht erreichbar" }, { status: 502 });
   const offen = [];
@@ -58,6 +60,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   if (!erlaubt(req)) return NextResponse.json({ error: "nicht erlaubt" }, { status: 401 });
   const token = process.env.DISCORD_BOT_TOKEN;
+  await ladeTeam(token);
   if (!token) return NextResponse.json({ error: "Kein Bot-Token" }, { status: 500 });
   const p = pruefeDemoAktion(await req.json().catch(() => null));
   if (!p.ok) return NextResponse.json({ error: p.grund }, { status: 400 });

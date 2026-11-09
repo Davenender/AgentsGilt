@@ -1,5 +1,5 @@
 import type { EmbedLike } from "@/lib/discord-calls";
-import { TEAM } from "./zustaendige.ts";
+import { team } from "./team.ts";
 
 // Statistik (Plan 1, Etappe 6): Lead-Karten → Lead aktiv → Gespräch → Angebot → Kunde oder verloren,
 // die häufigsten Verlustgründe und je Person übernommen und gewonnen. Reine Logik ohne Netz.
@@ -65,7 +65,7 @@ export function rechneStatistik(leads: LeadEintrag[], kunden: KundeEintrag[], je
       aktiv: kunden.filter((k) => k.erstellt && Date.parse(k.erstellt) >= grenze).length,
     },
     verlustgruende: [...gruende.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
-    personen: TEAM.map((t) => ({
+    personen: team().filter((t) => t.status === "team" || t.status === "pause").map((t) => ({
       name: t.name,
       uebernommen: leads.filter((l) => l.besitzer === t.discord).length,
       gewonnen: kunde.filter((k) => k.zustaendig.includes(t.discord)).length,

@@ -57,8 +57,8 @@ test("alle echten Anleitungen passen in Discord-Grenzen und haben eindeutige Tit
 
 test("die Anleitungen nennen die aktuellen Fakten", () => {
   const alles = ANLEITUNGEN.map((x) => `${x.text ?? ""} ${(x.felder ?? []).map((f) => f.value).join(" ")}`).join(" ");
-  assert.match(alles, /Mijo und Jakob/);
-  assert.doesNotMatch(alles, /David, Mijo und Jakob/);
+  assert.match(alles, /Handys des Teams/);
+  assert.doesNotMatch(alles, /Mijo|Jakob/, "keine festen Namen (Team-Register, Plan 4)");
   assert.doesNotMatch(alles, /noch nicht automatisiert/);
   assert.match(alles, /Stripe/);
   assert.match(alles, /Gesprächsbogen/);

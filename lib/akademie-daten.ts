@@ -26,12 +26,12 @@ import {
   type Testfrage,
 } from "@/lib/akademie";
 import { snowflakeZeit } from "@/lib/statistik";
-import { TEAM } from "@/lib/zustaendige";
+import { mitAkademie, nameVon as teamName, team } from "@/lib/team";
 import { sichtbareUebungen, uebungAusNotion, uebungKarte, type Uebung } from "@/lib/uebung";
 import type { EmbedLike } from "@/lib/discord-calls";
 
 // Akademie: Notion lesen, Kanäle, Karten und Merkzettel in Discord (Plan 2).
-// Jeder aus dem Team (David, Jakob, Mijo) hat seinen Lernpfad und seine Bibliothek, ohne Freischalten.
+// Jeder aus dem Team-Register (außer Ausgetretenen) hat seinen Lernpfad und seine Bibliothek, ohne Freischalten.
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 export const AKADEMIE_DB = process.env.NOTION_AKADEMIE_DB || "a003ad728d3741f7874216ac8ab030d2";
@@ -45,7 +45,7 @@ const VERWALTUNG_TITEL_ALT = "🔧 Akademie verwalten";
 type Kanal = { id: string; name: string; type: number; parent_id?: string | null };
 export type Inhalt = { lektionen: Lektion[]; fragen: Testfrage[]; uebungen: Uebung[] };
 
-export const nameVon = (id: string) => TEAM.find((t) => t.discord === id)?.name ?? "Person";
+export const nameVon = (id: string) => teamName(id) ?? "Person";
 
 // ------------------------------------------------------------------ Notion
 
@@ -113,7 +113,7 @@ async function kategorie(token: string, kanaele: Kanal[]): Promise<string | null
 }
 
 /** Ein Kanal, den außer dem Bot nur David sieht (als Serverbesitzer). */
-async function nurDavidKanal(token: string, name: string, topic: string): Promise<string | null> {
+export async function nurDavidKanal(token: string, name: string, topic: string): Promise<string | null> {
   const kanaele = (await alleKanaele(token)) ?? [];
   const da = kanaele.find((c) => c.type === 0 && c.name === name);
   if (da) return da.id;
@@ -125,7 +125,7 @@ async function nurDavidKanal(token: string, name: string, topic: string): Promis
 }
 
 const speicherKanal = (token: string) => nurDavidKanal(token, SPEICHER, "Merkzettel der Akademie (Bereiche, Gelesenes, Tests). Nicht löschen.");
-const verwaltungKanal = (token: string) => nurDavidKanal(token, VERWALTUNG, "Nur für David: Fortschritt von Mijo, Jakob und David in der Akademie.");
+const verwaltungKanal = (token: string) => nurDavidKanal(token, VERWALTUNG, "Nur für David: Fortschritt aller im Team in der Akademie.");
 
 export async function leseAkademie(token: string): Promise<{ speicher: string; personen: Map<string, Person> } | null> {
   const speicher = await speicherKanal(token);
@@ -237,7 +237,7 @@ async function meldeAntwortBefehlAn(token: string): Promise<boolean> {
 export async function zeichneVerwaltung(token: string, personen: Map<string, Person>, inhalt: Inhalt) {
   const kanal = await verwaltungKanal(token);
   if (!kanal) return;
-  const liste = TEAM.filter((t) => personen.has(t.discord)).map((t) => fortschritt(t.name, personen.get(t.discord)!, schritteVon(personen.get(t.discord)!, inhalt)));
+  const liste = team().filter((t) => personen.has(t.discord)).map((t) => fortschritt(t.name, personen.get(t.discord)!, schritteVon(personen.get(t.discord)!, inhalt)));
   const karte = verwaltungKarte(liste);
   const msgs = await alleNachrichten(token, kanal, 50);
   const alt = msgs.find((m) => m.author.bot && (m.embeds[0]?.title === karte.embeds[0].title || m.embeds[0]?.title === VERWALTUNG_TITEL_ALT));
@@ -273,7 +273,7 @@ async function legeBereichAn(token: string, speicher: string, userId: string, in
 
 /**
  * Alles einrichten und auf den neuesten Stand bringen (läuft mehrfach ohne Doppelungen):
- * Kategorie, #akademie mit Startkarte, Merkzettel, Verwaltung, Bereiche für David, Jakob und Mijo, alle Karten.
+ * Kategorie, #akademie mit Startkarte, Merkzettel, Verwaltung, Bereiche für alle aus dem Team-Register, alle Karten.
  */
 export async function richteEin(token: string): Promise<{ start: string | null; speicher: string | null; bereiche: Record<string, string>; fehler?: string }> {
   const inhalt = await holeInhalt();
@@ -299,7 +299,7 @@ export async function richteEin(token: string): Promise<{ start: string | null; 
   if (!inhalt) return { start, speicher: ak.speicher, bereiche: {}, fehler: "Notion nicht erreichbar" };
 
   const bereiche: Record<string, string> = {};
-  for (const t of TEAM) {
+  for (const t of mitAkademie()) {
     let p = ak.personen.get(t.discord);
     if (!p) {
       p = (await legeBereichAn(token, ak.speicher, t.discord, inhalt)) ?? undefined;
