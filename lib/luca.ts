@@ -289,7 +289,9 @@ function variablen(lage: Lage | null, grund: string | null, info?: string, notiz
     standort: standort?.standort ? standortText(standort.standort, jetzt) : "unbekannt",
     schule: teile.schule || "(kein Stand aus dem Schulportal – lass mit schule_aktualisieren frisch nachschauen)",
     termine: teile.termine || "keine",
-    lage: `${lageText(lage ? { ...lage, text: teile.rest } : null, jetzt)}\n\n${kundenText(kunden, jetzt)}`,
+    // {{wissen}} = alles außer Schule und Termine (für Prompt-Fassung 6); {{lage}} bleibt vollständig für ältere Fassungen
+    wissen: `${lageText(lage ? { ...lage, text: teile.rest } : null, jetzt)}\n\n${kundenText(kunden, jetzt)}`,
+    lage: `Heute ist ${new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(jetzt)}.\n${standort?.standort ? `${standortText(standort.standort, jetzt)}\n` : ""}${lageText(lage, jetzt)}\n\n${kundenText(kunden, jetzt)}`,
     gedaechtnis,
     grund: mitNotiz(grund ? `Du rufst David an. Grund: ${grund}${info ? `\n\nDas sollst du ihm erklären und fragen:\n${info}` : ""}` : "David hat dich angerufen.", notiz),
   };
