@@ -35,6 +35,7 @@ import {
   setzeLage,
   vonZentrale,
 } from "@/lib/luca";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -267,6 +268,7 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
 }
 
 async function handle(req: Request) {
+  await ladeTeam(process.env.DISCORD_BOT_TOKEN);
   const aktion = new URL(req.url).searchParams.get("a");
   const vapiSecret = req.headers.get("x-vapi-secret");
   if (vapiSecret !== null) {

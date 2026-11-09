@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { findChannelId, postText } from "@/lib/discord";
 import { linkSecret, toE164 } from "@/lib/termin";
 import { nameZu, teamEintraege, twimlMenue } from "@/lib/luca-logik";
+import { mitRegister, team as register } from "@/lib/team";
 
 // Rufgruppe. Ablauf:
 //  1. Twilio nimmt jeden Anruf auf +49 6108 9694027 zuerst selbst an (Voice-Adresse
@@ -35,7 +36,8 @@ const SITE = process.env.SITE_URL || "https://agentsgilt.com";
 function team() {
   // Zweite Variable für weitere Nummern, falls die erste nicht mehr einsehbar ist.
   const roh = `${process.env.RUFGRUPPE_NUMMERN ?? ""},${process.env.RUFGRUPPE_NUMMERN_2 ?? ""}`;
-  return teamEintraege(roh, process.env.RUFGRUPPE_MIT_DAVID === "1" ? null : [process.env.LUCA_NUMMER, process.env.DAVID_NUMMERN]);
+  // Plan 4: das Team-Register gilt vor den Vercel-Nummern (Pause und Ausgetretene klingeln nicht, neue Nummern kommen dazu)
+  return mitRegister(teamEintraege(roh, process.env.RUFGRUPPE_MIT_DAVID === "1" ? null : [process.env.LUCA_NUMMER, process.env.DAVID_NUMMERN]), register());
 }
 
 export function nummern(): string[] {
@@ -44,7 +46,7 @@ export function nummern(): string[] {
     .filter((n): n is string => Boolean(n));
 }
 
-/** Name des Teammitglieds zu einer Nummer (aus „Mijo=…“ in RUFGRUPPE_NUMMERN), sonst null. */
+/** Name des Teammitglieds zu einer Nummer (aus dem Register oder „Name=…“ in RUFGRUPPE_NUMMERN), sonst null. */
 export const teamName = (nummer: string | null | undefined) => nameZu(nummer, team());
 
 export const absender = () => toE164(process.env.RUFGRUPPE_ABSENDER ?? "") ?? "+4961089694027";
@@ -226,7 +228,7 @@ export async function findeAnruf(kunde?: string | null): Promise<AnrufSuche> {
     const passend = kunde ? offen.find((c) => ziffern(c.from) === ziffern(kunde) && ziffern(kunde)) : undefined;
     if (passend) return { ok: true, sid: passend.sid };
     if (offen.length === 1) return { ok: true, sid: offen[0].sid };
-    // Mehrere gleichzeitig und keiner passt: nicht raten, sonst landet ein fremder Anrufer bei Jakob oder Mijo
+    // Mehrere gleichzeitig und keiner passt: nicht raten, sonst landet ein fremder Anrufer beim Team
     return { ok: false, grund: "mehrere laufende Anrufe, keiner passt zum Kunden" };
   } catch (err) {
     return { ok: false, grund: err instanceof Error ? err.message : "Twilio nicht erreichbar" };

@@ -9,6 +9,7 @@ import { findeAnruf, imZeitfenster, leiteUm, meldeInDiscord, nummern } from "@/l
 import { formatTermin, parseDatum, parseUhrzeit } from "@/lib/termin";
 import { ergaenzeKarte } from "@/lib/anruf-karte";
 import { karteZuAnruf, RUECKRUF_WERKZEUGE, rueckrufWerkzeug, verarbeiteRueckrufEnde, type RueckrufErgebnis } from "@/lib/rueckruf";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 
@@ -252,6 +253,7 @@ function formatDuration(seconds: number | undefined): string {
 }
 
 export async function POST(request: Request) {
+  await ladeTeam(process.env.DISCORD_BOT_TOKEN);
   // Der Endpunkt ist öffentlich erreichbar. Ohne diese Prüfung könnte jeder
   // Mails auslösen.
   //

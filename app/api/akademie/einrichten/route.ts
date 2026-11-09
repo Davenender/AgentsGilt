@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { holeInhalt, richteEin, setzeZurueck } from "@/lib/akademie-daten";
 import { team } from "@/lib/team";
-import { ladeTeam } from "@/lib/team-daten";
+import { ladeTeam, meldeTeamBefehlAn, stelleSicher, zeichneTeamKarte } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,8 +11,8 @@ export const maxDuration = 60;
 // Akademie einrichten (Plan 2). Nur für David: geschützt mit HELFER_SECRET.
 //   GET  → prüft, ob der Bot die Notion-Datenbank lesen kann (Lektionen, Testfragen)
 //   POST → richtet alles ein und bringt alle Karten auf den neuesten Stand (doppelt geht nicht):
-//          Kategorie AKADEMIE, #akademie, Merkzettel, #akademie-verwaltung, Bereiche für David, Jakob und Mijo
-//          mit ?zuruecksetzen=David (oder Jakob/Mijo) vorher den Lernstand dieser Person löschen (Gelesenes und Tests)
+//          Kategorie AKADEMIE, #akademie, Merkzettel, #akademie-verwaltung, Bereiche für alle aus dem Team-Register
+//          mit ?zuruecksetzen=David (oder ein anderer Name aus dem Register) vorher den Lernstand dieser Person löschen (Gelesenes und Tests)
 
 function erlaubt(req: Request): boolean {
   const geheim = process.env.HELFER_SECRET?.trim();
@@ -45,5 +45,9 @@ export async function POST(req: Request) {
   const person = wen ? team().find((t) => t.name.toLowerCase() === wen.toLowerCase()) : null;
   if (wen && !person) return NextResponse.json({ error: "Unbekannte Person" }, { status: 400 });
   const zurueckgesetzt = person ? await setzeZurueck(token, person.discord) : 0;
-  return NextResponse.json({ ...(await richteEin(token)), ...(person ? { zurueckgesetzt: `${person.name}: ${zurueckgesetzt} Einträge gelöscht` } : {}) });
+  // Plan 4: Team-Register anlegen (Startbelegung), Übersicht zeichnen, /team anmelden
+  await stelleSicher(token);
+  await zeichneTeamKarte(token);
+  const teamBefehl = (await meldeTeamBefehlAn(token)) ? "/team angemeldet" : "/team nicht angemeldet";
+  return NextResponse.json({ teamBefehl, ...(await richteEin(token)), ...(person ? { zurueckgesetzt: `${person.name}: ${zurueckgesetzt} Einträge gelöscht` } : {}) });
 }

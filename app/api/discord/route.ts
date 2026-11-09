@@ -43,7 +43,8 @@ import { handleAntwortBefehl } from "@/lib/uebung-handler";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
 import { OWNER_ID, setzeAntwort } from "@/lib/leads";
 import { closeTicketChannel, FOR_CUSTOMER, ticketComponents } from "@/lib/support";
-import { nameVon } from "@/lib/team";
+import { darfHandeln, nameVon } from "@/lib/team";
+import { handleTeamBefehl, type TeamInteraction } from "@/lib/team-handler";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 import { ladeTeam } from "@/lib/team-daten";
 
@@ -276,6 +277,12 @@ async function antworte(request: Request) {
   const customId = interaction.data?.custom_id ?? "";
   const token = process.env.DISCORD_BOT_TOKEN;
   await ladeTeam(token);
+
+  // Plan 4: Pause und Anwärter dürfen außerhalb der Akademie nichts auslösen
+  if (!darfHandeln(user.id, interaction.type === 2 ? `befehl:${interaction.data?.name ?? ""}` : customId)) {
+    return ephemeral("Du bist gerade in Pause (oder noch im Aufnahmetest). Das geht erst wieder, wenn David dich zurück ins Team holt. Die Akademie kannst du weiter benutzen.");
+  }
+  if (interaction.type === 2 && interaction.data?.name === "team") return handleTeamBefehl(interaction as unknown as TeamInteraction, token ?? "");
   const channelId = interaction.channel_id ?? process.env.DISCORD_CHANNEL_ANRUFE;
 
   if (interaction.type === 2 && interaction.data?.name === "close") return handleSucheClose(interaction as unknown as SucheInteraction, token);

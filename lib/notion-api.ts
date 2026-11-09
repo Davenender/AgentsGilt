@@ -139,7 +139,7 @@ export async function holeKundenNr(seite: string | undefined | null): Promise<st
   }
 }
 
-/** Setzt nur das Personenfeld „Zuständig“ einer Kundenzeile (Discord-Kennungen von David, Jakob, Mijo). */
+/** Setzt nur das Personenfeld „Zuständig“ einer Kundenzeile (Discord-Kennungen aus dem Team-Register). */
 export async function setzeZustaendig(notionUrl: string, zustaendig: string[]): Promise<boolean> {
   const token = process.env.NOTION_TOKEN?.trim();
   const seite = seitenId(notionUrl);

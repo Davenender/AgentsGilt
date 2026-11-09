@@ -1,7 +1,7 @@
 // Team-Register (Plan 4, Etappe 1): Wer gehört zum Team, mit welchem Stand. Reine Logik ohne Netz.
 //
 // Statt fester Namen im Code steht das Team im Discord-Kanal #team-register (nur David sieht ihn), eine Zeile je
-// Änderung: „team · <discord> · <name> · <status> · <notion> · <figur> · <seit>“. Die neueste Zeile je Person gilt.
+// Änderung: „team · <discord> · <name> · <status> · <notion> · <figur> · <seit> · <telefon>“. Die neueste Zeile je Person gilt.
 // Ohne Einträge gilt die Startliste (David, Jakob, Mijo). Geladen wird in lib/team-daten.ts, hier liegt der Stand.
 
 export type Status = "anwaerter" | "team" | "pause" | "ausgetreten";
@@ -17,18 +17,21 @@ export interface Mitglied {
   figur: string;
   /** seit wann (YYYY-MM-DD) */
   seit: string;
+  /** Handynummer für die Rufgruppe (leer = Nummer aus den Vercel-Einstellungen, falls dort mit Namen) */
+  telefon: string;
 }
 
 const SEP = " · ";
 export const DAVID_ID = "806859236768088114";
 
 export const START: Mitglied[] = [
-  { discord: DAVID_ID, notion: "42dc06f2-4850-4c87-b958-a8bf40505986", name: "David", status: "team", figur: "", seit: "" },
-  { discord: "523479048727560205", notion: "405d872b-594c-814f-92f2-00022b1d1178", name: "Jakob", status: "team", figur: "blond", seit: "" },
-  { discord: "1363529531939492133", notion: "233d872b-594c-81cb-98c0-0002013ab53c", name: "Mijo", status: "team", figur: "schwarz", seit: "" },
+  { discord: DAVID_ID, notion: "42dc06f2-4850-4c87-b958-a8bf40505986", name: "David", status: "team", figur: "", seit: "", telefon: "" },
+  { discord: "523479048727560205", notion: "405d872b-594c-814f-92f2-00022b1d1178", name: "Jakob", status: "team", figur: "blond", seit: "", telefon: "" },
+  { discord: "1363529531939492133", notion: "233d872b-594c-81cb-98c0-0002013ab53c", name: "Mijo", status: "team", figur: "schwarz", seit: "", telefon: "" },
 ];
 
-export const zeileTeam = (m: Mitglied) => ["team", m.discord, m.name, m.status, m.notion, m.figur, m.seit].join(SEP);
+export const zeileTeam = (m: Omit<Mitglied, "telefon"> & { telefon?: string }) =>
+  ["team", m.discord, m.name, m.status, m.notion, m.figur, m.seit, m.telefon ?? ""].join(SEP);
 
 /** Das Register aus den Nachrichten (älteste zuerst). David bleibt immer im Team. */
 export function leseRegister(nachrichten: { content: string }[]): Mitglied[] {
@@ -36,7 +39,7 @@ export function leseRegister(nachrichten: { content: string }[]): Mitglied[] {
   for (const n of nachrichten) {
     const t = n.content.split(SEP).map((x) => x.trim());
     if (t[0] !== "team" || !/^\d{5,25}$/.test(t[1] ?? "") || !t[2] || !STATUS.includes(t[3] as Status)) continue;
-    const neu: Mitglied = { discord: t[1], name: t[2].slice(0, 40), status: t[3] as Status, notion: t[4] ?? "", figur: t[5] ?? "", seit: t[6] ?? "" };
+    const neu: Mitglied = { discord: t[1], name: t[2].slice(0, 40), status: t[3] as Status, notion: t[4] ?? "", figur: t[5] ?? "", seit: t[6] ?? "", telefon: t[7] ?? "" };
     if (neu.discord === DAVID_ID) neu.status = "team";
     const i = liste.findIndex((m) => m.discord === neu.discord);
     if (i >= 0) liste[i] = neu;
@@ -62,3 +65,79 @@ export const mitglied = (discord: string) => stand.find((m) => m.discord === dis
 export const nameVon = (discord: string) => mitglied(discord)?.name ?? null;
 /** Discord-Kennung → Name (für Anzeigen, z. B. im Support-Chat). */
 export const namen = (): Record<string, string> => Object.fromEntries(stand.map((m) => [m.discord, m.name]));
+
+// ------------------------------------------------------------ Rufgruppe
+
+type Handy = { name: string | null; roh: string };
+
+/**
+ * Wer bei Kunden klingelt: die Einträge aus den Vercel-Einstellungen, abgeglichen mit dem Register. Eine Nummer im
+ * Register gilt vor der aus Vercel; wer nicht im Status Team ist (Pause, Anwärter, Ausgetreten), klingelt nicht.
+ * Wer nur im Register eine Nummer hat, kommt dazu. David regelt die Rufgruppe weiter selbst (luca-logik).
+ */
+export function mitRegister(env: Handy[], liste: readonly Mitglied[]): Handy[] {
+  const nachName = new Map(liste.map((m) => [m.name.toLowerCase(), m]));
+  const out: Handy[] = [];
+  for (const e of env) {
+    const m = e.name ? nachName.get(e.name.toLowerCase()) : undefined;
+    if (!m) out.push(e);
+    else if (m.status === "team") out.push(m.telefon ? { name: e.name, roh: m.telefon } : e);
+  }
+  const imEnv = new Set(env.map((e) => e.name?.toLowerCase()).filter(Boolean));
+  for (const m of liste) {
+    if (m.status === "team" && m.telefon && m.discord !== DAVID_ID && !imEnv.has(m.name.toLowerCase())) out.push({ name: m.name, roh: m.telefon });
+  }
+  return out;
+}
+
+// ------------------------------------------------------------ Übersicht und Befehle
+
+const ZEICHEN: Record<Status, string> = { team: "🟢", pause: "⏸️", anwaerter: "🎓", ausgetreten: "⚪" };
+const WORT: Record<Status, string> = { team: "Team", pause: "Pause", anwaerter: "Anwärter", ausgetreten: "Ausgetreten" };
+
+/** Die Karte oben in #team-register (nur David sieht sie). */
+export function teamKarte(liste: readonly Mitglied[]) {
+  const zeilen = liste.map((m) =>
+    [
+      `${ZEICHEN[m.status]} **${m.name}** · ${WORT[m.status]}${m.seit ? ` seit ${m.seit}` : ""}`,
+      m.discord === DAVID_ID ? "Chef" : m.telefon ? `📞 ${m.telefon}` : "📞 aus den Vercel-Einstellungen oder fehlt",
+      m.notion ? "Notion ✓" : "Notion fehlt",
+      m.figur ? `Figur ${m.figur}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  );
+  return {
+    embeds: [
+      {
+        title: "👥 Team-Register",
+        color: 0x3b82f6,
+        description: [
+          zeilen.join("\n"),
+          "",
+          "**Befehle (nur David)**",
+          "`/team aufnehmen` neue Person · `/team daten` Telefon, Figur, Notion · `/team pause` · `/team zurueck` · `/team liste`",
+          "",
+          "🟢 Team · ⏸️ Pause (bleibt im Server, keine Rufgruppe, nicht zuständig) · 🎓 Anwärter · ⚪ Ausgetreten",
+        ].join("\n"),
+      },
+    ],
+  };
+}
+
+export type Befehl = { aktion: string; person: string; name: string; figur: string; telefon: string; notion: string };
+
+/** Den Befehl /team aus den Discord-Daten lesen. */
+export function befehlAus(data: { name?: string; options?: { name: string; type?: number; value?: unknown; options?: { name: string; value?: unknown }[] }[] } | undefined): Befehl | null {
+  const sub = data?.options?.[0];
+  if (data?.name !== "team" || !sub) return null;
+  const wert = (n: string) => String(sub.options?.find((o) => o.name === n)?.value ?? "").trim();
+  return { aktion: sub.name, person: wert("person"), name: wert("name").slice(0, 40), figur: wert("figur").slice(0, 20), telefon: wert("telefon").slice(0, 30), notion: wert("notion").slice(0, 60) };
+}
+
+/** Pause und Anwärter dürfen außerhalb der Akademie (Knöpfe ak:…, Befehl /a) nichts auslösen. Unbekannte regelt der Rest. */
+export function darfHandeln(userId: string, art: string): boolean {
+  const m = mitglied(userId);
+  if (!m || m.status === "team") return true;
+  return art.startsWith("ak:") || art === "befehl:a";
+}

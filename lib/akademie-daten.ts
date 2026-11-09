@@ -271,6 +271,24 @@ async function legeBereichAn(token: string, speicher: string, userId: string, in
   return { ...leer, pfadMsg: pfadMsg.id, tocMsg: tocMsg.id };
 }
 
+/** Lernpfad, Bibliothek und Übungen für eine Person anlegen, falls sie fehlen (Plan 4: /team aufnehmen). */
+export async function bereichFuer(token: string, userId: string): Promise<string> {
+  const [inhalt, ak] = await Promise.all([holeInhalt(), leseAkademie(token)]);
+  if (!inhalt || !ak) return "Akademie gerade nicht erreichbar";
+  let p = ak.personen.get(userId);
+  if (!p) {
+    p = (await legeBereichAn(token, ak.speicher, userId, inhalt)) ?? undefined;
+    if (!p) return "Lernpfad und Bibliothek konnten nicht angelegt werden";
+    ak.personen.set(userId, p);
+  }
+  if (!p.uebKanal) {
+    const u = await legeUebungAn(token, ak.speicher, userId, p, inhalt);
+    if (u) p.uebKanal = u;
+  }
+  await zeichneVerwaltung(token, ak.personen, inhalt);
+  return p.uebKanal ? "Lernpfad, Bibliothek und Übungen sind da" : "Lernpfad und Bibliothek sind da, Übungen fehlen noch";
+}
+
 /**
  * Alles einrichten und auf den neuesten Stand bringen (läuft mehrfach ohne Doppelungen):
  * Kategorie, #akademie mit Startkarte, Merkzettel, Verwaltung, Bereiche für alle aus dem Team-Register, alle Karten.

@@ -3,7 +3,7 @@
 // David (und nur er, erkannt an LUCA_NUMMER) hört beim Anruf auf +49 6108 9694027 ein kleines Menü:
 // 1 = Luca (Davids Helfer aus der Zentrale), 2 = der Kunden-Assistent wie jeder Kunde. Die Ansage wiederholt sich,
 // bis er eine Taste drückt (höchstens MAX_MENUE-mal, dann wird aufgelegt – falls das Handy in der Tasche wählt).
-// Aus der Rufgruppe ist David draußen (alle seine Nummern): Kunden lassen nur noch Mijo und Jakob klingeln.
+// Aus der Rufgruppe ist David draußen (alle seine Nummern): Kunden lassen nur noch das Team klingeln.
 // Davids Nummern: LUCA_NUMMER (privat, dorthin ruft Luca an) und DAVID_NUMMERN (weitere, z. B. das Geschäftshandy).
 
 /** Nummern vergleichen wir über die letzten 9 Ziffern (ohne +49/0, Leerzeichen, Striche). */
@@ -67,7 +67,7 @@ export function twimlLucaNichtDa(): string {
 
 /**
  * Wer bei Kunden klingelt: alle Einträge aus RUFGRUPPE_NUMMERN außer Davids Handys (LUCA_NUMMER, DAVID_NUMMERN).
- * Ein Eintrag darf einen Namen tragen („Mijo=+49 151 …“ oder „Mijo: 0151 …“), der Name erscheint dann auf der Karte.
+ * Ein Eintrag darf einen Namen tragen („Name=+49 151 …“ oder „Name: 0151 …“), der Name erscheint dann auf der Karte.
  */
 export type Teamhandy = { name: string | null; roh: string };
 export function teamEintraege(roh: string, ohne: Nummern): Teamhandy[] {

@@ -25,6 +25,7 @@ import { setzeKartenzeile } from "@/lib/anruf-karte";
 
 import { markiereZurueckgerufen, rueckrufNachEigenemAnruf, rueckrufWartet } from "@/lib/rueckruf";
 import { rueckrufKonfiguriert } from "@/lib/discord-calls";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +46,7 @@ export const maxDuration = 120;
 const twiml = (xml: string) => new NextResponse(xml, { headers: { "Content-Type": "text/xml; charset=utf-8" } });
 
 async function handle(request: Request) {
+  await ladeTeam(process.env.DISCORD_BOT_TOKEN);
   const url = new URL(request.url);
   const aktion = url.searchParams.get("a");
 

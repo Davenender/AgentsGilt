@@ -74,3 +74,73 @@ test("Statistik je Person: Team und Pause, keine Anwärter und Ausgetretenen", (
   assert.deepEqual(s.personen.map((p) => p.name), ["David", "Mijo"]);
   setzeTeam(START);
 });
+
+// ------------------------------------------------------------ Etappe 2: Telefon, Rufgruppe, Übersicht, Befehle
+
+import { mitRegister, teamKarte, befehlAus, darfHandeln } from "../lib/team.ts";
+
+test("Telefon steht im Register; alte Zeilen ohne Telefon bleiben gültig", () => {
+  const r = leseRegister([
+    { content: zeileTeam({ discord: OSKAR, name: "Oskar", status: "team", notion: "", figur: "blond", seit: "2026-11-10", telefon: "+49 151 1234567" }) },
+    { content: "team · 523479048727560205 · Jakob · pause · 405d · blond · 2026-11-01" },
+  ]);
+  assert.equal(r.find((m) => m.name === "Oskar")?.telefon, "+49 151 1234567");
+  assert.equal(r.find((m) => m.name === "Jakob")?.telefon, "");
+});
+
+test("Rufgruppe: Register gilt vor den Vercel-Nummern; Pause und Ausgetretene klingeln nicht", () => {
+  const env = [
+    { name: "Mijo", roh: "+49 160 1111111" },
+    { name: "Jakob", roh: "+49 160 2222222" },
+    { name: null, roh: "+49 160 3333333" },
+  ];
+  const liste = leseRegister(
+    [
+      zeileTeam({ discord: JAKOB, name: "Jakob", status: "pause", notion: "", figur: "", seit: "", telefon: "" }),
+      zeileTeam({ discord: OSKAR, name: "Oskar", status: "team", notion: "", figur: "", seit: "", telefon: "+49 151 4444444" }),
+      zeileTeam({ discord: MIJO, name: "Mijo", status: "team", notion: "", figur: "", seit: "", telefon: "+49 160 9999999" }),
+    ].map((content) => ({ content })),
+  );
+  const r = mitRegister(env, liste);
+  assert.deepEqual(r, [
+    { name: "Mijo", roh: "+49 160 9999999" },
+    { name: null, roh: "+49 160 3333333" },
+    { name: "Oskar", roh: "+49 151 4444444" },
+  ]);
+  const anwaerter = leseRegister([{ content: zeileTeam({ discord: OSKAR, name: "Oskar", status: "anwaerter", notion: "", figur: "", seit: "", telefon: "+49 151 4444444" }) }]);
+  assert.ok(!mitRegister(env, anwaerter).some((e) => e.name === "Oskar"), "Anwärter klingeln nicht");
+});
+
+test("Übersichtskarte zeigt alle mit Stand, Telefon und Notion", () => {
+  const liste = leseRegister([{ content: zeileTeam({ discord: OSKAR, name: "Oskar", status: "pause", notion: "", figur: "blond", seit: "2026-11-10", telefon: "+49 151 4444444" }) }]);
+  const k = teamKarte(liste);
+  const d = k.embeds[0].description ?? "";
+  assert.match(d, /Oskar/);
+  assert.match(d, /⏸️/);
+  assert.match(d, /\+49 151 4444444/);
+  assert.match(d, /Notion fehlt/);
+  assert.match(k.embeds[0].title ?? "", /Team/);
+});
+
+test("Befehl /team lesen: Unterbefehl, Person, Angaben", () => {
+  const b = befehlAus({ name: "team", options: [{ name: "aufnehmen", type: 1, options: [{ name: "person", value: OSKAR }, { name: "name", value: " Oskar " }, { name: "figur", value: "blond" }] }] });
+  assert.deepEqual(b, { aktion: "aufnehmen", person: OSKAR, name: "Oskar", figur: "blond", telefon: "", notion: "" });
+  assert.equal(befehlAus({ name: "team", options: [] }), null);
+});
+
+test("Wer in Pause oder Anwärter ist, darf außerhalb der Akademie nichts auslösen", () => {
+  const liste = leseRegister(
+    [
+      zeileTeam({ discord: JAKOB, name: "Jakob", status: "pause", notion: "", figur: "", seit: "", telefon: "" }),
+      zeileTeam({ discord: OSKAR, name: "Oskar", status: "anwaerter", notion: "", figur: "", seit: "", telefon: "" }),
+    ].map((content) => ({ content })),
+  );
+  setzeTeam(liste);
+  assert.equal(darfHandeln(JAKOB, "lead:uebernehmen"), false);
+  assert.equal(darfHandeln(OSKAR, "anf:x"), false);
+  assert.equal(darfHandeln(OSKAR, "ak:weiter"), true, "Akademie geht immer");
+  assert.equal(darfHandeln(JAKOB, "befehl:a"), true, "/a in der Übung geht immer");
+  assert.equal(darfHandeln(MIJO, "lead:uebernehmen"), true);
+  assert.equal(darfHandeln("123456789012", "lead:x"), true, "Unbekannte regelt der Rest wie bisher");
+  setzeTeam(START);
+});
