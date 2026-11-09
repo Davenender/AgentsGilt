@@ -129,11 +129,12 @@ test("gleich erkennt, ob eine Nachricht schon den gewünschten Inhalt hat", () =
   assert.equal(gleich({ title: "T", description: "d" }, { title: "T", description: "d", color: 1 }), true);
 });
 
-test("Anleitung in #lead-befehle: nur noch /lead mit einem Feld, kein /lead-delete, passt in eine Nachricht", () => {
+test("Anleitung in #lead-befehle: /lead mit einem Feld, /lead-delete nur für David, passt in eine Nachricht", () => {
   assert.match(LEAD_BEFEHLE_TEXT, /^\*\*Anleitung: Lead-Karten\*\*/);
   assert.match(LEAD_BEFEHLE_TEXT, /\/lead Bäckerei Schmitt Mühlheim am Main/);
   assert.match(LEAD_BEFEHLE_TEXT, /bis zu drei/);
   assert.match(LEAD_BEFEHLE_TEXT, /Ein \*\*Passt\*\* reicht/);
-  assert.doesNotMatch(LEAD_BEFEHLE_TEXT, /lead-delete|link:|name:/);
+  assert.doesNotMatch(LEAD_BEFEHLE_TEXT, /link:|name:/);
+  assert.match(LEAD_BEFEHLE_TEXT, /`\/lead-delete` mit Website, Maps-Link oder Firma und Ort/);
   assert.ok(LEAD_BEFEHLE_TEXT.length <= 2000);
 });

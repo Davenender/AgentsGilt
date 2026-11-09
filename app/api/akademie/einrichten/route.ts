@@ -50,9 +50,9 @@ export async function POST(req: Request) {
   await stelleSicher(token);
   await zeichneTeamKarte(token);
   const teamBefehl = (await meldeTeamBefehlAn(token)) ? "/team angemeldet" : "/team nicht angemeldet";
-  const leadBefehl = (await meldeLeadBefehlAn(token)) ? "/lead angemeldet" : "/lead nicht angemeldet";
-  // 09.11.: so wenige Befehle wie möglich – /lead-delete ist ersetzt (Aussortieren auf der Karte, „Ablehnung aufheben“ bei /lead)
-  const befehle = await entferneBefehle(token, ["lead-delete"]);
+  const leadBefehl = (await meldeLeadBefehlAn(token)) ? "/lead und /lead-delete angemeldet" : "/lead nicht angemeldet";
+  // Liste der übrigen Befehle (entfernt wird hier nichts mehr; /lead-delete bleibt für David, Wunsch 09.11.)
+  const befehle = await entferneBefehle(token, []);
   const leadAnleitung = await pflegeLeadBefehleText(token);
   return NextResponse.json({ teamBefehl, leadBefehl, befehle, leadAnleitung, ...(await richteEin(token)), ...(person ? { zurueckgesetzt: `${person.name}: ${zurueckgesetzt} Einträge gelöscht` } : {}) });
 }

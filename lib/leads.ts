@@ -510,7 +510,7 @@ export async function ruesteKnoepfeNach(token: string): Promise<{ geprueft: numb
   return { geprueft, geaendert };
 }
 
-/** Meldet /lead mit einem einzigen Feld an (09.11.): Website, Google-Maps-Link oder Firma mit Ort – der Bot erkennt es selbst. */
+/** Meldet /lead (ein Feld: Website, Google-Maps-Link oder Firma mit Ort) und /lead-delete (nur David, gleiches Feld) an. */
 export async function meldeLeadBefehlAn(token: string): Promise<boolean> {
   const app = await call<{ id?: string }>(token, "GET", "/oauth2/applications/@me");
   if (!app?.id) return false;
@@ -520,7 +520,15 @@ export async function meldeLeadBefehlAn(token: string): Promise<boolean> {
     description: "Neuen Lead vorschlagen: Website, Google-Maps-Link oder Firma mit Ort",
     options: [{ type: 3, name: "eingabe", description: "z. B. www.firma.de, ein Maps-Link oder „Bäckerei Schmitt Mühlheim am Main“", required: false, max_length: 300 }],
   };
-  return (await call(token, "POST", `/applications/${app.id}/guilds/${GUILD_ID}/commands`, befehl)) !== null;
+  const del = {
+    name: "lead-delete",
+    type: 1,
+    description: "Firma zurücksetzen: Karte löschen oder Ablehnung aufheben (nur David)",
+    default_member_permissions: "0",
+    options: [{ type: 3, name: "eingabe", description: "Website, Google-Maps-Link oder Firma mit Ort", required: true, max_length: 300 }],
+  };
+  const ok = (await call(token, "POST", `/applications/${app.id}/guilds/${GUILD_ID}/commands`, befehl)) !== null;
+  return ok && (await call(token, "POST", `/applications/${app.id}/guilds/${GUILD_ID}/commands`, del)) !== null;
 }
 
 /** Die angepinnte Anleitung in #lead-befehle auf den Stand von LEAD_BEFEHLE_TEXT bringen (ändert die Bot-Nachricht, legt sie sonst neu an). */

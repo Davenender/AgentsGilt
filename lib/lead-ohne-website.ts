@@ -262,3 +262,8 @@ export function trefferAuswahl(treffer: Platz[], suchtext: string): { content: s
     components: [{ type: 1, components: knoepfe }],
   };
 }
+
+/** Unter welchen Schlüsseln eine Firma aus Google Maps als Karte oder Ablehnung vermerkt sein kann (für /lead-delete). */
+export function kandidatenSchluessel(p: Platz, websiteDomain: string | null): string[] {
+  return [...(websiteDomain ? [websiteDomain] : []), `gmaps-${p.id}`];
+}

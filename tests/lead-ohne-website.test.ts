@@ -5,6 +5,7 @@ import { test } from "node:test";
 import {
   analyseAusFormular,
   erkenneEingabe,
+  kandidatenSchluessel,
   trefferAuswahl,
   analyseAusPlatz,
   erlaubterMapsHost,
@@ -195,4 +196,9 @@ test("Treffer-Auswahl: bis zu 3 Firmen mit Adresse und Bewertung, je ein Knopf, 
   assert.equal(knoepfe.every((k) => (k.label ?? "").length <= 80 && k.custom_id.length <= 100), true);
   assert.match(knoepfe.at(-1)!.custom_id, /^lead:formular:/);
   assert.equal(knoepfe.at(-1)!.label, "Keine davon");
+});
+
+test("/lead-delete: Schlüssel einer Firma aus Google Maps (Maps-Kennung und, wenn vorhanden, Website)", () => {
+  assert.deepEqual(kandidatenSchluessel(platz("ChIJaaa", "Bäckerei Schmitt"), null), ["gmaps-ChIJaaa"]);
+  assert.deepEqual(kandidatenSchluessel(platz("ChIJaaa", "Bäckerei Schmitt", { website: "https://www.schmitt.de" }), "schmitt.de"), ["schmitt.de", "gmaps-ChIJaaa"]);
 });

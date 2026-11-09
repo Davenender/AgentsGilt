@@ -237,7 +237,7 @@ export const ANLEITUNGEN: Anleitung[] = [
       "**Karten aus der Lead-Suche** tragen oben „🔎 Aus der Lead-Suche“ und im Fuß „per Suche“. Sie laufen genauso weiter.",
       "",
       "**Doppelte:** Schlägt jemand dieselbe Firma noch einmal vor, verweist der Bot auf die bestehende Karte oder sagt, dass sie abgelehnt wurde.",
-      "**Ablehnung aufheben (nur David):** `/lead` mit der Firma eingeben. Ist sie abgelehnt, bekommt nur David den Knopf **Ablehnung aufheben**.",
+      "**Zurücksetzen (nur David):** `/lead-delete` mit Website, Maps-Link oder Firma und Ort. Das löscht die Karte oder hebt eine Ablehnung auf.",
       "**Hinweis:** Nur kontaktieren, wenn es rechtlich zulässig ist (Kaltakquise, UWG §7).",
     ),
   },
@@ -334,6 +334,7 @@ export const ANLEITUNGEN: Anleitung[] = [
     text: z(
       "• `/lead …` legt eine Lead-Karte an: mit einer Website, einem Google-Maps-Link oder Firma und Ort, z. B. `/lead Bäckerei Schmitt Mühlheim am Main` (nur in #lead-befehle)",
       "• `/lead` ohne Angaben öffnet den Knopf zum Formular",
+      "• `/lead-delete …` setzt eine Firma zurück: Karte löschen oder Ablehnung aufheben (nur David)",
       "• `/close` schließt deinen Such-Thread der Lead-Suche vorzeitig (nur im eigenen Thread)",
     ),
   },
@@ -372,7 +373,7 @@ export const LEAD_BEFEHLE_TEXT = [
   "**4. Im Kundenkanal weiter**",
   "Nach „Lead aktiv“ entsteht der Kanal 🔴knd_00X mit der Kundenkarte. Dort schreibt nur der Bot, ihr drückt Knöpfe.",
   "",
-  "**Ablehnung aufheben** (nur David): `/lead` mit der Firma eingeben, dann erscheint der Knopf **Ablehnung aufheben**.",
+  "**Zurücksetzen** (nur David): `/lead-delete` mit Website, Maps-Link oder Firma und Ort. Das löscht die Karte oder hebt eine Ablehnung auf.",
   "",
   "Hinweis: Nur kontaktieren, wenn es rechtlich zulässig ist (Kaltakquise).",
 ].join("\n");

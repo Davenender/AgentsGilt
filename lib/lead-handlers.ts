@@ -31,7 +31,7 @@ import {
 import { nameVon } from "@/lib/team";
 import { legeKundenZeileAn, notionConfigured } from "@/lib/notion-api";
 import type { Analyse } from "@/lib/lead-analyse";
-import { analyseAusFormular, analyseAusPlatz, formularModal, formularWerte, manuellerSchluessel, webArt, type Platz, erkenneEingabe, trefferAuswahl } from "@/lib/lead-ohne-website";
+import { analyseAusFormular, analyseAusPlatz, formularModal, formularWerte, manuellerSchluessel, webArt, type Platz, erkenneEingabe, kandidatenSchluessel, trefferAuswahl } from "@/lib/lead-ohne-website";
 import { findeFirmen, holePlatz, platzAusMapsLink } from "@/lib/lead-suche";
 
 // Befehle /lead und /lead-delete und die Knöpfe unter den Lead-Karten.
@@ -86,21 +86,15 @@ const formularKnopf = (name = "", ort = "") => [
   },
 ];
 
-/** Nur für David: Knopf, der eine Ablehnung aufhebt (ersetzt /lead-delete, 09.11.). */
-const freigabeKnopf = (schluessel: string, david: boolean) =>
-  david && `lead:freigabe:${schluessel}`.length <= 100
-    ? [{ type: 1, components: [{ type: 2, style: 2, label: "Ablehnung aufheben", emoji: { name: "↩️" }, custom_id: `lead:freigabe:${schluessel}` }] }]
-    : [];
-
 /**
  * Legt die Lead-Karte in #leads an (nach der Prüfung auf doppelte Karten) und meldet das Ergebnis
  * dem, der /lead ausgeführt hat.
  */
-async function veroeffentliche(token: string, appId: string, itoken: string, analyse: Analyse, url: string, schluessel: string, von: string, pruefen = true, david = false) {
+async function veroeffentliche(token: string, appId: string, itoken: string, analyse: Analyse, url: string, schluessel: string, von: string, pruefen = true) {
   if (pruefen) {
     const bestehend = await findeBestehend(token, schluessel);
     if (bestehend?.art === "abgelehnt") {
-      await setzeAntwort(appId, itoken, `🚫 **${analyse.firma}** wurde schon abgelehnt (am ${bestehend.datum ?? "?"}). Nur David kann das aufheben.`, freigabeKnopf(schluessel, david));
+      await setzeAntwort(appId, itoken, `🚫 **${analyse.firma}** wurde schon abgelehnt (am ${bestehend.datum ?? "?"}). Nur David kann sie mit /lead-delete zurücksetzen.`);
       return;
     }
     if (bestehend) {
@@ -135,7 +129,7 @@ async function veroeffentliche(token: string, appId: string, itoken: string, ana
 }
 
 /** Karte aus einem Google-Maps-Eintrag. Hat die Firma eine echte Website, wird sie wie bei /lead ausgewertet. */
-async function karteAusPlatz(token: string, appId: string, itoken: string, p: Platz, von: string, david = false) {
+async function karteAusPlatz(token: string, appId: string, itoken: string, p: Platz, von: string) {
   let analyse = analyseAusPlatz(p);
   let url = p.maps ?? `https://www.google.com/maps/place/?q=place_id:${p.id}`;
   let schluessel = `gmaps-${p.id}`;
@@ -151,7 +145,7 @@ async function karteAusPlatz(token: string, appId: string, itoken: string, p: Pl
       schluessel = res.domain;
     }
   }
-  await veroeffentliche(token, appId, itoken, analyse, url, schluessel, von, true, david);
+  await veroeffentliche(token, appId, itoken, analyse, url, schluessel, von);
 }
 
 const kanalLink = (channelId: string, messageId: string) =>
@@ -166,24 +160,43 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
   if (!token || !appId || !itoken || !user) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
 
   if (i.data?.name === "lead-delete") {
-    if (user.id !== OWNER_ID) return ephemeral("Karten löschen darf nur David.");
-    const url = normalizeUrl(linkOption(i));
-    const domain = url ? domainKey(url) : null;
-    if (!domain) return ephemeral("Das ist keine gültige Webadresse.");
+    if (user.id !== OWNER_ID) return ephemeral("Einen Lead zurücksetzen darf nur David.");
+    // 09.11.: wie /lead ein Feld – Website, Maps-Link oder Firma mit Ort; die Firma wird zurückgesetzt (Karte weg, Ablehnung aufgehoben)
+    const eingabeDel = erkenneEingabe(option(i, "eingabe") || linkOption(i));
+    if (eingabeDel.art === "leer") return ephemeral("Schreib nach `/lead-delete` die Website, den Maps-Link oder Firma und Ort.");
     after(async () => {
-      const bestehend = await findeBestehend(token, domain);
-      let text: string;
-      if (!bestehend) {
-        text = `Zu **${domain}** gibt es nichts zu löschen.`;
-      } else if (bestehend.art === "abgelehnt") {
-        const n = await vergissAbgelehnt(token, domain);
-        text = `🗑️ **${domain}** war abgelehnt vermerkt (${n} Eintrag). Die Firma darf jetzt wieder mit /lead vorgelegt werden.`;
-      } else {
-        await loescheNachricht(token, bestehend.channelId, bestehend.messageId);
-        await vergissAbgelehnt(token, domain);
-        text = `🗑️ Die Karte zu **${domain}** ist gelöscht.`;
+      try {
+        let schluessel: string[] = [];
+        let anzeige = eingabeDel.text;
+        if (eingabeDel.art === "website") {
+          const url = normalizeUrl(eingabeDel.text);
+          const domain = url ? domainKey(url) : null;
+          if (domain) schluessel = [domain];
+          anzeige = domain ?? anzeige;
+        } else {
+          await setzeAntwort(appId, itoken, "🔎 Ich schaue bei Google Maps nach …");
+          const treffer = eingabeDel.art === "maps" ? [await platzAusMapsLink(eingabeDel.text)].filter((p) => p !== null) : ((await findeFirmen(eingabeDel.text)) ?? []);
+          schluessel = treffer.flatMap((p) => kandidatenSchluessel(p, p.website && webArt(p.website) === "site" ? domainKey(p.website) : null));
+        }
+        let text = `Zu **${anzeige.replace(/[*_~`|>@]/g, "")}** gibt es nichts zurückzusetzen (keine Karte, keine Ablehnung).`;
+        for (const k of schluessel) {
+          const bestehend = await findeBestehend(token, k);
+          if (!bestehend) continue;
+          if (bestehend.art === "abgelehnt") {
+            await vergissAbgelehnt(token, k);
+            text = `🗑️ Die Ablehnung zu **${k}** ist aufgehoben. Die Firma darf jetzt wieder mit /lead vorgelegt werden.`;
+          } else {
+            await loescheNachricht(token, bestehend.channelId, bestehend.messageId);
+            await vergissAbgelehnt(token, k);
+            text = `🗑️ Die Karte zu **${k}** ist gelöscht. Die Firma ist zurückgesetzt.`;
+          }
+          break;
+        }
+        await setzeAntwort(appId, itoken, text);
+      } catch (err) {
+        console.error("[lead] /lead-delete fehlgeschlagen:", err);
+        await setzeAntwort(appId, itoken, "⚠️ Das hat leider nicht geklappt. Bitte nochmal versuchen.");
       }
-      await setzeAntwort(appId, itoken, text);
     });
     return NextResponse.json(DEFERRED_EPHEMERAL);
   }
@@ -231,7 +244,7 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
           await setzeAntwort(appId, itoken, a.content, a.components);
           return;
         }
-        await karteAusPlatz(token, appId, itoken, treffer[0], von, user.id === OWNER_ID);
+        await karteAusPlatz(token, appId, itoken, treffer[0], von);
       } catch (err) {
         console.error("[lead] /lead (Maps) fehlgeschlagen:", err);
         await setzeAntwort(appId, itoken, "⚠️ Das hat leider nicht geklappt. Bitte nochmal versuchen.");
@@ -253,8 +266,7 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
         await setzeAntwort(
           appId,
           itoken,
-          `🚫 **${domain}** wurde schon abgelehnt (am ${bestehend.datum ?? "?"}). Nur David kann die Ablehnung aufheben.`,
-          freigabeKnopf(domain, user.id === OWNER_ID),
+          `🚫 **${domain}** wurde schon abgelehnt (am ${bestehend.datum ?? "?"}). Nur David kann sie mit /lead-delete zurücksetzen.`,
         );
         return;
       }
@@ -307,25 +319,11 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
           await setzeAntwort(appId, itoken, "Diese Firma konnte ich bei Google Maps nicht mehr abrufen. Bitte nochmal mit `/lead` versuchen oder von Hand eintragen:", formularKnopf());
           return;
         }
-        await karteAusPlatz(token, appId, itoken, platz, von, user.id === OWNER_ID);
+        await karteAusPlatz(token, appId, itoken, platz, von);
       } catch (err) {
         console.error("[lead] Auswahl fehlgeschlagen:", err);
         await setzeAntwort(appId, itoken, "⚠️ Das hat leider nicht geklappt. Bitte nochmal versuchen.");
       }
-    });
-    return NextResponse.json(DEFERRED_UPDATE);
-  }
-
-  // ---- Ablehnung aufheben (nur David, Knopf aus der privaten /lead-Antwort; ersetzt /lead-delete)
-  if (action.startsWith("freigabe:")) {
-    if (!user || user.id !== OWNER_ID) return ephemeral("Eine Ablehnung aufheben darf nur David.");
-    const appId = i.application_id;
-    const itoken = i.token;
-    const schluessel = action.slice("freigabe:".length);
-    if (!token || !appId || !itoken || !schluessel) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
-    after(async () => {
-      const n = await vergissAbgelehnt(token, schluessel);
-      await setzeAntwort(appId, itoken, n ? "↩️ Die Ablehnung ist aufgehoben. Gib `/lead` mit der Firma noch einmal ein, dann entsteht die Karte." : "Zu dieser Firma war keine Ablehnung mehr vermerkt. Gib `/lead` einfach noch einmal ein.");
     });
     return NextResponse.json(DEFERRED_UPDATE);
   }
