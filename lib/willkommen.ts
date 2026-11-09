@@ -320,7 +320,7 @@ export const ANLEITUNGEN: Anleitung[] = [
       "• **📖 Lernpfad (euer eigener Kanal):** Mit **📖 Weiterlernen** kommt die nächste Lektion. Unten auf **✅ Gelesen** drücken, dann verschwindet sie und der Fortschritt wird gespeichert. Am Ende jeder Einheit kommt ein kurzer **Test**.",
       "• **Test:** Ab **80 %** richtig ist er bestanden. Sonst zeigt der Bot, welche Lektionen ihr nachlesen solltet, und ihr könnt sofort noch einmal.",
       "• **Wiederholen:** Auf der Lernpfad-Karte über die Auswahl **Lektion wiederholen** jede gelesene Lektion noch einmal öffnen.",
-      "• **📚 Bibliothek (euer eigener Kanal):** das Inhaltsverzeichnis aller freigegebenen Lektionen zum Nachschlagen. Eine Lektion auswählen, und sie erscheint ganz. Mit **🔎 Suchen** nach einem Wort suchen, mit **🧹 Aufräumen** alles wieder wegräumen.",
+      "• **📚 Bibliothek (euer eigener Kanal):** das Inhaltsverzeichnis aller Lektionen, die ihr schon gelesen habt, zum Nachschlagen. Eine Lektion auswählen, und sie erscheint ganz. Mit **🔎 Suchen** nach einem Wort suchen, mit **🧹 Aufräumen** alles wieder wegräumen.",
       "• **📘 Branchenwissen** (unten in der Bibliothek): je Branche, was Betriebe oft brauchen und worauf es ankommt. Gut zum Nachlesen vor einem Kundengespräch.",
       "• **🎭 Übungen (euer eigener Kanal):** Nach dem Test von Einheit 6 übt ihr dort Kundengespräche mit einem KI-Kunden. **🎭 Übung starten**, eine Lage wählen, dann mit **💬 Antworten** schreiben, was ihr sagen würdet. Mit **✅ Fertig** gibt es Punkte von 0 bis 100 und eine Rückmeldung nach dem Gesprächsleitfaden.",
       "",
