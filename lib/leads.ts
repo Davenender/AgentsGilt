@@ -1,5 +1,6 @@
 import { findCategoryId, findChannelId } from "@/lib/discord";
 import { kanalWahl } from "./kanalwahl.ts";
+import { entscheide, NOETIG } from "./abstimmung.ts";
 import type { EmbedLike } from "@/lib/discord-calls";
 import type { Analyse } from "@/lib/lead-analyse";
 
@@ -21,7 +22,9 @@ export const CH_SUCHE_SPEICHER = "lead-suche-speicher";
 export const CH_ANFRAGEN = "anfragen";
 export const CH_POSTEINGANG = "posteingang";
 export const CH_STATISTIK = "statistik";
-export const NEEDED = 2; // so viele gleiche Stimmen entscheiden
+/** Stimmen, die entscheiden: ein „Passt“ nimmt auf, zwei „Passt nicht“ lehnen ab (09.11.). */
+export const NEEDED = NOETIG.nein;
+export const NEEDED_JA = NOETIG.ja;
 
 export type LeadState = "vote" | "confirm" | "accepted" | "active" | "archived";
 
@@ -91,7 +94,7 @@ export const USAGE_TEXT =
   "**So legst du eine Lead-Karte an**\n" +
   "Schreib im Kanal **#lead-befehle** `/lead` und füge den Link der Firmenwebsite ein, zum Beispiel `/lead link: www.beispiel.de`. Nur dort funktioniert der Befehl.\n" +
   "Ohne Website: einen **Google-Maps-Link** einfügen oder `/lead name: Bäckerei Schmitt ort: Mühlheim` schreiben. Findet der Bot nichts, gibt es ein Formular zum Ausfüllen.\n" +
-  "Der Bot liest die Seite, fasst sie zusammen und legt hier eine Karte an. Danach stimmt ihr mit **Passt** oder **Passt nicht** ab, zwei gleiche Stimmen entscheiden.\n" +
+  "Der Bot liest die Seite, fasst sie zusammen und legt hier eine Karte an. Danach stimmt ihr mit **Passt** oder **Passt nicht** ab. Ein **Passt** reicht, damit der Lead aufgenommen wird, zum Ablehnen braucht es zwei.\n" +
   "Hier im Kanal kann man nur Knöpfe klicken, nicht schreiben. Hinweis: Nur kontaktieren, wenn es rechtlich zulässig ist (Kaltakquise).";
 
 /**
@@ -335,7 +338,7 @@ export function kartenEmbed(a: Analyse, url: string, domain: string, von: string
     fields.push({ name: "Passt zu", value: sauber(clip(`${a.passt}${a.begruendung ? ` – ${a.begruendung}` : ""}`, 300)), inline: false });
   }
   fields.push(
-    { name: `${F_YES} (0 von ${NEEDED})`, value: "–", inline: true },
+    { name: `${F_YES} (0 von ${NEEDED_JA})`, value: "–", inline: true },
     { name: `${F_NO} (0 von ${NEEDED})`, value: "–", inline: true },
   );
   return {
@@ -357,7 +360,7 @@ export function votes(e: EmbedLike): { yes: string[]; no: string[] } {
 
 function mitStimmen(e: EmbedLike, yes: string[], no: string[], state: LeadState): EmbedLike {
   const set = (prefix: string, base: string, list: string[]) => ({
-    name: `${base} (${list.length} von ${NEEDED})`,
+    name: `${base} (${list.length} von ${base === F_YES ? NEEDED_JA : NEEDED})`,
     value: list.length ? list.map((i) => `<@${i}>`).join(" ") : "–",
     inline: true,
   });
@@ -390,7 +393,8 @@ export function stimme(e: EmbedLike, userId: string, dafuer: boolean): Abstimmun
   const n = no.filter((i) => i !== userId);
   (dafuer ? y : n).push(userId);
 
-  if (y.length >= NEEDED) {
+  const ergebnis = entscheide(y.length, n.length);
+  if (ergebnis === "accepted") {
     const emb = mitStimmen(e, y, n, "accepted");
     return {
       art: "neu",
@@ -398,7 +402,7 @@ export function stimme(e: EmbedLike, userId: string, dafuer: boolean): Abstimmun
       embed: { ...emb, fields: [...(emb.fields ?? []).filter((f) => f.name !== F_STATUS), { name: F_STATUS, value: "Offen", inline: false }] },
     };
   }
-  if (n.length >= NEEDED) return { art: "neu", state: "confirm", embed: mitStimmen(e, y, n, "confirm") };
+  if (ergebnis === "confirm") return { art: "neu", state: "confirm", embed: mitStimmen(e, y, n, "confirm") };
   return { art: "neu", state: "vote", embed: mitStimmen(e, y, n, "vote") };
 }
 

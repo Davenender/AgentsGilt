@@ -44,6 +44,7 @@ import {
   leadComponents,
   letzterFehler,
   NEEDED,
+  NEEDED_JA,
   OWNER_ID,
   postKarte,
   SEP,
@@ -717,7 +718,7 @@ async function karteKlick(i: SucheInteraction, token: string, aktion: string): P
 
   const felder = (embed.fields ?? []).filter((f) => f.name !== "Entscheidung");
   felder.push(
-    { name: `${F_YES} (0 von ${NEEDED})`, value: "–", inline: true },
+    { name: `${F_YES} (0 von ${NEEDED_JA})`, value: "–", inline: true },
     { name: `${F_NO} (0 von ${NEEDED})`, value: "–", inline: true },
   );
   const karte = {

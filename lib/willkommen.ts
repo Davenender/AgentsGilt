@@ -225,7 +225,7 @@ export const ANLEITUNGEN: Anleitung[] = [
       "",
       "**2. Die Karte in #leads** zeigt Firma, Branche, Telefon, E-Mail, Ansprechpartner, Adresse, eine Zusammenfassung, was an der Website auffällt und welche unserer Leistungen passen könnte. Der Bot schreibt und ruft nie selbst an.",
       "",
-      "**3. Abstimmen:** Jeder klickt **Passt** (grün) oder **Passt nicht** (rot). Die Karte zeigt „1 von 2“. Zwei gleiche Stimmen entscheiden, die eigene Stimme lässt sich ändern, solange noch nicht entschieden ist. Bei zweimal „Passt nicht“ fragt der Bot nach: **Sicher ablehnen** löscht die Karte, und die Firma wird nie wieder vorgelegt. **Abbrechen** nimmt die Ablehnung zurück.",
+      "**3. Abstimmen:** Jeder klickt **Passt** (grün) oder **Passt nicht** (rot). Ein **Passt** reicht, und der Lead ist aufgenommen. Zum Ablehnen braucht es zwei Stimmen, die Karte zeigt dann „1 von 2“. Die eigene Stimme lässt sich ändern, solange noch nicht entschieden ist. Bei zweimal „Passt nicht“ fragt der Bot nach: **Sicher ablehnen** löscht die Karte, und die Firma wird nie wieder vorgelegt. **Abbrechen** nimmt die Ablehnung zurück.",
       "",
       "**4. Übernehmen:** Nach zweimal „Passt“ wird die Karte grün. Wer bei der Firma anruft, drückt **Übernehmen**. Sein Name steht dann auf der Karte („Übernommen von“), so weiß jeder, wer dran ist. Nur diese Person (und David) kann danach die Knöpfe drücken. **Freigeben** gibt den Lead wieder ab. Ist er frei, kann niemand die Status-Knöpfe drücken, bis ihn jemand übernimmt.",
       "",
