@@ -141,3 +141,57 @@ export function darfHandeln(userId: string, art: string): boolean {
   if (!m || m.status === "team") return true;
   return art.startsWith("ak:") || art === "befehl:a";
 }
+
+// ------------------------------------------------------------ Austritt (Etappe 2b)
+
+/** In einer Liste von Discord-Kennungen die gehende Person durch die neue ersetzen (ohne Doppelte, Reihenfolge bleibt). */
+export function ersetzeIn(ids: string[], alt: string, neu: string): string[] {
+  if (!ids.includes(alt)) return ids;
+  const out: string[] = [];
+  for (const id of ids.map((x) => (x === alt ? neu : x))) if (!out.includes(id)) out.push(id);
+  return out;
+}
+
+/** Wer einen Fall übernehmen kann: alle im Status Team außer der gehenden Person. */
+export const ziele = (aus: string) => aktive().filter((m) => m.discord !== aus).map((m) => ({ label: m.name, value: m.discord }));
+
+export type Fall = { art: "k" | "l"; ref: string; titel: string };
+const ART: Record<Fall["art"], string> = { k: "👥 Kunde", l: "🗂️ Lead-Karte" };
+
+/** Je offenem Fall eine Auswahl „wer übernimmt?“, höchstens 4 Fälle je Nachricht (Discord erlaubt 5 Reihen). */
+export function uebergabeNachrichten(aus: string, name: string, faelle: Fall[], optionen: { label: string; value: string }[]) {
+  const out: { embeds: { title: string; description: string; color: number }[]; components: { type: number; components: Record<string, unknown>[] }[] }[] = [];
+  for (let i = 0; i < faelle.length; i += 4) {
+    const teil = faelle.slice(i, i + 4);
+    out.push({
+      embeds: [{ title: `🚪 Übergabe von ${name} (${i + 1}–${i + teil.length} von ${faelle.length})`, color: 0xf59e0b, description: teil.map((f) => `${ART[f.art]}: **${f.titel}**`).join("\n") }],
+      components: teil.map((f) => ({
+        type: 1,
+        components: [{ type: 3, custom_id: `tm:ue:${aus}:${f.art}:${f.ref}`, placeholder: `${f.titel} → wer übernimmt?`.slice(0, 150), options: optionen.slice(0, 25) }],
+      })),
+    });
+  }
+  return out;
+}
+
+/** Der rote Knopf zum Ausführen (mit Nachfrage). */
+export const austrittKnopf = (aus: string, nachfrage: boolean) => [
+  {
+    type: 1,
+    components: nachfrage
+      ? [
+          { type: 2, style: 4, label: "Ja, endgültig: Rollen weg und vom Server entfernen", custom_id: `tm:ausja:${aus}` },
+          { type: 2, style: 2, label: "Abbrechen", custom_id: `tm:ausnein:${aus}` },
+        ]
+      : [{ type: 2, style: 4, label: "Austritt ausführen", emoji: { name: "🚪" }, custom_id: `tm:aus:${aus}` }],
+  },
+];
+
+/** Knöpfe und Auswahlen des Austritts lesen: tm:ue:<aus>:<art>:<ref> · tm:aus|ausja|ausnein:<aus> */
+export function knopfAus(id: string): { aktion: string; aus: string; art?: Fall["art"]; ref?: string } | null {
+  const t = id.split(":");
+  if (t[0] !== "tm" || !t[1] || !t[2]) return null;
+  if (t[1] === "ue" && (t[3] === "k" || t[3] === "l") && t[4]) return { aktion: "ue", aus: t[2], art: t[3], ref: t[4] };
+  if (["aus", "ausja", "ausnein"].includes(t[1])) return { aktion: t[1], aus: t[2] };
+  return null;
+}

@@ -1,10 +1,11 @@
 import { after, NextResponse } from "next/server";
 import { call, teamRolle } from "@/lib/leads";
 import { bereichFuer } from "@/lib/akademie-daten";
-import { befehlAus, DAVID_ID, mitglied, team, type Mitglied } from "@/lib/team";
-import { schreibeTeam, stelleSicher, zeichneTeamKarte } from "@/lib/team-daten";
+import { austrittKnopf, befehlAus, DAVID_ID, knopfAus, mitglied, nameVon, team, uebergabeNachrichten, ziele, type Mitglied } from "@/lib/team";
+import { registerKanal, schreibeTeam, stelleSicher, zeichneTeamKarte } from "@/lib/team-daten";
+import { fuehreAustrittAus, sammleFaelle, uebergib } from "@/lib/team-austritt";
 
-// Befehl /team (Plan 4, Etappe 2), nur für David: aufnehmen, daten, pause, zurueck, liste.
+// Befehl /team (Plan 4, Etappe 2), nur für David: aufnehmen, daten, pause, zurueck, austritt, liste.
 // Jede Änderung ist eine neue Zeile in #team-register; alles andere (Zuständig, Rufgruppe, Statistik, Akademie, Zentrale)
 // liest von dort. Die Antwort sieht nur David.
 
@@ -115,7 +116,110 @@ export function handleTeamBefehl(i: TeamInteraction, token: string) {
       return void (await antworte(appId, itoken, ok ? `🟢 **${m.name}** ist zurück im Team.` : "⚠️ Das Register war nicht erreichbar."));
     }
 
+    if (b.aktion === "austritt") {
+      if (m.discord === DAVID_ID) return void (await antworte(appId, itoken, "Du selbst kannst nicht austreten."));
+      if (m.status === "ausgetreten") return void (await antworte(appId, itoken, `${m.name} ist schon ausgetreten.`));
+      const faelle = await sammleFaelle(token, m.discord);
+      const kanal = await registerKanal(token);
+      if (!faelle || !kanal) return void (await antworte(appId, itoken, "⚠️ Notion oder Discord war gerade nicht erreichbar. Bitte nochmal versuchen."));
+      const poste = (body: Record<string, unknown>) => call(token, "POST", `/channels/${kanal}/messages`, { ...body, allowed_mentions: { parse: [] } });
+      await poste({
+        embeds: [
+          {
+            title: `🚪 Austritt von ${m.name} vorbereiten`,
+            color: 0xef4444,
+            description: [
+              faelle.length ? `**${faelle.length} offene Fälle.** Wähle unten je Fall, wer übernimmt. Was du nicht auswählst, geht beim Ausführen an dich.` : "Keine offenen Kunden oder Lead-Karten.",
+              "",
+              "Danach **🚪 Austritt ausführen**: Rolle Team weg, Akademie-Kanäle ins ARCHIV (nicht gelöscht), vom Server entfernen. Alte erledigte Karten behalten ihren Verlauf.",
+              "Offene Anfragen, Anrufe und Support-Tickets bitte kurz selbst ansehen, die laufen nur kurz.",
+            ].join("\n"),
+          },
+        ],
+      });
+      for (const n of uebergabeNachrichten(m.discord, m.name, faelle, ziele(m.discord))) await poste(n);
+      await poste({ content: `Wenn alles verteilt ist: Austritt von **${m.name}** ausführen.`, components: austrittKnopf(m.discord, false) });
+      return void (await antworte(appId, itoken, `🚪 Die Übergabe für ${m.name} steht in #team-register (${faelle.length} offene Fälle).`));
+    }
+
     await antworte(appId, itoken, "Unbekannter Befehl.");
   });
   return NextResponse.json({ type: 5, data: { flags: 64 } });
+}
+
+// ------------------------------------------------------------ Knöpfe und Auswahlen des Austritts (tm:…)
+
+export interface TeamKnopfInteraction {
+  token?: string;
+  application_id?: string;
+  data?: { custom_id?: string; values?: string[] };
+  member?: { user?: { id: string } };
+  message?: { id: string; content?: string; embeds?: { title?: string; description?: string; color?: number }[]; components?: { type: number; components: { custom_id?: string; placeholder?: string }[] }[] };
+}
+
+export function handleTeamKnopf(i: TeamKnopfInteraction, token: string) {
+  const user = i.member?.user;
+  const appId = i.application_id;
+  const itoken = i.token;
+  const k = knopfAus(i.data?.custom_id ?? "");
+  if (!user || !appId || !itoken || !k) return ephemeral("Das hat gerade nicht geklappt.");
+  if (user.id !== DAVID_ID) return ephemeral("Das macht nur David.");
+  const msg = i.message;
+  const name = nameVon(k.aus) ?? "die Person";
+
+  if (k.aktion === "aus") return NextResponse.json({ type: 7, data: { content: `Wirklich? **${name}** verliert die Rolle Team und wird vom Server entfernt. Das lässt sich nur mit einer neuen Einladung rückgängig machen.`, components: austrittKnopf(k.aus, true) } });
+  if (k.aktion === "ausnein") return NextResponse.json({ type: 7, data: { content: `Wenn alles verteilt ist: Austritt von **${name}** ausführen.`, components: austrittKnopf(k.aus, false) } });
+
+  if (k.aktion === "ausja") {
+    after(async () => {
+      const bericht = await fuehreAustrittAus(token, k.aus);
+      await fetch(`${API}/webhooks/${appId}/${itoken}/messages/@original`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "",
+          embeds: [
+            {
+              title: `🚪 Austritt von ${name} ausgeführt`,
+              color: 0x6b7280,
+              description: [
+                ...bericht,
+                "",
+                "**Noch von dir:**",
+                "1. In Notion den Zugang entfernen.",
+                "2. Push-Thema erneuern: Sag mir im Chat Bescheid, ich setze ein neues Thema, und das Team trägt es in der Push-App ein.",
+                "3. Falls der Telefon-Luca-Prompt im Vapi-Dashboard Namen nennt, dort anpassen.",
+              ].join("\n"),
+            },
+          ],
+          components: [],
+          allowed_mentions: { parse: [] },
+        }),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {});
+    });
+    return NextResponse.json({ type: 6 });
+  }
+
+  // tm:ue: einen Fall übergeben
+  const neu = i.data?.values?.[0];
+  if (!neu || !msg) return ephemeral("Bitte eine Person auswählen.");
+  const zeile = msg.components?.find((r) => r.components.some((c) => c.custom_id === i.data?.custom_id));
+  const titel = (zeile?.components[0]?.placeholder ?? "Fall").replace(/ → wer übernimmt\?$/, "");
+  after(async () => {
+    const ok = await uebergib(token, { art: k.art!, ref: k.ref! }, k.aus, neu);
+    const embed = msg.embeds?.[0] ?? { title: "Übergabe", description: "" };
+    const rest = ok ? (msg.components ?? []).filter((r) => r !== zeile) : (msg.components ?? []);
+    await fetch(`${API}/webhooks/${appId}/${itoken}/messages/@original`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        embeds: [{ ...embed, description: `${embed.description ?? ""}\n${ok ? `✅ ${titel} → ${nameVon(neu) ?? "?"}` : `⚠️ ${titel}: Übergabe hat nicht geklappt, bitte nochmal wählen.`}`.slice(0, 4000) }],
+        components: rest,
+        allowed_mentions: { parse: [] },
+      }),
+      signal: AbortSignal.timeout(8000),
+    }).catch(() => {});
+  });
+  return NextResponse.json({ type: 6 });
 }

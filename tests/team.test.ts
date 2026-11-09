@@ -144,3 +144,44 @@ test("Wer in Pause oder Anwärter ist, darf außerhalb der Akademie nichts ausl�
   assert.equal(darfHandeln("123456789012", "lead:x"), true, "Unbekannte regelt der Rest wie bisher");
   setzeTeam(START);
 });
+
+// ------------------------------------------------------------ Etappe 2b: Austritt
+
+import { ersetzeIn, uebergabeNachrichten, ziele, austrittKnopf, knopfAus } from "../lib/team.ts";
+
+test("Übergabe: die alte Person wird ersetzt, niemand doppelt, Reihenfolge bleibt", () => {
+  assert.deepEqual(ersetzeIn([DAVID, JAKOB], JAKOB, MIJO), [DAVID, MIJO]);
+  assert.deepEqual(ersetzeIn([JAKOB, MIJO], JAKOB, MIJO), [MIJO]);
+  assert.deepEqual(ersetzeIn([MIJO], JAKOB, DAVID), [MIJO], "nichts zu ersetzen");
+});
+
+test("Wer übernehmen kann: alle im Team außer der Person, die geht", () => {
+  setzeTeam(leseRegister([{ content: zeileTeam({ discord: OSKAR, name: "Oskar", status: "team", notion: "", figur: "", seit: "", telefon: "" }) }]));
+  assert.deepEqual(ziele(JAKOB).map((o) => o.label), ["David", "Mijo", "Oskar"]);
+  setzeTeam(START);
+});
+
+test("Übergabe-Nachrichten: je Fall eine Auswahl, höchstens 4 je Nachricht, kurze Kennungen", () => {
+  const faelle = Array.from({ length: 6 }, (_, i) => ({ art: i < 4 ? ("k" as const) : ("l" as const), ref: String(1000000000000000000n + BigInt(i)), titel: `Fall ${i}` }));
+  const n = uebergabeNachrichten(JAKOB, "Jakob", faelle, [{ label: "Mijo", value: MIJO }]);
+  assert.equal(n.length, 2);
+  assert.equal(n[0].components.length, 4);
+  assert.equal(n[1].components.length, 2);
+  const sel = n[0].components[0].components[0] as { custom_id: string; options: { value: string }[] };
+  assert.match(sel.custom_id, /^tm:ue:523479048727560205:k:\d+$/);
+  assert.ok(sel.custom_id.length <= 100);
+  assert.deepEqual(sel.options.map((o) => o.value), [MIJO]);
+  assert.match(n[0].embeds[0].description ?? "", /Fall 0/);
+  assert.equal(knopfAus(sel.custom_id)?.art, "k");
+  assert.equal(knopfAus(sel.custom_id)?.aus, JAKOB);
+  assert.equal(knopfAus("tm:aus:" + JAKOB)?.aktion, "aus");
+  assert.equal(knopfAus("lead:x"), null);
+});
+
+test("Austritt-Knopf ist rot und fragt nach", () => {
+  const k = austrittKnopf(JAKOB, false)[0].components;
+  assert.equal(k[0].style, 4);
+  assert.equal(k[0].custom_id, `tm:aus:${JAKOB}`);
+  const ja = austrittKnopf(JAKOB, true)[0].components;
+  assert.deepEqual(ja.map((b) => b.custom_id), [`tm:ausja:${JAKOB}`, `tm:ausnein:${JAKOB}`]);
+});

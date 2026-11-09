@@ -44,7 +44,7 @@ import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead
 import { OWNER_ID, setzeAntwort } from "@/lib/leads";
 import { closeTicketChannel, FOR_CUSTOMER, ticketComponents } from "@/lib/support";
 import { darfHandeln, nameVon } from "@/lib/team";
-import { handleTeamBefehl, type TeamInteraction } from "@/lib/team-handler";
+import { handleTeamBefehl, handleTeamKnopf, type TeamInteraction, type TeamKnopfInteraction } from "@/lib/team-handler";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 import { ladeTeam } from "@/lib/team-daten";
 
@@ -283,6 +283,7 @@ async function antworte(request: Request) {
     return ephemeral("Du bist gerade in Pause (oder noch im Aufnahmetest). Das geht erst wieder, wenn David dich zurück ins Team holt. Die Akademie kannst du weiter benutzen.");
   }
   if (interaction.type === 2 && interaction.data?.name === "team") return handleTeamBefehl(interaction as unknown as TeamInteraction, token ?? "");
+  if (customId.startsWith("tm:")) return handleTeamKnopf(interaction as unknown as TeamKnopfInteraction, token ?? "");
   const channelId = interaction.channel_id ?? process.env.DISCORD_CHANNEL_ANRUFE;
 
   if (interaction.type === 2 && interaction.data?.name === "close") return handleSucheClose(interaction as unknown as SucheInteraction, token);

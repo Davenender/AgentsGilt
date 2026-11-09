@@ -17,7 +17,7 @@ import {
   verlustMenue,
   wiederZeile,
 } from "@/lib/kundenablauf";
-import { ordneKanalEin } from "@/lib/kundenkanal";
+import { findeKarte, ordneKanalEin } from "@/lib/kundenkanal";
 import { demoAusKarte, demoBestaetigung, demoFeldText, demoOffen, demoPush, demoZeile, mitDemo } from "@/lib/demo";
 import { pusheDavid } from "@/lib/ntfy";
 import { aendereKarte, call, setzeAntwort } from "@/lib/leads";
@@ -37,7 +37,7 @@ import {
 } from "@/lib/gespraech";
 import { kanalNameMitPunkt } from "@/lib/notion-kunden";
 import { ausKarte, auswahlMenue, CHEF_ID, darf, gleich, mitZustaendig, NUR_ZUSTAENDIGE, pruefeAuswahl, zustaendigZeile } from "@/lib/zustaendige";
-import { team } from "@/lib/team";
+import { ersetzeIn, team } from "@/lib/team";
 
 // Knöpfe an der Kundenkarte im Kundenkanal (knd:):
 //   „👥 Zuständige“, „📝 Gesprächsbogen“, „🧠 Gespräch auswerten“, „⚪ Verloren“ (Grund wählen,
@@ -56,6 +56,24 @@ const nrAusKarte = (karte: EmbedLike) => karte.title?.match(/^(KND-\d+)/)?.[1] ?
 
 /** Die Knöpfe passend zu Status und Demo-Stand der Karte. */
 const knoepfeFuer = (karte: EmbedLike, status = statusAusKarte(karte)) => kartenKnoepfe(status, demoAusKarte(karte)?.status ?? null);
+
+/**
+ * Austritt (Plan 4): Im Kundenkanal die gehende Person in „Zuständig“ durch eine andere ersetzen – Karte (sie gilt),
+ * Zeile im Kanal und Notion. true, wenn erledigt oder nichts zu tun war.
+ */
+export async function uebergibKunde(token: string, kanal: string, alt: string, neu: string, von: string): Promise<boolean> {
+  const k = await findeKarte(token, kanal);
+  if (!k) return false;
+  const e = k.embeds[0];
+  const ids = ausKarte(e) ?? [];
+  if (!ids.includes(alt)) return true;
+  const neuIds = ersetzeIn(ids, alt, neu);
+  if (!(await aendereKarte(token, kanal, k.id, mitZustaendig(e, neuIds), knoepfeFuer(e)))) return false;
+  await postText(token, kanal, zustaendigZeile(ids, neuIds, von));
+  const seite = notionAusKarte(e);
+  if (seite) await setzeZustaendig(seite, neuIds);
+  return true;
+}
 
 async function holeKarte(token: string, channelId: string, messageId: string): Promise<EmbedLike | null> {
   const msg = await call<{ id: string; embeds?: EmbedLike[] }>(token, "GET", `/channels/${channelId}/messages/${messageId}`);

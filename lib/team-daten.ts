@@ -11,7 +11,7 @@ export const REGISTER = "team-register";
 const MERKEN_MS = 5 * 60_000;
 let bis = 0;
 
-const registerKanal = (token: string) => nurDavidKanal(token, REGISTER, "Team-Register: wer im Team ist (Anwärter, Team, Pause, Ausgetreten). Schreibt nur der Bot. Nicht löschen.");
+export const registerKanal = (token: string) => nurDavidKanal(token, REGISTER, "Team-Register: wer im Team ist (Anwärter, Team, Pause, Ausgetreten). Schreibt nur der Bot. Nicht löschen.");
 
 /** Stand aus Discord holen (mit Zwischenspeicher). Gibt die Liste zurück, auch wenn Discord nicht antwortet. */
 export async function ladeTeam(token: string | undefined, neu = false): Promise<readonly Mitglied[]> {
@@ -87,6 +87,7 @@ export async function meldeTeamBefehlAn(token: string): Promise<boolean> {
       { type: 1, name: "daten", description: "Telefon, Figur, Name oder Notion-Kennung ändern", options: [person, telefon, figur, { type: 3, name: "name", description: "Neuer Name", required: false, max_length: 40 }, { type: 3, name: "notion", description: "Notion-Kennung (für „Zuständig“)", required: false, max_length: 60 }] },
       { type: 1, name: "pause", description: "Person pausiert (bleibt im Server, keine Rufgruppe, nicht zuständig)", options: [person] },
       { type: 1, name: "zurueck", description: "Person aus der Pause zurückholen", options: [person] },
+      { type: 1, name: "austritt", description: "Person verlässt das Team: Übergabe je Kunde, dann Rollen weg und vom Server", options: [person] },
       { type: 1, name: "liste", description: "Übersicht in #team-register neu zeichnen" },
     ],
   };
