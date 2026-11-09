@@ -370,3 +370,26 @@ test("Bibliothek zeigt Branchenwissen unter eigener Überschrift und erklärt es
   assert.match(d, /\*\*📘 Branchenwissen\*\*\nB1 Ärzte/);
   assert.match(d, /Branchenwissen/);
 });
+
+// ------------------------------------------------------------ Aufnahmetest (Plan 4, Etappe 3)
+
+import { aufnahmeStand, aufnahmeZeile } from "../lib/akademie.ts";
+
+test("Aufnahmetest: alle Tests des Team-Pfads und 3 Übungen ab 70 Punkten", () => {
+  const sch = schritte(pfadLektionen(alle, "team"), [...fragen, F("T2.9", 2, "A", "2.1")], "team");
+  const u = (punkte: number) => ({ nr: "Ü1", titel: "x", punkte, zeit: "2026-11-10T10:00:00Z" });
+  const offen = aufnahmeStand(sch, new Set([1]), [u(80), u(65)]);
+  assert.deepEqual(offen, { tests: 1, testsGesamt: 2, uebungen: 1, uebungenGesamt: 3, bestanden: false });
+  assert.match(aufnahmeZeile(offen), /1 von 2 Tests · 1 von 3 Übungen/);
+  const fertig = aufnahmeStand(sch, new Set([1, 2]), [u(70), u(90), u(71), u(20)]);
+  assert.equal(fertig.bestanden, true);
+  assert.equal(fertig.uebungen, 3);
+  assert.equal(aufnahmeStand([], new Set(), []).bestanden, false, "ohne Tests im Pfad nie automatisch bestanden");
+});
+
+test("Pfad-Karte zeigt den Stand des Aufnahmetests oben, wenn mitgegeben", () => {
+  const sch = schritte(pfadLektionen(alle, "team"), fragen, "team");
+  const k = pfadKarte("Oskar", sch, new Set(), new Set(), "🎓 **Aufnahmetest:** 0 von 1 Tests");
+  assert.match(k.embeds[0].description ?? "", /^🎓 \*\*Aufnahmetest:\*\* 0 von 1 Tests/);
+  assert.doesNotMatch(pfadKarte("Mijo", sch, new Set(), new Set()).embeds[0].description ?? "", /Aufnahmetest/);
+});

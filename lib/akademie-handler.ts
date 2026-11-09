@@ -35,6 +35,7 @@ import {
 import { handleUebung, type UeInteraction } from "@/lib/uebung-handler";
 import { CHEF_ID } from "@/lib/zustaendige";
 import { team } from "@/lib/team";
+import { pruefeAufnahme } from "@/lib/aufnahme-daten";
 
 // Knöpfe der Akademie (ak:).
 //   Lernpfad: ak:weiter, ak:s (blättern), ak:g (gelesen), ak:z (nachlesen), ak:t (Test), ak:pw/ak:pe (wiederholen).
@@ -206,6 +207,8 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
         await nachher(token, user.id, p, ak.personen, inhalt);
         // Ein bestandener Test kann Übungen frei machen.
         if (a.bestanden && inhalt.uebungen.some((u) => u.voraussetzung === einheit)) await zeichneUebung(token, user.id, p, inhalt);
+        // Plan 4: Anwärter, die damit den Aufnahmetest geschafft haben, kommen ins Team
+        if (a.bestanden) await pruefeAufnahme(token, user.id, { p, inhalt });
       }),
     );
     return NextResponse.json(isPrivat(i) ? DEFER_UPDATE : DEFER_PRIVAT);

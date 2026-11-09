@@ -32,6 +32,7 @@ import {
   zugEmbed,
   zugKnoepfe,
 } from "@/lib/uebung";
+import { pruefeAufnahme } from "@/lib/aufnahme-daten";
 
 // Knöpfe der Übungen (ak:u…), nur im eigenen Übungskanal:
 //   ak:us        🎭 Übung starten → Auswahl der Lagen (nur für die Person)
@@ -361,6 +362,8 @@ export function handleUebung(i: UeInteraction, token: string, id: string) {
         (p.uebungen ??= []).push({ nr: l.lage.nr, titel: l.lage.titel, punkte: bewertung.punkte, zeit });
         await zeichneUebung(token, user.id, p, inhalt);
         await zeichneVerwaltung(token, personen, inhalt);
+        // Plan 4: Eine Übung ab 70 Punkten kann den Aufnahmetest abschließen
+        await pruefeAufnahme(token, user.id, { p, inhalt });
         await loesche(appId, itoken);
       }),
     );

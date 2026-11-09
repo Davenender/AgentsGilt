@@ -1,15 +1,17 @@
 import { after, NextResponse } from "next/server";
-import { call, teamRolle } from "@/lib/leads";
+import { call } from "@/lib/leads";
 import { bereichFuer } from "@/lib/akademie-daten";
 import { austrittKnopf, befehlAus, DAVID_ID, knopfAus, mitglied, nameVon, team, uebergabeNachrichten, ziele, type Mitglied } from "@/lib/team";
-import { registerKanal, schreibeTeam, stelleSicher, zeichneTeamKarte } from "@/lib/team-daten";
+import { registerKanal, schreibeAufnahmetest, schreibeTeam, stelleSicher, zeichneTeamKarte } from "@/lib/team-daten";
+import { setzeRolle, sichtbarkeitFuerAnwaerter } from "@/lib/team-rollen";
+import { hatBestanden, zielStatus } from "@/lib/aufnahme-daten";
+import { holeInhalt, leseAkademie, zeichne } from "@/lib/akademie-daten";
 import { fuehreAustrittAus, sammleFaelle, uebergib } from "@/lib/team-austritt";
 
-// Befehl /team (Plan 4, Etappe 2), nur für David: aufnehmen, daten, pause, zurueck, austritt, liste.
+// Befehl /team (Plan 4), nur für David: aufnehmen, daten, pause, zurueck, austritt, aufnahmetest, liste.
 // Jede Änderung ist eine neue Zeile in #team-register; alles andere (Zuständig, Rufgruppe, Statistik, Akademie, Zentrale)
 // liest von dort. Die Antwort sieht nur David.
 
-const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 const API = "https://discord.com/api/v10";
 
 export interface TeamInteraction {
@@ -31,12 +33,6 @@ async function antworte(appId: string, itoken: string, content: string) {
   }).catch(() => {});
 }
 
-/** Rolle Team geben (Aufnahmetest ist noch aus, deshalb gleich Team). */
-async function gibTeamRolle(token: string, userId: string): Promise<boolean> {
-  const rolle = await teamRolle(token);
-  return !!rolle && (await call(token, "PUT", `/guilds/${GUILD_ID}/members/${userId}/roles/${rolle}`)) !== null;
-}
-
 export function handleTeamBefehl(i: TeamInteraction, token: string) {
   const user = i.member?.user;
   const appId = i.application_id;
@@ -55,6 +51,40 @@ export function handleTeamBefehl(i: TeamInteraction, token: string) {
       await zeichneTeamKarte(token);
       return void (await antworte(appId, itoken, "👥 Die Übersicht in #team-register ist neu gezeichnet."));
     }
+    if (b.aktion === "aufnahmetest") {
+      const an = b.zustand === "an";
+      if (!(await schreibeAufnahmetest(token, an))) return void (await antworte(appId, itoken, "⚠️ Das Register war nicht erreichbar."));
+      const sicht = an ? await sichtbarkeitFuerAnwaerter(token) : null;
+      const [ak, inhalt] = await Promise.all([leseAkademie(token), holeInhalt()]);
+      const geaendert: string[] = [];
+      for (const x of [...team()]) {
+        if (x.discord === DAVID_ID) continue;
+        if (an && x.status === "team") {
+          const p = ak?.personen.get(x.discord);
+          const ok = p && inhalt ? await hatBestanden(token, x.discord, { p, inhalt }) : false;
+          if (ok) continue;
+          await schreibeTeam(token, { ...x, status: "anwaerter" });
+          await setzeRolle(token, x.discord, "anwaerter");
+          geaendert.push(`🎓 ${x.name} ist jetzt Anwärter`);
+        } else if (!an && x.status === "anwaerter") {
+          await schreibeTeam(token, { ...x, status: "team" });
+          await setzeRolle(token, x.discord, "team");
+          geaendert.push(`🟢 ${x.name} ist wieder im Team`);
+        } else continue;
+        const p = ak?.personen.get(x.discord);
+        if (p && inhalt) await zeichne(token, x.discord, p, inhalt);
+      }
+      return void (await antworte(
+        appId,
+        itoken,
+        [
+          an ? "🎓 **Aufnahmetest ist an.** Wer noch nicht bestanden hat, ist Anwärter und sieht nur #willkommen, #allgemein und die Akademie. Wer besteht, kommt automatisch ins Team." : "**Aufnahmetest ist aus.** Neue Leute kommen direkt ins Team.",
+          ...(sicht ? [`• Sichtbarkeit: ${sicht.frei} Kanäle für Anwärter freigegeben, ${sicht.gesperrt} gesperrt${sicht.fehler ? `, ⚠️ ${sicht.fehler} ging nicht` : ""}`] : []),
+          ...(geaendert.length ? geaendert.map((g) => `• ${g}`) : ["• Niemand wurde umgestellt."]),
+        ].join("\n"),
+      ));
+    }
+
     if (!b.person) return void (await antworte(appId, itoken, "Bitte eine Person auswählen."));
 
     if (b.aktion === "aufnehmen") {
@@ -63,16 +93,18 @@ export function handleTeamBefehl(i: TeamInteraction, token: string) {
       if (team().some((x) => x.name.toLowerCase() === b.name.toLowerCase() && x.discord !== b.person && x.status !== "ausgetreten")) {
         return void (await antworte(appId, itoken, `Den Namen ${b.name} gibt es schon im Team. Bitte einen anderen (zum Beispiel mit Nachnamen-Buchstaben).`));
       }
-      const ok = await schreibeTeam(token, { discord: b.person, name: b.name, status: "team", notion: "", figur: b.figur, seit: heute(), telefon: b.telefon });
+      const status = await zielStatus(token, b.person);
+      const ok = await schreibeTeam(token, { discord: b.person, name: b.name, status, notion: "", figur: b.figur, seit: heute(), telefon: b.telefon });
       if (!ok) return void (await antworte(appId, itoken, "⚠️ Das Register war nicht erreichbar. Bitte nochmal versuchen."));
-      const rolle = await gibTeamRolle(token, b.person);
+      if (status === "anwaerter") await sichtbarkeitFuerAnwaerter(token);
+      const rolle = await setzeRolle(token, b.person, status);
       const akademie = await bereichFuer(token, b.person);
       return void (await antworte(
         appId,
         itoken,
         [
-          `✅ **${b.name}** ist im Team.`,
-          `• Rolle Team: ${rolle ? "vergeben" : "⚠️ nicht vergeben (bitte von Hand)"}`,
+          status === "anwaerter" ? `🎓 **${b.name}** ist Anwärter: sieht nur #willkommen, #allgemein und die Akademie, bis der Aufnahmetest bestanden ist. Danach automatisch im Team.` : `✅ **${b.name}** ist im Team.`,
+          `• Rolle ${status === "anwaerter" ? "Anwärter" : "Team"}: ${rolle ? "vergeben" : "⚠️ nicht vergeben (bitte von Hand)"}`,
           `• Akademie: ${akademie}`,
           `• Rufgruppe: ${b.telefon ? `klingelt ab jetzt mit (${b.telefon})` : "noch keine Nummer, mit `/team daten telefon:` nachtragen"}`,
           "",
@@ -112,8 +144,10 @@ export function handleTeamBefehl(i: TeamInteraction, token: string) {
 
     if (b.aktion === "zurueck") {
       if (m.status !== "pause") return void (await antworte(appId, itoken, `${m.name} ist nicht in Pause (${m.status}).`));
-      const ok = await schreibeTeam(token, neu({ status: "team" }));
-      return void (await antworte(appId, itoken, ok ? `🟢 **${m.name}** ist zurück im Team.` : "⚠️ Das Register war nicht erreichbar."));
+      const status = await zielStatus(token, m.discord);
+      const ok = await schreibeTeam(token, neu({ status }));
+      if (ok) await setzeRolle(token, m.discord, status);
+      return void (await antworte(appId, itoken, !ok ? "⚠️ Das Register war nicht erreichbar." : status === "team" ? `🟢 **${m.name}** ist zurück im Team.` : `🎓 **${m.name}** ist zurück, aber als Anwärter: Der Aufnahmetest ist an und noch nicht bestanden.`));
     }
 
     if (b.aktion === "austritt") {

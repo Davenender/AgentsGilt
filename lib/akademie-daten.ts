@@ -3,6 +3,8 @@ import { eigeneId, sperreKundenkanal } from "@/lib/kundenkanal";
 import { leseBloecke } from "@/lib/notion-api";
 import {
   ANZEIGE,
+  aufnahmeStand,
+  aufnahmeZeile,
   bibliothekKarte,
   fortschritt,
   frageAusNotion,
@@ -26,7 +28,7 @@ import {
   type Testfrage,
 } from "@/lib/akademie";
 import { snowflakeZeit } from "@/lib/statistik";
-import { mitAkademie, nameVon as teamName, team } from "@/lib/team";
+import { mitAkademie, mitglied, nameVon as teamName, team } from "@/lib/team";
 import { sichtbareUebungen, uebungAusNotion, uebungKarte, type Uebung } from "@/lib/uebung";
 import type { EmbedLike } from "@/lib/discord-calls";
 
@@ -45,6 +47,7 @@ const VERWALTUNG_TITEL_ALT = "🔧 Akademie verwalten";
 type Kanal = { id: string; name: string; type: number; parent_id?: string | null };
 export type Inhalt = { lektionen: Lektion[]; fragen: Testfrage[]; uebungen: Uebung[] };
 
+const istAnwaerter = (id: string) => mitglied(id)?.status === "anwaerter";
 export const nameVon = (id: string) => teamName(id) ?? "Person";
 
 // ------------------------------------------------------------------ Notion
@@ -175,7 +178,10 @@ const START_TEXT = [
 /** Lernpfad- und Bibliothek-Karte einer Person neu zeichnen. */
 export async function zeichne(token: string, userId: string, p: Person, inhalt: Inhalt) {
   const name = nameVon(userId);
-  await call(token, "PATCH", `/channels/${p.lernpfad}/messages/${p.pfadMsg}`, { ...pfadKarte(name, schritteVon(p, inhalt), p.gelesen, p.bestanden), allowed_mentions: { parse: [] } });
+  const sch = schritteVon(p, inhalt);
+  // Plan 4: Anwärter sehen oben, wie weit sie im Aufnahmetest sind
+  const zusatz = istAnwaerter(userId) ? aufnahmeZeile(aufnahmeStand(sch, p.bestanden, p.uebungen ?? [])) : undefined;
+  await call(token, "PATCH", `/channels/${p.lernpfad}/messages/${p.pfadMsg}`, { ...pfadKarte(name, sch, p.gelesen, p.bestanden, zusatz), allowed_mentions: { parse: [] } });
   await call(token, "PATCH", `/channels/${p.bibliothek}/messages/${p.tocMsg}`, { ...bibliothekKarte(name, bibliothekVon(p, inhalt)), allowed_mentions: { parse: [] } });
 }
 

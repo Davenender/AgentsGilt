@@ -95,8 +95,29 @@ export function mitRegister(env: Handy[], liste: readonly Mitglied[]): Handy[] {
 const ZEICHEN: Record<Status, string> = { team: "🟢", pause: "⏸️", anwaerter: "🎓", ausgetreten: "⚪" };
 const WORT: Record<Status, string> = { team: "Team", pause: "Pause", anwaerter: "Anwärter", ausgetreten: "Ausgetreten" };
 
+// ------------------------------------------------------------ Einstellungen (Etappe 3)
+
+export type Einstellungen = { aufnahmetest: boolean };
+export const zeileEinstellung = (name: "aufnahmetest", an: boolean) => ["einstellung", name, an ? "an" : "aus"].join(SEP);
+
+/** Einstellungen aus dem Register (neueste Zeile gilt). Der Aufnahmetest ist aus, bis David ihn einschaltet. */
+export function leseEinstellungen(nachrichten: { content: string }[]): Einstellungen {
+  const e: Einstellungen = { aufnahmetest: false };
+  for (const n of nachrichten) {
+    const t = n.content.split(SEP).map((x) => x.trim());
+    if (t[0] === "einstellung" && t[1] === "aufnahmetest") e.aufnahmetest = t[2] === "an";
+  }
+  return e;
+}
+
+let einstellungen: Einstellungen = { aufnahmetest: false };
+export const setzeEinstellungen = (e: Einstellungen) => {
+  einstellungen = e;
+};
+export const aufnahmetestAn = () => einstellungen.aufnahmetest;
+
 /** Die Karte oben in #team-register (nur David sieht sie). */
-export function teamKarte(liste: readonly Mitglied[]) {
+export function teamKarte(liste: readonly Mitglied[], e: Einstellungen = einstellungen) {
   const zeilen = liste.map((m) =>
     [
       `${ZEICHEN[m.status]} **${m.name}** · ${WORT[m.status]}${m.seit ? ` seit ${m.seit}` : ""}`,
@@ -115,8 +136,10 @@ export function teamKarte(liste: readonly Mitglied[]) {
         description: [
           zeilen.join("\n"),
           "",
+          `🎓 **Aufnahmetest: ${e.aufnahmetest ? "an" : "aus"}** ${e.aufnahmetest ? "(neue Leute und alle, die noch nicht bestanden haben, sind Anwärter)" : "(neue Leute kommen direkt ins Team)"}`,
+          "",
           "**Befehle (nur David)**",
-          "`/team aufnehmen` neue Person · `/team daten` Telefon, Figur, Notion · `/team pause` · `/team zurueck` · `/team liste`",
+          "`/team aufnehmen` neue Person · `/team daten` Telefon, Figur, Notion · `/team pause` · `/team zurueck` · `/team austritt` · `/team aufnahmetest` · `/team liste`",
           "",
           "🟢 Team · ⏸️ Pause (bleibt im Server, keine Rufgruppe, nicht zuständig) · 🎓 Anwärter · ⚪ Ausgetreten",
         ].join("\n"),
@@ -125,14 +148,14 @@ export function teamKarte(liste: readonly Mitglied[]) {
   };
 }
 
-export type Befehl = { aktion: string; person: string; name: string; figur: string; telefon: string; notion: string };
+export type Befehl = { aktion: string; person: string; name: string; figur: string; telefon: string; notion: string; zustand: string };
 
 /** Den Befehl /team aus den Discord-Daten lesen. */
 export function befehlAus(data: { name?: string; options?: { name: string; type?: number; value?: unknown; options?: { name: string; value?: unknown }[] }[] } | undefined): Befehl | null {
   const sub = data?.options?.[0];
   if (data?.name !== "team" || !sub) return null;
   const wert = (n: string) => String(sub.options?.find((o) => o.name === n)?.value ?? "").trim();
-  return { aktion: sub.name, person: wert("person"), name: wert("name").slice(0, 40), figur: wert("figur").slice(0, 20), telefon: wert("telefon").slice(0, 30), notion: wert("notion").slice(0, 60) };
+  return { aktion: sub.name, person: wert("person"), name: wert("name").slice(0, 40), figur: wert("figur").slice(0, 20), telefon: wert("telefon").slice(0, 30), notion: wert("notion").slice(0, 60), zustand: wert("zustand") };
 }
 
 /** Pause und Anwärter dürfen außerhalb der Akademie (Knöpfe ak:…, Befehl /a) nichts auslösen. Unbekannte regelt der Rest. */

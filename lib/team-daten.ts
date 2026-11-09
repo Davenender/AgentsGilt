@@ -1,7 +1,7 @@
 import { alleNachrichten, call } from "@/lib/leads";
 import { nurDavidKanal } from "@/lib/akademie-daten";
 import { teamEintraege } from "@/lib/luca-logik";
-import { leseRegister, setzeTeam, START, team, teamKarte, zeileTeam, type Mitglied } from "@/lib/team";
+import { leseEinstellungen, leseRegister, setzeEinstellungen, setzeTeam, START, team, teamKarte, zeileEinstellung, zeileTeam, type Mitglied } from "@/lib/team";
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 // Team-Register laden und ändern (Plan 4). Der Kanal #team-register sieht nur David; der Bot schreibt dort je Änderung
@@ -21,6 +21,7 @@ export async function ladeTeam(token: string | undefined, neu = false): Promise<
     if (kanal) {
       const msgs = (await alleNachrichten(token, kanal, 500)).slice().reverse();
       setzeTeam(leseRegister(msgs));
+      setzeEinstellungen(leseEinstellungen(msgs));
       bis = Date.now() + MERKEN_MS;
     }
   } catch (err) {
@@ -34,6 +35,18 @@ export async function schreibeTeam(token: string, m: Mitglied): Promise<boolean>
   const kanal = await registerKanal(token);
   if (!kanal) return false;
   const ok = (await call(token, "POST", `/channels/${kanal}/messages`, { content: zeileTeam(m), allowed_mentions: { parse: [] } })) !== null;
+  if (ok) {
+    await ladeTeam(token, true);
+    await zeichneTeamKarte(token);
+  }
+  return ok;
+}
+
+/** Den Schalter Aufnahmetest umlegen (neue Zeile im Register). */
+export async function schreibeAufnahmetest(token: string, an: boolean): Promise<boolean> {
+  const kanal = await registerKanal(token);
+  if (!kanal) return false;
+  const ok = (await call(token, "POST", `/channels/${kanal}/messages`, { content: zeileEinstellung("aufnahmetest", an), allowed_mentions: { parse: [] } })) !== null;
   if (ok) {
     await ladeTeam(token, true);
     await zeichneTeamKarte(token);
@@ -88,6 +101,7 @@ export async function meldeTeamBefehlAn(token: string): Promise<boolean> {
       { type: 1, name: "pause", description: "Person pausiert (bleibt im Server, keine Rufgruppe, nicht zuständig)", options: [person] },
       { type: 1, name: "zurueck", description: "Person aus der Pause zurückholen", options: [person] },
       { type: 1, name: "austritt", description: "Person verlässt das Team: Übergabe je Kunde, dann Rollen weg und vom Server", options: [person] },
+      { type: 1, name: "aufnahmetest", description: "Aufnahmetest an: Wer noch nicht bestanden hat, wird Anwärter", options: [{ type: 3, name: "zustand", description: "an oder aus", required: true, choices: [{ name: "an", value: "an" }, { name: "aus", value: "aus" }] }] },
       { type: 1, name: "liste", description: "Übersicht in #team-register neu zeichnen" },
     ],
   };

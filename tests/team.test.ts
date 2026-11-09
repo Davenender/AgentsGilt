@@ -124,7 +124,7 @@ test("Übersichtskarte zeigt alle mit Stand, Telefon und Notion", () => {
 
 test("Befehl /team lesen: Unterbefehl, Person, Angaben", () => {
   const b = befehlAus({ name: "team", options: [{ name: "aufnehmen", type: 1, options: [{ name: "person", value: OSKAR }, { name: "name", value: " Oskar " }, { name: "figur", value: "blond" }] }] });
-  assert.deepEqual(b, { aktion: "aufnehmen", person: OSKAR, name: "Oskar", figur: "blond", telefon: "", notion: "" });
+  assert.deepEqual(b, { aktion: "aufnehmen", person: OSKAR, name: "Oskar", figur: "blond", telefon: "", notion: "", zustand: "" });
   assert.equal(befehlAus({ name: "team", options: [] }), null);
 });
 
@@ -184,4 +184,18 @@ test("Austritt-Knopf ist rot und fragt nach", () => {
   assert.equal(k[0].custom_id, `tm:aus:${JAKOB}`);
   const ja = austrittKnopf(JAKOB, true)[0].components;
   assert.deepEqual(ja.map((b) => b.custom_id), [`tm:ausja:${JAKOB}`, `tm:ausnein:${JAKOB}`]);
+});
+
+// ------------------------------------------------------------ Etappe 3: Schalter Aufnahmetest
+
+import { leseEinstellungen, zeileEinstellung } from "../lib/team.ts";
+
+test("Schalter Aufnahmetest: aus, bis David ihn einschaltet; die neueste Zeile gilt", () => {
+  assert.equal(leseEinstellungen([]).aufnahmetest, false);
+  assert.equal(zeileEinstellung("aufnahmetest", true), "einstellung · aufnahmetest · an");
+  const e = leseEinstellungen([{ content: zeileEinstellung("aufnahmetest", true) }, { content: "team · 1 · x · team" }]);
+  assert.equal(e.aufnahmetest, true);
+  assert.equal(leseEinstellungen([{ content: zeileEinstellung("aufnahmetest", true) }, { content: zeileEinstellung("aufnahmetest", false) }]).aufnahmetest, false);
+  assert.match(teamKarte(START, { aufnahmetest: true }).embeds[0].description ?? "", /Aufnahmetest: an/);
+  assert.match(teamKarte(START).embeds[0].description ?? "", /Aufnahmetest: aus/);
 });

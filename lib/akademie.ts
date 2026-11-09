@@ -221,7 +221,19 @@ const WEITER_KNOPF = { type: 2, style: 1, label: "Weiterlernen", emoji: { name: 
 const ENTWURF = " ✏️";
 
 /** Die Karte oben im Lernpfad-Kanal. */
-export function pfadKarte(name: string, sch: Schritt[], gelesen: Hat, bestanden: Set<number>) {
+/** Aufnahmetest (Plan 4): alle Tests des Team-Pfads bestanden und 3 Übungen mit mindestens 70 Punkten. */
+export const AUFNAHME_UEBUNGEN = 3;
+export const AUFNAHME_PUNKTE = 70;
+export function aufnahmeStand(sch: Schritt[], bestanden: Set<number>, uebungen: { punkte: number }[]) {
+  const noetig = [...new Set(sch.flatMap((x) => (x.art === "test" ? [x.einheit] : [])))];
+  const tests = noetig.filter((e) => bestanden.has(e)).length;
+  const gut = Math.min(AUFNAHME_UEBUNGEN, uebungen.filter((u) => u.punkte >= AUFNAHME_PUNKTE).length);
+  return { tests, testsGesamt: noetig.length, uebungen: gut, uebungenGesamt: AUFNAHME_UEBUNGEN, bestanden: noetig.length > 0 && tests === noetig.length && gut >= AUFNAHME_UEBUNGEN };
+}
+export const aufnahmeZeile = (a: ReturnType<typeof aufnahmeStand>) =>
+  `🎓 **Aufnahmetest:** ${a.tests} von ${a.testsGesamt} Tests · ${a.uebungen} von ${a.uebungenGesamt} Übungen (ab ${AUFNAHME_PUNKTE} Punkten). Danach bist du automatisch im Team.`;
+
+export function pfadKarte(name: string, sch: Schritt[], gelesen: Hat, bestanden: Set<number>, zusatz?: string) {
   const s = standSchritte(sch, gelesen, bestanden);
   const gelesenListe = sch.flatMap((x) => (x.art === "lektion" && gelesen.has(x.lektion.id) ? [x.lektion] : []));
   const zeilen: string[] = [];
@@ -245,7 +257,7 @@ export function pfadKarte(name: string, sch: Schritt[], gelesen: Hat, bestanden:
       {
         title: `📖 Lernpfad von ${name}`,
         color: FARBE,
-        description: `${fortschrittBalken(s.fertig, s.gesamt)}\n\n${zeilen.join("\n") || "Noch keine Lektionen."}`.slice(0, 4000),
+        description: `${zusatz ? `${zusatz}\n\n` : ""}${fortschrittBalken(s.fertig, s.gesamt)}\n\n${zeilen.join("\n") || "Noch keine Lektionen."}`.slice(0, 4000),
         footer: {
           text: `${s.aktuelle ? "Mit „📖 Weiterlernen“ geht es weiter." : sch.length ? "Alles geschafft. Neue Lektionen kommen hier dazu." : "Bald geht es los."}${gelesenListe.length ? " Zum Wiederholen unten eine Lektion auswählen." : ""}`,
         },
