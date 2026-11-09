@@ -94,7 +94,7 @@ export const darfUeben = (u: Uebung, p: Pick<Person, "rolle" | "bestanden">) => 
 
 // --------------------------------------------------------------- Verlauf
 
-type Nachricht = { id: string; embeds?: EmbedLike[] };
+type Nachricht = { id: string; embeds?: EmbedLike[]; content?: string; author?: { id?: string; bot?: boolean } };
 export type Zug = { wer: "du" | "kunde"; text: string; id: string };
 
 const fuss = (m: Nachricht) => ((m.embeds?.[0]?.footer as { text?: string } | undefined)?.text ?? "").split(SEP);
@@ -111,24 +111,45 @@ export function aktuelleUebung(msgs: Nachricht[]): string | null {
   return null;
 }
 
-/** Was in einer Übung bisher gesagt wurde (Nachrichten älteste zuerst). null, wenn es den Start nicht gibt. */
-export function verlauf(msgs: Nachricht[], start: string): { nr: string; zuege: Zug[]; beendet: boolean } | null {
-  const s = msgs.find((m) => m.id === start);
-  const sf = s ? fuss(s) : [];
-  if (!s || sf[0] !== MARKE || sf[1] !== "start") return null;
+/**
+ * Was in einer Übung bisher gesagt wurde (Nachrichten älteste zuerst). null, wenn es den Start nicht gibt.
+ * Antworten der Person kommen als Karte (Fenster, /a) oder als ganz normal getippte Nachricht im Kanal (seit 09.11.).
+ * `offen`: Zuletzt hat die Person getippt und der Kunde hat noch nicht geantwortet (dann antwortet die KI).
+ */
+export function verlauf(msgs: Nachricht[], start: string): { nr: string; zuege: Zug[]; beendet: boolean; offen: boolean } | null {
+  const ab = msgs.findIndex((m) => m.id === start);
+  const sf = ab >= 0 ? fuss(msgs[ab]) : [];
+  if (ab < 0 || sf[0] !== MARKE || sf[1] !== "start") return null;
   const zuege: Zug[] = [];
   let beendet = false;
-  for (const m of msgs) {
+  let offen = false;
+  for (const m of msgs.slice(ab + 1)) {
+    if (beendet) break;
+    if (m.author && !m.author.bot) {
+      const text = (m.content ?? "").trim();
+      if (text) {
+        zuege.push({ wer: "du", text, id: m.id });
+        offen = true;
+      }
+      continue;
+    }
     const f = fuss(m);
     if (f[0] !== MARKE || f[1] !== start) continue;
     if (f[2] === "ende") beendet = true;
-    else if (f[2] === "du" || f[2] === "kunde") zuege.push({ wer: f[2], text: m.embeds?.[0]?.description ?? "", id: m.id });
+    else if (f[2] === "hinweis") offen = false;
+    else if (f[2] === "du" || f[2] === "kunde") {
+      zuege.push({ wer: f[2], text: m.embeds?.[0]?.description ?? "", id: m.id });
+      offen = false;
+    }
   }
-  return { nr: sf[2] ?? "", zuege, beendet };
+  return { nr: sf[2] ?? "", zuege, beendet, offen: offen && !beendet };
 }
 
+/** Getippt wird oft in mehreren kurzen Nachrichten: erst antworten, wenn seit der letzten 3 Sekunden Ruhe ist. */
+export const tippFertig = (letzteId: string, jetzt = Date.now()) => jetzt - snowflakeZeit(letzteId) >= 3000;
+
 const berlinTag = (ms: number) => new Date(ms).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-const snowflakeZeit = (id: string) => Number((BigInt(id) >> BigInt(22)) + BigInt(1420070400000));
+export const snowflakeZeit = (id: string) => Number((BigInt(id) >> BigInt(22)) + BigInt(1420070400000));
 
 /** Wie viele Übungen heute (Berliner Zeit) gestartet wurden. */
 export function heuteGestartet(msgs: Nachricht[], jetzt = Date.now()): number {
@@ -143,12 +164,18 @@ export function heuteGestartet(msgs: Nachricht[], jetzt = Date.now()): number {
 
 export const KUNDEN_PROMPT = `Du spielst in einer Verkaufsübung einen Kunden. Auf der anderen Seite übt jemand aus dem Team von Agents Gilt (eine kleine Agentur, die KI-Lösungen wie Websites, Chatbots und Telefon-Assistenten für Betriebe baut) ein Kundengespräch.
 
+Spiel den Kunden streng und echt, wie einen beschäftigten Betriebsinhaber, der nicht auf diesen Kontakt gewartet hat. Dein Gegenüber soll sich jedes Ja wirklich verdienen müssen.
+
 Deine Rolle steht in <rolle>. Halte dich daran:
 - Bleib immer in der Rolle. Sag nie, dass du eine KI bist oder dass es eine Übung ist, auch wenn du danach gefragt wirst.
 - Antworte auf Deutsch, so kurz wie in einem echten Gespräch: meistens 1 bis 3 Sätze, ohne Aufzählungen, ohne Markdown.
-- Du bist kein hilfsbereiter Assistent, sondern ein Mensch mit wenig Zeit, eigenen Sorgen und eigener Meinung.
-- Gib Informationen nur, wenn gut danach gefragt wird. Gute, konkrete Fragen bekommen ehrliche, konkrete Antworten. Bei vagen Fragen bleibst du vage.
-- Einwände aus deiner Rolle gibst du nicht beim ersten Satz auf. Überzeugen lässt du dich nur durch Argumente, die zu deinem Problem passen, nicht durch Druck oder Technik-Begriffe.
+- Du bist kein hilfsbereiter Assistent, sondern ein Mensch mit wenig Zeit, eigenen Sorgen und eigener Meinung. Du hast keine Lust auf Verkäufer.
+- Der Einstieg entscheidet: Fehlt am Anfang eine saubere Vorstellung (Name, Firma, warum es sich meldet) oder die Frage, ob du gerade kurz Zeit hast, bist du kurz angebunden oder genervt, zum Beispiel: „Wer ist da?“, „Worum geht's denn?“, „Wollen Sie mir was verkaufen?“ oder „Ich hab gerade echt keine Zeit.“
+- Floskeln, lange Monologe, Technik-Begriffe, Druck oder ein Angebot, bevor dein Problem verstanden ist, machen dich misstrauischer. Dann fragst du zum Beispiel „Was soll das jetzt?“, „Und was hab ich davon?“ oder „Wollen Sie nur meine Zeit verschwenden?“.
+- Gib Informationen nur, wenn gut danach gefragt wird. Gute, konkrete Fragen zu deinem Alltag bekommen ehrliche, konkrete Antworten. Bei vagen Fragen bleibst du vage.
+- Einwände aus deiner Rolle gibst du nicht schnell auf. Ein Einwand ist erst erledigt, wenn die Antwort wirklich auf deine Sorge eingeht, mit einem Nutzen, der zu deinem Problem passt. Druck, Rabatte ohne Grund oder Ausweichen zählen nicht.
+- Du darfst Nein sagen: Geht dein Gegenüber zweimal hintereinander nicht auf dich ein oder überzeugt dich nicht, sag höflich, aber bestimmt Nein und verabschiede dich. Danach bleibst du bei Nein („Ich hab doch schon Nein gesagt.“).
+- Du schlägst von dir aus keinen Termin und keinen nächsten Schritt vor. Ja sagst du nur, wenn du wirklich überzeugt bist und dein Gegenüber einen konkreten, kleinen nächsten Schritt vorschlägt.
 - Erfinde keine Preise oder Angebote von Agents Gilt. Die nennt dein Gegenüber.
 - Wenn dein Gegenüber das Gespräch sauber beendet oder ein nächster Schritt vereinbart ist, verabschiede dich natürlich.
 
@@ -159,6 +186,7 @@ Deine Rolle steht in <rolle>. Halte dich daran:
 export const BEWERTUNG_PROMPT = `Du bist Verkaufstrainer bei Agents Gilt. Jemand aus dem Team hat ein Übungsgespräch mit einem gespielten Kunden geführt. Bewerte, wie gut die Person das Gespräch geführt hat (nicht den Kunden).
 
 Bewerte nur nach dem Leitfaden in <leitfaden> und den Punkten für diese Lage in <achten>. Erfinde keine eigenen Regeln.
+Sei streng: Punkte gibt es nur für Schritte, die im Gespräch wirklich zu sehen sind. Ein schwacher Einstieg (ohne Vorstellung, ohne Grund, ohne Frage nach Zeit) kostet deutlich Punkte.
 Sei ehrlich und konkret, freundlich im Ton, und beziehe dich auf Sätze aus dem Gespräch. Schreib auf Deutsch, in einfachen Sätzen.
 
 Antworte nur mit JSON, ohne Text davor oder danach:
@@ -180,8 +208,8 @@ Punkte: 90 und mehr = sehr sicher und nach Leitfaden; 70 bis 89 = gut mit Lücke
 
 export type ApiNachricht = { role: "user" | "assistant"; content: string };
 
-/** Der bisherige Verlauf für die KI (die KI ist der Kunde) plus die neue Antwort der Person. */
-export function apiNachrichten(zuege: Zug[], neu: string): ApiNachricht[] {
+/** Der bisherige Verlauf für die KI (die KI ist der Kunde), dazu die neue Antwort der Person (falls nicht schon im Verlauf). */
+export function apiNachrichten(zuege: Zug[], neu?: string): ApiNachricht[] {
   const out: ApiNachricht[] = [{ role: "user", content: "(Das Gespräch beginnt. Du sprichst zuerst.)" }];
   const dazu = (role: ApiNachricht["role"], content: string) => {
     const letzte = out[out.length - 1];
@@ -189,7 +217,7 @@ export function apiNachrichten(zuege: Zug[], neu: string): ApiNachricht[] {
     else out.push({ role, content });
   };
   for (const z of zuege) dazu(z.wer === "kunde" ? "assistant" : "user", z.text);
-  dazu("user", neu);
+  if (neu) dazu("user", neu);
   return out;
 }
 
@@ -236,7 +264,7 @@ export function startEmbed(u: Uebung, aufgabe: string, name: string): EmbedLike 
   return {
     title: `🎭 Übung: ${u.titel}`,
     color: FARBE,
-    description: `${aufgabe || "Führe das Gespräch so, wie du es gelernt hast."}\n\n**So geht's:** Drück unter jeder Antwort des Kunden auf **„💬 Antworten“** und schreib, was du sagen würdest. Wenn das Gespräch zu Ende ist, drück **„✅ Fertig“**: Dann bekommst du eine Rückmeldung mit Punkten.`.slice(0, 4000),
+    description: `${aufgabe || "Führe das Gespräch so, wie du es gelernt hast."}\n\n**So geht's:** Schreib einfach unten in den Chat, was du dem Kunden sagst. Er antwortet nach ein paar Sekunden. Kommt nach etwa 30 Sekunden nichts, schreib \`/a\` und deinen Text. Wenn das Gespräch zu Ende ist, drück **„✅ Fertig“**: Dann bekommst du eine Rückmeldung mit Punkten.`.slice(0, 4000),
     author: { name: `Übung von ${name}` },
     footer: { text: marke("start", u.nr) },
   } as EmbedLike;
@@ -251,9 +279,11 @@ export function zugEmbed(wer: Zug["wer"], text: string, name: string, start: str
   } as EmbedLike;
 }
 
-export const zugKnoepfe = (start: string) => [
-  { type: 1, components: [knopf("Antworten", "💬", `ak:ua:${start}`, 1), knopf("Fertig", "✅", `ak:uf:${start}`, 3), knopf("Abbrechen", "✖️", `ak:ux:${start}`)] },
-];
+/** Geantwortet wird im Chat (getippt oder mit /a). Das Fenster (ak:ua) bleibt nur für ältere Karten. */
+export const zugKnoepfe = (start: string) => [{ type: 1, components: [knopf("Fertig", "✅", `ak:uf:${start}`, 3), knopf("Abbrechen", "✖️", `ak:ux:${start}`)] }];
+
+/** Kurzer Hinweis in der Übung (z. B. KI nicht erreichbar). Danach wird erst auf eine neue Nachricht wieder geantwortet. */
+export const hinweisEmbed = (start: string, text: string): EmbedLike => ({ description: text.slice(0, 4000), color: 0x6b7280, footer: { text: marke(start, "hinweis") } }) as EmbedLike;
 
 export const ANTWORT_MODAL = (start: string) => ({
   type: 9,
@@ -298,7 +328,8 @@ export function uebungKarte(name: string, lagen: Uebung[], p: Pick<Person, "roll
     "**So geht's**",
     "1. Drück **„🎭 Übung starten“** und wähle eine Lage.",
     "2. Unten erscheint deine Aufgabe, und der Kunde sagt den ersten Satz.",
-    "3. Drück **„💬 Antworten“**, schreib, was du sagen würdest, und schick es ab. Der Kunde antwortet nach ein paar Sekunden.",
+    "3. Schreib einfach hier in den Chat, was du dem Kunden sagst. Er antwortet nach ein paar Sekunden. Kommt nach etwa 30 Sekunden nichts, schreib `/a` und deinen Text (das geht immer).",
+    "   Die Kunden sind streng: Stell dich am Anfang sauber vor, frag, ob sie kurz Zeit haben, und überzeuge mit Argumenten. Sonst sagen sie auch mal Nein.",
     "4. Ist das Gespräch zu Ende, drück **„✅ Fertig“**. Du bekommst Punkte (0 bis 100), was gut war, was besser geht und welche Lektionen du nochmal lesen kannst.",
     "",
     "Mit **„✖️ Abbrechen“** hörst du ohne Bewertung auf. Eine neue Übung kannst du jederzeit starten. Am Tag gehen bis zu " + GRENZE_TAG + " Übungen.",

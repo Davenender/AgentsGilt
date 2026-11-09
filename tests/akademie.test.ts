@@ -111,6 +111,21 @@ test("Pfad-Karte mit Einheiten, Test und Knopf zum Weiterlernen", () => {
   assert.equal(pfadKarte("David", sch, new Set(), new Set()).components.length, 1, "ohne Gelesenes keine Auswahl");
 });
 
+test("Pfad-Karte zeigt nur bis zum Abschnitt, der gerade dran ist (Bestandenes bleibt stehen)", () => {
+  const sch = schritte(pfadLektionen(alle, "team"), fragen, "team");
+  const vorher = pfadKarte("Jakob", sch, new Set(["id-1.1"]), new Set()).embeds[0].description ?? "";
+  assert.match(vorher, /1\.1 Lektion 1\.1/);
+  assert.doesNotMatch(vorher, /2\.1/, "Einheit 2 erst nach dem Test von Einheit 1");
+  assert.match(vorher, /▰*▱+ 1 von 4/, "der Balken zählt weiter den ganzen Pfad");
+  const nachher = pfadKarte("Jakob", sch, new Set(["id-1.1", "id-1.2"]), new Set([1])).embeds[0].description ?? "";
+  assert.match(nachher, /✅ 1\.1 Lektion 1\.1/);
+  assert.match(nachher, /✅ 📝 Test Einheit 1/);
+  assert.match(nachher, /📖 \*\*2\.1 Lektion 2\.1\*\* ← jetzt dran/);
+  const fertig = pfadKarte("Jakob", sch, new Set(["id-1.1", "id-1.2", "id-2.1"]), new Set([1, 2])).embeds[0].description ?? "";
+  assert.match(fertig, /1\.1/);
+  assert.match(fertig, /2\.1/);
+});
+
 test("Seiten: an der Trennlinie und bei zu langem Text", () => {
   assert.deepEqual(seiten("A\n\n---\n\nB"), ["A", "B"]);
   const lang = Array.from({ length: 30 }, (_, i) => `Absatz ${i} ${"x".repeat(200)}`).join("\n\n");

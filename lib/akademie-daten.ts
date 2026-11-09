@@ -14,6 +14,7 @@ import {
   pfadLektionen,
   wissenSeiten,
   privatRechte,
+  uebungRechte,
   rolleVon,
   schritte,
   seiten,
@@ -144,7 +145,7 @@ const START_TEXT = [
   "• 📚 **Bibliothek**: Hier schlägst du nach, was du schon gelernt hast.",
   "",
   "**📖 So funktioniert der Lernpfad**",
-  "1. Oben im Kanal steht deine Karte mit allen Einheiten und Lektionen: ✅ fertig · 📖 jetzt dran · 🔒 noch gesperrt. Der Balken zeigt, wie weit du bist.",
+  "1. Oben im Kanal steht deine Karte: alle Einheiten, die du geschafft hast, und der Abschnitt, der gerade dran ist (✅ fertig · 📖 jetzt dran · 🔒 kommt noch). Die nächste Einheit erscheint darunter, sobald du ihren Test davor bestanden hast. Der Balken zeigt, wie weit du im ganzen Lernpfad bist.",
   "2. Drück **„📖 Weiterlernen“**. Die nächste Lektion erscheint, und nur du siehst sie.",
   "3. Lies sie in Ruhe. Mit **„Weiter ▶“** und **„◀ Zurück“** blätterst du zwischen den Seiten.",
   "4. Auf der letzten Seite drückst du **„✅ Gelesen“**. Die Lektion verschwindet, ist auf deiner Karte abgehakt und steht ab jetzt in deiner Bibliothek. Die nächste ist frei.",
@@ -167,7 +168,7 @@ const START_TEXT = [
   "",
   "**Gut zu wissen**",
   "• In den Akademie-Kanälen schreibt nur der Bot, ihr drückt Knöpfe.",
-  "• 🎭 **Übungen**: Jeder hat dazu einen dritten Kanal, 🎭uebungen-<name>. Dort übst du Kundengespräche mit einem KI-Kunden, sobald du den Test von Einheit 6 bestanden hast. Wie das geht, steht oben in deinem Übungskanal.",
+  "• 🎭 **Übungen**: Jeder hat dazu einen dritten Kanal, 🎭uebungen-<name>. Dort übst du Kundengespräche mit einem KI-Kunden, sobald du den Test von Einheit 6 bestanden hast. Du schreibst einfach in den Chat, und der Kunde antwortet. Wie das genau geht, steht oben in deinem Übungskanal.",
   "• Fragen oder klappt etwas nicht? In #allgemein schreiben.",
 ].join("\n");
 
@@ -198,7 +199,7 @@ async function legeUebungAn(token: string, speicher: string, userId: string, p: 
     type: 0,
     topic: `Übungen von ${name}: Kundengespräche mit einem KI-Kunden. Nur ${name} und David sehen diesen Kanal.`,
     ...(kat ? { parent_id: kat } : {}),
-    permission_overwrites: privatRechte(userId, { everyone: GUILD_ID, team, bot }),
+    permission_overwrites: uebungRechte(userId, { everyone: GUILD_ID, team, bot }),
   });
   if (!kanal) return null;
   const karte = await call<{ id: string }>(token, "POST", `/channels/${kanal.id}/messages`, {
@@ -209,6 +210,27 @@ async function legeUebungAn(token: string, speicher: string, userId: string, p: 
   await call(token, "PUT", `/channels/${kanal.id}/pins/${karte.id}`);
   await merke(token, speicher, zeileUebKanal(userId, kanal.id, karte.id));
   return { kanal: kanal.id, karte: karte.id };
+}
+
+/** Übungskanal (seit 09.11.): Die Person darf dort schreiben und /a benutzen. Für ältere Kanäle nachgezogen. */
+async function erlaubeSchreiben(token: string, kanal: string, userId: string): Promise<boolean> {
+  const [team, bot] = await Promise.all([teamRolle(token), eigeneId(token)]);
+  if (!bot) return false;
+  const o = uebungRechte(userId, { everyone: GUILD_ID, team, bot }).find((x) => x.id === userId);
+  return !!o && (await call(token, "PUT", `/channels/${kanal}/permissions/${userId}`, { type: 1, allow: o.allow, deny: o.deny })) !== null;
+}
+
+/** Meldet den Befehl /a (Antwort in der Übung) bei Discord an. Gleicher Name = wird nur aktualisiert, andere Befehle bleiben. */
+async function meldeAntwortBefehlAn(token: string): Promise<boolean> {
+  const app = await call<{ id?: string }>(token, "GET", "/oauth2/applications/@me");
+  if (!app?.id) return false;
+  const befehl = {
+    name: "a",
+    type: 1,
+    description: "Antwort an den Kunden in deiner Übung (wenn der Kunde auf Getipptes nicht antwortet)",
+    options: [{ type: 3, name: "text", description: "Was sagst du dem Kunden?", required: true, max_length: 1500 }],
+  };
+  return (await call(token, "POST", `/applications/${app.id}/guilds/${GUILD_ID}/commands`, befehl)) !== null;
 }
 
 /** Die Fortschritts-Karte in #akademie-verwaltung (nur David) neu zeichnen. */
@@ -286,10 +308,14 @@ export async function richteEin(token: string): Promise<{ start: string | null; 
     if (p && !p.uebKanal) {
       const u = await legeUebungAn(token, ak.speicher, t.discord, p, inhalt);
       if (u) p.uebKanal = u;
-    } else if (p) await zeichneUebung(token, t.discord, p, inhalt);
+    } else if (p?.uebKanal) {
+      await zeichneUebung(token, t.discord, p, inhalt);
+      await erlaubeSchreiben(token, p.uebKanal.kanal, t.discord);
+    }
     bereiche[t.name] = p ? `lernpfad ${p.lernpfad}, bibliothek ${p.bibliothek}, übungen ${p.uebKanal?.kanal ?? "Fehler beim Anlegen"}` : "Fehler beim Anlegen";
   }
   await zeichneVerwaltung(token, ak.personen, inhalt);
+  bereiche.befehl = (await meldeAntwortBefehlAn(token)) ? "/a angemeldet" : "/a nicht angemeldet";
   return { start, speicher: ak.speicher, bereiche };
 }
 

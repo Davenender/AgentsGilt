@@ -225,7 +225,10 @@ export function pfadKarte(name: string, sch: Schritt[], gelesen: Hat, bestanden:
   const gelesenListe = sch.flatMap((x) => (x.art === "lektion" && gelesen.has(x.lektion.id) ? [x.lektion] : []));
   const zeilen: string[] = [];
   let einheit = "";
-  for (const x of sch) {
+  // Nur bis zum Abschnitt, der gerade dran ist: Erledigte Einheiten bleiben stehen, die nächste erscheint nach dem Test.
+  const einheitVon = (x: Schritt) => (x.art === "lektion" ? x.lektion.einheit : x.einheit);
+  const bis = s.aktuelle ? einheitVon(s.aktuelle) : Infinity;
+  for (const x of sch.filter((y) => einheitVon(y) <= bis)) {
     const en = x.art === "lektion" ? x.lektion.einheitName : x.einheitName;
     if (en !== einheit) {
       einheit = en;
@@ -671,4 +674,12 @@ export function privatRechte(userId: string, ids: { everyone: string; team: stri
     ...(ids.team ? [{ id: ids.team, type: 0, allow: "0", deny: String(SEHEN | SPERRE) }] : []),
     { id: userId, type: 1, allow: String(LESEN), deny: String(SPERRE) },
   ];
+}
+
+const SCHREIBEN = BigInt(1) << BigInt(11);
+const BEFEHLE = BigInt(1) << BigInt(31);
+
+/** Übungskanal (seit 09.11.): Die Person darf dort schreiben und den Befehl /a benutzen, sonst wie die privaten Kanäle. */
+export function uebungRechte(userId: string, ids: { everyone: string; team: string | null; bot: string }): Overwrite[] {
+  return privatRechte(userId, ids).map((o) => (o.id === userId && o.type === 1 ? { ...o, allow: String(LESEN | SCHREIBEN | BEFEHLE), deny: String(SPERRE & ~(SCHREIBEN | BEFEHLE)) } : o));
 }

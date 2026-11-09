@@ -39,6 +39,7 @@ import { handleAnfrage, handlePosteingang, type AnfInteraction } from "@/lib/anf
 import { handleKundenKnopf } from "@/lib/kunden-handlers";
 import { handleStatistikKnopf } from "@/lib/statistik-handler";
 import { handleAkademie } from "@/lib/akademie-handler";
+import { handleAntwortBefehl } from "@/lib/uebung-handler";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
 import { OWNER_ID, setzeAntwort } from "@/lib/leads";
 import { closeTicketChannel, FOR_CUSTOMER, SHOW_NAMES, ticketComponents } from "@/lib/support";
@@ -275,6 +276,7 @@ async function antworte(request: Request) {
   const channelId = interaction.channel_id ?? process.env.DISCORD_CHANNEL_ANRUFE;
 
   if (interaction.type === 2 && interaction.data?.name === "close") return handleSucheClose(interaction as unknown as SucheInteraction, token);
+  if (interaction.type === 2 && interaction.data?.name === "a") return handleAntwortBefehl(interaction, token ?? "");
   if (interaction.type === 2) return handleLeadCommand(interaction, token, who);
   if (customId.startsWith("lead:")) return handleLeadButton(interaction, token);
   if (customId.startsWith("anf:")) return handleAnfrage(interaction as unknown as AnfInteraction, token);

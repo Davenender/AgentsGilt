@@ -19,8 +19,12 @@ import {
   verlauf,
   zugEmbed,
   zugKnoepfe,
+  KUNDEN_PROMPT,
+  hinweisEmbed,
+  tippFertig,
   type Uebung,
 } from "../lib/uebung.ts";
+import { privatRechte, uebungRechte } from "../lib/akademie.ts";
 
 const DAVID = "806859236768088114";
 const MIJO = "1363529531939492133";
@@ -120,6 +124,7 @@ test("der Verlauf einer Übung wird aus den Nachrichten seit ihrem Start gelesen
       { wer: "kunde", text: "Worum geht's?", id: "13" },
     ],
     beendet: false,
+    offen: false,
   });
   assert.equal(verlauf(msgs, "99"), null);
   assert.equal(verlauf([...msgs, msg("14", "🎭 Übung · 10 · ende", "fertig")], "10")?.beendet, true);
@@ -181,7 +186,7 @@ test("Züge, Knöpfe und Antwort-Fenster tragen die Start-Nachricht", () => {
   assert.match(e.author?.name ?? "", /Jakob/);
   assert.equal(zugEmbed("kunde", "Ja?", "Jakob", "10").footer?.text, "🎭 Übung · 10 · kunde");
   const ids = zugKnoepfe("10")[0].components.map((c) => c.custom_id);
-  assert.deepEqual(ids, ["ak:ua:10", "ak:uf:10", "ak:ux:10"]);
+  assert.deepEqual(ids, ["ak:uf:10", "ak:ux:10"], "geantwortet wird im Chat, nicht mehr per Knopf");
   assert.equal(ANTWORT_MODAL("10").data.custom_id, "ak:um:10");
   assert.equal(startEmbed(U("Ü1"), "Du rufst an.", "Jakob").footer?.text, "🎭 Übung · start · Ü1");
 });
@@ -220,4 +225,70 @@ test("Fortschritt und Details nennen die letzte Übung", () => {
 test("der Übungskanal heißt wie die anderen Kanäle der Person", () => {
   assert.equal(kanalNamen("Mijo").uebungen, "🎭uebungen-mijo");
   assert.equal(DAVID.length > 0, true);
+});
+
+// ------------------------------------------------------------ Direkt im Chat schreiben (09.11.)
+
+const getippt = (id: string, text: string, autor = MIJO) => ({ id, content: text, author: { id: autor, bot: false }, embeds: [] });
+
+test("getippte Nachrichten der Person zählen als ihre Antworten, nur innerhalb der laufenden Übung", () => {
+  const msgs = [
+    getippt("5", "vor der Übung"),
+    msg("10", "🎭 Übung · start · Ü1", "Aufgabe"),
+    msg("11", "🎭 Übung · 10 · kunde", "Salon Sabine, hallo?"),
+    getippt("12", "Guten Tag, hier ist Mijo von Agents Gilt."),
+    getippt("13", "Haben Sie kurz zwei Minuten?"),
+  ];
+  const v = verlauf(msgs, "10");
+  assert.deepEqual(v?.zuege.map((z) => [z.wer, z.text]), [
+    ["kunde", "Salon Sabine, hallo?"],
+    ["du", "Guten Tag, hier ist Mijo von Agents Gilt."],
+    ["du", "Haben Sie kurz zwei Minuten?"],
+  ]);
+  assert.equal(v?.offen, true, "die Person wartet auf den Kunden");
+  const beantwortet = verlauf([...msgs, msg("14", "🎭 Übung · 10 · kunde", "Worum geht's?")], "10");
+  assert.equal(beantwortet?.offen, false);
+  const fehler = verlauf([...msgs, msg("14", "🎭 Übung · 10 · hinweis", "KI nicht erreichbar")], "10");
+  assert.equal(fehler?.offen, false, "nach einem Hinweis wird nicht endlos neu versucht");
+  const vorbei = verlauf([...msgs, msg("14", "🎭 Übung · 10 · ende", "bewertet"), getippt("15", "danach")], "10");
+  assert.equal(vorbei?.beendet, true);
+  assert.ok(!vorbei?.zuege.some((z) => z.text === "danach"));
+  assert.equal(hinweisEmbed("10", "x").footer?.text, "🎭 Übung · 10 · hinweis");
+});
+
+test("für die KI geht es auch ohne neue Antwort (der Verlauf endet schon mit der Person)", () => {
+  const n = apiNachrichten([
+    { wer: "kunde", text: "Hallo?", id: "1" },
+    { wer: "du", text: "Guten Tag", id: "2" },
+    { wer: "du", text: "Hier ist Jakob.", id: "3" },
+  ]);
+  assert.deepEqual(n.map((x) => x.role), ["user", "assistant", "user"]);
+  assert.equal(n.at(-1)?.content, "Guten Tag\nHier ist Jakob.");
+});
+
+test("erst antworten, wenn die Person ein paar Sekunden nichts mehr getippt hat", () => {
+  const t = Date.parse("2026-11-09T15:00:00Z");
+  assert.equal(tippFertig(snow(t - 1000), t), false);
+  assert.equal(tippFertig(snow(t - 4000), t), true);
+});
+
+test("im Übungskanal darf die Person schreiben und /a benutzen, sonst bleibt alles gesperrt", () => {
+  const ids = { everyone: "g", team: "t", bot: "b" };
+  const person = uebungRechte(MIJO, ids).find((o) => o.id === MIJO)!;
+  const SCHREIBEN = BigInt(1) << BigInt(11);
+  const BEFEHLE = BigInt(1) << BigInt(31);
+  assert.ok(BigInt(person.allow) & SCHREIBEN);
+  assert.ok(BigInt(person.allow) & BEFEHLE);
+  assert.equal(BigInt(person.deny) & (SCHREIBEN | BEFEHLE), BigInt(0));
+  assert.ok(BigInt(person.deny) > BigInt(0), "Threads und Co. bleiben gesperrt");
+  const sonst = privatRechte(MIJO, ids).find((o) => o.id === MIJO)!;
+  assert.ok(BigInt(sonst.deny) & SCHREIBEN, "Lernpfad und Bibliothek bleiben ohne Schreiben");
+  assert.deepEqual(uebungRechte(MIJO, ids).filter((o) => o.id !== MIJO), privatRechte(MIJO, ids).filter((o) => o.id !== MIJO));
+});
+
+test("der KI-Kunde ist streng: Einstieg, Zeit, Nein sagen", () => {
+  assert.match(KUNDEN_PROMPT, /vorstell/i);
+  assert.match(KUNDEN_PROMPT, /Zeit verschwenden/);
+  assert.match(KUNDEN_PROMPT, /Nein/);
+  assert.match(KUNDEN_PROMPT, /\{ROLLE\}/);
 });

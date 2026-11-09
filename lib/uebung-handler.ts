@@ -3,6 +3,7 @@ import { after, NextResponse } from "next/server";
 import { alleNachrichten, call } from "@/lib/leads";
 import { lektionText, pfadLektionen, zeileUebung, type Person } from "@/lib/akademie";
 import { holeInhalt, leseAkademie, merke, nameVon, zeichneUebung, zeichneVerwaltung, type Inhalt } from "@/lib/akademie-daten";
+import type { Uebung, Zug } from "@/lib/uebung";
 import { guthabenLeer } from "@/lib/gespraech";
 import { leseBloecke } from "@/lib/notion-api";
 import {
@@ -16,12 +17,15 @@ import {
   GRENZE_TAG,
   GRENZE_ZUEGE,
   heuteGestartet,
+  hinweisEmbed,
   KUNDEN_PROMPT,
   lagenAuswahl,
   pruefeBewertung,
   sichtbareUebungen,
+  snowflakeZeit,
   START_KNOPF,
   startEmbed,
+  tippFertig,
   transkript,
   uebungTeile,
   verlauf,
@@ -32,7 +36,9 @@ import {
 // Knöpfe der Übungen (ak:u…), nur im eigenen Übungskanal:
 //   ak:us        🎭 Übung starten → Auswahl der Lagen (nur für die Person)
 //   ak:uw        Lage gewählt → Aufgabe und erster Satz des Kunden im Kanal
-//   ak:ua:<s>    💬 Antworten → Fenster;  ak:um:<s> Fenster abgeschickt → KI antwortet als Kunde
+//   ak:ua:<s>    💬 Antworten → Fenster;  ak:um:<s> Fenster abgeschickt → KI antwortet als Kunde (nur noch ältere Karten)
+//   Seit 09.11.: Antworten werden einfach in den Kanal getippt (uebungTakt, angestoßen von der Zentrale auf Davids Mac)
+//   oder mit dem Befehl /a geschickt (handleAntwortBefehl, geht immer).
 //   ak:uf:<s>    ✅ Fertig → Bewertung mit Punkten;  ak:ux:<s> ✖️ Abbrechen
 // Die KI läuft über das Anthropic-Guthaben (Haiku). Ist es leer, sagt der Bot das freundlich.
 
@@ -102,6 +108,119 @@ async function frageKi(system: string, messages: { role: "user" | "assistant"; c
   }
 }
 
+/** Die KI antwortet als Kunde auf den bisherigen Verlauf (plus `neu`, falls die Antwort noch nicht im Kanal steht). */
+async function kundeSagt(token: string, kanal: string, lage: Uebung, zuege: Zug[], neu?: string): Promise<{ text: string } | { fehler: string }> {
+  const text = await seitenText(lage.id);
+  const teile = text === null ? null : uebungTeile(text);
+  if (!teile?.rolle) return { fehler: NICHT_DA };
+  await call(token, "POST", `/channels/${kanal}/typing`);
+  return frageKi(KUNDEN_PROMPT.replace("{ROLLE}", teile.rolle), apiNachrichten(zuege, neu), 600);
+}
+
+/** Antwort des Kunden in den Kanal; die Knöpfe hängen immer nur an der neuesten Kunden-Antwort. `du`: Karte für die Antwort der Person. */
+async function posteKunde(token: string, kanal: string, start: string, zuege: Zug[], text: string, name: string, du?: string) {
+  const letzte = zuege.filter((z) => z.wer === "kunde").at(-1);
+  if (letzte) await ohneKnoepfe(token, kanal, letzte.id);
+  if (du) await poste(token, kanal, { embeds: [zugEmbed("du", du, name, start)] });
+  await poste(token, kanal, { embeds: [zugEmbed("kunde", text, name, start)], components: zugKnoepfe(start) });
+}
+
+/** Die laufende Übung im Kanal (Nachrichten älteste zuerst) – oder null. */
+async function laufendeIn(token: string, kanal: string, inhalt: Inhalt, max = 300) {
+  const msgs = (await alleNachrichten(token, kanal, max)).slice().reverse();
+  const start = aktuelleUebung(msgs);
+  const v = start ? verlauf(msgs, start) : null;
+  if (!start || !v || v.beendet) return null;
+  const lage = inhalt.uebungen.find((u) => u.nr === v.nr && !u.leitfaden);
+  return lage ? { start, v, lage, msgs } : null;
+}
+
+// ------------------------------------------------------------ getippte Antworten (Takt von der Zentrale)
+
+let kanalSpeicher: { bis: number; liste: { kanal: string; user: string }[] } | null = null;
+async function uebKanaele(token: string, jetzt: number) {
+  if (kanalSpeicher && jetzt < kanalSpeicher.bis) return kanalSpeicher.liste;
+  const ak = await leseAkademie(token);
+  if (!ak) return [];
+  const liste = [...ak.personen.entries()].flatMap(([user, p]) => (p.uebKanal ? [{ kanal: p.uebKanal.kanal, user }] : []));
+  kanalSpeicher = { bis: jetzt + 10 * 60_000, liste };
+  return liste;
+}
+
+/** Wie lange eine Übung ohne neue Nachricht noch als „läuft gerade“ gilt (dann fragt die Zentrale schnell nach). */
+const AKTIV_MS = 30 * 60_000;
+
+/**
+ * Schaut in alle Übungskanäle: Hat jemand in einer laufenden Übung getippt (und seit 3 Sekunden nichts mehr), antwortet
+ * die KI als Kunde. `aktiv`: Irgendwo läuft gerade eine Übung (die Zentrale fragt dann alle paar Sekunden).
+ */
+export async function uebungTakt(token: string, jetzt = Date.now()): Promise<{ aktiv: boolean; beantwortet: number }> {
+  let aktiv = false;
+  let beantwortet = 0;
+  let inhalt: Inhalt | null | undefined;
+  for (const { kanal, user } of await uebKanaele(token, jetzt)) {
+    const msgs = (await alleNachrichten(token, kanal, 100)).slice().reverse();
+    const start = aktuelleUebung(msgs);
+    const v = start ? verlauf(msgs, start) : null;
+    const zuletzt = msgs.at(-1);
+    if (!start || !v || v.beendet || !zuletzt || jetzt - snowflakeZeit(zuletzt.id) > AKTIV_MS) continue;
+    aktiv = true;
+    const letzte = v.zuege.at(-1);
+    if (!v.offen || !letzte || !tippFertig(letzte.id, jetzt)) continue;
+    if (v.zuege.filter((z) => z.wer === "du").length > GRENZE_ZUEGE) {
+      await poste(token, kanal, { embeds: [hinweisEmbed(start, `Diese Übung hat schon ${GRENZE_ZUEGE} Antworten. Drück „✅ Fertig“ für die Bewertung.`)] });
+      continue;
+    }
+    inhalt ??= await holeInhalt();
+    const lage = inhalt?.uebungen.find((u) => u.nr === v.nr && !u.leitfaden);
+    if (!lage) continue;
+    const r = await kundeSagt(token, kanal, lage, v.zuege);
+    if ("fehler" in r) {
+      await poste(token, kanal, { embeds: [hinweisEmbed(start, `${r.fehler}\nSchreib deine letzte Nachricht danach einfach nochmal.`)] });
+      continue;
+    }
+    await posteKunde(token, kanal, start, v.zuege, r.text, nameVon(user));
+    beantwortet++;
+  }
+  return { aktiv, beantwortet };
+}
+
+// ------------------------------------------------------------ Befehl /a (geht immer, auch ohne Zentrale)
+
+export interface BefehlInteraction {
+  token?: string;
+  application_id?: string;
+  channel_id?: string;
+  data?: { name?: string; options?: { name: string; value?: unknown }[] };
+  member?: { user?: { id: string } };
+}
+
+export function handleAntwortBefehl(i: BefehlInteraction, token: string) {
+  const user = i.member?.user;
+  const kanal = i.channel_id;
+  const appId = i.application_id;
+  const itoken = i.token;
+  if (!user || !kanal || !appId || !itoken) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
+  const neu = String(i.data?.options?.find((o) => o.name === "text")?.value ?? "").trim().slice(0, 1500);
+  after(async () => {
+    const [ak, inhalt] = await Promise.all([leseAkademie(token), holeInhalt()]);
+    if (!ak || !inhalt) return void (await ersetze(appId, itoken, { content: NICHT_DA }));
+    const eigen = ak.personen.get(user.id);
+    if (!eigen?.uebKanal || eigen.uebKanal.kanal !== kanal) return void (await ersetze(appId, itoken, { content: "`/a` geht nur in deinem eigenen Übungskanal, während eine Übung läuft." }));
+    if (!neu) return void (await ersetze(appId, itoken, { content: "Die Antwort war leer." }));
+    const l = await laufendeIn(token, kanal, inhalt);
+    if (!l) return void (await ersetze(appId, itoken, { content: "Gerade läuft keine Übung. Starte oben eine neue." }));
+    if (l.v.zuege.filter((z) => z.wer === "du").length >= GRENZE_ZUEGE) {
+      return void (await ersetze(appId, itoken, { content: `Diese Übung hat schon ${GRENZE_ZUEGE} Antworten. Drück „✅ Fertig“ für die Bewertung.` }));
+    }
+    const r = await kundeSagt(token, kanal, l.lage, l.v.zuege, neu);
+    if ("fehler" in r) return void (await ersetze(appId, itoken, { content: `${r.fehler}\n\nDeine Antwort war:\n> ${neu.replace(/\n/g, "\n> ")}` }));
+    await posteKunde(token, kanal, l.start, l.v.zuege, r.text, nameVon(user.id), neu);
+    await loesche(appId, itoken);
+  });
+  return NextResponse.json(DEFER_PRIVAT);
+}
+
 export function handleUebung(i: UeInteraction, token: string, id: string) {
   const user = i.member?.user;
   const kanal = i.channel_id;
@@ -169,7 +288,7 @@ export function handleUebung(i: UeInteraction, token: string, id: string) {
         const alt = aktuelleUebung(msgs.slice().reverse());
         const altV = alt ? verlauf(msgs.slice().reverse(), alt) : null;
         if (alt && altV && !altV.beendet) {
-          const letzte = altV.zuege.at(-1);
+          const letzte = altV.zuege.filter((z) => z.wer === "kunde").at(-1);
           if (letzte) await ohneKnoepfe(token, kanal, letzte.id);
           await poste(token, kanal, { embeds: [abbruchEmbed(alt)] });
         }
@@ -194,17 +313,9 @@ export function handleUebung(i: UeInteraction, token: string, id: string) {
         if (l.v.zuege.filter((z) => z.wer === "du").length >= GRENZE_ZUEGE) {
           return void (await ersetze(appId, itoken, { content: `Diese Übung hat schon ${GRENZE_ZUEGE} Antworten. Drück „✅ Fertig“ für die Bewertung.` }));
         }
-        const text = await seitenText(l.lage.id);
-        const teile = text === null ? null : uebungTeile(text);
-        if (!teile?.rolle) return void (await ersetze(appId, itoken, { content: NICHT_DA }));
-        await call(token, "POST", `/channels/${kanal}/typing`);
-        const r = await frageKi(KUNDEN_PROMPT.replace("{ROLLE}", teile.rolle), apiNachrichten(l.v.zuege, neu), 600);
+        const r = await kundeSagt(token, kanal, l.lage, l.v.zuege, neu);
         if ("fehler" in r) return void (await ersetze(appId, itoken, { content: `${r.fehler}\n\nDeine Antwort war:\n> ${neu.slice(0, 1500).replace(/\n/g, "\n> ")}` }));
-        const name = nameVon(user.id);
-        const letzte = l.v.zuege.filter((z) => z.wer === "kunde").at(-1);
-        if (letzte) await ohneKnoepfe(token, kanal, letzte.id);
-        await poste(token, kanal, { embeds: [zugEmbed("du", neu, name, start)] });
-        await poste(token, kanal, { embeds: [zugEmbed("kunde", r.text, name, start)], components: zugKnoepfe(start) });
+        await posteKunde(token, kanal, start, l.v.zuege, r.text, nameVon(user.id), neu);
         await loesche(appId, itoken);
       }),
     );
