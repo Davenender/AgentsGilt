@@ -31,8 +31,8 @@ import {
 import { nameVon } from "@/lib/team";
 import { legeKundenZeileAn, notionConfigured } from "@/lib/notion-api";
 import type { Analyse } from "@/lib/lead-analyse";
-import { analyseAusFormular, analyseAusPlatz, formularModal, formularWerte, istMapsLink, manuellerSchluessel, webArt, type Platz } from "@/lib/lead-ohne-website";
-import { findeFirma, platzAusMapsLink } from "@/lib/lead-suche";
+import { analyseAusFormular, analyseAusPlatz, formularModal, formularWerte, manuellerSchluessel, webArt, type Platz, erkenneEingabe, trefferAuswahl } from "@/lib/lead-ohne-website";
+import { findeFirmen, holePlatz, platzAusMapsLink } from "@/lib/lead-suche";
 
 // Befehle /lead und /lead-delete und die Knöpfe unter den Lead-Karten.
 
@@ -182,44 +182,50 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
     return NextResponse.json(DEFERRED_EPHEMERAL);
   }
 
-  const eingabe = linkOption(i);
-  const name = option(i, "name");
-  const ort = option(i, "ort");
+  // 09.11.: Ein Feld für alles (`eingabe`): Website, Google-Maps-Link oder Firmenname mit Ort. Die alten Felder link/name/ort gehen weiter.
+  const roh = option(i, "eingabe") || linkOption(i) || [option(i, "name"), option(i, "ort")].filter(Boolean).join(" ");
+  const art = erkenneEingabe(roh);
+  const name = art.art === "name" ? art.text : "";
   const von = nameVon(user.id) ?? who;
 
-  // ---- Ohne Link und ohne Namen: gleich das Formular anbieten
-  if (!eingabe && !name) {
+  // ---- Leer: kurz erklären und das Formular anbieten
+  if (art.art === "leer") {
     return NextResponse.json({
       type: 4,
       data: {
         flags: 64,
         content:
-          "So legst du einen Lead an:\n• `/lead link: www.firma.de` mit Website\n• `/lead link:` mit einem **Google-Maps-Link**\n• `/lead name: Bäckerei Schmitt ort: Mühlheim` ohne Website\nOder trag die Firma von Hand ein:",
+          "So legst du einen Lead an: Schreib nach `/lead` einfach, was du hast.\n• eine Website: `www.firma.de`\n• einen **Google-Maps-Link**\n• oder Firma und Ort: `Bäckerei Schmitt Mühlheim am Main`\nGibt es mehrere Treffer, zeige ich dir bis zu drei zur Auswahl. Oder trag die Firma von Hand ein:",
         components: formularKnopf(),
         allowed_mentions: { parse: [] },
       },
     });
   }
 
-  // ---- Google-Maps-Link oder Name + Ort: Firma über Google Maps suchen
-  if (!eingabe || istMapsLink(eingabe)) {
-    const text = eingabe ? "" : [name, ort].filter(Boolean).join(" ");
+  // ---- Google-Maps-Link oder Firmenname: über Google Maps suchen
+  if (art.art === "maps" || art.art === "name") {
     after(async () => {
       try {
-        await setzeAntwort(appId, itoken, eingabe ? "🔎 Ich schaue bei Google Maps nach …" : `🔎 Ich suche **${text.replace(/[*_~`|>@]/g, "")}** bei Google Maps …`);
-        const platz = eingabe ? await platzAusMapsLink(eingabe) : await findeFirma(text);
-        if (!platz) {
+        await setzeAntwort(appId, itoken, art.art === "maps" ? "🔎 Ich schaue bei Google Maps nach …" : `🔎 Ich suche **${name.replace(/[*_~`|>@]/g, "")}** bei Google Maps …`);
+        const treffer = art.art === "maps" ? [await platzAusMapsLink(art.text)].filter((p) => p !== null) : ((await findeFirmen(name)) ?? []);
+        if (!treffer.length) {
           await setzeAntwort(
             appId,
             itoken,
-            eingabe
+            art.art === "maps"
               ? "Zu diesem Link habe ich bei Google Maps keine Firma gefunden. Trag sie hier von Hand ein:"
               : "Bei Google Maps habe ich die Firma nicht gefunden. Trag sie hier von Hand ein:",
-            formularKnopf(name, ort),
+            formularKnopf(name, ""),
           );
           return;
         }
-        await karteAusPlatz(token, appId, itoken, platz, von);
+        // Mehrere Treffer: nur der, der /lead benutzt hat, sieht die Auswahl und klickt die richtige Firma
+        if (treffer.length > 1) {
+          const a = trefferAuswahl(treffer, name);
+          await setzeAntwort(appId, itoken, a.content, a.components);
+          return;
+        }
+        await karteAusPlatz(token, appId, itoken, treffer[0], von);
       } catch (err) {
         console.error("[lead] /lead (Maps) fehlgeschlagen:", err);
         await setzeAntwort(appId, itoken, "⚠️ Das hat leider nicht geklappt. Bitte nochmal versuchen.");
@@ -228,10 +234,10 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
     return NextResponse.json(DEFERRED_EPHEMERAL);
   }
 
-  const url = normalizeUrl(eingabe);
+  const url = normalizeUrl(art.text);
   const domain = url ? domainKey(url) : null;
   if (!url || !domain) {
-    return ephemeral("Das ist keine gültige Webadresse. Beispiel: `/lead link: www.beispiel.de` (oder ein Google-Maps-Link, oder `/lead name: … ort: …`)");
+    return ephemeral("Das ist keine gültige Webadresse. Schreib nach `/lead` eine Website, einen Google-Maps-Link oder Firma und Ort, z. B. `Bäckerei Schmitt Mühlheim am Main`.");
   }
 
   after(async () => {
@@ -278,6 +284,30 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
   const messageId = i.message?.id;
   const channelId = i.channel_id;
   const action = (i.data?.custom_id ?? "").slice("lead:".length);
+
+  // ---- Auswahl aus mehreren Google-Treffern (private Nachricht aus /lead): diese Firma übernehmen
+  if (action.startsWith("wahl:")) {
+    const appId = i.application_id;
+    const itoken = i.token;
+    const placeId = action.slice("wahl:".length);
+    if (!user || !token || !appId || !itoken || !placeId) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal mit `/lead` anfangen.");
+    const von = nameVon(user.id) ?? (i.member?.nick || user.global_name || user.username || "Unbekannt");
+    after(async () => {
+      try {
+        await setzeAntwort(appId, itoken, "🔎 Gut, ich lege die Karte an …");
+        const platz = await holePlatz(placeId);
+        if (!platz) {
+          await setzeAntwort(appId, itoken, "Diese Firma konnte ich bei Google Maps nicht mehr abrufen. Bitte nochmal mit `/lead` versuchen oder von Hand eintragen:", formularKnopf());
+          return;
+        }
+        await karteAusPlatz(token, appId, itoken, platz, von);
+      } catch (err) {
+        console.error("[lead] Auswahl fehlgeschlagen:", err);
+        await setzeAntwort(appId, itoken, "⚠️ Das hat leider nicht geklappt. Bitte nochmal versuchen.");
+      }
+    });
+    return NextResponse.json(DEFERRED_UPDATE);
+  }
 
   // ---- Lead von Hand: Formular öffnen und abschicken (ohne Karte, deshalb vor der Kartenprüfung)
   if (action === "formular" || action.startsWith("formular:")) {

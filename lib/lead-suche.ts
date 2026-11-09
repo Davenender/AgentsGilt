@@ -619,8 +619,13 @@ export async function wochenUebersicht(token: string): Promise<{ diese: Woche; l
 
 // ------------------------------------------------- Lead ohne Website (/lead)
 
-/** Sucht eine einzelne Firma bei Google Maps (für /lead name: … ort: … und Maps-Links). */
+/** Sucht eine einzelne Firma bei Google Maps (für Maps-Links). */
 export async function findeFirma(text: string, nahe?: { lat: number; lon: number } | null): Promise<MapsPlatz | null> {
+  return (await findeFirmen(text, nahe))?.[0] ?? null;
+}
+
+/** Bis zu drei Firmen bei Google Maps zu einem Suchtext (für /lead mit Firmenname). null = Google nicht erreichbar. */
+export async function findeFirmen(text: string, nahe?: { lat: number; lon: number } | null): Promise<MapsPlatz[] | null> {
   const key = process.env.GOOGLE_PLACES_KEY?.trim();
   if (!key || !text.trim()) return null;
   try {
@@ -647,11 +652,12 @@ export async function findeFirma(text: string, nahe?: { lat: number; lon: number
       return null;
     }
     const data = (await res.json()) as { places?: Parameters<typeof platzAusApi>[0][] };
+    const treffer: MapsPlatz[] = [];
     for (const p of data.places ?? []) {
       const platz = platzAusApi(p);
-      if (platz) return platz;
+      if (platz && !treffer.some((t) => t.id === platz.id)) treffer.push(platz);
     }
-    return null;
+    return treffer.slice(0, 3);
   } catch (err) {
     console.error("[lead] Places-Suche nicht erreichbar:", err);
     return null;

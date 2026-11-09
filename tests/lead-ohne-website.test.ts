@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   analyseAusFormular,
+  erkenneEingabe,
+  trefferAuswahl,
   analyseAusPlatz,
   erlaubterMapsHost,
   formularModal,
@@ -160,4 +162,37 @@ test("Schlüssel für von Hand angelegte Firmen (gegen doppelte Karten)", () => 
   assert.equal(manuellerSchluessel("Bäckerei Schmitt GmbH", "Mühlheim am Main"), "manuell-baeckerei-schmitt-gmbh-muehlheim-am-main");
   assert.equal(manuellerSchluessel(" bäckerei  schmitt gmbh", "MÜHLHEIM am main "), "manuell-baeckerei-schmitt-gmbh-muehlheim-am-main");
   assert.ok(manuellerSchluessel("a".repeat(200), "b").length <= 80);
+});
+
+// 09.11.: /lead mit einem einzigen Feld – der Bot erkennt selbst, was gemeint ist.
+test("Eingabe erkennen: Website, Maps-Link oder Firmenname mit Ort", () => {
+  assert.deepEqual(erkenneEingabe(""), { art: "leer" });
+  assert.deepEqual(erkenneEingabe("   "), { art: "leer" });
+  assert.deepEqual(erkenneEingabe("https://maps.app.goo.gl/AbC"), { art: "maps", text: "https://maps.app.goo.gl/AbC" });
+  for (const w of ["www.firma.de", "firma.de", "https://www.baeckerei-schmitt.de/kontakt", "http://friseur.com", "Salon-Mueller.de/"]) assert.equal(erkenneEingabe(w).art, "website", w);
+  assert.deepEqual(erkenneEingabe("  Bäckerei Schmitt Mühlheim am Main "), { art: "name", text: "Bäckerei Schmitt Mühlheim am Main" });
+  // Ein Name mit Punkt ist keine Website
+  for (const n of ["Dr. Weber Zahnarzt Offenbach", "Café Mio", "Müller GmbH & Co. KG Hanau", "Fantasia 1"]) assert.equal(erkenneEingabe(n).art, "name", n);
+});
+
+const platz = (id: string, name: string, extra: Partial<Platz> = {}): Platz => ({ id, name, adresse: "Hauptstr. 1, 63165 Mühlheim", telefon: null, website: null, bewertung: 4.6, anzahl: 128, maps: null, branche: "Bäckerei", ...extra });
+
+test("Treffer-Auswahl: bis zu 3 Firmen mit Adresse und Bewertung, je ein Knopf, dazu „Keine davon“", () => {
+  const a = trefferAuswahl([
+    platz("ChIJaaa", "Bäckerei Schmitt"),
+    platz("ChIJbbb", "Bäckerei Schmitt Filiale", { adresse: "Bahnhofstr. 5, 63165 Mühlheim", bewertung: null, anzahl: 0 }),
+    platz("ChIJccc", "Schmitt Backwaren"),
+    platz("ChIJddd", "Zu viel"),
+  ], "Bäckerei Schmitt Mühlheim");
+  assert.match(a.content, /3 Firmen/);
+  assert.match(a.content, /\*\*Bäckerei Schmitt\*\*/);
+  assert.match(a.content, /Hauptstr\. 1, 63165 Mühlheim/);
+  assert.match(a.content, /⭐ 4,6 \(128\)/);
+  assert.match(a.content, /keine Bewertungen/);
+  assert.doesNotMatch(a.content, /Zu viel/);
+  const knoepfe = a.components.flatMap((r) => r.components);
+  assert.deepEqual(knoepfe.slice(0, 3).map((k) => k.custom_id), ["lead:wahl:ChIJaaa", "lead:wahl:ChIJbbb", "lead:wahl:ChIJccc"]);
+  assert.equal(knoepfe.every((k) => (k.label ?? "").length <= 80 && k.custom_id.length <= 100), true);
+  assert.match(knoepfe.at(-1)!.custom_id, /^lead:formular:/);
+  assert.equal(knoepfe.at(-1)!.label, "Keine davon");
 });

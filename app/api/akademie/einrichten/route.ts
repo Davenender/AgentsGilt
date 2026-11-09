@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { holeInhalt, richteEin, setzeZurueck } from "@/lib/akademie-daten";
 import { team } from "@/lib/team";
 import { ladeTeam, meldeTeamBefehlAn, stelleSicher, zeichneTeamKarte } from "@/lib/team-daten";
+import { meldeLeadBefehlAn } from "@/lib/leads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,5 +50,6 @@ export async function POST(req: Request) {
   await stelleSicher(token);
   await zeichneTeamKarte(token);
   const teamBefehl = (await meldeTeamBefehlAn(token)) ? "/team angemeldet" : "/team nicht angemeldet";
-  return NextResponse.json({ teamBefehl, ...(await richteEin(token)), ...(person ? { zurueckgesetzt: `${person.name}: ${zurueckgesetzt} Einträge gelöscht` } : {}) });
+  const leadBefehl = (await meldeLeadBefehlAn(token)) ? "/lead angemeldet" : "/lead nicht angemeldet";
+  return NextResponse.json({ teamBefehl, leadBefehl, ...(await richteEin(token)), ...(person ? { zurueckgesetzt: `${person.name}: ${zurueckgesetzt} Einträge gelöscht` } : {}) });
 }

@@ -64,7 +64,10 @@ test("die Anleitungen nennen die aktuellen Fakten", () => {
   assert.match(alles, /Gesprächsbogen/);
   assert.match(alles, /Akademie/);
   assert.match(alles, /#statistik/);
-  assert.match(alles, /name:/);
+  // 09.11.: /lead hat nur noch ein Feld, der Bot erkennt Website, Maps-Link oder Firma mit Ort selbst
+  assert.match(alles, /\/lead Bäckerei Schmitt Mühlheim am Main/);
+  assert.match(alles, /bis zu drei/);
+  assert.doesNotMatch(alles, /\/lead name:/);
 });
 
 test("alsEmbed baut ein Embed mit Titel, Text, Feldern und Farbe", () => {

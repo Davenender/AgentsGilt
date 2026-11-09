@@ -509,3 +509,16 @@ export async function ruesteKnoepfeNach(token: string): Promise<{ geprueft: numb
   }
   return { geprueft, geaendert };
 }
+
+/** Meldet /lead mit einem einzigen Feld an (09.11.): Website, Google-Maps-Link oder Firma mit Ort – der Bot erkennt es selbst. */
+export async function meldeLeadBefehlAn(token: string): Promise<boolean> {
+  const app = await call<{ id?: string }>(token, "GET", "/oauth2/applications/@me");
+  if (!app?.id) return false;
+  const befehl = {
+    name: "lead",
+    type: 1,
+    description: "Neuen Lead vorschlagen: Website, Google-Maps-Link oder Firma mit Ort",
+    options: [{ type: 3, name: "eingabe", description: "z. B. www.firma.de, ein Maps-Link oder „Bäckerei Schmitt Mühlheim am Main“", required: false, max_length: 300 }],
+  };
+  return (await call(token, "POST", `/applications/${app.id}/guilds/${GUILD_ID}/commands`, befehl)) !== null;
+}

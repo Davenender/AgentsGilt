@@ -218,9 +218,10 @@ export const ANLEITUNGEN: Anleitung[] = [
     sucht: ["📖 Anleitung: Lead-Karten"],
     text: z(
       "**1. Vorschlagen** (nur im Kanal **#lead-befehle**, nur du siehst die Antwort des Bots). Es gibt drei Wege:",
-      "• **Mit Website:** `/lead link: www.beispiel.de`. Der Bot liest Startseite, Kontakt und Impressum.",
-      "• **Mit Google-Maps-Link:** `/lead link:` und den Link aus Google Maps einfügen (in Maps auf „Teilen“ → „Link kopieren“).",
-      "• **Ohne Website:** `/lead name: Bäckerei Schmitt ort: Mühlheim`. Der Bot sucht die Firma bei Google Maps.",
+      "Schreib nach `/lead` einfach, was du hast. Der Bot erkennt selbst, was es ist:",
+      "• **Eine Website:** `/lead www.beispiel.de`. Der Bot liest Startseite, Kontakt und Impressum.",
+      "• **Einen Google-Maps-Link:** in Maps auf „Teilen“ → „Link kopieren“ und nach `/lead` einfügen.",
+      "• **Firma und Ort:** `/lead Bäckerei Schmitt Mühlheim am Main`. Der Bot sucht die Firma bei Google Maps. Findet er mehrere, zeigt er dir bis zu drei mit Adresse und Bewertung, und du klickst die richtige an. Nur du siehst diese Auswahl.",
       "Findet der Bot nichts (oder du schreibst nur `/lead`), erscheint **📝 Formular öffnen**. Dort trägst du Firma, Ort, Telefon, Ansprechpartner und eine Notiz ein.",
       "",
       "**2. Die Karte in #leads** zeigt Firma, Branche, Telefon, E-Mail, Ansprechpartner, Adresse, eine Zusammenfassung, was an der Website auffällt und welche unserer Leistungen passen könnte. Der Bot schreibt und ruft nie selbst an.",
@@ -331,8 +332,7 @@ export const ANLEITUNGEN: Anleitung[] = [
     titel: "📖 Befehle",
     sucht: [],
     text: z(
-      "• `/lead link: …` legt eine Lead-Karte an, mit der Website oder einem Google-Maps-Link (nur in #lead-befehle)",
-      "• `/lead name: … ort: …` legt eine Lead-Karte für eine Firma ohne Website an (nur in #lead-befehle)",
+      "• `/lead …` legt eine Lead-Karte an: mit einer Website, einem Google-Maps-Link oder Firma und Ort, z. B. `/lead Bäckerei Schmitt Mühlheim am Main` (nur in #lead-befehle)",
       "• `/lead` ohne Angaben öffnet den Knopf zum Formular",
       "• `/lead-delete link: …` löscht eine Karte oder hebt eine Ablehnung auf (nur David)",
       "• `/close` schließt deinen Such-Thread der Lead-Suche vorzeitig (nur im eigenen Thread)",

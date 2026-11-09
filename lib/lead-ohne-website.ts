@@ -230,3 +230,35 @@ const slug = (s: string) =>
 
 /** Schlüssel der Lead-Karte für von Hand angelegte Firmen, damit es sie nicht doppelt gibt. */
 export const manuellerSchluessel = (firma: string, ort: string) => `manuell-${slug(`${firma} ${ort}`)}`.slice(0, 80).replace(/-+$/, "");
+
+// ------------------------------------------------- /lead mit einem Feld (09.11.)
+
+export type Eingabe = { art: "leer" } | { art: "maps"; text: string } | { art: "website"; text: string } | { art: "name"; text: string };
+
+/** Was steht im einen Feld von /lead? Maps-Link, Website (ein Wort mit Domain) oder ein Firmenname mit Ort. */
+export function erkenneEingabe(roh: string): Eingabe {
+  const text = roh.trim().replace(/\s+/g, " ");
+  if (!text) return { art: "leer" };
+  if (istMapsLink(text)) return { art: "maps", text };
+  const istSeite = !/\s/.test(text) && (/^https?:\/\//i.test(text) || /^(?:www\.)?[\p{L}\d-]+(?:\.[\p{L}\d-]+)*\.[a-z]{2,}(?:[/?#].*)?$/iu.test(text));
+  return istSeite ? { art: "website", text } : { art: "name", text };
+}
+
+type Knopf = { type: 2; style: number; label: string; custom_id: string };
+
+/** Mehrere Treffer bei Google Maps: bis zu drei zur Auswahl (nur für den, der /lead benutzt hat). */
+export function trefferAuswahl(treffer: Platz[], suchtext: string): { content: string; components: { type: 1; components: Knopf[] }[] } {
+  const liste = treffer.filter((p) => `lead:wahl:${p.id}`.length <= 100).slice(0, 3);
+  const zahl = (n: number) => String(n).replace(".", ",");
+  const zeilen = liste.map((p, i) => {
+    const sterne = p.bewertung !== null && p.anzahl > 0 ? `⭐ ${zahl(p.bewertung)} (${p.anzahl})` : "keine Bewertungen";
+    return `${i + 1}. **${p.name.replace(/[*_~`|>@]/g, "")}**\n   📍 ${p.adresse ?? "Adresse unbekannt"} · ${sterne}`;
+  });
+  const sauber = suchtext.replace(/[*_~`|>@]/g, "").slice(0, 80);
+  const knoepfe: Knopf[] = liste.map((p, i) => ({ type: 2, style: 1, label: `${i + 1} · ${p.name}`.slice(0, 80), custom_id: `lead:wahl:${p.id}` }));
+  knoepfe.push({ type: 2, style: 2, label: "Keine davon", custom_id: `lead:formular:${suchtext.replace(/\|/g, " ").slice(0, 40)}|` });
+  return {
+    content: `🔎 Zu „${sauber}“ habe ich ${liste.length} Firmen gefunden. Welche meinst du?\n\n${zeilen.join("\n")}\n\nIst keine dabei, trägst du die Firma mit „Keine davon“ von Hand ein.`,
+    components: [{ type: 1, components: knoepfe }],
+  };
+}
