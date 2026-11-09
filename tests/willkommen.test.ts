@@ -1,7 +1,7 @@
 // Tests für die Anleitungen in #willkommen: `npm test`. Nur reine Logik.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ANLEITUNGEN, alsEmbed, planePlaetze, planeReihenfolge, planeWillkommen, gleich, pruefeLaengen, type Anleitung } from "../lib/willkommen.ts";
+import { ANLEITUNGEN, LEAD_BEFEHLE_TEXT, alsEmbed, planePlaetze, planeReihenfolge, planeWillkommen, gleich, pruefeLaengen, type Anleitung } from "../lib/willkommen.ts";
 
 const a = (titel: string, sucht: string[] = [], nurWennDa = false): Anleitung => ({ titel, sucht, text: "x", nurWennDa });
 
@@ -127,4 +127,13 @@ test("gleich erkennt, ob eine Nachricht schon den gewünschten Inhalt hat", () =
   assert.equal(gleich({ title: "T", description: "d", fields: [{ name: "n", value: "v" }] }, soll), true);
   assert.equal(gleich({ title: "T", description: "anders" }, soll), false);
   assert.equal(gleich({ title: "T", description: "d" }, { title: "T", description: "d", color: 1 }), true);
+});
+
+test("Anleitung in #lead-befehle: nur noch /lead mit einem Feld, kein /lead-delete, passt in eine Nachricht", () => {
+  assert.match(LEAD_BEFEHLE_TEXT, /^\*\*Anleitung: Lead-Karten\*\*/);
+  assert.match(LEAD_BEFEHLE_TEXT, /\/lead Bäckerei Schmitt Mühlheim am Main/);
+  assert.match(LEAD_BEFEHLE_TEXT, /bis zu drei/);
+  assert.match(LEAD_BEFEHLE_TEXT, /Ein \*\*Passt\*\* reicht/);
+  assert.doesNotMatch(LEAD_BEFEHLE_TEXT, /lead-delete|link:|name:/);
+  assert.ok(LEAD_BEFEHLE_TEXT.length <= 2000);
 });

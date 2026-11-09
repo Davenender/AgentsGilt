@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { holeInhalt, richteEin, setzeZurueck } from "@/lib/akademie-daten";
 import { team } from "@/lib/team";
 import { ladeTeam, meldeTeamBefehlAn, stelleSicher, zeichneTeamKarte } from "@/lib/team-daten";
-import { meldeLeadBefehlAn } from "@/lib/leads";
+import { entferneBefehle, meldeLeadBefehlAn, pflegeLeadBefehleText } from "@/lib/leads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,5 +51,8 @@ export async function POST(req: Request) {
   await zeichneTeamKarte(token);
   const teamBefehl = (await meldeTeamBefehlAn(token)) ? "/team angemeldet" : "/team nicht angemeldet";
   const leadBefehl = (await meldeLeadBefehlAn(token)) ? "/lead angemeldet" : "/lead nicht angemeldet";
-  return NextResponse.json({ teamBefehl, leadBefehl, ...(await richteEin(token)), ...(person ? { zurueckgesetzt: `${person.name}: ${zurueckgesetzt} Einträge gelöscht` } : {}) });
+  // 09.11.: so wenige Befehle wie möglich – /lead-delete ist ersetzt (Aussortieren auf der Karte, „Ablehnung aufheben“ bei /lead)
+  const befehle = await entferneBefehle(token, ["lead-delete"]);
+  const leadAnleitung = await pflegeLeadBefehleText(token);
+  return NextResponse.json({ teamBefehl, leadBefehl, befehle, leadAnleitung, ...(await richteEin(token)), ...(person ? { zurueckgesetzt: `${person.name}: ${zurueckgesetzt} Einträge gelöscht` } : {}) });
 }

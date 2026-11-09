@@ -217,7 +217,7 @@ export const ANLEITUNGEN: Anleitung[] = [
     titel: "📖 Anleitung: Lead-Karten (neue Unternehmen vorschlagen)",
     sucht: ["📖 Anleitung: Lead-Karten"],
     text: z(
-      "**1. Vorschlagen** (nur im Kanal **#lead-befehle**, nur du siehst die Antwort des Bots). Es gibt drei Wege:",
+      "**1. Vorschlagen** (nur im Kanal **#lead-befehle**, nur du siehst die Antwort des Bots).",
       "Schreib nach `/lead` einfach, was du hast. Der Bot erkennt selbst, was es ist:",
       "• **Eine Website:** `/lead www.beispiel.de`. Der Bot liest Startseite, Kontakt und Impressum.",
       "• **Einen Google-Maps-Link:** in Maps auf „Teilen“ → „Link kopieren“ und nach `/lead` einfügen.",
@@ -228,7 +228,7 @@ export const ANLEITUNGEN: Anleitung[] = [
       "",
       "**3. Abstimmen:** Jeder klickt **Passt** (grün) oder **Passt nicht** (rot). Ein **Passt** reicht, und der Lead ist aufgenommen. Zum Ablehnen braucht es zwei Stimmen, die Karte zeigt dann „1 von 2“. Die eigene Stimme lässt sich ändern, solange noch nicht entschieden ist. Bei zweimal „Passt nicht“ fragt der Bot nach: **Sicher ablehnen** löscht die Karte, und die Firma wird nie wieder vorgelegt. **Abbrechen** nimmt die Ablehnung zurück.",
       "",
-      "**4. Übernehmen:** Nach zweimal „Passt“ wird die Karte grün. Wer bei der Firma anruft, drückt **Übernehmen**. Sein Name steht dann auf der Karte („Übernommen von“), so weiß jeder, wer dran ist. Nur diese Person (und David) kann danach die Knöpfe drücken. **Freigeben** gibt den Lead wieder ab. Ist er frei, kann niemand die Status-Knöpfe drücken, bis ihn jemand übernimmt.",
+      "**4. Übernehmen:** Nach dem „Passt“ wird die Karte grün. Wer bei der Firma anruft, drückt **Übernehmen**. Sein Name steht dann auf der Karte („Übernommen von“), so weiß jeder, wer dran ist. Nur diese Person (und David) kann danach die Knöpfe drücken. **Freigeben** gibt den Lead wieder ab. Ist er frei, kann niemand die Status-Knöpfe drücken, bis ihn jemand übernimmt.",
       "",
       "**5. Status setzen:** **Offen · In Arbeit · Kontaktiert**. Nach „Kontaktiert“ erscheint **Lead aktiv**: Die Firma kommt in Notion zu den Kunden, du wirst dort **Zuständig**, und der Kundenkanal entsteht von selbst.",
       "• **Kunde: Kein Interesse** nur, wenn der Kunde absagt. Die Karte wandert nach **#lead-ablage**.",
@@ -237,7 +237,7 @@ export const ANLEITUNGEN: Anleitung[] = [
       "**Karten aus der Lead-Suche** tragen oben „🔎 Aus der Lead-Suche“ und im Fuß „per Suche“. Sie laufen genauso weiter.",
       "",
       "**Doppelte:** Schlägt jemand dieselbe Firma noch einmal vor, verweist der Bot auf die bestehende Karte oder sagt, dass sie abgelehnt wurde.",
-      "**Löschen (nur David):** `/lead-delete` mit dem Link.",
+      "**Ablehnung aufheben (nur David):** `/lead` mit der Firma eingeben. Ist sie abgelehnt, bekommt nur David den Knopf **Ablehnung aufheben**.",
       "**Hinweis:** Nur kontaktieren, wenn es rechtlich zulässig ist (Kaltakquise, UWG §7).",
     ),
   },
@@ -334,7 +334,6 @@ export const ANLEITUNGEN: Anleitung[] = [
     text: z(
       "• `/lead …` legt eine Lead-Karte an: mit einer Website, einem Google-Maps-Link oder Firma und Ort, z. B. `/lead Bäckerei Schmitt Mühlheim am Main` (nur in #lead-befehle)",
       "• `/lead` ohne Angaben öffnet den Knopf zum Formular",
-      "• `/lead-delete link: …` löscht eine Karte oder hebt eine Ablehnung auf (nur David)",
       "• `/close` schließt deinen Such-Thread der Lead-Suche vorzeitig (nur im eigenen Thread)",
     ),
   },
@@ -350,3 +349,30 @@ export const ANLEITUNGEN: Anleitung[] = [
     ),
   },
 ];
+
+/** Angepinnte Anleitung in #lead-befehle (09.11.: nur noch /lead mit einem Feld, kein /lead-delete). */
+export const LEAD_BEFEHLE_TITEL = "**Anleitung: Lead-Karten**";
+export const LEAD_BEFEHLE_TEXT = [
+  LEAD_BEFEHLE_TITEL,
+  "In diesem Kanal gibst du `/lead` ein. Nur hier funktioniert der Befehl, und nur du siehst die Antwort des Bots.",
+  "",
+  "**1. Neues Unternehmen vorschlagen**",
+  "Schreib nach `/lead` einfach, was du hast. Der Bot erkennt selbst, was es ist:",
+  "• **Website:** `/lead www.beispiel.de`. Der Bot liest die Seite und legt in **#leads** eine Karte an.",
+  "• **Google-Maps-Link:** in Maps „Teilen“ → „Link kopieren“ und nach `/lead` einfügen.",
+  "• **Firma und Ort:** `/lead Bäckerei Schmitt Mühlheim am Main`. Findet der Bot mehrere Firmen, zeigt er dir bis zu drei mit Adresse und Bewertung. Du klickst die richtige an.",
+  "Findet der Bot nichts (oder du schreibst nur `/lead`), kommt der Knopf 📝 **Formular öffnen** zum Eintragen von Hand.",
+  "",
+  "**2. Abstimmen**",
+  "In **#leads** auf **Passt** (grün) oder **Passt nicht** (rot) klicken. Ein **Passt** reicht, und der Lead ist aufgenommen. Zum Ablehnen braucht es zwei Stimmen, danach kommt noch eine Rückfrage.",
+  "",
+  "**3. Übernehmen und Status setzen**",
+  "Nach der Annahme den Lead mit **Übernehmen** zu dir nehmen. Dann per Knopf: Offen, In Arbeit, Kontaktiert, **Lead aktiv** (legt den Kunden in Notion an, du wirst dort **Zuständig**) oder Kein Interesse (kommt in **#lead-ablage**). Gerade doch nicht? **Aussortieren**.",
+  "",
+  "**4. Im Kundenkanal weiter**",
+  "Nach „Lead aktiv“ entsteht der Kanal 🔴knd_00X mit der Kundenkarte. Dort schreibt nur der Bot, ihr drückt Knöpfe.",
+  "",
+  "**Ablehnung aufheben** (nur David): `/lead` mit der Firma eingeben, dann erscheint der Knopf **Ablehnung aufheben**.",
+  "",
+  "Hinweis: Nur kontaktieren, wenn es rechtlich zulässig ist (Kaltakquise).",
+].join("\n");

@@ -522,3 +522,34 @@ export async function meldeLeadBefehlAn(token: string): Promise<boolean> {
   };
   return (await call(token, "POST", `/applications/${app.id}/guilds/${GUILD_ID}/commands`, befehl)) !== null;
 }
+
+/** Die angepinnte Anleitung in #lead-befehle auf den Stand von LEAD_BEFEHLE_TEXT bringen (ändert die Bot-Nachricht, legt sie sonst neu an). */
+export async function pflegeLeadBefehleText(token: string): Promise<string> {
+  const { LEAD_BEFEHLE_TEXT, LEAD_BEFEHLE_TITEL } = await import("@/lib/willkommen");
+  const kanal = await findChannelId(token, "lead-befehle");
+  if (!kanal) return "#lead-befehle nicht gefunden";
+  const alt = (await alleNachrichten(token, kanal, 200)).find((m) => m.author.bot && m.content.startsWith(LEAD_BEFEHLE_TITEL));
+  if (alt?.content === LEAD_BEFEHLE_TEXT) return "Anleitung in #lead-befehle stimmt schon";
+  if (alt) return (await call(token, "PATCH", `/channels/${kanal}/messages/${alt.id}`, { content: LEAD_BEFEHLE_TEXT, allowed_mentions: { parse: [] } })) ? "Anleitung in #lead-befehle geändert" : "Anleitung in #lead-befehle: Ändern fehlgeschlagen";
+  const neu = await call<{ id: string }>(token, "POST", `/channels/${kanal}/messages`, { content: LEAD_BEFEHLE_TEXT, allowed_mentions: { parse: [] } });
+  if (neu) await call(token, "PUT", `/channels/${kanal}/pins/${neu.id}`);
+  return neu ? "Anleitung in #lead-befehle neu angelegt" : "Anleitung in #lead-befehle: Anlegen fehlgeschlagen";
+}
+
+/** Slash-Befehle mit diesen Namen abmelden (Server und global). Gibt die entfernten und die übrigen Befehle zurück. */
+export async function entferneBefehle(token: string, namen: string[]): Promise<{ entfernt: string[]; uebrig: string[] }> {
+  const app = await call<{ id?: string }>(token, "GET", "/oauth2/applications/@me");
+  if (!app?.id) return { entfernt: [], uebrig: [] };
+  const entfernt: string[] = [];
+  const uebrig: string[] = [];
+  for (const basis of [`/applications/${app.id}/guilds/${GUILD_ID}/commands`, `/applications/${app.id}/commands`]) {
+    const liste = (await call<{ id: string; name: string }[]>(token, "GET", basis)) ?? [];
+    for (const b of liste) {
+      if (namen.includes(b.name)) {
+        if ((await call(token, "DELETE", `${basis}/${b.id}`)) !== null) entfernt.push(b.name);
+        else uebrig.push(`${b.name} (Löschen fehlgeschlagen)`);
+      } else uebrig.push(basis.includes("/guilds/") ? b.name : `${b.name} (global)`);
+    }
+  }
+  return { entfernt, uebrig };
+}
