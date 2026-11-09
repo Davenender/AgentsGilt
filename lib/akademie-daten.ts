@@ -26,6 +26,7 @@ import {
   type Lektion,
   type Person,
   type Testfrage,
+  kanalWahl,
 } from "@/lib/akademie";
 import { snowflakeZeit } from "@/lib/statistik";
 import { mitAkademie, mitglied, nameVon as teamName, team } from "@/lib/team";
@@ -110,16 +111,27 @@ export const bibliothekVon = (p: Person, inhalt: Inhalt) => [...gelesenVon(p, in
 const alleKanaele = (token: string) => call<Kanal[]>(token, "GET", `/guilds/${GUILD_ID}/channels`);
 
 async function kategorie(token: string, kanaele: Kanal[]): Promise<string | null> {
-  const da = kanaele.find((c) => c.type === 4 && c.name.toLowerCase() === KATEGORIE.toLowerCase());
-  if (da) return da.id;
+  const w = kanalWahl(kanaele, KATEGORIE, 4, true);
+  if (w.art === "da") return w.id;
   return (await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: KATEGORIE, type: 4 }))?.id ?? null;
 }
 
 /** Ein Kanal, den außer dem Bot nur David sieht (als Serverbesitzer). */
+/** Gefundene Kanäle je Instanz kurz merken: Die Übungen fragen alle paar Sekunden, das bremst Discord sonst aus (429). */
+const GEMERKT_MS = 10 * 60_000;
+const gemerkt = new Map<string, { id: string; bis: number }>();
+
 export async function nurDavidKanal(token: string, name: string, topic: string): Promise<string | null> {
-  const kanaele = (await alleKanaele(token)) ?? [];
-  const da = kanaele.find((c) => c.type === 0 && c.name === name);
-  if (da) return da.id;
+  const m = gemerkt.get(name);
+  if (m && Date.now() < m.bis) return m.id;
+  const kanaele = await alleKanaele(token);
+  const w = kanalWahl(kanaele, name, 0);
+  // Ohne Kanalliste nichts anlegen (09.11.: so entstanden die doppelten team-register und akademie-speicher)
+  if (w.art === "unbekannt" || !kanaele) return null;
+  if (w.art === "da") {
+    gemerkt.set(name, { id: w.id, bis: Date.now() + GEMERKT_MS });
+    return w.id;
+  }
   const [kat, team, bot] = await Promise.all([kategorie(token, kanaele), teamRolle(token), eigeneId(token)]);
   if (!bot) return null;
   // Wie die privaten Kanäle, nur ohne Person (das wäre der Bot selbst).
@@ -196,7 +208,8 @@ export async function zeichneUebung(token: string, userId: string, p: Person, in
 
 /** Legt den Übungskanal einer Person an (doppelt geht nicht). */
 async function legeUebungAn(token: string, speicher: string, userId: string, p: Person, inhalt: Inhalt): Promise<Person["uebKanal"] | null> {
-  const kanaele = (await alleKanaele(token)) ?? [];
+  const kanaele = await alleKanaele(token);
+  if (!kanaele) return null;
   const [kat, team, bot] = await Promise.all([kategorie(token, kanaele), teamRolle(token), eigeneId(token)]);
   if (!bot) return null;
   const name = nameVon(userId);
@@ -256,7 +269,8 @@ export async function zeichneVerwaltung(token: string, personen: Map<string, Per
 
 /** Legt Lernpfad und Bibliothek einer Person an (doppelt geht nicht). */
 async function legeBereichAn(token: string, speicher: string, userId: string, inhalt: Inhalt): Promise<Person | null> {
-  const kanaele = (await alleKanaele(token)) ?? [];
+  const kanaele = await alleKanaele(token);
+  if (!kanaele) return null;
   const [kat, team, bot] = await Promise.all([kategorie(token, kanaele), teamRolle(token), eigeneId(token)]);
   if (!bot) return null;
   const name = nameVon(userId);
@@ -303,7 +317,8 @@ export async function richteEin(token: string): Promise<{ start: string | null; 
   const inhalt = await holeInhalt();
   const ak = await leseAkademie(token);
   if (!ak) return { start: null, speicher: null, bereiche: {}, fehler: "Merkzettel nicht erreichbar" };
-  const kanaele = (await alleKanaele(token)) ?? [];
+  const kanaele = await alleKanaele(token);
+  if (!kanaele) return { start: null, speicher: ak.speicher, bereiche: {}, fehler: "Discord-Kanalliste nicht erreichbar" };
   const kat = await kategorie(token, kanaele);
 
   // #akademie: nur die Startkarte, ohne Knöpfe

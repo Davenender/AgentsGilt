@@ -696,3 +696,5 @@ const BEFEHLE = BigInt(1) << BigInt(31);
 export function uebungRechte(userId: string, ids: { everyone: string; team: string | null; bot: string }): Overwrite[] {
   return privatRechte(userId, ids).map((o) => (o.id === userId && o.type === 1 ? { ...o, allow: String(LESEN | SCHREIBEN | BEFEHLE), deny: String(SPERRE & ~(SCHREIBEN | BEFEHLE)) } : o));
 }
+
+export { kanalWahl } from "./kanalwahl.ts";

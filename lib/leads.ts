@@ -1,4 +1,5 @@
 import { findCategoryId, findChannelId } from "@/lib/discord";
+import { kanalWahl } from "./kanalwahl.ts";
 import type { EmbedLike } from "@/lib/discord-calls";
 import type { Analyse } from "@/lib/lead-analyse";
 
@@ -102,6 +103,10 @@ export const USAGE_TEXT =
 async function ensureChannel(token: string, name: string): Promise<string | null> {
   const existing = await findChannelId(token, name);
   if (existing) return existing;
+  // Nur anlegen, wenn die Kanalliste wirklich lesbar ist (09.11.: sonst entstehen Doppelte, wenn Discord bremst)
+  const w = kanalWahl(await call<{ id: string; name: string; type: number }[]>(token, "GET", `/guilds/${GUILD_ID}/channels`), name, 0);
+  if (w.art === "unbekannt") return null;
+  if (w.art === "da") return w.id;
 
   const parent =
     name === CH_SUCHE

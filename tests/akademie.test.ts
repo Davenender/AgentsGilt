@@ -15,6 +15,7 @@ import {
   lektionNachrichten,
   lektionText,
   leseSpeicher,
+  kanalWahl,
   pfadKarte,
   pfadLektionen,
   personDetail,
@@ -392,4 +393,20 @@ test("Pfad-Karte zeigt den Stand des Aufnahmetests oben, wenn mitgegeben", () =>
   const k = pfadKarte("Oskar", sch, new Set(), new Set(), "🎓 **Aufnahmetest:** 0 von 1 Tests");
   assert.match(k.embeds[0].description ?? "", /^🎓 \*\*Aufnahmetest:\*\* 0 von 1 Tests/);
   assert.doesNotMatch(pfadKarte("Mijo", sch, new Set(), new Set()).embeds[0].description ?? "", /Aufnahmetest/);
+});
+
+test("Kanalwahl: unbekannte Liste legt nie an, bei Doppelten gilt der älteste", () => {
+  // 09.11.: Antwortete Discord nicht (z. B. Bremse 429), war die Liste leer und der Bot legte team-register,
+  // akademie-speicher und die Kategorie AKADEMIE immer wieder neu an.
+  assert.deepEqual(kanalWahl(null, "team-register", 0), { art: "unbekannt" });
+  assert.deepEqual(kanalWahl([], "team-register", 0), { art: "anlegen" });
+  const liste = [
+    { id: "1437000000000000300", name: "team-register", type: 0 },
+    { id: "1437000000000000100", name: "team-register", type: 0 },
+    { id: "1437000000000000050", name: "team-register", type: 4 },
+    { id: "1437000000000000200", name: "akademie", type: 4 },
+  ];
+  assert.deepEqual(kanalWahl(liste, "team-register", 0), { art: "da", id: "1437000000000000100" });
+  assert.deepEqual(kanalWahl(liste, "AKADEMIE", 4, true), { art: "da", id: "1437000000000000200" });
+  assert.deepEqual(kanalWahl(liste, "akademie-speicher", 0), { art: "anlegen" });
 });
