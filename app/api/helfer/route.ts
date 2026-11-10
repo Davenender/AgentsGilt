@@ -1,7 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { listeTermine } from "@/lib/google-calendar";
-import { listeKunden } from "@/lib/notion-api";
+import { kundeAusSeite, pruefeKundenNr, alsWebsite } from "@/lib/kunde-detail";
+import { leseBloecke, listeKunden } from "@/lib/notion-api";
 import { kanalName } from "@/lib/notion-kunden";
 
 export const runtime = "nodejs";
@@ -15,6 +16,7 @@ export const maxDuration = 60;
 //   GET /api/helfer?bereich=lage&seit=2026-11-02T06:00:00Z        → neue Discord-Nachrichten je Kanal
 //   GET /api/helfer?bereich=protokolle&seit=2026-11-02T06:00:00Z  → Twilio-Anrufe + Warnungen, Vapi-Gespräche
 //   GET /api/helfer?bereich=kunden                                → Kundenliste aus Notion (Status, nächster Schritt)
+//   GET /api/helfer?bereich=kunde&nr=KND-003                      → ein Kunde mit Branche, Ort, Ansprechpartner, Seitentext (Baukasten)
 //   GET /api/helfer?bereich=termine&von=ISO&bis=ISO              → Kalendertermine (Standard: heute + morgen)
 //
 // Ohne "seit": die letzten 24 Stunden.
@@ -205,12 +207,6 @@ function ohneNummern(text: string): string {
   return text.replace(/\+?\d[\d \-/()]{5,}\d/g, (m) => (m.replace(/\D/g, "").length >= 7 ? maskiere(m) ?? m : m));
 }
 
-/** „Domain / Anbieter“ (z. B. „relaxfit.de (IONOS)“) → https://relaxfit.de, sonst null. */
-function alsWebsite(text?: string | null): string | null {
-  const m = (text ?? "").match(/(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,})(\/[^\s]*)?/i);
-  return m ? `https://${m[1].toLowerCase()}` : null;
-}
-
 /** Standard: heute 00:00 bis übermorgen 00:00 (Berliner Zeit), sonst ?von= und ?bis=. */
 function termineZeitraum(url: URL): { von: Date; bis: Date } {
   const tag = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
@@ -258,11 +254,21 @@ export async function GET(req: Request) {
       })),
     });
   }
+  if (bereich === "kunde") {
+    const nr = url.searchParams.get("nr");
+    if (!pruefeKundenNr(nr)) return NextResponse.json({ error: "Ungültige Kundennummer (KND-003)" }, { status: 400 });
+    const kunden = await listeKunden();
+    if (!kunden) return NextResponse.json({ error: "Notion nicht erreichbar" }, { status: 502 });
+    const k = kunden.find((x) => x.nr === nr);
+    if (!k) return NextResponse.json({ error: "Kunde nicht gefunden" }, { status: 404 });
+    const bloecke = k.notionUrl ? await leseBloecke(k.notionUrl) : null;
+    return NextResponse.json({ kunde: kundeAusSeite(k, bloecke) });
+  }
   if (bereich === "termine") {
     const { von, bis } = termineZeitraum(url);
     const termine = await listeTermine(von, bis);
     if (!termine) return NextResponse.json({ error: "Kalender nicht erreichbar" }, { status: 502 });
     return NextResponse.json({ von: von.toISOString(), bis: bis.toISOString(), termine });
   }
-  return NextResponse.json({ error: "Unbekannter Bereich (lage | protokolle | kunden | termine)" }, { status: 400 });
+  return NextResponse.json({ error: "Unbekannter Bereich (lage | protokolle | kunden | kunde | termine)" }, { status: 400 });
 }
