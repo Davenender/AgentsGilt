@@ -101,3 +101,4 @@ Gemeinsam: Das Zeichen neigt sich zur Maus, das Glanzlicht folgt ihr, ein Glanzs
 5. **Betonungswörter:** aufrecht lassen, nicht kursiv (Schritt 3).
 6. **Fußleiste:** stehender Riesen-Schriftzug statt Laufband (Schritt 3).
 7. **Aufbau:** Riesen-Schriftzug (Schritt 3 → 4).
+8. **Kopfbild:** Kern im Schriftzug (Schritt 4) – der Name riesig quer über die Mitte, das glänzende 3D-Zeichen genau darin, Lichtspuren und Staub folgen der Maus; am Handy die goldene Linienzeichnung, die auf Tippen reagiert.
