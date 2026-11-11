@@ -100,7 +100,15 @@ export async function meldeTeamBefehlAn(token: string): Promise<boolean> {
       { type: 1, name: "daten", description: "Telefon, Figur, Name oder Notion-Kennung ändern", options: [person, telefon, figur, { type: 3, name: "name", description: "Neuer Name", required: false, max_length: 40 }, { type: 3, name: "notion", description: "Notion-Kennung (für „Zuständig“)", required: false, max_length: 60 }] },
       { type: 1, name: "pause", description: "Person pausiert (bleibt im Server, keine Rufgruppe, nicht zuständig)", options: [person] },
       { type: 1, name: "zurueck", description: "Person aus der Pause zurückholen", options: [person] },
-      { type: 1, name: "austritt", description: "Person verlässt das Team: Übergabe je Kunde, dann Rollen weg und vom Server", options: [person] },
+      {
+        type: 1,
+        name: "austritt",
+        description: "Person verlässt das Team: Übergabe je Kunde, dann Rollen weg und vom Server",
+        options: [
+          { ...person, required: false, description: "Wer? (Ist die Person schon weg vom Server: stattdessen kennung)" },
+          { type: 3, name: "kennung", description: "Discord-Nummer oder Name aus #team-register, falls die Person den Server schon verlassen hat", required: false, max_length: 60 },
+        ],
+      },
       { type: 1, name: "aufnahmetest", description: "Aufnahmetest an: Wer noch nicht bestanden hat, wird Anwärter", options: [{ type: 3, name: "zustand", description: "an oder aus", required: true, choices: [{ name: "an", value: "an" }, { name: "aus", value: "aus" }] }] },
       { type: 1, name: "liste", description: "Übersicht in #team-register neu zeichnen" },
     ],

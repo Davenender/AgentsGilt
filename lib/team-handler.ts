@@ -1,7 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { call } from "@/lib/leads";
 import { bereichFuer } from "@/lib/akademie-daten";
-import { austrittKnopf, befehlAus, DAVID_ID, knopfAus, mitglied, nameVon, team, uebergabeNachrichten, ziele, type Mitglied } from "@/lib/team";
+import { austrittKnopf, befehlAus, DAVID_ID, findeMitglied, knopfAus, mitglied, nameVon, team, uebergabeNachrichten, ziele, type Mitglied } from "@/lib/team";
 import { registerKanal, schreibeAufnahmetest, schreibeTeam, stelleSicher, zeichneTeamKarte } from "@/lib/team-daten";
 import { setzeRolle, sichtbarkeitFuerAnwaerter } from "@/lib/team-rollen";
 import { hatBestanden, zielStatus } from "@/lib/aufnahme-daten";
@@ -44,7 +44,8 @@ export function handleTeamBefehl(i: TeamInteraction, token: string) {
 
   after(async () => {
     await stelleSicher(token);
-    const m = b.person ? mitglied(b.person) : null;
+    // Beim Austritt geht auch die Kennung aus #team-register (Nummer oder Name), falls die Person den Server schon verlassen hat.
+    const m = b.aktion === "austritt" ? findeMitglied(b.person, b.kennung) : b.person ? mitglied(b.person) : null;
     const neu = (aenderung: Partial<Mitglied>): Mitglied => ({ ...(m as Mitglied), ...aenderung });
 
     if (b.aktion === "liste") {
@@ -116,6 +117,8 @@ export function handleTeamBefehl(i: TeamInteraction, token: string) {
       ));
     }
 
+    if (!m && b.aktion === "austritt")
+      return void (await antworte(appId, itoken, "Wen meinst du? Wähle bei **person** jemanden aus oder trag bei **kennung** die Discord-Nummer oder den Namen aus #team-register ein."));
     if (!m) return void (await antworte(appId, itoken, "Diese Person steht nicht im Register. Neue Leute mit `/team aufnehmen`."));
 
     if (b.aktion === "daten") {

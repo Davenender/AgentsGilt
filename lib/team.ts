@@ -148,14 +148,25 @@ export function teamKarte(liste: readonly Mitglied[], e: Einstellungen = einstel
   };
 }
 
-export type Befehl = { aktion: string; person: string; name: string; figur: string; telefon: string; notion: string; zustand: string };
+export type Befehl = { aktion: string; person: string; name: string; figur: string; telefon: string; notion: string; zustand: string; kennung: string };
 
 /** Den Befehl /team aus den Discord-Daten lesen. */
 export function befehlAus(data: { name?: string; options?: { name: string; type?: number; value?: unknown; options?: { name: string; value?: unknown }[] }[] } | undefined): Befehl | null {
   const sub = data?.options?.[0];
   if (data?.name !== "team" || !sub) return null;
   const wert = (n: string) => String(sub.options?.find((o) => o.name === n)?.value ?? "").trim();
-  return { aktion: sub.name, person: wert("person"), name: wert("name").slice(0, 40), figur: wert("figur").slice(0, 20), telefon: wert("telefon").slice(0, 30), notion: wert("notion").slice(0, 60), zustand: wert("zustand") };
+  return { aktion: sub.name, person: wert("person"), name: wert("name").slice(0, 40), figur: wert("figur").slice(0, 20), telefon: wert("telefon").slice(0, 30), notion: wert("notion").slice(0, 60), zustand: wert("zustand"), kennung: wert("kennung").slice(0, 60) };
+}
+
+/** Wer gemeint ist: die gewählte Person, sonst die Kennung aus #team-register – Discord-Nummer (auch als <@…>) oder Name.
+ *  Für Leute, die den Server schon verlassen haben und im Personenfeld nicht mehr auftauchen. */
+export function findeMitglied(person: string, kennung: string): Mitglied | null {
+  if (person) return mitglied(person);
+  const k = kennung.trim().replace(/^<@!?(\d+)>$/, "$1");
+  if (!k) return null;
+  if (/^\d{15,22}$/.test(k)) return mitglied(k);
+  const name = k.toLocaleLowerCase("de");
+  return team().find((m) => m.name.toLocaleLowerCase("de") === name) ?? null;
 }
 
 /** Pause und Anwärter dürfen außerhalb der Akademie (Knöpfe ak:…, Befehl /a) nichts auslösen. Unbekannte regelt der Rest. */

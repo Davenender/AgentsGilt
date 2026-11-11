@@ -74,11 +74,16 @@ export async function fuehreAustrittAus(token: string, aus: string): Promise<str
   bericht.push(rest.length ? `• ${anDavid} von ${rest.length} noch offenen Fällen sind jetzt bei dir.` : "• Keine offenen Fälle mehr.");
   const ok = await schreibeTeam(token, { ...m, status: "ausgetreten" });
   bericht.push(ok ? "• Register: ausgetreten (Rufgruppe, Zuständig, Statistik und Zentrale ohne sie/ihn)." : "• ⚠️ Register konnte nicht geschrieben werden.");
-  const rolle = await teamRolle(token);
+  // Hat die Person den Server schon verlassen, gibt es keine Rolle und nichts zu entfernen.
+  const nochDa = (await call(token, "GET", `/guilds/${GUILD_ID}/members/${aus}`)) !== null;
+  const rolle = nochDa ? await teamRolle(token) : null;
   if (rolle) await call(token, "DELETE", `/guilds/${GUILD_ID}/members/${aus}/roles/${rolle}`);
   const archiv = await archiviereAkademie(token, aus);
   bericht.push(`• Akademie: ${archiv} Kanäle ins ARCHIV verschoben (nicht gelöscht).`);
-  const raus = (await call(token, "DELETE", `/guilds/${GUILD_ID}/members/${aus}`)) !== null;
-  bericht.push(raus ? "• Vom Server entfernt." : "• ⚠️ Vom Server entfernen hat nicht geklappt (fehlendes Recht?). Bitte in Discord von Hand: Rechtsklick auf die Person → Kicken. Die Rolle Team ist schon weg.");
+  if (!nochDa) bericht.push("• War schon nicht mehr auf dem Server, da war nichts mehr zu entfernen.");
+  else {
+    const raus = (await call(token, "DELETE", `/guilds/${GUILD_ID}/members/${aus}`)) !== null;
+    bericht.push(raus ? "• Vom Server entfernt." : "• ⚠️ Vom Server entfernen hat nicht geklappt (fehlendes Recht?). Bitte in Discord von Hand: Rechtsklick auf die Person → Kicken. Die Rolle Team ist schon weg.");
+  }
   return bericht;
 }

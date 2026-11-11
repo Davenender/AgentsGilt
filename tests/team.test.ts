@@ -77,7 +77,7 @@ test("Statistik je Person: Team und Pause, keine Anwärter und Ausgetretenen", (
 
 // ------------------------------------------------------------ Etappe 2: Telefon, Rufgruppe, Übersicht, Befehle
 
-import { mitRegister, teamKarte, befehlAus, darfHandeln } from "../lib/team.ts";
+import { mitRegister, teamKarte, befehlAus, darfHandeln, findeMitglied } from "../lib/team.ts";
 
 test("Telefon steht im Register; alte Zeilen ohne Telefon bleiben gültig", () => {
   const r = leseRegister([
@@ -124,7 +124,7 @@ test("Übersichtskarte zeigt alle mit Stand, Telefon und Notion", () => {
 
 test("Befehl /team lesen: Unterbefehl, Person, Angaben", () => {
   const b = befehlAus({ name: "team", options: [{ name: "aufnehmen", type: 1, options: [{ name: "person", value: OSKAR }, { name: "name", value: " Oskar " }, { name: "figur", value: "blond" }] }] });
-  assert.deepEqual(b, { aktion: "aufnehmen", person: OSKAR, name: "Oskar", figur: "blond", telefon: "", notion: "", zustand: "" });
+  assert.deepEqual(b, { aktion: "aufnehmen", person: OSKAR, name: "Oskar", figur: "blond", telefon: "", notion: "", zustand: "", kennung: "" });
   assert.equal(befehlAus({ name: "team", options: [] }), null);
 });
 
@@ -198,4 +198,17 @@ test("Schalter Aufnahmetest: aus, bis David ihn einschaltet; die neueste Zeile g
   assert.equal(leseEinstellungen([{ content: zeileEinstellung("aufnahmetest", true) }, { content: zeileEinstellung("aufnahmetest", false) }]).aufnahmetest, false);
   assert.match(teamKarte(START, { aufnahmetest: true }).embeds[0].description ?? "", /Aufnahmetest: an/);
   assert.match(teamKarte(START).embeds[0].description ?? "", /Aufnahmetest: aus/);
+});
+
+test("/team austritt ohne Person: Kennung aus dem Register (Nummer oder Name) reicht", () => {
+  const b = befehlAus({ name: "team", options: [{ name: "austritt", type: 1, options: [{ name: "kennung", value: " 523479048727560205 " }] }] });
+  assert.equal(b?.person, "");
+  assert.equal(b?.kennung, "523479048727560205");
+  setzeTeam(START);
+  assert.equal(findeMitglied("", JAKOB)?.name, "Jakob");
+  assert.equal(findeMitglied("", `<@${JAKOB}>`)?.name, "Jakob");
+  assert.equal(findeMitglied("", "jakob")?.discord, JAKOB);
+  assert.equal(findeMitglied(MIJO, "Jakob")?.name, "Mijo", "eine gewählte Person geht vor");
+  assert.equal(findeMitglied("", "Niemand"), null);
+  assert.equal(findeMitglied("", ""), null);
 });
