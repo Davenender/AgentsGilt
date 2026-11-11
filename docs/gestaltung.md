@@ -3,7 +3,9 @@
 Stand 11.11.2026 · **Gewählte Richtung (Schritt 2, von David auf der Auswahlseite): Chromzeichen in der Punktwolke** – zusammengesetzt aus seinen Vorbildern (Active Theory, Poly, Vapi, Lando Norris, recent.design).
 In Schritt 1 stand vorläufig „Bühnenhorizont“; in Schritt 2 hat David unter fünf Richtungen neu gewählt (zur Wahl standen außerdem: Die Vermittlung, Edel, Bühnenhorizont, Anzeigetafel).
 
-> **Richtungswechsel am 11.11.2026 (Zwischenauftrag vor Schritt 5): Das 3D-Logo fällt weg.** Der Kopfbereich besteht jetzt aus zwei Ebenen: hinten unser Logo aus Licht, vorn der Name aus Schriftzeichen. Verbindlich ist Abschnitt **4c**. Der Name der Richtung („Chromzeichen in der Punktwolke“) bleibt nur als Etikett stehen; ein Chrom- oder 3D-Zeichen gibt es nicht mehr. Wo ältere Abschnitte noch vom 3D-Zeichen sprechen, gilt 4c.
+> **Richtungswechsel (11./12.11.2026, vor Schritt 5): Das 3D-Logo ist ersetzt.** Der Kopfbereich ist ohne Text und besteht aus zwei Ebenen: hinten unser Logo aus Licht (Scherenschnitt vor einer Lichtkugel, God Rays), vorn der Name aus Schriftzeichen. Verbindlich ist Abschnitt **4d** (er ersetzt 4c). Der Name der Richtung („Chromzeichen in der Punktwolke“) bleibt nur als Etikett stehen; ein Chrom- oder 3D-Zeichen gibt es nicht mehr. Wo ältere Abschnitte noch vom 3D-Zeichen sprechen, gilt 4d.
+>
+> **Stil, der bleibt:** fast schwarz mit dunkelblauen Akzenten, der Name grau, Gold beim Licht und bei wichtigen Wörtern. Nichts Helles.
 
 - Gewählte Skizze des ersten Bildschirms (die Komposition, die der Bau treffen muss): `docs/skizzen/chromzeichen-in-der-punktwolke.html`, Bild dazu `docs/skizzen/chromzeichen-in-der-punktwolke.jpg`.
 - Richtungs-Vertrag für Impeccable: `.impeccable/surfaces/app-page-tsx.md` (lesen mit `impeccable surface-brief read app/page.tsx`). Nie in ausgelieferten Code kopieren.
@@ -19,11 +21,11 @@ In Schritt 1 stand vorläufig „Bühnenhorizont“; in Schritt 2 hat David unte
 - Belege nur echt: Leistungen, Ablauf, Vorteile, 4 Anthropic-Zertifikate (David Hesse, Mijo Schulz), Einzugsgebiet, „meist innerhalb eines Werktages“. Keine Zahlen erfinden. **Kein Kundenstimmen-Bereich, auch kein Platzhalter.** Das Motiv „Karten schieben sich übereinander“ nur für echte Inhalte (Vorteile, Leistungen).
 
 ## 3. Gewählte Richtung: Chromzeichen in der Punktwolke
-- **Idee:** Das Logo selbst ist die Bühne. Seit dem Richtungswechsel (4c) als reines Licht hinter dem Namen: vier goldene Lichtbalken um einen fast weißen Stern (echte Form des Logos), davor der Riesenschriftzug aus tausenden Schriftzeichen; alles reagiert auf den Zeiger. Direkt darunter liegt die funktionierende Anruf-Leiste. (Ursprünglich: ein glänzendes Chrom-Gold-Zeichen in einer Punktwolke – verworfen.)
+- **Idee:** Das Logo selbst ist die Bühne. Seit dem Richtungswechsel (4d) als Licht hinter dem Namen: Das Logo steht als dunkler Scherenschnitt vor einer goldenen Lichtkugel, die Strahlen fallen durch die Lücken zwischen den vier Balken, der Stern leuchtet weiß; davor der Riesenschriftzug aus tausenden Schriftzeichen. Alles reagiert auf den Zeiger. Der Kopfbereich selbst trägt keinen Text; „Anrufen“ steht oben rechts. (Ursprünglich: ein glänzendes Chrom-Gold-Zeichen in einer Punktwolke – verworfen.)
 - **Grund:** gerader Nachtverlauf von tiefem Blau (#0f1a3a) über #0a1126 zu fast schwarzem Blau (#070b16), nie reines Schwarz. Am unteren Rand eine Glut-Kante (#23120d bis #6d3319) als einziges warmes Licht neben Gold (aus recent.design).
 - **Farben:** Gold (#d4a23c, hell #f3d27a) nur auf Bedienbarem und auf dem Betonungswort. Elfenbein (#f1eee6) für Text, Blaugrau (#737a95) für die gedämpfte erste Überschriftenzeile, Glut (#b4532a) nur als Kantenlicht. Kein Lila, kein Cyan.
 - **Schrift:** Sofia Sans Extra Condensed 800 in Großbuchstaben (Überschriften), Gloock aufrecht für die goldenen Betonungswörter, Sofia Sans für Fließtext, Cutive Mono nur für Status- und Messangaben („Assistent bereit“, Orte, Nummern 01–06). Nicht Inter. Im Bau über `next/font` selbst ausliefern.
-- **Bauteile:** schwebende Kopfleisten-Kachel; runde Knöpfe mit Pfeil-Kreis (Hauptknopf Gold mit dunklem Pfeil-Kreis, Nebenknopf Haarlinie); Anruf-Leiste (Status, Nummer, „Jetzt anrufen“); als Schmuck das Licht-Logo und die Zeichen-Teilchen des Namens (4c). Keine Kästchenraster.
+- **Bauteile:** schwebende Navigationsleiste aus dunklem Glas mit feinem Goldrand und wanderndem Lichtpunkt (4d); runde Knöpfe mit Pfeil-Kreis (Hauptknopf Gold mit dunklem Pfeil-Kreis, Nebenknopf Haarlinie); Anruf-Leiste (Status, Nummer, „Jetzt anrufen“); als Schmuck das Licht-Logo und die Zeichen-Teilchen des Namens (4d). Keine Kästchenraster.
 - **Disziplin aus der Auswahlrunde (von den abgelehnten Karten behalten):** leuchtendes Gold nur auf Bedienbarem; Licht folgt dem Zeiger; Zustände laufen als Welle, nie alles gleichzeitig; ein festes Lesemaß für Fließtext; am Handy entsteht das Logo aus Rasterpunkten.
 
 ## 4. Ablauf der Seite (alle Bereiche bleiben, Reihenfolge darf sich ändern)
@@ -74,7 +76,9 @@ Gemeinsam: Das Zeichen neigt sich zur Maus, das Glanzlicht folgt ihr, ein Glanzs
 
 **Am Handy und bei „weniger Bewegung“:** ruhiges Ersatzbild statt 3D – das Logo als goldene Linienzeichnung, über die ein Licht wandert, ein paar schwebende Punkte (je Variante Staub, Ellipsen, Punktring oder Ringe). Ein Tippen auf den Kopfbereich lässt Funken sprühen und das Zeichen aufleuchten. Bei „weniger Bewegung“ steht alles still.
 
-## 4c. Kopfbereich: Logo aus Licht, Name aus Zeichen (Zwischenauftrag vor Schritt 5, gilt ab jetzt)
+## 4c. Kopfbereich: Logo aus Licht, Name aus Zeichen (erster Wurf vom 11.11.2026 – durch 4d ersetzt)
+
+> Überholt. Licht und Name wurden am 12.11.2026 komplett neu gebaut, der Kopfbereich ist seitdem ohne Text. Dieser Abschnitt bleibt nur als Verlauf stehen; die Dateien `licht.ts` und `zeichenfeld.ts` gibt es nicht mehr, der Hinweis „Klicken Sie irgendwo“ ist entfallen.
 
 **Das 3D-Logo ist entfernt.** Der Kopfbereich hat zwei Ebenen, durchscheinend übereinander. Zu sehen unter `/varianten/kopf/kern`, Code in `components/neu/kopf/LichtName.tsx` (hält beide im Takt), `licht.ts` (Licht) und `zeichenfeld.ts` (Zeichen). Vorbilder nur für die Wirkung, nichts übernommen: das Licht von madebyigor.com, die Zeichen-Teilchen von ksenpanchenko.com.
 
@@ -97,13 +101,52 @@ Gemeinsam: Das Zeichen neigt sich zur Maus, das Glanzlicht folgt ihr, ein Glanzs
 - **Startanimation bleibt:** Nach dem Ladebildschirm baut sich erst das Licht-Logo auf (Balken reihum, dann der Stern), dann sammeln sich die Zeichen zum Namen.
 - **Ohne Skript:** Name und Logo stehen als gewöhnliche Grafik da.
 
-**Folgen für spätere Schritte:** Kein three.js und kein 3D-Modell im Kopfbereich. Das Paket `three` wird nur noch von den drei nicht gewählten Kopfbildern gebraucht (`szene.ts`, `KopfBuehne.tsx`, `einfach.ts`); mit ihnen kann es entfallen. Das Licht-Logo ist die einzige Stelle der Seite mit Lichtschein; Bauteile bekommen weiterhin keine Leuchtschein-Schatten.
+**Folgen für spätere Schritte (Stand 4d):** Kein 3D-Modell im Kopfbereich. `three` wird für das Licht-Logo gebraucht (zusammen mit `postprocessing`), außerdem noch von den drei nicht gewählten Kopfbildern (`szene.ts`, `KopfBuehne.tsx`, `einfach.ts`); diese drei können entfallen.
+
+## 4d. Kopfbereich neu gebaut (Korrektur vom 12.11.2026, gilt ab jetzt)
+
+Zu sehen unter `/varianten/kopf/kern`. Code: `components/neu/kopf/LichtName.tsx` (hält alles im Takt), `lichtszene.ts` (Licht), `zeichenname.ts` (Name), `components/neu/Kopfleiste.tsx` (Navigation). Vorbilder nur für Wirkung und Machart, eigene Umsetzung, kein Code übernommen: das Licht von madebyigor.com, die Zeichen von ksenpanchenko.com.
+
+**1 · Licht-Logo (statt des 3D-Logos)**
+- **Lichtquelle:** Hinter der Logo-Mitte sitzt eine weiche Lichtkugel, warmes Gold, im Kern fast weiß; ihr Leuchten flackert leicht mit langsamem Rauschen.
+- **Verdeckender Gegenstand:** unser Logo als flacher dunkler Scherenschnitt mit den vier Balken. Die Strahlen scheinen durch die Lücken zwischen den Balken, deshalb hat der Lichtstern von selbst unsere Form (vier Strahlen: oben, unten, links, rechts). Die Kanten der Balken glimmen golden, der Stern in der Mitte leuchtet weiß.
+- **Über allem:** feines Filmkorn über das ganze Bild und ein weicher Glanz (Bloom).
+- **Wirkung:** dunkel, körnig, zurückhaltend. Nichts Grelles, keine harten Ränder, keine sichtbaren Kreise.
+- **Bewegung:** Die Logo-Form dreht und neigt sich leicht mit der Maus, die Strahlen wandern und fächern sich. In Ruhe atmet das Licht langsam.
+- **Technik:** three.js mit der Bibliothek `postprocessing`; wird nur am Computer nachgeladen. Rechnet nur, solange der Kopfbereich zu sehen ist, mit höchstens 2-facher Pixeldichte; kommt der Rechner nicht mit, wird stufenweise gröber gerechnet. God Rays mit 80 Proben je Bildpunkt, das Licht nimmt nach außen ab.
+- **Eigener God-Rays-Effekt:** Der mitgelieferte Effekt der Bibliothek ließ das Licht durch die Balken hindurchscheinen (alles wurde ein heller Fleck). Der Effekt ist deshalb selbst geschrieben, als Effekt für `postprocessing`: Steht ein Balken im Weg, kommt dahinter kein Licht an. Auch das Filmkorn ist ein eigener Effekt: Es folgt der Helligkeit, damit der fast schwarze Grund fast schwarz bleibt.
+
+**2 · Name aus Zeichen-Teilchen, deutlich größer**
+- **Form:** „AGENTS GILT“ in unserer schmalen, fetten Schrift wird unsichtbar als Graustufenbild gezeichnet, am Rand weich, dazu ein paar feine Strahlen nach außen (wie spritzende Tinte). Das Bild wird in ein Raster zerlegt (Zellen am Computer 6,5 px, am Handy 5 px). Jede Zelle hat eine Dichte von 1 bis 9; daraus folgen Deckkraft (Dichte/9) und Zeichen. Zeichensatz `· . : - = + * / % #`: innen dichte Zeichen (# %), am Rand lockere (· . :). Zellen unter 8 % Abdeckung fallen weg.
+- **Größe:** fast die ganze Breite (am Computer bis 1760 px). Am Handy stehen die beiden Wörter übereinander, damit der Name groß genug bleibt.
+- **Farbe:** Grundfarbe grau. Wo das Licht des Logos die Zeichen trifft (in den vier Strahlen), leuchten sie golden, nahe am weißen Stern hell-cremig. Bewegt sich das Licht, wandert der Schimmer mit. Angestrahlte Zeichen haben einen dunklen Saum, damit der Name auch direkt vor dem Licht lesbar bleibt.
+- **Lage:** vor dem Licht; das Licht scheint zwischen den Zeichen durch.
+- **Zeichnen:** Jedes Zeichen liegt einmal fertig in einem Vorrat (Monospace Cutive Mono, Stärke 500), in jeder Dichte und Färbung. Neu gezeichnet wird nur, wenn sich etwas bewegt.
+- **Ruhe-Flimmern:** Alle 140 ms tauschen rund 0,4 % der Zellen kurz ihr Zeichen.
+- **Maus:** Im Umkreis von 70 px weichen die Zeichen bis zu 18 px aus und federn weich zurück (je Bild 25 % zum Ziel).
+- **Welle beim Klick:** Ein Ring breitet sich mit 1150 px/s aus, als weiches Band von rund 90 px Breite, schiebt die Zeichen bis zu 56 px nach außen und klingt in 1,3 s ab. Getroffene Zeichen leuchten kurz heller und wechseln ihr Zeichen. Höchstens 4 Wellen gleichzeitig. Klicks auf Knöpfe und Links lösen keine Welle aus. Einmal nach dem Auftritt läuft von selbst eine Welle als Hinweis. Am Handy löst Tippen die Welle aus, mit kurzer Vibration (wo das Gerät es kann).
+- **Technik:** 2D-Zeichenfläche, pausiert, wenn nicht sichtbar. Bei „weniger Bewegung“ kein Ausweichen, keine Welle, kein Flimmern.
+
+**3 · Kopfbereich ohne Text**
+Nur diese Dinge, kein weiterer Text, kein Hinweistext:
+- Mitte: Licht-Logo und Name.
+- Oben links: kleines Logo, leicht golden leuchtend.
+- Oben Mitte: Navigationsleiste, schwebend, aus dunklem Glas, mit feinem Goldrand. Ein kleiner Lichtpunkt gleitet unter den Menüpunkt, über dem die Maus ist, und bleibt sonst unter dem Abschnitt, der gerade zu sehen ist.
+- Oben rechts: „Anrufen“, sanft golden glühend.
+- Unten rechts: Chat-Knopf.
+- Überschrift, Unterzeile und Telefon-Block stehen **vorläufig direkt unter dem Kopfbereich**; sie werden im nächsten Auftrag neu verteilt. Am Handy bleibt der Anrufen-Knopf am Daumen weg, solange der Kopfbereich zu sehen ist („Anrufen“ steht dann in der Kopfleiste).
+
+**Scroll-Hinweis nur durch Licht:** Wer nach etwa 4 Sekunden nicht gescrollt hat, sieht von ganz unten ein warmes goldenes Licht hereinstrahlen, über die ganze Breite, langsam pulsierend (etwa alle 2,6 s). Beim Scrollen blendet es aus; zurück am Seitenanfang kommt es nach 4 Sekunden wieder. Es ersetzt im Kopfbereich die frühere Glut-Kante.
+
+**Handy und „weniger Bewegung“:** Das Licht steht als ruhiges Bild (`public/kopf/licht-logo.jpg`, einmal aus der eigenen Licht-Szene aufgenommen, kein fremdes Bild; am Handy atmet es leicht über die Deckkraft). three.js wird dort nicht geladen. Der Name aus Zeichen steht ruhig, Tippen löst die Welle aus. „Anrufen“ ist immer sichtbar. Bei „weniger Bewegung“ ist alles still.
+
+**Offen für den nächsten Auftrag:** die Startanimation (derzeit nur: Licht blendet auf, der Name blendet von der Mitte nach außen ein, dann die eine Hinweis-Welle) und die Abschnitte unter dem Kopfbereich.
 
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
-- **Kennzeichen „Das Licht folgt“:** Der Stern des Licht-Logos folgt dem Zeiger, die Strahlen der Balken neigen sich mit, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4c). Kein 3D-Zeichen mehr.
+- **Kennzeichen „Das Licht folgt“:** Das Logo dreht und neigt sich mit dem Zeiger, die Strahlen wandern, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
 - Kein Scroll-Zwang: normales Scrollen, kein Festhalten ganzer Bereiche, Animationen begleiten nur. `prefers-reduced-motion` zeigt alles sofort im Endzustand.
-- **Handy leichter:** Licht-Logo als ruhiges Bild, Name aus Zeichen steht still, Tippen löst die Welle aus (4c); kein Zeiger-Effekt, kürzerer Ladebildschirm, Tropfen als einfache Linie mit Punkt, Kopfleiste als schwebende Kachel, Anrufen-Knopf in voller Breite am Daumen.
+- **Handy leichter:** Licht-Logo als ruhiges Bild, Name aus Zeichen steht still, Tippen löst die Welle aus (4d); kein Zeiger-Effekt, kürzerer Ladebildschirm, Tropfen als einfache Linie mit Punkt, Kopfleiste als schwebende Kachel, Anrufen-Knopf in voller Breite am Daumen.
 
 ## 6. Zustände und Mengen
 - Formular: leer, Fehler am Feld, sendet, Erfolg (Texte aus `docs/texte.md`, gesiezt). Chat: zu, Sprechblase, offen, Übergabe, Support-Chat. Ladebildschirm: erster Besuch, Wiederkehr, reduzierte Bewegung, kein JavaScript (Seite sofort sichtbar).
@@ -112,11 +155,11 @@ Gemeinsam: Das Zeichen neigt sich zur Maus, das Glanzlicht folgt ihr, ein Glanzs
 ## 7. Grenzen
 - Keine Änderung an `app/api`, `lib` (außer Texten in `lib/content.ts` und reinen Anzeige-Texten im Chat-Widget), Metadaten, Statistik, Terminseiten-Logik, Weiterleitung. Alle Anker-IDs bleiben. Die sechs Leistungstitel bleiben wörtlich (Schnittstellenwerte für Formular, Chat und Notion, siehe `docs/funktionen.md` 4a); ein anderer Anzeigename nur als getrennter Anzeigetext.
 - Nie: lila Verläufe, Inter, 3D-Blobs, KI-Standard-Kästchenraster, Emojis als Symbole, Glas überall, reines Schwarz ohne Farbe, erfundene Zahlen oder Stimmen. Keine fremde Seite 1:1.
-- Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML). Kein 3D mehr im Kopfbereich: ein Shader und eine 2D-Zeichenfläche, die nur rechnen, wenn sie zu sehen sind.
+- Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML). Das Licht (three.js mit postprocessing) wird nur am Computer nachgeladen und rechnet nur, wenn es zu sehen ist; am Handy steht ein Bild. Glas-Effekt nur an der schwebenden Kopfleiste.
 
 ## 8. Was die Code-Fehlersuche in Schritt 2 gelehrt hat (im Bau von Anfang an vermeiden)
 - Keine kursive Serife in Riesen-Überschriften: Betonungswörter stehen aufrecht (von David bestätigt, 11.11.2026).
-- Keine farbigen Leuchtschein-Schatten und keine runden Lichthöfe im Hintergrund: Licht als gerade Verläufe und Bänder. Einzige Ausnahme, von David gewünscht: das Licht-Logo im Kopfbereich (4c).
+- Keine farbigen Leuchtschein-Schatten und keine runden Lichthöfe im Hintergrund: Licht als gerade Verläufe und Bänder. Ausnahmen, von David gewünscht (4d): das Licht-Logo im Kopfbereich, das goldene Scroll-Licht von unten, das leichte Leuchten von Logo und „Anrufen“ in der Kopfleiste.
 - Kein kleines Etikett in Großbuchstaben über einer Überschrift.
 - Kein Deko-Raster aus Linien im Hintergrund; die Punktwolke trägt die Textur.
 - Lange Sätze nicht in Riesengröße: Die Hero-Überschrift bleibt kurz.
@@ -131,4 +174,5 @@ Gemeinsam: Das Zeichen neigt sich zur Maus, das Glanzlicht folgt ihr, ein Glanzs
 6. **Fußleiste:** stehender Riesen-Schriftzug statt Laufband (Schritt 3).
 7. **Aufbau:** Riesen-Schriftzug (Schritt 3 → 4).
 8. **Kopfbild:** Kern im Schriftzug (Schritt 4) – der Name riesig quer über die Mitte, das Logo genau darin. Die Ausführung mit 3D-Zeichen ist durch Entscheidung 9 ersetzt.
-9. **Richtungswechsel (Zwischenauftrag vor Schritt 5):** Das 3D-Logo fällt weg. Kopfbereich in zwei Ebenen: hinten das Logo aus Licht, vorn der Name aus Zeichen-Teilchen, Klick-Welle, Hinweis „Klicken Sie irgendwo“ (Abschnitt 4c).
+9. **Richtungswechsel (Zwischenauftrag vor Schritt 5):** Das 3D-Logo fällt weg. Kopfbereich in zwei Ebenen: hinten das Logo aus Licht, vorn der Name aus Zeichen-Teilchen (erster Wurf, Abschnitt 4c).
+10. **Korrektur Kopfbereich (12.11.2026):** Licht und Name komplett neu gebaut (Licht als Scherenschnitt vor einer Lichtkugel mit God Rays, three.js mit postprocessing; Name als Zeichen-Raster, fast über die ganze Breite). Kopfbereich ohne Text, neue Navigationsleiste aus dunklem Glas mit Lichtpunkt, Scroll-Hinweis nur durch goldenes Licht von unten; Überschrift, Unterzeile und Telefon-Block vorerst direkt darunter (Abschnitt 4d). Stil: fast schwarz mit dunkelblauen Akzenten, Name grau, Gold beim Licht und bei wichtigen Wörtern, nichts Helles.

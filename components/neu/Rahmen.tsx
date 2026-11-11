@@ -35,8 +35,8 @@ function WeichesScrollen() {
 }
 
 /**
- * Anrufen-Knopf am Daumen (nur Handy): erscheint, sobald keine Anruf-Leiste
- * mehr im Bild ist. So bleibt Anrufen immer erreichbar, ohne doppelt zu stehen.
+ * Anrufen-Knopf am Daumen (nur Handy): erscheint, sobald weder eine Anruf-Leiste
+ * noch der textfreie Kopfbereich im Bild ist. So bleibt Anrufen immer erreichbar, ohne doppelt zu stehen.
  */
 function DaumenLeiste() {
   const ref = useRef<HTMLDivElement>(null);
@@ -52,7 +52,8 @@ function DaumenLeiste() {
       }
       el.setAttribute("data-da", String(imBild.size === 0));
     });
-    document.querySelectorAll("main .ag-anruf, .ag-fuss").forEach((leiste) => waechter.observe(leiste));
+    // Im textfreien Kopfbereich steht „Anrufen“ in der Kopfleiste: Dort bleibt der Daumen-Knopf weg.
+    document.querySelectorAll("main .ag-anruf, .ag-fuss, #top.ag-kopf5").forEach((leiste) => waechter.observe(leiste));
     return () => waechter.disconnect();
   }, []);
 

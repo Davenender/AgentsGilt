@@ -10,14 +10,14 @@ import { Wortmarke } from "../Rahmen";
 import { Zeilen } from "../Zeilen";
 import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, istVorschau } from "../umgebung";
 import { KopfAnker, KopfBuehne } from "./KopfBuehne";
-import { KlickHinweis, LichtName, LichtPlatz } from "./LichtName";
+import { LichtName } from "./LichtName";
 
 gsap.registerPlugin(useGSAP, SplitText);
 
 /** Überschrift in zwei Tönen: erste Zeile matt, zweite hell mit goldenem Wort. Läuft Zeile für Zeile ein. */
-function Titel() {
+function Titel({ start = "intro" }: { start?: "intro" | "scroll" }) {
   return (
-    <Zeilen als="h1" start="intro" className="ag-versal ag-kopf4__h1">
+    <Zeilen als="h1" start={start} className="ag-versal ag-kopf4__h1">
       <span className="ag-matt">{hero.leise}</span>
       <br />
       {hero.laut} <em className="ag-gold">{hero.gold}</em>
@@ -89,23 +89,28 @@ function WortFlug() {
 }
 
 /**
- * 1 · Kern im Schriftzug (gewählt). Seit dem Zwischenauftrag vor Schritt 5 ohne
- * 3D-Zeichen: zwei Ebenen, durchscheinend übereinander. Hinten das Logo aus
- * Licht, vorn der Name aus Zeichen-Teilchen (LichtName.tsx).
+ * 1 · Kern im Schriftzug (gewählt). Der Kopfbereich ist ohne Text: in der Mitte
+ * nur das Licht-Logo und davor der Name aus Zeichen-Teilchen (LichtName.tsx),
+ * unten das goldene Licht als Scroll-Hinweis. Marke, Navigation und „Anrufen“
+ * stehen in der Kopfleiste, der Chat-Knopf unten rechts.
+ *
+ * Überschrift, Unterzeile und Telefon-Block stehen vorerst direkt darunter;
+ * sie werden im nächsten Auftrag neu verteilt.
  */
 export function KopfKern() {
   return (
-    <section id="top" className="ag-hero ag-kopf4 ag-kopf4--kern">
-      <LichtName />
-      <div className="ag-wrap ag-kopf4__teil" data-weg="oben">
-        <LichtPlatz />
-      </div>
-      <div className="ag-wrap ag-kopf4__teil" data-weg="unten">
-        <Titel />
-        <Aktionen />
-      </div>
-      <KlickHinweis />
-    </section>
+    <>
+      <section id="top" className="ag-hero ag-kopf5" aria-label="Agents Gilt">
+        <LichtName />
+        <div className="ag-kopf5__lockruf" aria-hidden="true" />
+      </section>
+      <section className="ag-nachkopf">
+        <div className="ag-wrap ag-nachkopf__innen">
+          <Titel start="scroll" />
+          <Aktionen />
+        </div>
+      </section>
+    </>
   );
 }
 

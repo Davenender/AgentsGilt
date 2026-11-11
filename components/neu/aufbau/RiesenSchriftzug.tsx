@@ -35,6 +35,9 @@ function SchriftHelfer() {
         gsap.to(teile("unten"), { y: -50, opacity: 0, ease: "none", scrollTrigger: { ...weg, end: "62% top" } });
         if (teile("tief").length) gsap.to(teile("tief"), { yPercent: -45, ease: "none", scrollTrigger: weg });
         if (teile("flug").length) gsap.to(teile("flug"), { opacity: 0.2, ease: "none", scrollTrigger: { ...weg, start: "45% top" } });
+      } else if (document.querySelector("#top.ag-kopf5")) {
+        // Kopfbereich ohne Text: Licht und Name treten beim Hinausscrollen zurück.
+        gsap.to(gsap.utils.toArray<HTMLElement>("#top [data-weg]"), { opacity: 0.18, ease: "none", scrollTrigger: { ...weg, start: "18% top" } });
       } else {
         gsap.to(".ag-schrift__oben", { yPercent: -18, opacity: 0.15, ease: "none", scrollTrigger: weg });
         gsap.to(".ag-schrift__unten", { yPercent: -8, opacity: 0, ease: "none", scrollTrigger: { ...weg, end: "62% top" } });

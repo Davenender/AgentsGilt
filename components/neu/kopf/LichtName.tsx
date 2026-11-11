@@ -1,282 +1,215 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "@/lib/gsap";
-import { hero, marke } from "@/lib/inhalt-neu";
-import { Marke } from "../Marke";
+import { marke } from "@/lib/inhalt-neu";
 import { Wortmarke } from "../Rahmen";
 import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, istVorschau } from "../umgebung";
-import { BALKEN_MITTE, erzeugeLicht } from "./licht";
-import { erzeugeZeichenfeld } from "./zeichenfeld";
-
-// Mitten der vier Balken: oben links, oben rechts, unten links, unten rechts (y nach oben).
-const BALKEN = [
-  [-BALKEN_MITTE, BALKEN_MITTE],
-  [BALKEN_MITTE, BALKEN_MITTE],
-  [-BALKEN_MITTE, -BALKEN_MITTE],
-  [BALKEN_MITTE, -BALKEN_MITTE],
-];
-// Beim Aufbau zünden die Balken reihum: oben links, oben rechts, unten rechts, unten links.
-const REIHE = [0, 1, 3, 2];
-const weich = (a: number, b: number, v: number) => {
-  const t = Math.max(0, Math.min(1, (v - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
+import type { LichtLage, LichtSzene } from "./lichtszene";
+import { erzeugeZeichenname } from "./zeichenname";
 
 /**
  * Der Kopfbereich in zwei Ebenen, durchscheinend übereinander:
- * hinten das Logo aus Licht (licht.ts), vorn der Name aus Zeichen-Teilchen
- * (zeichenfeld.ts). Diese Datei hält beide im Takt.
+ * hinten das Licht-Logo, vorn der Name aus Zeichen-Teilchen. Diese Datei hält
+ * beide im Takt und steuert das goldene Licht von unten (Scroll-Hinweis).
  *
- * - Am Computer folgt der Stern sanft der Maus (bleibt nahe der Mitte), die
- *   Zeichen weichen dem Zeiger aus, ein Klick schickt eine Welle hindurch und
- *   lässt das Licht kurz aufleuchten.
- * - Am Handy steht beides ruhig (das Licht atmet nur über die Deckkraft),
- *   Tippen löst die Welle aus.
- * - Bei „weniger Bewegung“ ist alles still.
- * - Startanimation: erst baut sich das Licht-Logo auf, dann sammeln sich die
- *   Zeichen zum Namen.
+ * - Am Computer läuft das Licht als three.js-Szene mit God Rays (lichtszene.ts,
+ *   wird nachgeladen): Das Logo dreht und neigt sich leicht mit der Maus, die
+ *   Strahlen wandern. Die Zeichen weichen dem Zeiger aus; ein Klick schickt
+ *   eine Welle hindurch.
+ * - Am Handy und bei „weniger Bewegung“ steht das Licht als ruhiges Bild
+ *   (einmal aus derselben Szene aufgenommen, am Handy atmet es leicht).
+ *   Tippen löst die Welle aus; bei „weniger Bewegung“ ist alles still.
+ * - Scroll-Hinweis nur durch Licht: Wer nach etwa 4 Sekunden nicht gescrollt
+ *   hat, sieht von unten ein warmes goldenes Licht hereinstrahlen. Beim
+ *   Scrollen blendet es aus.
  *
- * Gerechnet wird nur, solange der Kopfbereich zu sehen ist. Ohne Skript und
- * bis alles bereit ist, stehen Name und Logo als gewöhnliche Grafik da.
+ * Gerechnet wird nur, solange der Kopfbereich zu sehen ist. Ohne Skript stehen
+ * Name und Logo als gewöhnliche Grafik da.
  */
 export function LichtName() {
   const ebene = useRef<HTMLDivElement>(null);
-  const lichtLeinwand = useRef<HTMLCanvasElement>(null);
   const zeichenLeinwand = useRef<HTMLCanvasElement>(null);
+  // Zählt hoch, wenn der Besucher „weniger Bewegung“ umstellt oder das Zeigegerät wechselt:
+  // Dann wird alles abgebaut und mit der neuen Einstellung frisch eingerichtet.
+  const [einstellung, setEinstellung] = useState(0);
 
   useEffect(() => {
     const el = ebene.current;
+    const leinwand = zeichenLeinwand.current;
     const held = el?.closest<HTMLElement>(".ag-hero");
     const platz = held?.querySelector<HTMLElement>(".ag-ln__platz");
     const wort = platz?.querySelector<SVGElement>(".ag-wortmarke");
     const wortText = wort?.querySelector("text");
-    if (!el || !held || !platz || !wort || !wortText || !lichtLeinwand.current || !zeichenLeinwand.current) return;
+    if (!el || !leinwand || !held || !platz || !wort || !wortText) return;
 
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches || istVorschau();
-    const maus = window.matchMedia("(hover: hover) and (pointer: fine)").matches && !still;
-    const licht = erzeugeLicht(lichtLeinwand.current);
-    const feld = erzeugeZeichenfeld(zeichenLeinwand.current);
+    const wenigBewegung = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const feinerZeiger = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const still = wenigBewegung.matches || istVorschau();
+    const maus = feinerZeiger.matches && !still;
+    const feld = erzeugeZeichenname(leinwand, still);
     if (!feld) return;
+    // Erst jetzt lauschen: Alles, was ab hier eingerichtet wird, räumt die Rückgabe unten wieder ab.
+    const umstellen = () => setEinstellung((n) => n + 1);
+    wenigBewegung.addEventListener("change", umstellen);
+    feinerZeiger.addEventListener("change", umstellen);
 
-    const z = { aufbau: still ? 1 : 0, blitz: 0 };
-    const stern = { x: 0, y: 0, zx: 0, zy: 0 };
-    const zeiger = { x: -9999, y: -9999, aktiv: false };
-    const balken: [number, number, number, number] = [0, 0, 0, 0];
-    const masse = { breite: 1, hoehe: 1, logoX: 0, logoY: 0, logoR: 1, lichtMass: 1 };
-    let zeit = 0;
-    let letzte = 0;
-    let rahmen = 0;
-    let sichtbar = true;
+    let szene: LichtSzene | undefined;
     let vorbei = false;
     let gebaut = false;
     let aufgetreten = still;
-    let introLaeuft = false;
-    let feldAktiv = false;
-    let zuletztMaus = 0;
-    let neuZeichnen = true;
-    // Schonung: Bildzähler und gemessene Bilddauer, um das Licht notfalls gröber zu rechnen.
-    let bildNr = 0;
-    let dauerSumme = 0;
-    let dauerZahl = 0;
+    let eingeblendet = still;
 
-    const bild = (jetzt: number) => {
-      rahmen = 0;
-      if (!gebaut) return;
-      const dt = letzte ? Math.min(0.05, (jetzt - letzte) / 1000) : 0.016;
-      letzte = jetzt;
-      if (!still) zeit += dt;
-
-      // Der Stern folgt der Maus sanft und mit Verzögerung, bleibt aber nahe der Mitte.
-      if (maus && jetzt - zuletztMaus > 4000) {
-        stern.zx = 0;
-        stern.zy = 0;
-      }
-      const vorherX = stern.x;
-      const vorherY = stern.y;
-      const zug = 1 - Math.exp(-dt * 3.2);
-      stern.x += (stern.zx - stern.x) * zug;
-      stern.y += (stern.zy - stern.y) * zug;
-      const wandert = Math.abs(stern.x - vorherX) + Math.abs(stern.y - vorherY) > 0.0004;
-
-      z.blitz *= Math.exp(-dt * 2.4);
-      if (z.blitz < 0.004) z.blitz = 0;
-
-      // Balken: reihum aufbauen; heller, wenn der Stern näherkommt.
-      for (let i = 0; i < 4; i++) {
-        const dx = stern.x - BALKEN[i][0];
-        const dy = stern.y - BALKEN[i][1];
-        const naehe = Math.exp(-(dx * dx + dy * dy) / 0.5);
-        const platzNr = REIHE.indexOf(i);
-        balken[i] = weich(platzNr * 0.17, platzNr * 0.17 + 0.36, z.aufbau) * (0.82 + 0.8 * (naehe - 0.383));
-      }
-      const sternHell = weich(0.6, 1, z.aufbau);
-
-      const lichtWandert = wandert || z.blitz > 0 || z.aufbau < 1 || neuZeichnen;
-      bildNr += 1;
-      // In Ruhe atmet das Licht nur: Dann genügt jedes zweite Bild.
-      if (licht && (lichtWandert || (maus && bildNr % 2 === 0))) {
-        licht.zeichnen({
-          mitteX: masse.logoX * masse.lichtMass,
-          mitteY: (masse.hoehe - masse.logoY) * masse.lichtMass,
-          radius: masse.logoR * masse.lichtMass,
-          sternX: stern.x,
-          sternY: stern.y,
-          balken,
-          sternHell,
-          zeit,
-          blitz: z.blitz,
-          hell: maus ? 1 : 0.8,
-        });
-      }
-      // Kommt der Rechner nicht mit (unter etwa 35 Bildern pro Sekunde), wird das
-      // Licht gröber gerechnet. Es ist weich, man sieht den Unterschied kaum.
-      if (maus && licht && letzte) {
-        dauerSumme += dt;
-        dauerZahl += 1;
-        if (dauerZahl >= 45) {
-          if (dauerSumme / dauerZahl > 0.028 && masse.lichtMass > 0.42) {
-            masse.lichtMass *= 0.75;
-            licht.groesse(Math.round(masse.breite * masse.lichtMass), Math.round(masse.hoehe * masse.lichtMass));
-            neuZeichnen = true;
-          }
-          dauerSumme = 0;
-          dauerZahl = 0;
-        }
-      }
-      feldAktiv = feld.schritt(
-        dt,
-        {
-          sternX: masse.logoX + stern.x * masse.logoR,
-          sternY: masse.logoY - stern.y * masse.logoR,
-          sternHell: sternHell * (1 + z.blitz * 0.6),
-          balken: balken.map((b) => b * (1 + z.blitz * 0.7)),
-        },
-        zeiger,
-        lichtWandert,
-      );
-      neuZeichnen = false;
-      weiter();
+    // Lage des Lichts ohne laufende Szene: Logo steht gerade, Strahlen nach oben, unten, links, rechts.
+    const ruheLage = (): LichtLage => {
+      const e = el.getBoundingClientRect();
+      const p = platz.getBoundingClientRect();
+      return {
+        mitteX: p.left + p.width / 2 - e.left,
+        mitteY: p.top + p.height / 2 - e.top,
+        radius: p.height / 2,
+        winkel: [-Math.PI / 2, Math.PI / 2, Math.PI, 0],
+        hell: 1,
+      };
     };
 
-    // Nur rechnen, wenn es etwas zu sehen und zu tun gibt.
-    const weiter = () => {
-      if (rahmen || vorbei || !gebaut || !sichtbar || document.hidden) return;
-      const zuTun = neuZeichnen || introLaeuft || feldAktiv || z.blitz > 0 || z.aufbau < 1 || (maus && aufgetreten);
-      if (zuTun) rahmen = requestAnimationFrame(bild);
-      else letzte = 0;
-    };
-
-    // Lage und Größe: Das Licht-Logo sitzt mittig auf dem Platz, der Name im Kasten des Schriftzugs.
     const vermessen = async () => {
       const stil = getComputedStyle(wortText);
       const mono = getComputedStyle(held).getPropertyValue("--font-mono-ag").trim() || "monospace";
       // Erst zeichnen, wenn die Schriften wirklich geladen sind.
-      await Promise.all([document.fonts.load(`800 120px ${stil.fontFamily}`, marke.name), document.fonts.load(`12px ${mono}`, "#=+-:·")]).catch(() => {});
+      await Promise.all([document.fonts.load(`800 120px ${stil.fontFamily}`, marke.name), document.fonts.load(`500 12px ${mono}`, "#%=+")]).catch(() => {});
       if (vorbei) return;
       const e = el.getBoundingClientRect();
-      const p = platz.getBoundingClientRect();
       const w = wort.getBoundingClientRect();
-      masse.breite = Math.max(1, e.width);
-      masse.hoehe = Math.max(1, e.height);
-      masse.logoX = p.left + p.width / 2 - e.left;
-      masse.logoY = p.top + p.height / 2 - e.top;
-      masse.logoR = p.height / 2;
-      // Weiches Licht braucht keine volle Auflösung.
-      masse.lichtMass = Math.min(window.devicePixelRatio || 1, 1) * (maus ? 0.8 : 1);
-      licht?.groesse(Math.round(masse.breite * masse.lichtMass), Math.round(masse.hoehe * masse.lichtMass));
-      feld.bauen(
+      const p = platz.getBoundingClientRect();
+      const ruhe = ruheLage();
+      // Das ruhige Bild des Lichts sitzt genau auf der Logo-Mitte.
+      el.style.setProperty("--lx", `${ruhe.mitteX}px`);
+      el.style.setProperty("--ly", `${ruhe.mitteY}px`);
+      el.style.setProperty("--lr", `${ruhe.radius}px`);
+      // Am Computer steht der Name in einer Zeile über fast die ganze Breite. Am
+      // Handy wäre er so zu klein: Dort stehen die beiden Wörter übereinander.
+      const woerter = marke.name.toUpperCase().split(" ");
+      const gestapelt = e.width < 600 && woerter.length > 1;
+      let name = { x: w.left - e.left, y: w.top - e.top, b: w.width, h: w.height };
+      if (gestapelt) {
+        const probe = document.createElement("canvas").getContext("2d");
+        if (probe) {
+          probe.font = `800 100px ${stil.fontFamily}`;
+          const breiteste = Math.max(...woerter.map((wortTeil) => probe.measureText(wortTeil).width || 1));
+          const zeilenHoehe = ((p.width / breiteste) * 100 * 212) / 285;
+          const h = (zeilenHoehe * woerter.length) / (1 - 0.045 * (woerter.length - 1));
+          name = { x: p.left - e.left, y: ruhe.mitteY - h / 2, b: p.width, h };
+        }
+      }
+      const anzahl = feld.bauen(
         {
-          breite: masse.breite,
-          hoehe: masse.hoehe,
-          name: { x: w.left - e.left, y: w.top - e.top, b: w.width, h: w.height },
-          logo: { x: masse.logoX, y: masse.logoY, r: masse.logoR },
+          breite: Math.max(1, e.width),
+          hoehe: Math.max(1, e.height),
+          name,
+          zelle: e.width < 768 ? 5 : 6.5,
           schrift: stil.fontFamily,
           mono,
-          text: marke.name.toUpperCase(),
+          zeilen: gestapelt ? woerter : [woerter.join(" ")],
         },
-        aufgetreten && !introLaeuft,
+        szene?.lage ?? ruhe,
+        eingeblendet,
       );
       gebaut = true;
-      neuZeichnen = true;
-      held.dataset.ln = licht ? "licht" : "zeichen";
-      weiter();
+      // Der gewöhnliche Schriftzug tritt erst zurück, wenn das Zeichenraster wirklich steht.
+      if (anzahl > 0) held.dataset.ln = "bereit";
+      else delete held.dataset.ln;
     };
 
-    // Startanimation: erst das Licht, dann sammeln sich die Zeichen.
-    const verzoegert: gsap.core.Tween[] = [];
+    // Am Computer: die Licht-Szene nachladen.
+    if (maus) {
+      import("./lichtszene")
+        .then(({ starteLichtSzene }) => {
+          if (vorbei) return;
+          szene = starteLichtSzene(el, platz, (lage) => feld.licht(lage));
+          held.dataset.licht = "live";
+          // Läuft der Auftritt schon, ist das Licht sofort da.
+          if (aufgetreten) szene.zeigen(true);
+        })
+        .catch(() => {
+          // Kein WebGL: Dann steht das ruhige Bild des Lichts.
+          if (!vorbei) held.dataset.licht = "bild";
+        });
+    } else {
+      held.dataset.licht = "bild";
+    }
+
+    // Auftritt. (Die eigentliche Startanimation folgt in einem späteren Auftrag.)
+    const spaeter: gsap.core.Tween[] = [];
+    const mitteWelle = () => {
+      const r = ruheLage();
+      feld.welle(r.mitteX, r.mitteY);
+    };
     const auftritt = () => {
       if (aufgetreten || vorbei) return;
       aufgetreten = true;
-      introLaeuft = true;
-      gsap.to(z, { aufbau: 1, duration: 1.35, ease: "power2.inOut", delay: 0.15 });
-      verzoegert.push(
-        gsap.delayedCall(0.85, () => {
-          feld.sammeln();
-          weiter();
-        }),
-        gsap.delayedCall(2.7, () => {
-          introLaeuft = false;
-          held.dataset.lnHinweis = "1";
+      szene?.zeigen(false);
+      spaeter.push(
+        gsap.delayedCall(0.45, () => {
+          eingeblendet = true;
+          // Einmal läuft von selbst eine Welle durch den Namen: der Hinweis, dass man klicken
+          // kann. Sie startet erst, wenn der Name wirklich fertig eingeblendet ist (auch wenn
+          // der Kopfbereich beim Auftritt gerade nicht zu sehen war).
+          feld.einblenden(() => spaeter.push(gsap.delayedCall(0.4, mitteWelle)));
         }),
       );
-      weiter();
+      lockPlanen();
     };
 
+    // Klick oder Tippen irgendwo im Kopfbereich (nicht auf Knöpfe und Links): eine Welle.
+    const klick = (ev: MouseEvent) => {
+      if (!gebaut || (ev.target as Element | null)?.closest("a, button, input, select, textarea, label")) return;
+      const e = el.getBoundingClientRect();
+      feld.welle(ev.clientX - e.left, ev.clientY - e.top);
+      // Am Handy dazu eine kurze Vibration (wo das Gerät es kann).
+      if (!maus) navigator.vibrate?.(12);
+    };
     const zeigerBewegt = (ev: PointerEvent) => {
       if (ev.pointerType !== "mouse") return;
       const e = el.getBoundingClientRect();
-      zeiger.x = ev.clientX - e.left;
-      zeiger.y = ev.clientY - e.top;
-      zeiger.aktiv = zeiger.y > -60 && zeiger.y < masse.hoehe + 60;
-      // Ziel des Sterns: ein Stück in Richtung Maus, sanft begrenzt.
-      const ox = ((zeiger.x - masse.logoX) / masse.logoR) * 0.3;
-      const oy = (-(zeiger.y - masse.logoY) / masse.logoR) * 0.3;
-      const lang = Math.hypot(ox, oy) || 1;
-      const grenze = (0.42 * Math.tanh(lang / 0.42)) / lang;
-      stern.zx = zeiger.aktiv ? ox * grenze : 0;
-      stern.zy = zeiger.aktiv ? oy * grenze : 0;
-      zuletztMaus = performance.now();
-      weiter();
+      const y = ev.clientY - e.top;
+      feld.zeiger(ev.clientX - e.left, y, y > -80 && y < e.height + 80);
     };
-    const zeigerWeg = () => {
-      zeiger.aktiv = false;
-      stern.zx = 0;
-      stern.zy = 0;
-      weiter();
+    const zeigerWeg = () => feld.zeiger(-9999, -9999, false);
+
+    // Scroll-Hinweis nur durch Licht: nach 4 Sekunden ohne Scrollen, weg beim Scrollen.
+    let lockUhr = 0;
+    const lockPlanen = () => {
+      window.clearTimeout(lockUhr);
+      if (window.scrollY > 24) return;
+      lockUhr = window.setTimeout(() => {
+        if (!vorbei && window.scrollY <= 24) held.dataset.lockruf = "1";
+      }, 4000);
     };
-    // Klick oder Tippen irgendwo im Kopfbereich (nicht auf Knöpfe und Links): Welle und kurzes Aufleuchten.
-    const klick = (ev: MouseEvent) => {
-      if (!gebaut || introLaeuft || (ev.target as Element | null)?.closest("a, button, input, select, textarea, label")) return;
-      const e = el.getBoundingClientRect();
-      feld.welle(ev.clientX - e.left, ev.clientY - e.top);
-      z.blitz = 1;
-      feldAktiv = true;
-      held.dataset.lnGeklickt = "1";
-      weiter();
+    const beimScrollen = () => {
+      if (window.scrollY > 24) {
+        window.clearTimeout(lockUhr);
+        delete held.dataset.lockruf;
+      } else if (!held.dataset.lockruf && aufgetreten) {
+        lockPlanen();
+      }
     };
 
     let warten = 0;
     const beobachter = new ResizeObserver(() => {
       window.clearTimeout(warten);
-      warten = window.setTimeout(vermessen, gebaut ? 160 : 0);
+      warten = window.setTimeout(vermessen, gebaut ? 180 : 0);
     });
     beobachter.observe(el);
     beobachter.observe(platz);
-    const waechter = new IntersectionObserver(([eintrag]) => {
-      sichtbar = eintrag.isIntersecting;
-      // Nach einer Pause einmal frisch zeichnen (manche Browser leeren die Leinwand).
-      if (sichtbar) neuZeichnen = true;
-      weiter();
-    });
+    const waechter = new IntersectionObserver(([eintrag]) => feld.sichtbar(eintrag.isIntersecting));
     waechter.observe(el);
-    const wiederDa = () => {
-      neuZeichnen = true;
-      weiter();
-    };
-    document.addEventListener("visibilitychange", wiederDa);
+    window.addEventListener("scroll", beimScrollen, { passive: true });
 
-    if (!still) {
+    if (still) {
+      lockPlanen();
+    } else {
       held.addEventListener("click", klick);
       if (maus) {
         window.addEventListener("pointermove", zeigerBewegt, { passive: true });
@@ -288,52 +221,43 @@ export function LichtName() {
 
     return () => {
       vorbei = true;
-      cancelAnimationFrame(rahmen);
+      wenigBewegung.removeEventListener("change", umstellen);
+      feinerZeiger.removeEventListener("change", umstellen);
       window.clearTimeout(warten);
+      window.clearTimeout(lockUhr);
       beobachter.disconnect();
       waechter.disconnect();
-      document.removeEventListener("visibilitychange", wiederDa);
+      window.removeEventListener("scroll", beimScrollen);
       held.removeEventListener("click", klick);
       window.removeEventListener("pointermove", zeigerBewegt);
       document.documentElement.removeEventListener("pointerleave", zeigerWeg);
       window.removeEventListener(INTRO_FERTIG, auftritt);
-      gsap.killTweensOf(z);
-      verzoegert.forEach((t) => t.kill());
-      licht?.ende();
+      spaeter.forEach((t) => t.kill());
+      szene?.ende();
+      feld.ende();
       delete held.dataset.ln;
-      delete held.dataset.lnHinweis;
-      delete held.dataset.lnGeklickt;
+      delete held.dataset.licht;
+      delete held.dataset.lockruf;
     };
-  }, []);
+  }, [einstellung]);
 
+  // Drei Schichten, von hinten nach vorn: das Licht, der gewöhnliche Schriftzug
+  // (ohne Skript sichtbar, sonst nur Maß und Name für Vorleseprogramme), die Zeichen.
   return (
-    <div ref={ebene} className="ag-ln" data-weg="buehne" aria-hidden="true">
-      <canvas ref={lichtLeinwand} className="ag-ln__licht" />
-      <canvas ref={zeichenLeinwand} className="ag-ln__zeichen" />
-    </div>
-  );
-}
-
-/**
- * Platz von Logo und Name im Text. Die beiden Ebenen richten sich daran aus.
- * Der Schriftzug und das Logo stehen hier als gewöhnliche Grafik: ohne Skript
- * sichtbar, sonst nur als Maß und als Name für Vorleseprogramme.
- */
-export function LichtPlatz() {
-  return (
-    <div className="ag-ln__platz">
-      <Marke className="ag-ln__ersatz" />
-      <Wortmarke />
-    </div>
-  );
-}
-
-/** Kleiner Hinweis: Ein Klick (am Handy ein Tippen) schickt eine Welle durch den Namen. */
-export function KlickHinweis() {
-  return (
-    <p className="ag-mono ag-ln__hinweis" aria-hidden="true">
-      <span className="ag-ln__maus">{hero.klickHinweis}</span>
-      <span className="ag-ln__finger">{hero.tippHinweis}</span>
-    </p>
+    <>
+      <div ref={ebene} className="ag-ln ag-ln--hinten" data-weg="buehne" aria-hidden="true">
+        {/* Ruhiges Bild des Lichts für Handy und „weniger Bewegung“. Am Computer bleibt es ausgeblendet und wird nicht geladen. */}
+        <Image className="ag-ln__standbild" src="/kopf/licht-logo.jpg" alt="" width={1472} height={1472} sizes="(max-width: 767px) 250vw, 1472px" loading="lazy" />
+      </div>
+      <div className="ag-kopf5__mitte" data-weg="oben">
+        {/* Der Kasten ist so hoch wie das Licht-Logo, der Schriftzug steht mittig darin. */}
+        <div className="ag-ln__platz">
+          <Wortmarke />
+        </div>
+      </div>
+      <div className="ag-ln ag-ln--vorn" data-weg="buehne" aria-hidden="true">
+        <canvas ref={zeichenLeinwand} className="ag-ln__zeichen" />
+      </div>
+    </>
   );
 }

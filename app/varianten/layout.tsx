@@ -21,7 +21,7 @@ export default function VariantenLayout({ children }: { children: React.ReactNod
     <div className={`ag-neu ${versal.variable} ${text.variable} ${serife.variable} ${mono.variable}`}>
       {/* Ohne JavaScript gibt es keinen Ladebildschirm: Die Seite ist sofort da. */}
       <noscript>
-        <style>{".ag-lade{display:none}"}</style>
+        <style>{".ag-lade{display:none}.ag-ln__standbild{display:block}"}</style>
       </noscript>
       {children}
     </div>

@@ -166,17 +166,36 @@
   left: 50%;
   translate: -50% -50%;
 }
-/* 1 · Kern im Schriftzug: zwei Ebenen, hinten das Logo aus Licht, vorn der
-   Name aus Zeichen (LichtName.tsx). Der Platz gibt beiden Lage und Größe:
-   so hoch wie das Licht-Logo, der Name mittig darin. */
-.ag-kopf4--kern {
-  --licht: clamp(250px, 41svh, 400px);
+/* 1 · Kern im Schriftzug (gewählt): Kopfbereich ohne Text. In der Mitte das
+   Licht-Logo und davor der Name aus Zeichen (LichtName.tsx), unten das goldene
+   Licht als Scroll-Hinweis. Fast schwarz, oben ein Hauch Dunkelblau. */
+.ag-kopf5 {
+  --licht: clamp(260px, 46svh, 460px);
+  min-height: max(100svh, 620px);
+  padding-top: 0;
+  align-items: center;
+  justify-content: center;
+  /* Gleicher Verlauf wie in der Licht-Szene, damit das ruhige Bild nahtlos sitzt. */
+  background: linear-gradient(180deg, #090f26 0%, #080d1e 38%, #070b16 70%);
+}
+.ag-kopf5__mitte {
+  position: relative;
+  /* Über dem Licht, unter den Zeichen: Ohne Skript bleibt der Schriftzug so sichtbar. */
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding-inline: clamp(12px, 2.2vw, 36px);
 }
 .ag-ln {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 0;
+  overflow: hidden;
   pointer-events: none;
+}
+.ag-ln--vorn {
+  z-index: 2;
 }
 .ag-ln canvas {
   position: absolute;
@@ -184,17 +203,45 @@
   display: block;
   width: 100%;
   height: 100%;
-  opacity: 0;
-  transition: opacity 0.5s var(--weich);
 }
-.ag-hero[data-ln] .ag-ln canvas {
+/* Licht-Szene (Computer): blendet über das ruhige Bild. */
+.ag-ln__licht {
+  opacity: 0;
+  transition: opacity 0.9s var(--weich);
+}
+.ag-hero[data-licht="live"] .ag-ln__licht {
   opacity: 1;
+}
+/* Ruhiges Bild des Lichts: sitzt auf der Logo-Mitte, läuft an den Rändern weich
+   in den Grund aus. Maße kommen aus LichtName.tsx (--lx, --ly, --lr). */
+.ag-ln__standbild {
+  position: absolute;
+  top: var(--ly, 50%);
+  left: var(--lx, 50%);
+  /* Am Computer läuft die Licht-Szene: Dort wird das Bild gar nicht erst geladen. */
+  display: none;
+  /* Ohne Skript gibt es keine gemessene Größe: Dann gilt die halbe Logo-Höhe aus dem Stylesheet. */
+  width: calc(var(--lr, calc(var(--licht) / 2)) * 6.4);
+  max-width: none;
+  height: auto;
+  translate: -50% -50%;
+  -webkit-mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
+  mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
+}
+/* Gezeigt wird es am Handy, bei „weniger Bewegung“ und wenn die Szene nicht starten kann. */
+.ag-hero[data-licht="bild"] .ag-ln__standbild {
+  display: block;
+}
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .ag-ln__standbild {
+    display: block;
+  }
 }
 .ag-ln__platz {
   position: relative;
   display: grid;
   place-items: center;
-  width: min(100%, 1120px, calc(var(--licht) / 0.335));
+  width: min(100%, 1760px);
   height: var(--licht);
 }
 .ag-ln__platz > * {
@@ -202,63 +249,44 @@
   transition: opacity 0.4s var(--weich);
 }
 .ag-ln__platz .ag-wortmarke text {
-  fill: #1d2955;
+  fill: #232a45;
 }
-.ag-ln__ersatz {
-  width: auto;
-  height: 100%;
-  color: var(--gold);
-  opacity: 0.55;
-}
-/* Sobald die Ebenen stehen, treten die gewöhnlichen Grafiken zurück. Der
-   Schriftzug bleibt als Name für Vorleseprogramme erhalten. */
+/* Sobald die Zeichen stehen, tritt der gewöhnliche Schriftzug zurück. Er bleibt
+   als Name für Vorleseprogramme erhalten. */
 .ag-hero[data-ln] .ag-ln__platz .ag-wortmarke {
   opacity: 0;
 }
-.ag-hero[data-ln="licht"] .ag-ln__ersatz {
-  opacity: 0;
-}
-.ag-hero[data-ln="zeichen"] .ag-ln__ersatz {
-  opacity: 0.3;
-}
-.ag-ln__hinweis {
+
+/* Scroll-Hinweis nur durch Licht: Von ganz unten strahlt warmes Gold herein,
+   über die ganze Breite, und pulsiert langsam. Beim Scrollen blendet es aus. */
+.ag-kopf5__lockruf {
   position: absolute;
-  bottom: 30px;
-  left: 50%;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  translate: -50% 0;
+  inset: auto 0 0;
+  z-index: 3;
+  height: min(42%, 380px);
+  background:
+    linear-gradient(to top, rgba(243, 210, 122, 0.5) 0%, rgba(212, 162, 60, 0.22) 9%, rgba(212, 162, 60, 0.07) 34%, transparent 100%),
+    linear-gradient(to top, rgba(109, 51, 25, 0.5), transparent 46%);
   opacity: 0;
-  transition: opacity 0.8s var(--weich);
+  pointer-events: none;
+  transition: opacity 1.4s var(--weich);
 }
-.ag-ln__hinweis::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border: 1px solid var(--gold-hell);
-  border-radius: 50%;
-}
-.ag-ln__finger {
-  display: none;
-}
-.ag-hero[data-ln-hinweis] .ag-ln__hinweis {
+.ag-hero[data-lockruf] .ag-kopf5__lockruf {
   opacity: 1;
+  animation: ag-lockruf 2.6s cubic-bezier(0.45, 0, 0.55, 1) 1.4s infinite alternate;
 }
-.ag-hero[data-ln-geklickt] .ag-ln__hinweis {
-  opacity: 0;
+@keyframes ag-lockruf {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
 }
 @media (hover: none), (pointer: coarse) {
-  .ag-ln__maus {
-    display: none;
-  }
-  .ag-ln__finger {
-    display: inline;
-  }
-  /* Am Handy rechnet das Licht nicht dauernd: Es atmet nur über die Deckkraft. */
-  .ag-hero[data-ln] .ag-ln__licht {
-    animation: ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  /* Am Handy rechnet das Licht nicht: Das Bild atmet nur über die Deckkraft. */
+  .ag-ln__standbild {
+    animation: ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite alternate;
   }
 }
 @keyframes ag-ln-atmen {
@@ -266,8 +294,19 @@
     opacity: 1;
   }
   to {
-    opacity: 0.8;
+    opacity: 0.76;
   }
+}
+
+/* Vorläufig direkt unter dem Kopfbereich: Überschrift, Unterzeile, Telefon-Block. */
+.ag-nachkopf {
+  padding-block: clamp(72px, 12vh, 140px) clamp(48px, 8vh, 96px);
+  text-align: center;
+}
+.ag-nachkopf__innen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* 2 · Lichtbänder: Name als feine Linie, das Zeichen groß davor */
@@ -355,15 +394,8 @@
     min-height: 56px;
     padding: 8px 8px 8px 26px;
   }
-  .ag-kopf4--kern {
-    --licht: 214px;
-  }
-  .ag-ln__platz {
-    width: 100%;
-  }
-  .ag-ln__hinweis {
-    position: static;
-    translate: none;
+  .ag-kopf5 {
+    --licht: 290px;
   }
   .ag-kopf4--baender .ag-kb__anker {
     --zeichen: 120px;

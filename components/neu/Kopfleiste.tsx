@@ -10,9 +10,12 @@ import { Marke } from "./Marke";
 gsap.registerPlugin(useGSAP);
 
 /**
- * Schwebende Kopfleiste: Marke links, Navigation als Kachel in der Mitte,
- * Anrufen-Knopf rechts. Am Handy schwebt alles als eine Kachel, das Menü
- * öffnet sich über den ganzen Bildschirm.
+ * Schwebende Kopfleiste: Marke links (leicht golden leuchtend), Navigation in
+ * der Mitte als Leiste aus dunklem Glas mit feinem Goldrand, „Anrufen“ rechts
+ * (sanft golden glühend). Unter dem Menüpunkt, über dem die Maus ist, gleitet
+ * ein kleiner Lichtpunkt mit; sonst bleibt er unter dem Abschnitt, der gerade
+ * zu sehen ist. Am Handy schwebt alles als eine Kachel, das Menü öffnet sich
+ * über den ganzen Bildschirm.
  *
  * Das offene Menü ist ein echter Dialog: Es liegt über der ganzen Seite und
  * bringt seine eigene Kopfzeile mit Schließen-Knopf mit. Alles andere ist
@@ -26,6 +29,7 @@ export function Kopfleiste() {
   const kopf = useRef<HTMLElement>(null);
   const knopf = useRef<HTMLButtonElement>(null);
   const menue = useRef<HTMLDivElement>(null);
+  const leiste = useRef<HTMLElement>(null);
   // Nach einem Klick auf einen Menüpunkt geht es zum Ziel auf der Seite, nicht zurück zum Knopf.
   const fokusZurueck = useRef(true);
 
@@ -42,6 +46,69 @@ export function Kopfleiste() {
       onToggle: (s) => kopf.current?.setAttribute("data-los", String(s.isActive)),
     });
   });
+
+  // Lichtpunkt der Navigation: folgt der Maus, sonst zeigt er den aktiven Abschnitt.
+  useEffect(() => {
+    const nav = leiste.current;
+    if (!nav) return;
+    const links = Array.from(nav.querySelectorAll<HTMLAnchorElement>("a"));
+    let aktiv: HTMLAnchorElement | null = null;
+    let schwebt: HTMLAnchorElement | null = null;
+    const setzen = () => {
+      const zielLink = schwebt ?? aktiv;
+      // Nur messen, wenn die Leiste zu sehen ist (unter 1100 px ist sie ausgeblendet).
+      if (zielLink && zielLink.offsetWidth > 0) nav.style.setProperty("--punkt", `${zielLink.offsetLeft + zielLink.offsetWidth / 2}px`);
+      nav.dataset.punkt = zielLink ? "an" : "aus";
+    };
+    const rein = (ev: Event) => {
+      schwebt = ev.currentTarget as HTMLAnchorElement;
+      setzen();
+    };
+    const raus = () => {
+      schwebt = null;
+      setzen();
+    };
+    links.forEach((l) => {
+      l.addEventListener("pointerenter", rein);
+      l.addEventListener("focus", rein);
+      l.addEventListener("blur", raus);
+    });
+    nav.addEventListener("pointerleave", raus);
+    // Aktiv ist der Abschnitt, der gerade die Lesehöhe (55 % des Bildschirms) kreuzt.
+    const spuren = links.map((link) => {
+      const abschnitt = document.querySelector<HTMLElement>(link.getAttribute("href") ?? "#-");
+      if (!abschnitt) return null;
+      return ScrollTrigger.create({
+        trigger: abschnitt,
+        start: "top 55%",
+        end: "bottom 55%",
+        // Nach Größenänderungen neu messen: Der Punkt bleibt unter seinem Menüpunkt.
+        onRefresh: setzen,
+        onToggle: (st) => {
+          if (st.isActive) aktiv = link;
+          else if (aktiv === link) aktiv = null;
+          links.forEach((l) => {
+            if (l === aktiv) l.setAttribute("aria-current", "true");
+            else l.removeAttribute("aria-current");
+          });
+          setzen();
+        },
+      });
+    });
+    // Auch wenn die Leiste erst später sichtbar wird oder ihre Breite ändert.
+    const groesse = new ResizeObserver(setzen);
+    groesse.observe(nav);
+    return () => {
+      groesse.disconnect();
+      links.forEach((l) => {
+        l.removeEventListener("pointerenter", rein);
+        l.removeEventListener("focus", rein);
+        l.removeEventListener("blur", raus);
+      });
+      nav.removeEventListener("pointerleave", raus);
+      spuren.forEach((st) => st?.kill());
+    };
+  }, []);
 
   useEffect(() => {
     if (!offen) return;
@@ -103,12 +170,13 @@ export function Kopfleiste() {
           <Marke />
           {marke.name}
         </a>
-        <nav className="ag-kopf__kachel" aria-label="Hauptnavigation">
+        <nav ref={leiste} className="ag-kopf__kachel" aria-label="Hauptnavigation" data-punkt="aus">
           {navigation.map((n) => (
             <a key={n.href} href={n.href}>
               {n.label}
             </a>
           ))}
+          <span className="ag-kopf__punkt" aria-hidden="true" />
         </nav>
         <div className="ag-kopf__rechts">
           <Knopf art="rand" href={`tel:${marke.telefon}`}>
