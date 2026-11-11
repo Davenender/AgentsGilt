@@ -85,7 +85,7 @@ export function Header() {
         {/* Mobile-Button */}
         <button
           onClick={() => setOpen((o) => !o)}
-          className="md:hidden"
+          className="-mr-2.5 p-2.5 md:hidden"
           aria-label={open ? "Menü schließen" : "Menü öffnen"}
           aria-expanded={open}
         >

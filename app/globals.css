@@ -37,12 +37,35 @@ body {
   color: #0c0e14;
 }
 
-/* Gold-Verlaufstext für Akzente */
+/* Gold-Akzenttext: eine feste Farbe statt Verlauf (Verlaufsschrift wirkt
+   dekorativ und wird von der Design-Prüfung bemängelt) */
 .text-gold-gradient {
-  background: linear-gradient(120deg, var(--color-gold-light), var(--color-gold));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--color-gold-light);
+}
+
+/* Scroll-Hinweis im Hero: gleitet weich nach unten und blendet aus –
+   statt des hüpfenden animate-bounce */
+@keyframes scroll-cue {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  70% {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+}
+.scroll-cue {
+  animation: scroll-cue 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-cue {
+    animation: none;
+  }
 }
 
 /* Sanftes Glühen hinter dem Diamanten */

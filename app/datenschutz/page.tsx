@@ -12,7 +12,7 @@ export default function DatenschutzPage() {
       <Link href="/" className="text-sm font-medium text-gold-dark hover:underline">
         ← Zurück zur Startseite
       </Link>
-      <h1 className="mt-6 font-display text-4xl font-extrabold text-ink">
+      <h1 className="mt-6 hyphens-auto break-words font-display text-3xl font-extrabold text-ink sm:text-4xl">
         Datenschutzerklärung
       </h1>
 
