@@ -1,11 +1,13 @@
 // Die vier Kopfbild-Varianten (Schritt 4) für den gewählten Aufbau
 // „Riesen-Schriftzug“. Reihenfolge = Reihenfolge auf der Übersicht
-// /varianten/kopf.
+// /varianten/kopf. Gewählt ist „kern“; seit dem Zwischenauftrag vor Schritt 5
+// zeigt es das Logo aus Licht und den Namen aus Zeichen. Die drei anderen
+// zeigen noch den verworfenen Stand mit 3D-Zeichen (three.js).
 export const KOPFBILDER = [
   {
     slug: "kern",
     name: "Kern im Schriftzug",
-    satz: "Der Name steht riesig quer über die Mitte, das glänzende Zeichen sitzt genau darin. Drei Lichtspuren und feiner Staub folgen der Maus.",
+    satz: "Gewählt, inzwischen ohne 3D-Zeichen: hinten unser Logo aus Licht, vorn der Name aus tausenden Schriftzeichen. Ein Klick schickt eine Welle hindurch.",
   },
   {
     slug: "baender",

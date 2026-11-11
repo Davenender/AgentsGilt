@@ -23,8 +23,9 @@ export default function KopfUebersicht() {
           Vier Kopfbilder, <em className="ag-gold">ein Aufbau.</em>
         </h1>
         <p className="ag-text">
-          Alle vier gehören zum gewählten Aufbau „Riesen-Schriftzug“ und zeigen unser Logo als glänzendes 3D-Zeichen. Unterschiedlich ist
-          nur der Kopfbereich. Hier sehen Sie Aufnahmen; Maus, Lichtspuren und Ladebildschirm erleben Sie auf der echten Seite.
+          Alle vier gehören zum gewählten Aufbau „Riesen-Schriftzug“. Gewählt ist „Kern im Schriftzug“, inzwischen in neuer Form: das Logo
+          aus Licht, der Name aus Schriftzeichen. Die drei anderen zeigen noch den verworfenen Stand mit 3D-Zeichen. Hier sehen Sie
+          Aufnahmen; Maus, Klick und Ladebildschirm erleben Sie auf der echten Seite.
         </p>
       </header>
       <ul className="ag-uebersicht__reihe ag-uebersicht__reihe--vier">

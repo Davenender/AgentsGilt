@@ -10,6 +10,7 @@ import { Wortmarke } from "../Rahmen";
 import { Zeilen } from "../Zeilen";
 import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, istVorschau } from "../umgebung";
 import { KopfAnker, KopfBuehne } from "./KopfBuehne";
+import { KlickHinweis, LichtName, LichtPlatz } from "./LichtName";
 
 gsap.registerPlugin(useGSAP, SplitText);
 
@@ -87,21 +88,23 @@ function WortFlug() {
   );
 }
 
-/** 1 · Kern im Schriftzug: Der Name quer über die Mitte, das Zeichen genau darin. */
+/**
+ * 1 · Kern im Schriftzug (gewählt). Seit dem Zwischenauftrag vor Schritt 5 ohne
+ * 3D-Zeichen: zwei Ebenen, durchscheinend übereinander. Hinten das Logo aus
+ * Licht, vorn der Name aus Zeichen-Teilchen (LichtName.tsx).
+ */
 export function KopfKern() {
   return (
     <section id="top" className="ag-hero ag-kopf4 ag-kopf4--kern">
-      <KopfBuehne art="kern" />
+      <LichtName />
       <div className="ag-wrap ag-kopf4__teil" data-weg="oben">
-        <div className="ag-kopf4__schrift">
-          <Wortmarke />
-          <KopfAnker />
-        </div>
+        <LichtPlatz />
       </div>
       <div className="ag-wrap ag-kopf4__teil" data-weg="unten">
         <Titel />
         <Aktionen />
       </div>
+      <KlickHinweis />
     </section>
   );
 }

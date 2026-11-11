@@ -246,6 +246,8 @@ Die gesiezten Texte der neuen Welt stehen in `lib/inhalt-neu.ts` (Kopfbereich, �
 
 Noch in der alten Form (du, mit Emojis), weil erst in einem späteren Schritt umgestellt: Texte im Chat-Fenster (`components/ChatWidget.tsx`).
 
+**Zwischenauftrag vor Schritt 5:** Neu im Kopfbereich ist der kleine Hinweis „Klicken Sie irgendwo“ (am Handy „Tippen Sie irgendwo“), in `lib/inhalt-neu.ts` unter `hero.klickHinweis` und `hero.tippHinweis`.
+
 **Schritt 4 (Kopfbilder):** Die Kopfbereiche nutzen dieselben Texte aus `lib/inhalt-neu.ts` (Überschrift „Es klingelt. Ihr Assistent nimmt ab.“, Unterzeile, Anruf-Leiste, „Leistungen ansehen“). Neu sind nur die Namen und je ein Satz der vier Varianten auf der Übersicht (`components/neu/kopf/kopfbilder.ts`) und deren Überschrift „Vier Kopfbilder, ein Aufbau.“
 
 ## Platzhalter / fehlt noch (nie als echt ausgeben)

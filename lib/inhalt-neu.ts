@@ -34,6 +34,9 @@ export const hero = {
   anrufen: "Jetzt anrufen",
   zweitknopf: "Leistungen ansehen",
   anrufHinweis: "Am Telefon nimmt unser KI-Assistent ab und macht direkt einen Termin aus.",
+  // Kleiner Hinweis im Kopfbereich: Ein Klick schickt eine Welle durch den Namen.
+  klickHinweis: "Klicken Sie irgendwo",
+  tippHinweis: "Tippen Sie irgendwo",
 };
 
 // „Was wir machen“: Die Überschrift tippt sich selbst (Tagen → Stunden*).
