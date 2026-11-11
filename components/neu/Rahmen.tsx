@@ -108,9 +108,9 @@ function Fusszeile() {
 }
 
 /** Der Name in Riesengröße, immer genau so breit wie der Inhalt der Seite. */
-export function Wortmarke() {
+export function Wortmarke({ className }: { className?: string }) {
   return (
-    <svg className="ag-wortmarke" viewBox="0 0 1000 212" role="img" aria-label={marke.name}>
+    <svg className={`ag-wortmarke ${className ?? ""}`} viewBox="0 0 1000 212" role="img" aria-label={marke.name}>
       <text x="0" y="205" textLength="1000" lengthAdjust="spacingAndGlyphs">
         AGENTS GILT
       </text>

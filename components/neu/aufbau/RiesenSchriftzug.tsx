@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { hero, leistungen, leistungenKopf, warum } from "@/lib/inhalt-neu";
@@ -27,8 +27,18 @@ function SchriftHelfer() {
     mm.add("(min-width: 900px) and (prefers-reduced-motion: no-preference)", () => {
       if (istVorschau()) return;
       const weg = { trigger: "#top", start: "top top", end: "bottom top", scrub: true };
-      gsap.to(".ag-schrift__oben", { yPercent: -18, opacity: 0.15, ease: "none", scrollTrigger: weg });
-      gsap.to(".ag-schrift__unten", { yPercent: -8, opacity: 0, ease: "none", scrollTrigger: { ...weg, end: "62% top" } });
+      if (document.querySelector("#top.ag-kopf4")) {
+        // Kopfbild-Varianten (Schritt 4): Bild und Zeichen ziehen nach oben weg,
+        // der Text taucht etwas früher ab, der Name am Boden steigt mit.
+        const teile = (name: string) => gsap.utils.toArray<HTMLElement>(`#top [data-weg='${name}']`);
+        gsap.to([...teile("oben"), ...teile("buehne")], { y: -110, opacity: 0.12, ease: "none", scrollTrigger: weg });
+        gsap.to(teile("unten"), { y: -50, opacity: 0, ease: "none", scrollTrigger: { ...weg, end: "62% top" } });
+        if (teile("tief").length) gsap.to(teile("tief"), { yPercent: -45, ease: "none", scrollTrigger: weg });
+        if (teile("flug").length) gsap.to(teile("flug"), { opacity: 0.2, ease: "none", scrollTrigger: { ...weg, start: "45% top" } });
+      } else {
+        gsap.to(".ag-schrift__oben", { yPercent: -18, opacity: 0.15, ease: "none", scrollTrigger: weg });
+        gsap.to(".ag-schrift__unten", { yPercent: -8, opacity: 0, ease: "none", scrollTrigger: { ...weg, end: "62% top" } });
+      }
       gsap.from(".ag-tafel", {
         scale: 0.9,
         ease: "none",
@@ -141,33 +151,44 @@ function WarumWorte() {
   );
 }
 
-export function RiesenSchriftzug() {
+/** Der Kopfbereich aus Schritt 3: Schriftzug oben, Überschrift und Anruf-Leiste darunter. */
+function StandardKopf() {
+  return (
+    <section id="top" className="ag-hero ag-hero--schrift">
+      <div className="ag-wrap ag-schrift__oben">
+        <Wortmarke />
+        <Buehne radius={0.2} flach={0.4} punkte={380} baender={false}>
+          <Zeichen />
+        </Buehne>
+      </div>
+      <div className="ag-wrap ag-schrift__unten">
+        <Zeilen als="h1" start="intro" className="ag-versal ag-schrift__h1">
+          <span className="ag-matt">{hero.leise}</span>
+          <br />
+          {hero.laut} <em className="ag-gold">{hero.gold}</em>
+        </Zeilen>
+        <div className="ag-schrift__rechts">
+          <p className="ag-hero__sub">{hero.unterzeile}</p>
+          <AnrufLeiste />
+          <Knopf art="linie" href="#leistungen">
+            {hero.zweitknopf}
+          </Knopf>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Seite im Aufbau „Riesen-Schriftzug“. Ohne Angabe mit dem Kopfbereich aus
+ * Schritt 3; die Kopfbild-Varianten aus Schritt 4 setzen ihren eigenen ein.
+ */
+export function RiesenSchriftzug({ kopf }: { kopf?: ReactNode } = {}) {
   return (
     <Rahmen>
       <SchriftHelfer />
 
-      <section id="top" className="ag-hero ag-hero--schrift">
-        <div className="ag-wrap ag-schrift__oben">
-          <Wortmarke />
-          <Buehne radius={0.2} flach={0.4} punkte={380} baender={false}>
-            <Zeichen />
-          </Buehne>
-        </div>
-        <div className="ag-wrap ag-schrift__unten">
-          <Zeilen als="h1" start="intro" className="ag-versal ag-schrift__h1">
-            <span className="ag-matt">{hero.leise}</span>
-            <br />
-            {hero.laut} <em className="ag-gold">{hero.gold}</em>
-          </Zeilen>
-          <div className="ag-schrift__rechts">
-            <p className="ag-hero__sub">{hero.unterzeile}</p>
-            <AnrufLeiste />
-            <Knopf art="linie" href="#leistungen">
-              {hero.zweitknopf}
-            </Knopf>
-          </div>
-        </div>
-      </section>
+      {kopf ?? <StandardKopf />}
 
       <section className="ag-tafel" aria-label="Was wir machen">
         <WasWirMachen />

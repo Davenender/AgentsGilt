@@ -148,6 +148,15 @@ Die alte Startseite (`app/page.tsx`) läuft unverändert weiter. Die drei Varian
 | Zertifikate | `components/neu/Bereiche.tsx` | je Kurs Wechsel zwischen David Hesse und Mijo Schulz per Knopf, „Zertifikat ansehen“ öffnet das PDF | Knöpfe wechseln Bild und Link |
 | Kopf- und Fußleiste | `components/neu/Kopfleiste.tsx`, `Rahmen.tsx` | Anker `#top #leistungen #ablauf #warum #ausbildung #kontakt`, `tel:`-Links, Mail, WhatsApp, Impressum, Datenschutz; am Handy Menü über den ganzen Bildschirm als Dialog (eigener Schließen-Knopf, Esc schließt, Tab bleibt im Menü, alles andere ruht; der Chat-Knopf ist nur solange ausgeblendet, wie das Menü offen ist) und Anrufen-Knopf am Daumen | Links und Menü prüfen: öffnen, Tab-Runde, schließen; danach ist der Chat-Knopf wieder da |
 
+**Kopfbild-Varianten (Schritt 4)** im gewählten Aufbau Riesen-Schriftzug:
+
+| Teil | Datei | Was es tut | Prüfen ohne echte Daten |
+|---|---|---|---|
+| Übersicht | `app/varianten/kopf/page.tsx`, `public/varianten/kopf/*.jpg` | vier Kopfbilder als **feste Aufnahmen** (Computer und Handy), keine eingebetteten Seiten. Aufnahmen vom 11.11.2026; nach Änderungen neu aufnehmen (unsichtbarer Chrome, `/api/**` gesperrt, nach dem Ladebildschirm, mit kurzer Mausbewegung) | `/varianten/kopf` aufrufen, Knöpfe führen auf die Seiten |
+| Seiten | `app/varianten/kopf/[kopf]/page.tsx` | `/varianten/kopf/kern`, `/baender`, `/wolke`, `/tiefe`: ganze Seite im Aufbau Riesen-Schriftzug, nur der Kopfbereich je Variante (`components/neu/kopf/Koepfe.tsx`); andere Adressen → 404. Der Kopfbereich hat weiter `id="top"` (Chat-Sprechblase erkennt daran die Startseite) | aufrufen, durchscrollen |
+| 3D-Szene | `components/neu/kopf/szene.ts`, `KopfBuehne.tsx` | three.js (WebGPU, sonst WebGL 2). Wird nur ab 768 px Breite und ohne „weniger Bewegung“ nachgeladen; rechnet nur, solange der Kopfbereich zu sehen ist. Startet sie nicht, bleibt das Ersatzbild | Computer: Zeichen glänzt, Spuren folgen der Maus |
+| Ersatzbild | `components/neu/kopf/einfach.ts` | 2D-Zeichnung für Handy und „weniger Bewegung“; Tippen auf freie Fläche im Kopfbereich sprüht Funken (Tippen auf Links und Knöpfe nicht) | Handy: tippen; „weniger Bewegung“: steht still |
+
 Unverändert und auf den Varianten vorhanden, weil sie im Haupt-Layout hängen: Chat-Assistent (`components/ChatWidget.tsx`), Vercel-Statistik, JSON-LD, Metadaten.
 
 **Prüfen in echtem Tempo:** Ist der Browser-Bereich der App ausgeblendet, laufen Animationen dort nur im Sekundentakt. Dann mit einem unsichtbaren Chrome prüfen (Playwright, `page.route('**/api/**', r => r.abort())` vor dem Laden), nicht im Browser-Bereich.

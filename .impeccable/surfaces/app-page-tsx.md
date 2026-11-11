@@ -13,6 +13,7 @@ related_targets: []
 - **Belege:** nur echte Inhalte aus docs/texte.md; keine Kundenstimmen (auch kein Platzhalter), keine erfundenen Zahlen, keine Preise.
 - **Gewählt am 11.11.2026 von David:** „Chromzeichen in der Punktwolke“ aus fünf Richtungen. Gewählte Skizze: docs/skizzen/chromzeichen-in-der-punktwolke.html (Komposition, die der Bau treffen muss).
 - **Entschieden am 11.11.2026:** Betonungswörter bleiben aufrecht (nicht kursiv). Fußleiste mit stehendem Riesen-Schriftzug, kein Laufband.
+- **Entschieden am 11.11.2026 (Schritt 3 → 4):** Aufbau „Riesen-Schriftzug“. Kopfbereich: ein Bild, alles mittig; das Logo als glänzendes 3D-Zeichen (three.js/WebGPU, nur am Computer), am Handy und bei „weniger Bewegung“ ein ruhiges 2D-Ersatzbild, das auf Tippen reagiert. Vier Kopfbild-Varianten unter `/varianten/kopf`.
 
 ## Direction contract
 

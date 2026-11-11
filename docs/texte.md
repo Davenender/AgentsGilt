@@ -246,6 +246,8 @@ Die gesiezten Texte der neuen Welt stehen in `lib/inhalt-neu.ts` (Kopfbereich, �
 
 Noch in der alten Form (du, mit Emojis), weil erst in einem späteren Schritt umgestellt: Texte im Chat-Fenster (`components/ChatWidget.tsx`).
 
+**Schritt 4 (Kopfbilder):** Die Kopfbereiche nutzen dieselben Texte aus `lib/inhalt-neu.ts` (Überschrift „Es klingelt. Ihr Assistent nimmt ab.“, Unterzeile, Anruf-Leiste, „Leistungen ansehen“). Neu sind nur die Namen und je ein Satz der vier Varianten auf der Übersicht (`components/neu/kopf/kopfbilder.ts`) und deren Überschrift „Vier Kopfbilder, ein Aufbau.“
+
 ## Platzhalter / fehlt noch (nie als echt ausgeben)
 - Kundenstimmen: **keine vorhanden** → Bereich **ganz weglassen, kein Platzhalter** (entschieden 11.11.2026).
 - Kennzahlen (Anzahl Kunden, gesparte Stunden, …): **keine belegt** → keine Zahlen erfinden.
