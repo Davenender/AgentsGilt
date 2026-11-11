@@ -1,0 +1,1929 @@
+/* ==========================================================================
+   Neue Welt „Chromzeichen in der Punktwolke“
+   Gilt nur innerhalb von .ag-neu (Seiten unter /varianten). Die bestehende
+   Startseite, Impressum, Datenschutz und Terminseiten bleiben unberührt.
+   Regeln aus der Code-Fehlersuche: keine Leuchtschein-Schatten, keine runden
+   Lichthöfe, keine kursive Serife, kein Etikett über Überschriften.
+   ========================================================================== */
+
+body:has(.ag-neu) {
+  background: #070b16;
+}
+html:has(.ag-neu) {
+  scrollbar-color: #2a3558 #070b16;
+}
+/* Lenis (weiches Scrollen) */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+
+.ag-neu {
+  --nacht: #070b16;
+  --nacht-mitte: #0a1126;
+  --nacht-blau: #0f1a3a;
+  --flaeche: #0d1530;
+  --flaeche-hell: #131d3f;
+  --linie: rgba(255, 255, 255, 0.1);
+  --gold: #d4a23c;
+  --gold-hell: #f3d27a;
+  --elfenbein: #f1eee6;
+  --blaugrau: #737a95;
+  --nebel: #a9adbd;
+  --leise: #9aa0b5;
+  --ruhig: #8189a8;
+  --nebel-blau: #bcc3e2;
+  --glut: #6d3319;
+  --weich: cubic-bezier(0.32, 0.72, 0, 1);
+  --rand: clamp(20px, 4.4vw, 64px);
+
+  position: relative;
+  min-height: 100svh;
+  overflow-x: clip;
+  background: var(--nacht);
+  color: var(--elfenbein);
+  font-family: var(--font-text), ui-sans-serif, system-ui, sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  caret-color: var(--gold-hell);
+}
+.ag-neu ::selection {
+  background: var(--gold);
+  color: var(--nacht);
+}
+.ag-neu :focus-visible {
+  outline: 2px solid var(--gold-hell);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+/* :where hält das Gewicht bei null, damit Knöpfe ihre eigene Schriftfarbe behalten. */
+:where(.ag-neu) a {
+  color: inherit;
+}
+/* Keine einzelnen Wörter in der letzten Zeile. */
+:where(.ag-neu) p,
+:where(.ag-neu) li,
+:where(.ag-neu) dd {
+  text-wrap: pretty;
+}
+:where(.ag-neu) h3 {
+  text-wrap: balance;
+}
+
+/* „Weniger Bewegung“: Zustände wechseln sofort, nichts gleitet oder dreht sich. */
+@media (prefers-reduced-motion: reduce) {
+  .ag-neu *,
+  .ag-neu *::before,
+  .ag-neu *::after {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
+  .ag-zeiger {
+    display: none;
+  }
+}
+
+/* ───────────── Schrift ───────────── */
+.ag-versal {
+  font-family: var(--font-versal), "Arial Narrow", sans-serif;
+  font-weight: 800;
+  line-height: 0.94;
+  letter-spacing: 0.005em;
+  word-spacing: 0.06em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.ag-gold {
+  font-family: var(--font-serife), Georgia, serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.82em;
+  letter-spacing: 0;
+  word-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  color: var(--gold-hell);
+}
+.ag-matt {
+  color: var(--blaugrau);
+}
+.ag-titel {
+  font-size: clamp(2.75rem, 6.2vw, 5.75rem);
+}
+.ag-mono {
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--leise);
+}
+.ag-text {
+  max-width: 60ch;
+  color: var(--nebel);
+}
+.ag-zeile-mask {
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+
+/* ───────────── Raster und Abstände ───────────── */
+.ag-wrap {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: var(--rand);
+}
+.ag-abschnitt {
+  padding-block: clamp(88px, 14vh, 168px);
+}
+.ag-kopfzeile {
+  display: grid;
+  gap: 26px;
+  margin-bottom: clamp(48px, 8vh, 96px);
+}
+.ag-kopfzeile--mitte {
+  justify-items: center;
+  text-align: center;
+}
+
+/* ───────────── Knöpfe ───────────── */
+.ag-knopf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 56px;
+  padding: 8px 8px 8px 26px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 0.5s var(--weich),
+    background-color 0.35s var(--weich),
+    border-color 0.35s var(--weich);
+}
+.ag-knopf:active {
+  transform: scale(0.98);
+}
+.ag-knopf--gold {
+  background: var(--gold);
+  color: var(--nacht);
+}
+.ag-knopf--gold:hover {
+  background: var(--gold-hell);
+}
+.ag-knopf--linie {
+  border-color: rgba(241, 238, 230, 0.24);
+  color: var(--elfenbein);
+}
+.ag-knopf--linie:hover {
+  border-color: rgba(241, 238, 230, 0.55);
+}
+.ag-knopf--rand {
+  min-height: 48px;
+  padding: 5px 5px 5px 20px;
+  border-color: rgba(243, 210, 122, 0.5);
+  background: var(--flaeche);
+  color: var(--gold-hell);
+  font-size: 15px;
+}
+.ag-kreis {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: transform 0.5s var(--weich);
+}
+.ag-kreis svg {
+  width: 17px;
+  height: 17px;
+}
+.ag-knopf--gold .ag-kreis {
+  background: var(--nacht);
+  color: var(--gold-hell);
+}
+.ag-knopf--linie .ag-kreis {
+  border: 1px solid rgba(241, 238, 230, 0.35);
+}
+.ag-knopf--rand .ag-kreis {
+  width: 36px;
+  height: 36px;
+  background: var(--gold);
+  color: var(--nacht);
+}
+.ag-knopf:hover .ag-kreis {
+  transform: translateX(3px);
+}
+.ag-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  background: linear-gradient(rgba(243, 210, 122, 0.6), rgba(243, 210, 122, 0.6)) 0 calc(100% - 9px) / 100% 1px no-repeat;
+  color: var(--gold-hell);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.3s var(--weich);
+}
+.ag-link:hover {
+  color: var(--elfenbein);
+}
+
+/* ───────────── Anruf-Leiste ───────────── */
+.ag-anruf {
+  display: inline-flex;
+  align-items: center;
+  gap: 22px;
+  padding: 8px 8px 8px 28px;
+  border: 1px solid var(--linie);
+  border-radius: 999px;
+  background: var(--flaeche);
+}
+.ag-anruf__status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  white-space: nowrap;
+}
+.ag-anruf__status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold-hell);
+}
+.ag-anruf__nummer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  font-size: 23px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* ───────────── Kopfleiste ───────────── */
+.ag-kopf {
+  position: fixed;
+  inset: 20px var(--rand) auto;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+.ag-kopf > * {
+  pointer-events: auto;
+}
+.ag-kopf__marke {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 48px;
+  padding: 0 18px 0 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: var(--font-versal), sans-serif;
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition:
+    background-color 0.4s var(--weich),
+    border-color 0.4s var(--weich);
+}
+.ag-kopf__marke svg {
+  width: 28px;
+  height: 28px;
+  color: var(--gold);
+}
+.ag-kopf[data-los="true"] .ag-kopf__marke {
+  border-color: var(--linie);
+  background: var(--flaeche);
+}
+.ag-kopf__kachel {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--linie);
+  border-radius: 999px;
+  background: var(--flaeche);
+  font-size: 15px;
+  transform: translateX(-50%);
+}
+.ag-kopf__kachel a {
+  padding: 9px 16px;
+  border-radius: 999px;
+  color: #b6bacb;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color 0.3s var(--weich),
+    background-color 0.3s var(--weich);
+}
+.ag-kopf__kachel a:hover {
+  background: var(--flaeche-hell);
+  color: var(--elfenbein);
+}
+.ag-kopf__rechts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ag-kopf__menue {
+  display: none;
+  place-items: center;
+  align-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--linie);
+  border-radius: 50%;
+  background: var(--flaeche);
+  color: var(--elfenbein);
+  cursor: pointer;
+}
+.ag-kopf__menue span {
+  display: block;
+  width: 18px;
+  height: 1.5px;
+  background: currentColor;
+  transition: transform 0.5s var(--weich);
+}
+.ag-kopf__menue span + span {
+  margin-top: 6px;
+}
+.ag-kopf__menue[aria-expanded="true"] span:first-child {
+  transform: translateY(3.75px) rotate(45deg);
+}
+.ag-kopf__menue[aria-expanded="true"] span:last-child {
+  transform: translateY(-3.75px) rotate(-45deg);
+}
+.ag-menue {
+  position: fixed;
+  inset: 0;
+  /* Über der Kopfleiste (40): Das offene Menü ist ein eigener Dialog mit eigener Kopfzeile. */
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 96px var(--rand) 40px;
+  background: var(--nacht);
+  opacity: 0;
+  visibility: hidden;
+  /* Beim Schließen bleibt das Menü sichtbar, bis es ausgeblendet ist. */
+  transition:
+    opacity 0.45s var(--weich),
+    visibility 0s 0.45s;
+}
+.ag-menue[data-offen="true"] {
+  opacity: 1;
+  visibility: visible;
+  /* Beim Öffnen sofort sichtbar, damit der Fokus hineinspringen kann. */
+  transition: opacity 0.45s var(--weich);
+}
+.ag-menue a.ag-menue__punkt {
+  padding: 10px 0;
+  font-size: clamp(2.5rem, 12vw, 4rem);
+  text-decoration: none;
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.6s var(--weich),
+    transform 0.6s var(--weich);
+  transition-delay: calc(var(--i) * 60ms + 80ms);
+}
+.ag-menue[data-offen="true"] a.ag-menue__punkt {
+  opacity: 1;
+  transform: none;
+}
+.ag-menue .ag-knopf {
+  margin-top: 28px;
+}
+/* Kopfzeile des Menüs: liegt deckungsgleich über der Kopfleiste der Seite,
+   damit beim Öffnen nichts springt. Der Schließen-Knopf gehört so zum Dialog. */
+.ag-menue__kopf {
+  position: absolute;
+  inset: 20px var(--rand) auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ag-menue__kopf .ag-knopf {
+  margin-top: 0;
+}
+.ag-menue__zu {
+  display: grid;
+}
+.ag-menue[data-offen="true"] .ag-menue__zu span:first-child {
+  transform: translateY(3.75px) rotate(45deg);
+}
+.ag-menue[data-offen="true"] .ag-menue__zu span:last-child {
+  transform: translateY(-3.75px) rotate(-45deg);
+}
+/* Solange das Menü offen ist, gehört nur das Menü zur Seite: Alles außerhalb
+   der neuen Seite (der Chat-Knopf des Stammlayouts) ruht und ist ausgeblendet. */
+html.ag-menue-offen body > :not(.ag-neu) {
+  visibility: hidden;
+}
+@media (max-width: 1099px) {
+  .ag-kopf__kachel {
+    display: none;
+  }
+  .ag-kopf__menue {
+    display: grid;
+  }
+}
+@media (max-width: 767px) {
+  .ag-kopf {
+    inset: 12px 12px auto;
+    padding: 6px;
+    border: 1px solid var(--linie);
+    border-radius: 999px;
+    background: var(--flaeche);
+    pointer-events: auto;
+  }
+  .ag-menue__kopf {
+    inset: 12px 12px auto;
+    padding: 6px;
+    border: 1px solid var(--linie);
+    border-radius: 999px;
+    background: var(--flaeche);
+  }
+  .ag-kopf__marke,
+  .ag-kopf[data-los="true"] .ag-kopf__marke {
+    gap: 8px;
+    padding: 0 4px 0 8px;
+    border-color: transparent;
+    background: none;
+    font-size: 20px;
+  }
+  .ag-kopf__marke svg {
+    width: 24px;
+    height: 24px;
+  }
+  .ag-kopf__menue {
+    width: 44px;
+    height: 44px;
+    border-color: transparent;
+    background: var(--flaeche-hell);
+  }
+  .ag-knopf--rand {
+    gap: 10px;
+    min-height: 44px;
+    padding: 4px 4px 4px 14px;
+  }
+}
+
+/* ───────────── Ladebildschirm ───────────── */
+.ag-lade {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 34px;
+  background: var(--nacht);
+  /* Sicherheitsnetz: Auch wenn das Skript nicht startet, verschwindet der
+     Ladebildschirm von selbst und gibt die Seite frei. */
+  animation: ag-lade-weg 0.01s 5s forwards;
+}
+.ag-lade svg {
+  width: clamp(150px, 22vw, 240px);
+  overflow: visible;
+}
+.ag-lade__balken {
+  width: min(240px, 60vw);
+  height: 1px;
+  background: rgba(241, 238, 230, 0.16);
+}
+.ag-lade__balken i {
+  display: block;
+  height: 100%;
+  background: var(--gold-hell);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+@keyframes ag-lade-weg {
+  to {
+    visibility: hidden;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ag-lade {
+    display: none;
+  }
+}
+
+/* ───────────── Zeichen (3D-Logo) ───────────── */
+.ag-zeichen {
+  position: relative;
+  aspect-ratio: 1;
+  perspective: 900px;
+  filter: drop-shadow(0 28px 30px rgba(0, 0, 0, 0.55));
+}
+.ag-zeichen__koerper {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.ag-zeichen__koerper svg,
+.ag-zeichen__raster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.ag-zeichen__raster {
+  display: none;
+}
+@media (max-width: 767px) {
+  /* Am Handy leichter: kein 3D, das Zeichen als Rasterpunkt-Zeichnung. */
+  .ag-zeichen {
+    filter: none;
+  }
+  .ag-zeichen__koerper {
+    display: none;
+  }
+  .ag-zeichen__raster {
+    display: block;
+  }
+}
+
+/* ───────────── Bühne (Punktwolke und Lichtbänder) ───────────── */
+.ag-buehne {
+  position: relative;
+  width: 100%;
+}
+.ag-buehne canvas,
+.ag-buehne__baender {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.ag-buehne__mitte {
+  position: absolute;
+  top: var(--mitte-y, 50%);
+  left: 50%;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+}
+.ag-buehne__vorn {
+  z-index: 2;
+}
+
+/* ───────────── Kopfbereich: gemeinsame Teile ───────────── */
+.ag-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: max(100svh, 760px);
+  padding-top: 104px;
+  overflow: clip;
+  background: linear-gradient(180deg, var(--nacht-blau) 0%, var(--nacht-mitte) 34%, var(--nacht) 64%, var(--nacht) 88%, #23120d 96%, var(--glut) 100%);
+}
+.ag-hero__inhalt {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.ag-hero__h1 {
+  font-size: clamp(3rem, 7.2vw, 6.5rem);
+}
+.ag-hero__sub {
+  margin-top: 18px;
+  max-width: 64ch;
+  font-size: 19px;
+  color: var(--nebel);
+}
+.ag-hero__aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 30px;
+}
+.ag-hero__aktionen > .ag-knopf--linie {
+  min-height: 74px;
+  padding: 16px 16px 16px 28px;
+}
+.ag-hero__orte {
+  position: absolute;
+  bottom: 46px;
+  left: var(--rand);
+  z-index: 3;
+}
+
+/* Kopfbereich „Mitte“ (Kartenstapel, wie die gewählte Skizze) */
+.ag-hero--mitte .ag-buehne {
+  flex: none;
+  height: clamp(230px, 37svh, 420px);
+}
+.ag-hero--mitte .ag-zeichen {
+  width: clamp(150px, 27svh, 250px);
+}
+.ag-hero--mitte .ag-hero__inhalt {
+  padding-bottom: 110px;
+}
+
+/* Kopfbereich „Schriftzug“ */
+.ag-schrift__oben {
+  position: relative;
+  margin-top: clamp(0px, 3svh, 36px);
+}
+.ag-wortmarke {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ag-wortmarke text {
+  font-family: var(--font-versal), "Arial Narrow", sans-serif;
+  font-weight: 800;
+  font-size: 285px;
+  fill: #1b2650;
+}
+.ag-schrift__oben .ag-buehne {
+  position: absolute;
+  inset: -16% 0;
+  width: auto;
+}
+.ag-schrift__oben .ag-zeichen {
+  width: clamp(120px, 17vw, 250px);
+}
+.ag-schrift__unten {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 48px;
+  margin-top: auto;
+  padding-top: 40px;
+  padding-bottom: clamp(72px, 11svh, 120px);
+}
+.ag-schrift__h1 {
+  font-size: clamp(2.75rem, 6.1vw, 5.5rem);
+}
+.ag-schrift__rechts {
+  display: grid;
+  justify-items: start;
+  gap: 22px;
+}
+.ag-schrift__rechts .ag-hero__sub {
+  margin-top: 0;
+}
+
+/* Kopfbereich „Umlaufbahn“ */
+.ag-hero--umlauf {
+  min-height: max(100svh, 840px);
+  justify-content: center;
+  padding-bottom: 60px;
+}
+.ag-umlauf__bahn {
+  position: absolute;
+  inset: 0;
+  width: auto;
+}
+.ag-umlauf__zeichen {
+  position: absolute;
+  top: calc(55% - 21.2vw);
+  left: 50%;
+  z-index: 3;
+  width: clamp(110px, 10.4vw, 160px);
+  transform: translate(-50%, -50%);
+}
+.ag-umlauf__kacheln {
+  list-style: none;
+}
+.ag-umlauf__kachel {
+  position: absolute;
+  top: calc(55% - var(--sin) * 21.2vw);
+  left: calc(50% + var(--cos) * 43vw);
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: 150px;
+  margin: -38px 0 0 -75px;
+  text-align: center;
+  text-decoration: none;
+}
+.ag-umlauf__kachel span:first-child {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border: 1px solid var(--linie);
+  border-radius: 50%;
+  background: var(--flaeche);
+  color: var(--gold-hell);
+  transition:
+    transform 0.6s var(--weich),
+    border-color 0.4s var(--weich);
+}
+.ag-umlauf__kachel svg {
+  width: 34px;
+  height: 34px;
+}
+.ag-umlauf__kachel .ag-mono {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--nacht-mitte);
+  color: #b6bacb;
+  text-wrap: balance;
+}
+.ag-umlauf__kachel:hover span:first-child {
+  border-color: rgba(243, 210, 122, 0.7);
+  transform: scale(1.08);
+}
+.ag-hero--umlauf .ag-hero__h1 {
+  font-size: clamp(3rem, 6.2vw, 5.5rem);
+}
+
+@media (max-width: 1099px) {
+  .ag-umlauf__kacheln {
+    display: none;
+  }
+}
+@media (max-width: 1199px) {
+  .ag-schrift__unten {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 26px;
+  }
+}
+@media (max-width: 899px) {
+  .ag-hero--umlauf {
+    justify-content: flex-start;
+  }
+  .ag-umlauf__bahn {
+    display: none;
+  }
+  .ag-umlauf__zeichen {
+    position: relative;
+    top: auto;
+    left: auto;
+    align-self: center;
+    width: 136px;
+    margin: 8px 0 20px;
+    transform: none;
+  }
+}
+@media (max-width: 767px) {
+  .ag-hero {
+    min-height: max(100svh, 680px);
+    padding-top: 84px;
+  }
+  .ag-hero__orte {
+    display: none;
+  }
+  .ag-hero__sub {
+    font-size: 17px;
+  }
+  .ag-hero__aktionen,
+  .ag-schrift__rechts {
+    width: 100%;
+  }
+  .ag-anruf {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+    padding: 18px;
+    border-radius: 28px;
+    text-align: center;
+  }
+  .ag-anruf__status {
+    justify-content: center;
+  }
+  .ag-hero__aktionen > .ag-knopf--linie,
+  .ag-schrift__rechts > .ag-knopf {
+    width: 100%;
+    min-height: 56px;
+    padding: 8px 8px 8px 26px;
+  }
+  .ag-hero--mitte .ag-hero__inhalt {
+    padding-bottom: 64px;
+  }
+  .ag-hero--mitte .ag-buehne {
+    height: 184px;
+  }
+  .ag-hero--mitte .ag-zeichen {
+    width: 150px;
+  }
+}
+
+/* ───────────── „Was wir machen“ ───────────── */
+.ag-tipp {
+  position: relative;
+  max-width: 17ch;
+  font-size: clamp(2.5rem, 5.6vw, 5.25rem);
+}
+.ag-tipp sup {
+  font-size: 0.5em;
+  color: var(--gold-hell);
+}
+.ag-tipp.tippt::after {
+  content: "";
+  display: inline-block;
+  width: 0.05em;
+  height: 0.76em;
+  margin-left: 0.06em;
+  background: var(--gold-hell);
+  vertical-align: -0.04em;
+}
+.ag-machen {
+  display: grid;
+  gap: clamp(32px, 5vh, 56px);
+}
+.ag-machen--mitte {
+  justify-items: center;
+  text-align: center;
+}
+.ag-machen__text {
+  max-width: 34ch;
+  font-size: clamp(1.375rem, 2.3vw, 2rem);
+  line-height: 1.38;
+  color: var(--nebel);
+  text-wrap: pretty;
+}
+.ag-machen--mitte .ag-machen__text {
+  max-width: 38ch;
+}
+.ag-fussnote {
+  max-width: 60ch;
+  font-size: 14px;
+  color: var(--leise);
+  text-wrap: balance;
+}
+
+/* ───────────── Leistungen: gemeinsame Teile ───────────── */
+.ag-punkte {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+  list-style: none;
+  font-size: 16px;
+  color: var(--nebel);
+}
+.ag-punkte li {
+  position: relative;
+  padding-left: 18px;
+}
+.ag-punkte li::before {
+  content: "";
+  position: absolute;
+  top: 0.78em;
+  left: 0;
+  width: 8px;
+  height: 1px;
+  background: var(--gold);
+}
+.ag-wahl {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 4px 4px 4px 20px;
+  border: 1px solid rgba(241, 238, 230, 0.24);
+  border-radius: 999px;
+  background: none;
+  color: var(--elfenbein);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.35s var(--weich),
+    transform 0.5s var(--weich);
+}
+.ag-wahl:hover {
+  border-color: rgba(243, 210, 122, 0.7);
+}
+.ag-wahl:active {
+  transform: scale(0.98);
+}
+.ag-wahl .ag-kreis {
+  width: 38px;
+  height: 38px;
+  background: var(--flaeche-hell);
+  color: var(--gold-hell);
+}
+.ag-wahl:hover .ag-kreis {
+  transform: translateX(3px);
+}
+
+/* Leistungen als Zeilenliste (Kartenstapel) */
+.ag-inbild {
+  display: inline-block;
+  width: 1.5em;
+  height: 0.8em;
+  overflow: clip;
+  border: 1px solid var(--linie);
+  border-radius: 999px;
+  background: var(--flaeche-hell);
+  color: var(--gold-hell);
+  vertical-align: 0.02em;
+}
+.ag-inbild svg {
+  width: 0.52em;
+  height: 0.52em;
+}
+/* Sechs Zeichen liegen übereinander, sichtbar ist das mit der Nummer aus data-nr. */
+.ag-wechsel {
+  position: relative;
+}
+.ag-wechsel svg {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  opacity: 0;
+  transform: translateY(70%) rotate(-14deg);
+  transition:
+    opacity 0.4s var(--weich),
+    transform 0.7s var(--weich);
+}
+.ag-wechsel[data-nr="0"] svg:nth-child(1),
+.ag-wechsel[data-nr="1"] svg:nth-child(2),
+.ag-wechsel[data-nr="2"] svg:nth-child(3),
+.ag-wechsel[data-nr="3"] svg:nth-child(4),
+.ag-wechsel[data-nr="4"] svg:nth-child(5),
+.ag-wechsel[data-nr="5"] svg:nth-child(6) {
+  opacity: 1;
+  transform: none;
+}
+.ag-liste {
+  border-top: 1px solid var(--linie);
+  list-style: none;
+}
+.ag-reihe {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1.05fr) minmax(0, 1.35fr) auto;
+  align-items: start;
+  gap: 28px;
+  padding: 36px 0;
+  border-bottom: 1px solid var(--linie);
+  transition: background-color 0.5s var(--weich);
+}
+.ag-reihe__nr {
+  padding-top: 10px;
+}
+.ag-reihe__titel {
+  font-size: clamp(1.875rem, 3.1vw, 2.875rem);
+}
+.ag-reihe__kurz {
+  margin-top: 10px;
+  color: var(--elfenbein);
+}
+.ag-reihe__text {
+  color: var(--nebel);
+}
+@media (max-width: 1023px) {
+  .ag-reihe {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 14px 12px;
+    padding: 28px 0;
+  }
+  .ag-reihe__text,
+  .ag-reihe .ag-wahl {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* Leistungen als Riesen-Zeilen (Riesen-Schriftzug) */
+.ag-gross {
+  position: relative;
+  list-style: none;
+}
+.ag-gross__zeile {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 24px 40px;
+  padding: 34px 0;
+  border-top: 1px solid var(--linie);
+}
+.ag-gross__zeile:last-child {
+  border-bottom: 1px solid var(--linie);
+}
+.ag-gross__titel {
+  font-size: clamp(2.5rem, 5.4vw, 4.75rem);
+  color: var(--blaugrau);
+  transition: color 0.5s var(--weich);
+}
+.ag-gross__zeile:hover .ag-gross__titel,
+.ag-gross__zeile:focus-within .ag-gross__titel {
+  color: var(--elfenbein);
+}
+.ag-gross__kurz {
+  color: var(--elfenbein);
+  font-weight: 500;
+}
+.ag-gross__rechts {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  color: var(--nebel);
+}
+.ag-gross__rechts .ag-wahl {
+  margin-top: 8px;
+}
+.ag-zeiger {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--nacht);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s var(--weich);
+}
+.ag-zeiger[data-da="true"] {
+  opacity: 1;
+}
+.ag-zeiger svg {
+  width: 56px;
+  height: 56px;
+}
+@media (hover: none), (max-width: 1023px) {
+  .ag-zeiger {
+    display: none;
+  }
+  .ag-gross__titel {
+    color: var(--elfenbein);
+  }
+}
+@media (max-width: 1023px) {
+  .ag-gross__zeile {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .ag-gross__rechts {
+    grid-column: 2;
+  }
+}
+
+/* Leistungen am Bogen (Umlaufbahn) */
+.ag-bogenwahl {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 48px;
+}
+.ag-bogenwahl__links {
+  position: sticky;
+  top: 16vh;
+  height: 68vh;
+  min-height: 460px;
+}
+.ag-bogenwahl__rad {
+  position: absolute;
+  top: 50%;
+  left: -430px;
+  width: 720px;
+  height: 720px;
+  margin-top: -360px;
+  border: 1px dashed rgba(243, 210, 122, 0.3);
+  border-radius: 50%;
+  transition: transform 0.9s var(--weich);
+  transform: rotate(calc(var(--aktiv) * -22deg));
+}
+.ag-bogenwahl__kachel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  margin: -42px;
+  border: 1px solid var(--linie);
+  border-radius: 50%;
+  background: var(--flaeche);
+  color: var(--leise);
+  transform: rotate(calc(var(--i) * 22deg)) translateX(360px) rotate(calc((var(--aktiv) - var(--i)) * 22deg));
+  transition:
+    transform 0.9s var(--weich),
+    background-color 0.5s var(--weich),
+    color 0.5s var(--weich);
+}
+.ag-bogenwahl__kachel svg {
+  width: 36px;
+  height: 36px;
+}
+.ag-bogenwahl__kachel[data-aktiv="true"] {
+  background: var(--gold);
+  color: var(--nacht);
+  transform: rotate(calc(var(--i) * 22deg)) translateX(360px) rotate(calc((var(--aktiv) - var(--i)) * 22deg)) scale(1.5);
+}
+.ag-bogenwahl__nummer {
+  position: absolute;
+  top: 50%;
+  left: 400px;
+  font-size: clamp(4rem, 8vw, 6rem);
+  color: var(--blaugrau);
+  transform: translateY(-50%);
+}
+.ag-bogenwahl__kurz {
+  color: var(--elfenbein);
+  font-weight: 500;
+}
+.ag-bogenwahl__block {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 14px;
+  min-height: 62vh;
+  padding-block: 28px;
+  border-top: 1px solid var(--linie);
+  color: var(--nebel);
+}
+.ag-bogenwahl__block h3 {
+  font-size: clamp(1.875rem, 3vw, 2.75rem);
+  color: var(--elfenbein);
+}
+.ag-bogenwahl__block .ag-wahl {
+  margin-top: 10px;
+}
+.ag-bogenwahl__klein {
+  display: none;
+  width: 44px;
+  height: 44px;
+  color: var(--gold-hell);
+}
+@media (max-width: 1023px) {
+  .ag-bogenwahl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ag-bogenwahl__links {
+    display: none;
+  }
+  .ag-bogenwahl__block {
+    min-height: 0;
+    padding-block: 32px;
+  }
+  .ag-bogenwahl__klein {
+    display: block;
+  }
+}
+
+/* ───────────── So läuft es ab (Gold-Tropfen) ───────────── */
+.ag-ablauf {
+  position: relative;
+}
+.ag-ablauf__bild {
+  position: relative;
+  aspect-ratio: 1200 / var(--hoehe, 560);
+}
+.ag-ablauf__bild > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.ag-ablauf__bahn {
+  fill: none;
+  stroke: rgba(243, 210, 122, 0.34);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 9;
+  stroke-linecap: round;
+}
+.ag-ablauf__station {
+  fill: var(--nacht-mitte);
+  stroke: rgba(243, 210, 122, 0.55);
+  stroke-width: 1.5;
+  transition:
+    fill 0.5s var(--weich),
+    stroke 0.5s var(--weich);
+}
+.ag-ablauf__station.ist-da {
+  fill: var(--gold);
+  stroke: var(--gold-hell);
+}
+.ag-ablauf__schritt {
+  position: absolute;
+  top: calc(var(--y) * 1%);
+  left: calc(var(--x) * 1%);
+  width: min(300px, 26%);
+  transform: translateX(-50%);
+  text-align: center;
+  color: var(--ruhig);
+  transition: color 0.6s var(--weich);
+}
+.ag-ablauf__schritt.ist-da {
+  color: var(--nebel);
+}
+.ag-ablauf__schritt h3 {
+  margin: 6px 0 10px;
+  font-size: clamp(1.5rem, 2.4vw, 2.25rem);
+  color: inherit;
+}
+.ag-ablauf__schritt.ist-da h3 {
+  color: var(--elfenbein);
+}
+.ag-ablauf__schritt p {
+  font-size: 16px;
+  text-wrap: balance;
+}
+.ag-ablauf__ziel {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 5px 14px;
+  border: 1px solid var(--linie);
+  border-radius: 999px;
+  color: var(--ruhig);
+  transition:
+    color 0.6s var(--weich),
+    border-color 0.6s var(--weich);
+}
+.ag-ablauf__schritt.ist-da .ag-ablauf__ziel {
+  border-color: rgba(243, 210, 122, 0.5);
+  color: var(--gold-hell);
+}
+.ag-ablauf__schmal {
+  display: none;
+}
+@media (max-width: 899px) {
+  .ag-ablauf__bild {
+    display: none;
+  }
+  .ag-ablauf__schmal {
+    position: relative;
+    display: grid;
+    gap: 44px;
+    padding-left: 40px;
+    list-style: none;
+  }
+  .ag-ablauf__schmal::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 11px;
+    width: 1px;
+    background: rgba(243, 210, 122, 0.34);
+  }
+  .ag-ablauf__perle {
+    position: absolute;
+    top: 0;
+    left: 4px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--gold);
+  }
+  .ag-ablauf__schmal h3 {
+    margin: 4px 0 8px;
+    font-size: 1.75rem;
+  }
+  .ag-ablauf__schmal p {
+    color: var(--nebel);
+    text-wrap: balance;
+  }
+}
+
+/* ───────────── Warum wir ───────────── */
+/* Fächer aus vier Karten (Kartenstapel) */
+/* Grundzustand: vier Karten nebeneinander, alles lesbar. Übereinander liegen
+   sie nur, solange die Scroll-Animation läuft (Kartenstapel.tsx). */
+.ag-faecher {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  list-style: none;
+}
+.ag-faecher__karte {
+  flex: none;
+  width: min(300px, calc((100% - 72px) / 4));
+  min-height: 340px;
+  padding: 30px 28px 34px;
+  border: 1px solid var(--linie);
+  border-radius: 28px;
+  background: var(--flaeche-hell);
+}
+.ag-faecher__karte h3 {
+  margin: 96px 0 12px;
+  font-size: clamp(2rem, 3.2vw, 3rem);
+}
+.ag-faecher__karte p {
+  color: var(--nebel-blau);
+  text-wrap: balance;
+}
+@media (max-width: 1023px) {
+  /* Am Handy schieben sich die Karten beim Scrollen übereinander. */
+  .ag-faecher {
+    display: block;
+  }
+  .ag-faecher__karte {
+    position: sticky;
+    top: calc(92px + var(--i) * 16px);
+    width: auto;
+    min-height: 220px;
+    margin: 0 0 18px;
+  }
+  .ag-faecher__karte h3 {
+    margin-top: 40px;
+  }
+}
+
+/* Riesen-Wörter (Riesen-Schriftzug) */
+.ag-worte {
+  list-style: none;
+}
+.ag-worte li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 20px 48px;
+  padding: 22px 0;
+  border-top: 1px solid var(--linie);
+}
+.ag-worte li:last-child {
+  border-bottom: 1px solid var(--linie);
+}
+.ag-worte h3 {
+  font-size: clamp(3.25rem, 9.6vw, 6rem);
+  color: var(--blaugrau);
+}
+.ag-worte h3 {
+  transition: color 0.6s var(--weich);
+}
+.ag-worte li.ist-da h3 {
+  color: var(--elfenbein);
+}
+.ag-worte p {
+  max-width: 34ch;
+  color: var(--nebel);
+}
+@media (max-width: 767px) {
+  .ag-worte li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .ag-worte h3 {
+    color: var(--elfenbein);
+  }
+}
+
+/* Trabanten um eine Aussage (Umlaufbahn) */
+.ag-trabanten {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr);
+  grid-template-areas:
+    "a mitte b"
+    "c mitte d";
+  align-items: center;
+  gap: 56px 40px;
+}
+.ag-trabanten__ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(1040px, 92%);
+  aspect-ratio: 2.3;
+  border: 1px dashed rgba(243, 210, 122, 0.26);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.ag-trabanten__mitte {
+  position: relative;
+  grid-area: mitte;
+  text-align: center;
+}
+.ag-trabant {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 26px 24px;
+  border: 1px solid var(--linie);
+  border-radius: 28px;
+  background: var(--nacht-mitte);
+  list-style: none;
+}
+.ag-trabant h3 {
+  font-size: clamp(1.75rem, 2.6vw, 2.5rem);
+}
+.ag-trabant p {
+  font-size: 16px;
+  color: var(--nebel);
+}
+@media (max-width: 1023px) {
+  .ag-trabanten {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: none;
+    gap: 16px;
+  }
+  .ag-trabanten__mitte {
+    grid-area: auto;
+    margin-bottom: 28px;
+    text-align: left;
+  }
+  .ag-trabanten__ring {
+    display: none;
+  }
+  .ag-trabant {
+    grid-area: auto !important;
+  }
+}
+
+/* ───────────── Ausbildung ───────────── */
+.ag-zert {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+  list-style: none;
+}
+.ag-zert__karte {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 14px;
+  transform: translateY(calc((var(--i) - 1.5) * (var(--i) - 1.5) * 14px - 20px)) rotate(calc((var(--i) - 1.5) * 1.3deg));
+  transition: transform 0.7s var(--weich);
+}
+.ag-zert__karte:hover {
+  transform: translateY(-10px);
+}
+.ag-zert__bild {
+  overflow: clip;
+  border-radius: 12px;
+  background: var(--elfenbein);
+}
+.ag-zert__bild img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ag-zert__titel {
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.ag-zert__wer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ag-zert__wer button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--linie);
+  border-radius: 999px;
+  background: none;
+  color: var(--nebel);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition:
+    background-color 0.3s var(--weich),
+    color 0.3s var(--weich);
+}
+.ag-zert__wer button[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--flaeche-hell);
+  color: var(--elfenbein);
+}
+@media (max-width: 1023px) {
+  .ag-zert {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ag-zert__karte,
+  .ag-zert__karte:hover {
+    transform: none;
+  }
+}
+@media (max-width: 599px) {
+  .ag-zert {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+}
+
+/* ───────────── Kontakt und Anfrage ───────────── */
+.ag-kontakt {
+  display: grid;
+  gap: 36px;
+}
+.ag-kontakt--mitte {
+  justify-items: center;
+  text-align: center;
+}
+.ag-kontakt__wege {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+.ag-kontakt--mitte .ag-kontakt__wege {
+  justify-content: center;
+}
+.ag-kontakt__wege > .ag-knopf--linie {
+  min-height: 74px;
+  padding: 16px 16px 16px 28px;
+}
+.ag-anfrage {
+  width: min(720px, 100%);
+  border: 1px solid var(--linie);
+  border-radius: 28px;
+  background: var(--flaeche);
+  text-align: left;
+}
+.ag-anfrage__schalter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 12px 12px 26px;
+  border: 0;
+  border-radius: 28px;
+  background: none;
+  color: var(--elfenbein);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.ag-anfrage__schalter span:nth-child(2) {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--leise);
+}
+.ag-anfrage__schalter .ag-kreis {
+  width: 46px;
+  height: 46px;
+  background: var(--flaeche-hell);
+  color: var(--gold-hell);
+}
+.ag-anfrage__schalter[aria-expanded="true"] .ag-kreis {
+  transform: rotate(45deg);
+}
+.ag-anfrage__klappe {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.6s var(--weich);
+}
+.ag-anfrage[data-offen="true"] .ag-anfrage__klappe {
+  grid-template-rows: 1fr;
+}
+.ag-anfrage__innen {
+  min-height: 0;
+  overflow: hidden;
+}
+.ag-anfrage form,
+.ag-anfrage__danke {
+  display: grid;
+  gap: 18px;
+  padding: 10px 26px 28px;
+}
+.ag-anfrage__zwei {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.ag-feld {
+  display: grid;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.ag-feld input,
+.ag-feld select,
+.ag-feld textarea {
+  width: 100%;
+  min-height: 50px;
+  padding: 12px 16px;
+  border: 1px solid rgba(241, 238, 230, 0.2);
+  border-radius: 14px;
+  background: var(--nacht-mitte);
+  color: var(--elfenbein);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  transition: border-color 0.3s var(--weich);
+}
+.ag-feld textarea {
+  resize: none;
+}
+.ag-feld input::placeholder,
+.ag-feld textarea::placeholder {
+  color: #7f86a2;
+}
+.ag-feld input:focus,
+.ag-feld select:focus,
+.ag-feld textarea:focus {
+  border-color: var(--gold-hell);
+  outline: none;
+}
+.ag-anfrage__hinweis {
+  font-size: 14px;
+  color: var(--gold-hell);
+}
+.ag-anfrage__fehler {
+  font-size: 15px;
+  font-weight: 500;
+  color: #ff9d8a;
+}
+.ag-anfrage form .ag-knopf {
+  justify-self: start;
+  border: 0;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+}
+.ag-anfrage form .ag-knopf:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.ag-anfrage__danke h3 {
+  font-size: 1.75rem;
+}
+@media (max-width: 599px) {
+  .ag-anfrage__zwei {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ag-anfrage__schalter {
+    flex-wrap: wrap;
+    padding-left: 20px;
+  }
+  .ag-anfrage__schalter span:nth-child(2) {
+    order: 3;
+    width: 100%;
+    margin: -8px 0 6px;
+  }
+  .ag-anfrage__schalter .ag-kreis {
+    margin-left: auto;
+  }
+  .ag-anfrage form,
+  .ag-anfrage__danke {
+    padding-inline: 20px;
+  }
+  .ag-kontakt__wege > .ag-knopf--linie {
+    width: 100%;
+    min-height: 56px;
+    padding: 8px 8px 8px 26px;
+  }
+}
+
+/* ───────────── Fußleiste ───────────── */
+.ag-fuss {
+  position: relative;
+  padding-top: clamp(64px, 10vh, 112px);
+  background: linear-gradient(180deg, var(--nacht) 0%, var(--nacht) 70%, #23120d 92%, var(--glut) 100%);
+}
+.ag-fuss__oben {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+}
+.ag-fuss__marke {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-family: var(--font-versal), sans-serif;
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.ag-fuss__marke svg {
+  width: 28px;
+  height: 28px;
+  color: var(--gold);
+}
+.ag-fuss__text {
+  max-width: 38ch;
+  margin-top: 18px;
+  font-size: 16px;
+  color: var(--nebel);
+}
+.ag-fuss__spalte {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 2px;
+  list-style: none;
+  font-size: 16px;
+}
+.ag-fuss__spalte a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--nebel);
+  text-decoration: none;
+  transition: color 0.3s var(--weich);
+}
+.ag-fuss__spalte a:hover {
+  color: var(--elfenbein);
+}
+.ag-fuss__wort {
+  margin-top: clamp(40px, 7vh, 88px);
+}
+.ag-fuss .ag-wortmarke text {
+  fill: #1f2b5a;
+}
+.ag-fuss__unten {
+  padding-block: 22px 30px;
+  font-size: 14px;
+  color: #c9b8a6;
+}
+@media (max-width: 767px) {
+  .ag-fuss__oben {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ag-fuss__unten {
+    padding-bottom: 96px;
+  }
+}
+
+/* ───────────── Anrufen am Daumen (Handy) ───────────── */
+.ag-daumen {
+  position: fixed;
+  right: 88px;
+  bottom: 20px;
+  left: 16px;
+  z-index: 30;
+  display: none;
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  transition:
+    opacity 0.45s var(--weich),
+    transform 0.45s var(--weich);
+}
+.ag-daumen[data-da="true"] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.ag-daumen .ag-knopf {
+  width: 100%;
+}
+@media (max-width: 767px) {
+  .ag-daumen {
+    display: block;
+  }
+}
+
+/* ───────────── Kartenstapel: Bögen, die sich übereinanderschieben ───────────── */
+.ag-bogen {
+  position: relative;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 40px 40px 0 0;
+  background: var(--ton, var(--nacht-mitte));
+}
+.ag-stapel > .ag-bogen:nth-of-type(odd) {
+  --ton: #0b1330;
+}
+.ag-stapel__marke {
+  height: 0;
+}
+/* Der Bogen ist schon die Karte: Formular und Anruf-Block liegen flach darin. */
+.ag-bogen .ag-anfrage {
+  border: 0;
+  border-top: 1px solid var(--linie);
+  border-bottom: 1px solid var(--linie);
+  border-radius: 0;
+  background: none;
+}
+.ag-bogen .ag-anfrage__schalter {
+  padding-left: 4px;
+  border-radius: 0;
+}
+.ag-bogen .ag-anfrage form,
+.ag-bogen .ag-anfrage__danke {
+  padding-inline: 4px;
+}
+@media (max-width: 767px) {
+  .ag-bogen .ag-anruf {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+}
+@media (min-width: 1024px) {
+  .ag-stapel > .ag-hero,
+  .ag-stapel > .ag-bogen {
+    position: sticky;
+    top: var(--oben, 0px);
+  }
+  .ag-stapel > .ag-bogen {
+    display: grid;
+    align-content: center;
+    min-height: 100svh;
+  }
+}
+@media (max-width: 1023px) {
+  .ag-stapel > .ag-bogen {
+    margin-top: -32px;
+    border-radius: 32px 32px 0 0;
+  }
+}
+
+/* Riesen-Schriftzug: große Tafel, die von unten hereinkommt */
+.ag-tafel {
+  margin-inline: var(--rand);
+  border: 1px solid var(--linie);
+  border-radius: 40px;
+  background: var(--flaeche);
+  transform-origin: 50% 0;
+}
+@media (max-width: 767px) {
+  .ag-tafel {
+    margin-inline: 12px;
+    border-radius: 28px;
+  }
+}
+
+/* ───────────── Übersichtsseite: drei Aufbauten nebeneinander ───────────── */
+.ag-uebersicht {
+  padding-block: clamp(48px, 8vh, 96px);
+}
+.ag-uebersicht__kopf {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 48px;
+}
+.ag-uebersicht h1 {
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+}
+.ag-uebersicht__reihe {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+  list-style: none;
+}
+.ag-uebersicht__karte {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 16px;
+}
+.ag-uebersicht__karte h2 {
+  font-size: 2rem;
+}
+.ag-uebersicht__karte p {
+  min-height: 6.4em;
+  font-size: 16px;
+  color: var(--nebel);
+}
+.ag-uebersicht__bilder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 26%;
+  align-items: end;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+.ag-uebersicht img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--linie);
+  border-radius: 14px;
+}
+@media (max-width: 1023px) {
+  .ag-uebersicht__reihe {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 56px;
+  }
+}

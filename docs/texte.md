@@ -240,6 +240,12 @@ Feste Texte, die Besucher sehen können. Davon zu unterscheiden: **dynamische** 
 
 (Server-Meldungen gehören zur Logik und bleiben; nur Widget-Texte dürfen beim Neubau auf „Sie“ umgestellt werden.)
 
+## Texte der neuen Seite (Schritt 3)
+
+Die gesiezten Texte der neuen Welt stehen in `lib/inhalt-neu.ts` (Kopfbereich, „Was wir machen“, Leistungen mit den drei erweiterten Beschreibungen, Ablauf, Warum wir, Ausbildung, Kontakt, Formular, Fußleiste). Aussagen und Fakten sind unverändert übernommen; neu formuliert sind nur Anrede und die Überschrift im Kopfbereich: „Es klingelt. Ihr Assistent nimmt ab.“ Die sechs Leistungstitel kommen wörtlich aus `lib/content.ts`.
+
+Noch in der alten Form (du, mit Emojis), weil erst in einem späteren Schritt umgestellt: Texte im Chat-Fenster (`components/ChatWidget.tsx`).
+
 ## Platzhalter / fehlt noch (nie als echt ausgeben)
 - Kundenstimmen: **keine vorhanden** → Bereich **ganz weglassen, kein Platzhalter** (entschieden 11.11.2026).
 - Kennzahlen (Anzahl Kunden, gesparte Stunden, …): **keine belegt** → keine Zahlen erfinden.

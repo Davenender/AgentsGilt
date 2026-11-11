@@ -130,10 +130,32 @@ Diese Routen gehören zu Discord-Bot, Telefon, Zahlungen und Zeitplänen. Beim N
 - `vercel.json` (Cron), `next.config.ts` (leer), `package.json`-Befehle bleiben.
 - Inhalte: `lib/content.ts` (Texte), `lib/chatbot-knowledge.ts` (Wissen des Chat-Assistenten – Aussagen dort müssen zur neuen Seite passen).
 
+## 9. Aufbau-Varianten der neuen Seite (Schritt 3, Arbeitsstand)
+
+Die alte Startseite (`app/page.tsx`) läuft unverändert weiter. Die drei Varianten liegen daneben und sind für Suchmaschinen gesperrt (`robots: noindex` im Layout, nicht in der Sitemap).
+
+| Teil | Datei | Was es tut | Prüfen ohne echte Daten |
+|---|---|---|---|
+| Übersicht | `app/varianten/page.tsx`, `public/varianten/*.jpg` | zeigt die drei Aufbauten nebeneinander als **feste Aufnahmen** (erster Bildschirm am Computer und am Handy, ganze Seite als Streifen). Bewusst keine eingebetteten Live-Seiten: Sonst liefe der Chat-Assistent mehrfach mit und könnte Gesprächsprotokolle mehrfach senden. Die Aufnahmen zeigen den Stand vom 11.11.2026; nach Änderungen an den Varianten neu aufnehmen (unsichtbarer Chrome, Adresse mit `?vorschau=1` = ruhige Ansicht ohne Ladebildschirm und Dauer-Animation, `/api/**` gesperrt) | `/varianten` aufrufen, Knöpfe führen auf die echten Seiten |
+| Varianten | `app/varianten/[aufbau]/page.tsx`, `components/neu/aufbau/*` | `/varianten/riesen-schriftzug`, `/varianten/kartenstapel`, `/varianten/umlaufbahn`; andere Adressen → 404 | aufrufen, durchscrollen |
+| Welt | `app/varianten/layout.tsx`, `app/varianten/welt.css` | Schriften und Farben der neuen Welt, gelten nur unter `.ag-neu` | alte Seiten sehen aus wie vorher |
+| Texte | `lib/inhalt-neu.ts` | Sie-Texte; die sechs Leistungstitel kommen wörtlich aus `lib/content.ts` | Auswahl im Formular zeigt dieselben 6 Titel |
+| Anfrage-Formular | `components/neu/Anfrage.tsx` | **gleiche Logik wie `components/Contact.tsx`** (Felder, Honigtopf, POST `/api/contact`, Auswertung, Chat-Übernahme `ag:prefill-contact`, Vorauswahl `ag:select-service`), nur eingeklappt; öffnet sich bei Vorauswahl oder Chat-Übernahme. Solange beide Seiten bestehen, gibt es die Logik zweimal: Änderungen an einer Stelle auch an der anderen nachziehen | „Anfragen“ an einer Leistung → Formular klappt auf, Leistung vorgewählt; leeres Absenden blockiert. **Nie abschicken** |
+| Leistung wählen | `components/neu/Leistungsteile.tsx` | Knopf „Anfragen“ sendet `ag:select-service` und springt zu `#kontakt` (wie bisher die Karte) | siehe oben |
+| Schreibmaschine | `components/neu/Schreibmaschine.tsx` | „Tagen“ → „Stunden*“; sendet weiter `ag:intro-typing-started` / `ag:intro-typing-done` für die Chat-Sprechblase | in den Bereich scrollen, Sprechblase erscheint danach |
+| Ladebildschirm | `components/neu/Ladebildschirm.tsx` | Logo setzt sich zusammen, Prozent und Balken, höchstens gut 2 s; meldet `ag:intro-fertig`. Ohne Skript, bei „weniger Bewegung“ und in der Vorschau kein Ladebildschirm; Sicherheitsnetz blendet ihn nach 5 s aus | Seite laden; mit „weniger Bewegung“ ist die Seite sofort da |
+| Weiches Scrollen | `components/neu/Rahmen.tsx` (Lenis) | nur auf den Varianten, im Takt von GSAP; Chat-Fenster scrollt für sich (`allowNestedScroll`); bei „weniger Bewegung“ aus | Mausrad, Anker-Links, Chat-Verlauf scrollen |
+| Zertifikate | `components/neu/Bereiche.tsx` | je Kurs Wechsel zwischen David Hesse und Mijo Schulz per Knopf, „Zertifikat ansehen“ öffnet das PDF | Knöpfe wechseln Bild und Link |
+| Kopf- und Fußleiste | `components/neu/Kopfleiste.tsx`, `Rahmen.tsx` | Anker `#top #leistungen #ablauf #warum #ausbildung #kontakt`, `tel:`-Links, Mail, WhatsApp, Impressum, Datenschutz; am Handy Menü über den ganzen Bildschirm als Dialog (eigener Schließen-Knopf, Esc schließt, Tab bleibt im Menü, alles andere ruht; der Chat-Knopf ist nur solange ausgeblendet, wie das Menü offen ist) und Anrufen-Knopf am Daumen | Links und Menü prüfen: öffnen, Tab-Runde, schließen; danach ist der Chat-Knopf wieder da |
+
+Unverändert und auf den Varianten vorhanden, weil sie im Haupt-Layout hängen: Chat-Assistent (`components/ChatWidget.tsx`), Vercel-Statistik, JSON-LD, Metadaten.
+
+**Prüfen in echtem Tempo:** Ist der Browser-Bereich der App ausgeblendet, laufen Animationen dort nur im Sekundentakt. Dann mit einem unsichtbaren Chrome prüfen (Playwright, `page.route('**/api/**', r => r.abort())` vor dem Laden), nicht im Browser-Bereich.
+
 ## Prüfliste nach jedem Schritt
 
 0. Sichere Prüfumgebung (oben) eingerichtet.
-1. `git diff --stat main -- app/api lib/*.ts tests vercel.json .env.example` zeigt **keine** Änderung außer `lib/content.ts`.
+1. `git diff --stat main -- app/api lib/*.ts tests vercel.json .env.example` zeigt **keine** Änderung außer `lib/content.ts` und der neuen Textdatei `lib/inhalt-neu.ts`.
 2. `npm run build`, `npm run lint`, `npm test` laufen durch.
 3. Startseite: alle Anker (`#top #leistungen #ablauf #warum #ausbildung #kontakt`) vorhanden.
 4. Leistungstitel in `lib/content.ts` unverändert (Schnittstellenwerte).

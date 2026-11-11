@@ -38,7 +38,22 @@ In Schritt 1 stand vorläufig „Bühnenhorizont“; in Schritt 2 hat David unte
 6. **Warum wir:** vier Vorteile als Karten, die sich beim Scrollen übereinanderschieben, ohne das Scrollen festzuhalten.
 7. **Ausbildung:** Zertifikate als schwebende Collage mit Tiefe; Stapel-Wechsel und PDF-Link bleiben.
 8. **Kontakt:** die Anruf-Leiste noch einmal groß, dazu WhatsApp; das Formular klein und eingeklappt. Die Glut-Kante schließt die Seite.
-9. **Fußleiste:** großer Schriftzug „Agents Gilt“, Navigation, Impressum, Datenschutz. Ein Laufband wie bei Lando Norris gilt der Fehlersuche als KI-Merkmal: vor dem Bau mit David klären (stehender Riesen-Schriftzug als Alternative).
+9. **Fußleiste:** stehender Riesen-Schriftzug „Agents Gilt“ (kein Laufband, entschieden 11.11.2026), Navigation, Impressum, Datenschutz.
+
+## 4a. Drei Aufbau-Varianten (Schritt 3)
+
+Gleiche Welt, anderer Aufbau. Nebeneinander zu sehen unter `/varianten`, Code in `components/neu/aufbau/`. Impeccable hat aus sieben Aufbau-Ideen diese drei gezogen (nicht gezogen: Mittelachse, Anruf zuerst, Geteilte Bühne, Laufweg des Tropfens).
+
+| | Riesen-Schriftzug | Kartenstapel | Umlaufbahn |
+|---|---|---|---|
+| Kopfbereich | Name riesig über die ganze Breite, Zeichen mitten darin; Überschrift links, Anruf-Leiste rechts | wie die gewählte Skizze: Zeichen mittig, Überschrift und Anruf-Leiste darunter | Überschrift allein in der Mitte, sechs Leistungen als Kacheln auf einem Punktring, Zeichen oben auf der Bahn |
+| Übergang | Schriftzug und Überschrift tauchen weg, eine große Tafel kommt von unten | jeder Bereich ist ein Bogen, der sich über den vorigen schiebt | Kacheln fliegen über die Überschrift zur Mitte |
+| Leistungen | Riesen-Zeilen, ein goldenes Zeichen folgt dem Zeiger | Zeilenliste, kleines Bild in der Überschrift wechselt mit der Zeile | Drehscheibe links, sechs Texte rechts |
+| So läuft es ab | Tropfen auf gerader, schräger Bahn | Tropfen auf einer Welle | Tropfen auf einem Bogen |
+| Warum wir | vier Riesen-Wörter | Fächer aus vier Karten (am Handy schieben sie sich übereinander) | vier Trabanten um die Aussage |
+| Ausrichtung | linksbündig | mittig | mittig |
+
+Am Handy sind alle drei bewusst ähnlicher und leichter: Zeichen als Rasterpunkt-Zeichnung, keine Dauer-Animation, Anruf-Karte in voller Breite, Anrufen-Knopf am Daumen.
 
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Zeichen folgt“:** Das 3D-Zeichen neigt sich zum Zeiger, Lichtbänder und nahe Punkte biegen sich mit. Beim Scrollen fliegt man am Zeichen vorbei.
@@ -56,7 +71,7 @@ In Schritt 1 stand vorläufig „Bühnenhorizont“; in Schritt 2 hat David unte
 - Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML); 3D nur am Computer und nachgeladen.
 
 ## 8. Was die Code-Fehlersuche in Schritt 2 gelehrt hat (im Bau von Anfang an vermeiden)
-- Keine kursive Serife in Riesen-Überschriften: Betonungswörter stehen aufrecht. (Kursiv wäre laut Brief erlaubt; David kann es zurückholen, dann bleibt ein bewusster Fund.)
+- Keine kursive Serife in Riesen-Überschriften: Betonungswörter stehen aufrecht (von David bestätigt, 11.11.2026).
 - Keine farbigen Leuchtschein-Schatten und keine runden Lichthöfe im Hintergrund: Licht als gerade Verläufe und Bänder.
 - Kein kleines Etikett in Großbuchstaben über einer Überschrift.
 - Kein Deko-Raster aus Linien im Hintergrund; die Punktwolke trägt die Textur.
@@ -68,3 +83,5 @@ In Schritt 1 stand vorläufig „Bühnenhorizont“; in Schritt 2 hat David unte
 2. **Bilder:** selbst gezeichnete Grafiken (SVG/Canvas im Stil der gewählten Richtung) oder gute Bilder aus dem Web. Web-Bilder nur mit freier Lizenz für gewerbliche Nutzung (z. B. Unsplash, Pexels), Quelle und Lizenz je Bild in `docs/bildquellen.md` vermerken, Adresse vorher prüfen, lokal in `public/` ablegen. Keine Bild- oder Video-Erzeugung (kostet Geld). Keine Bilder, die Kunden, Projekte oder Team vortäuschen.
 3. **Leistungen:** Beschreibungen von „Automatisierungen“, „KI-Chatbots“, „KI-Beratung & Audit“ werden erweitert (siehe Bereich 4); die sechs Namen bleiben unverändert.
 4. **Richtung:** Chromzeichen in der Punktwolke (Schritt 2).
+5. **Betonungswörter:** aufrecht lassen, nicht kursiv (Schritt 3).
+6. **Fußleiste:** stehender Riesen-Schriftzug statt Laufband (Schritt 3).

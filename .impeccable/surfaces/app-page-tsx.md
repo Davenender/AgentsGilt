@@ -12,7 +12,7 @@ related_targets: []
 - **Aktion:** Anrufen +49 6108 9694027 (dort nimmt der KI-Assistent ab). Zweitens Chat unten rechts, drittens das kleine, eingeklappte Anfrage-Formular.
 - **Belege:** nur echte Inhalte aus docs/texte.md; keine Kundenstimmen (auch kein Platzhalter), keine erfundenen Zahlen, keine Preise.
 - **Gewählt am 11.11.2026 von David:** „Chromzeichen in der Punktwolke“ aus fünf Richtungen. Gewählte Skizze: docs/skizzen/chromzeichen-in-der-punktwolke.html (Komposition, die der Bau treffen muss).
-- **Offen:** Betonungswörter aufrecht oder kursiv (aufrecht ist Stand; David darf umstellen). Laufband in der Fußleiste gilt der Fehlersuche als KI-Merkmal: vor dem Bau klären.
+- **Entschieden am 11.11.2026:** Betonungswörter bleiben aufrecht (nicht kursiv). Fußleiste mit stehendem Riesen-Schriftzug, kein Laufband.
 
 ## Direction contract
 
