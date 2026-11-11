@@ -127,9 +127,12 @@ test("Anrufe an David: nie 22–7 Uhr (Berlin), keine Tagesgrenze", () => {
   // 05.11. = Winterzeit, Berlin = UTC+1
   const mittag = new Date("2026-11-05T11:00:00.000Z"); // 12:00
   assert.deepEqual(anrufErlaubt(mittag, []), { ok: true });
-  assert.equal(anrufErlaubt(new Date("2026-11-05T21:30:00.000Z"), []).ok, false); // 22:30
-  assert.equal(anrufErlaubt(new Date("2026-11-05T05:30:00.000Z"), []).ok, false); // 06:30
-  assert.equal(anrufErlaubt(new Date("2026-11-05T06:00:00.000Z"), []).ok, true); // 07:00
+  // Davids Wunsch 11.11.: Luca darf von 6 Uhr bis 2 Uhr nachts anrufen (Ruhe nur 2–6 Uhr)
+  assert.equal(anrufErlaubt(new Date("2026-11-05T21:30:00.000Z"), []).ok, true); // 22:30
+  assert.equal(anrufErlaubt(new Date("2026-11-05T00:30:00.000Z"), []).ok, true); // 01:30
+  assert.equal(anrufErlaubt(new Date("2026-11-05T01:00:00.000Z"), []).ok, false); // 02:00
+  assert.equal(anrufErlaubt(new Date("2026-11-05T04:59:00.000Z"), []).ok, false); // 05:59
+  assert.equal(anrufErlaubt(new Date("2026-11-05T05:00:00.000Z"), []).ok, true); // 06:00
   // Davids Wunsch 05.11.: keine Grenze mehr pro Tag
   const sechs = ["06:00", "07:00", "08:00", "09:00", "10:00", "10:30"].map((u) => `2026-11-05T${u}:00.000Z`);
   assert.deepEqual(anrufErlaubt(mittag, sechs), { ok: true });

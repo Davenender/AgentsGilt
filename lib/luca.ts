@@ -511,7 +511,7 @@ export async function assistentFuerEingang() {
   };
 }
 
-/** Luca ruft David an – nur Davids Nummer, nie 22–7 Uhr (keine Grenze pro Tag). */
+/** Luca ruft David an – nur Davids Nummer, nie 2–6 Uhr (keine Grenze pro Tag). */
 export async function rufeDavidAn(grund: string, test: boolean, info?: string): Promise<{ ok: true; id?: string } | { ok: false; grund: string }> {
   if (!lucaAn()) return { ok: false, grund: "Luca am Telefon ist noch nicht eingerichtet." };
   if (!process.env.VAPI_API_KEY?.trim()) return { ok: false, grund: "VAPI_API_KEY fehlt." };

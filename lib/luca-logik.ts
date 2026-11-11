@@ -133,6 +133,7 @@ export type Brief =
   | { typ: "schule" }
   | { typ: "erinnerung"; text: string; minuten?: number; uhrzeit?: string; ort?: string; ereignis?: "ankunft" | "abfahrt"; warten?: number; ab?: string; ueberblick?: boolean }
   | { typ: "lerncheck"; fach: string; sitzt?: string; luecken?: string }
+  | { typ: "ruhe"; ort?: string; aufheben?: boolean }
   | { typ: "notiz"; text: string };
 export type BriefMitZeit = Brief & { zeit: string; anruf?: string };
 
@@ -180,6 +181,12 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     const minuten = Math.round(Number(args.minuten));
     return Number.isFinite(minuten) && minuten >= 1 && minuten <= 10_080 ? { typ: "erinnerung", text, minuten } : null;
   }
+  // Davids Wunsch 11.11.: „Solange ich dort bin, ruf mich nicht an.“ Ohne Ort (oder „hier“): da, wo er gerade ist.
+  if (werkzeug === "nicht_stoeren") {
+    if (args.aufheben === true) return { typ: "ruhe", aufheben: true };
+    const ort = typeof args.ort === "string" ? args.ort.replace(/\s+/g, " ").trim().slice(0, 60) : "";
+    return ort && !/^hier$/i.test(ort) ? { typ: "ruhe", ort } : { typ: "ruhe" };
+  }
   if (werkzeug === "notiz_merken") {
     const text = typeof args.text === "string" ? args.text.trim().slice(0, 1000) : "";
     return text ? { typ: "notiz", text } : null;
@@ -201,7 +208,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
 
 export function briefText(b: BriefMitZeit): string {
   const kopf =
-    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? `Rückruf in ${b.minuten} Min.` : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
+    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? `Rückruf in ${b.minuten} Min.` : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
   // ``` im Text würde den Block beenden
   const json = JSON.stringify(b).replace(/`/g, "'");
   return `${BRIEF_MARKE} · ${kopf}\n\`\`\`json\n${json}\n\`\`\``;
@@ -213,7 +220,7 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   if (!m) return null;
   try {
     const j = JSON.parse(m[1]) as BriefMitZeit;
-    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz"].includes(j.typ)) return null;
+    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe"].includes(j.typ)) return null;
     return typeof j.zeit === "string" ? j : null;
   } catch {
     return null;
@@ -347,10 +354,11 @@ export function lageLesen(inhalt: string): Lage | null {
 
 // ------------------------------------------------------------------ Anrufe an David
 
-/** Darf Luca David jetzt anrufen? Nie 22–7 Uhr (Berlin). Keine Grenze pro Tag (Davids Wunsch 05.11.). Die Zentrale prüft zusätzlich Unterricht und Abstand. */
+/** Darf Luca David jetzt anrufen? Nie 2–6 Uhr (Berlin, Davids Wunsch 11.11.). Keine Grenze pro Tag (Davids Wunsch 05.11.). Die Zentrale prüft zusätzlich Unterricht und Abstand. */
 export function anrufErlaubt(jetzt: Date): { ok: true } | { ok: false; grund: string } {
   const { stunde } = berlinTagUndStunde(jetzt);
-  if (stunde >= 22 || stunde < 7) return { ok: false, grund: "Zwischen 22 und 7 Uhr ruft Luca nicht an." };
+  // Davids Wunsch 11.11.: anrufen von 6 Uhr bis 2 Uhr nachts
+  if (stunde >= 2 && stunde < 6) return { ok: false, grund: "Zwischen 2 und 6 Uhr ruft Luca nicht an." };
   return { ok: true };
 }
 
@@ -420,6 +428,7 @@ const WERKZEUGE_LIVE = [
   fn("wetter_abrufen", "Wetter jetzt, heute und morgen. Ohne ort: an Davids Standort.", { ort: txt("Ort, leer = Davids Standort") }),
   fn("kosten_abfragen", "Was Telefon und Assistenten gerade wirklich kosten (Twilio, Vapi), letzter Monat und dieser Monat bisher. Die ganze Kostenliste steht im Lagebericht und mit zeigen kosten auf dem Bildschirm."),
   fn("wann_muss_ich_los", "Der nächste Kalendertermin mit Ort: wann er ist, wie lange die Fahrt ab Davids Standort mit aktuellem Verkehr dauert und wann er los muss."),
+  fn("nicht_stoeren", "David will an einem Ort nicht angerufen werden: „solange ich im Kino bin, ruf nicht an“ oder „ich bin jetzt bei Oma, stör mich nicht“. Solange er dort ist, ruft Luca nicht an; sobald er weg ist, kommt, was wichtig war. Ohne ort gilt der Ort, an dem er gerade ist. Mit aufheben true darf Luca wieder anrufen.", { ort: txt("Der Ort, zum Beispiel Kino, Fitnessstudio oder eine Adresse. Leer lassen für „hier“."), aufheben: { type: "boolean", description: "true, wenn David sagt, Luca darf wieder anrufen" } }, []),
   fn("notiz_merken", "Legt, was David sich merken will, sofort in der Zentrale ab (Eingang). Für alles wie „merk dir das“ oder „schreib dir auf“.", { text: txt("Was gemerkt werden soll, in Davids Worten") }, ["text"]),
   fn("nachschauen", "Das Team sucht in Notion, den Mails von kontakt@agentsgilt.com, im Kalender, in Omi (Davids Gespräche und Aufgaben), in Stripe, Vercel und im Tresor nach einer Antwort. Dauert meist unter einer Minute, das Ergebnis kommt im Gespräch nach. Das Ergebnis kommt nicht als Antwort auf diesen Aufruf.", { frage: txt("Die Frage in einem klaren Satz") }, ["frage"]),
   fn("schule_aktualisieren", "Schaut frisch im Schulportal nach (Vertretung, Entfall, Räume). Das Ergebnis kommt im Gespräch nach."),

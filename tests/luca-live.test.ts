@@ -174,3 +174,10 @@ test("Erinnerung am Ort mit Wartezeit und erst ab einem Tag (Davids Wunsch 11.11
   assert.deepEqual(briefAus("erinnerung_planen", { text: "x", ort: "Zuhause", warten: 500 }, ""), { typ: "erinnerung", text: "x", ort: "Zuhause", ereignis: "ankunft" }, "höchstens 240 Minuten");
   assert.deepEqual(briefAus("erinnerung_planen", { text: "x", ort: "Zuhause", ab: "2026-13-40" }, ""), { typ: "erinnerung", text: "x", ort: "Zuhause", ereignis: "ankunft" });
 });
+
+test("Nicht stören, solange David an einem Ort ist (Davids Wunsch 11.11.)", () => {
+  assert.deepEqual(briefAus("nicht_stoeren", { ort: "Fitnessstudio" }, ""), { typ: "ruhe", ort: "Fitnessstudio" });
+  assert.deepEqual(briefAus("nicht_stoeren", {}, ""), { typ: "ruhe" }, "ohne Ort: da, wo David gerade ist");
+  assert.deepEqual(briefAus("nicht_stoeren", { ort: "  hier " }, ""), { typ: "ruhe" });
+  assert.deepEqual(briefAus("nicht_stoeren", { aufheben: true }, ""), { typ: "ruhe", aufheben: true });
+});

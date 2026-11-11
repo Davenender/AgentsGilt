@@ -85,7 +85,8 @@ const ANTWORT: Record<string, string> = {
   freigabe: "Die Entscheidung ist weitergegeben.",
   nachschauen: "Ist beim Team, noch kein Ergebnis. Es kommt im Gespräch nach, meist unter einer Minute. Sag David kurz, dass nachgeschaut wird, und rede normal weiter. Behaupte nichts, bis es da ist.",
   schule: "Das Schulportal wird gerade abgefragt, noch kein Ergebnis. Es kommt gleich im Gespräch nach.",
-  erinnerung: "Die Erinnerung ist eingeplant: Luca ruft David an. Sag ihm kurz, wann. Zwischen 22 und 7 Uhr und im Unterricht ruft er nicht an, dann danach.",
+  erinnerung: "Die Erinnerung ist eingeplant: Luca ruft David an. Sag ihm kurz, wann. Zwischen 2 und 6 Uhr nachts und im Unterricht ruft er nicht an, dann danach.",
+  ruhe: "Ist bei der Zentrale. Sie sagt dir gleich im Gespräch, was gilt (oder ob sie den Ort nicht gefunden hat). Bis dahin sag David kurz, dass du es notierst.",
   lerncheck: "Ist gemerkt.",
   notiz: "Ist notiert, liegt in der Zentrale im Eingang.",
 };
