@@ -166,3 +166,11 @@ test("Wann muss ich los: nächster Termin mit Ort, Fahrzeit mit Verkehr und 10 M
   const knapp = [{ titel: "Gleich", start: new Date(JETZT.getTime() + 5 * 60_000).toISOString(), ganztags: false, ort: "Relax Fit" }];
   assert.match(await losSatz(knapp, w, JETZT, netz(() => ({ routes: [{ summary: { travelTimeInSeconds: 1500 } }] }))), /Er müsste jetzt los/);
 });
+
+test("Erinnerung am Ort mit Wartezeit und erst ab einem Tag (Davids Wunsch 11.11.)", () => {
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "Marc anrufen (eine Woche um)", ort: "Zuhause", ereignis: "ankunft", warten: 10, ab: "2026-11-12" }, ""), { typ: "erinnerung", text: "Marc anrufen (eine Woche um)", ort: "Zuhause", ereignis: "ankunft", warten: 10, ab: "2026-11-12" });
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "x", ort: "Zuhause", warten: 5 }, ""), { typ: "erinnerung", text: "x", ort: "Zuhause", ereignis: "ankunft", warten: 5 });
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "x", ort: "Zuhause", warten: 0, ab: "morgen" }, ""), { typ: "erinnerung", text: "x", ort: "Zuhause", ereignis: "ankunft" }, "Unsinn fällt weg");
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "x", ort: "Zuhause", warten: 500 }, ""), { typ: "erinnerung", text: "x", ort: "Zuhause", ereignis: "ankunft" }, "höchstens 240 Minuten");
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "x", ort: "Zuhause", ab: "2026-13-40" }, ""), { typ: "erinnerung", text: "x", ort: "Zuhause", ereignis: "ankunft" });
+});
