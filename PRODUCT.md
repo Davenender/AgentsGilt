@@ -32,6 +32,7 @@ Die Agentur verkauft, was sie selbst benutzt: Wer anruft, spricht sofort mit dem
 - Anker `#top`, `#leistungen`, `#ablauf`, `#warum`, `#ausbildung`, `#kontakt` werden von Code benutzt.
 - Keine bezahlten Werkzeuge: keine Bild- oder Video-Erzeugung.
 - Live-Demo „Nummer eingeben, Assistent ruft an“ existiert nicht; entschieden (11.11.2026): stattdessen ein Probeanruf-Bereich mit der echten Nummer, keine neue Logik.
+- Leistungsumfang erweitert (entschieden 11.11.2026), die sechs Leistungsnamen bleiben wörtlich gleich: Automatisierungen umfassen auch CRM einrichten und interne Werkzeuge; KI-Chatbots umfassen auch eine Wissens-KI, die die eigenen Unterlagen eines Betriebs kennt; KI-Beratung & Audit umfasst auch individuelle KI-Systeme wie ein Kundenportal. Keine Preise und keine eigenen Software-Produkte nennen.
 
 ## Brand Commitments
 
@@ -44,7 +45,9 @@ Die Agentur verkauft, was sie selbst benutzt: Wer anruft, spricht sofort mit dem
 - Echte Texte in `lib/content.ts` (siehe `docs/texte.md`).
 - Vier Anthropic-Zertifikate je für David Hesse und Mijo Schulz (`public/certificates/`).
 - Kontakt: +49 6108 9694027, kontakt@agentsgilt.com, WhatsApp, Lämmerspieler Straße 100, 63165 Mühlheim am Main.
-- **Nicht vorhanden, nie erfinden:** Kundenstimmen, Kundenlogos, Kennzahlen, Projekt- oder Teamfotos, Preise in Zahlen. Fehlendes nur als gekennzeichneten Platzhalter zeigen.
+- **Nicht vorhanden, nie erfinden:** Kundenstimmen, Kundenlogos, Kennzahlen, Projekt- oder Teamfotos, Preise in Zahlen.
+- Kundenstimmen: Bereich ganz weglassen, auch kein Platzhalter (entschieden 11.11.2026).
+- Bilder: selbst gezeichnete Grafiken oder frei lizenzierte Web-Bilder mit Quellenangabe; keine Bild-/Video-Erzeugung; nichts, das Kunden, Projekte oder Team vortäuscht (entschieden 11.11.2026).
 
 ## Product Principles
 

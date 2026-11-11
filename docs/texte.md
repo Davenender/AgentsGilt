@@ -46,6 +46,12 @@ WhatsApp 4916098427943 · Lämmerspieler Straße 100, 63165 Mühlheim am Main ·
 | 05 | Automatisierungen | Lass die Routine sich selbst erledigen. | Wir automatisieren wiederkehrende Abläufe – von Lead-Erfassung bis Rechnungsversand – und schenken dir Stunden zurück. | Spart Zeit & vermeidet Fehler · Verbindet deine Tools · Berichte & Benachrichtigungen |
 | 06 | KI-Beratung & Audit | Wo lohnt sich KI für dich? | Wir analysieren deine Abläufe und zeigen dir eine klare, priorisierte Roadmap, wo KI dir am meisten Zeit und Umsatz bringt. | Analyse deiner Prozesse · Priorisierte Roadmap · Konkrete Umsetzungs-Schritte |
 
+**Erweiterung für den Neubau (entschieden 11.11.2026, Namen unverändert, nur Beschreibungen/Punkte ergänzen, keine Preise, keine eigenen Software-Produkte):**
+- 05 **Automatisierungen** – zusätzlich: CRM einrichten und interne Werkzeuge.
+- 02 **KI-Chatbots** – zusätzlich: Wissens-KI, die die eigenen Unterlagen eines Betriebs kennt.
+- 06 **KI-Beratung & Audit** – zusätzlich: individuelle KI-Systeme, z. B. ein Kundenportal.
+Die genaue Formulierung entsteht in Schritt 2 in `lib/content.ts` (gesiezt). Hinweis: Das Wissen des Chat-Assistenten (`lib/chatbot-knowledge.ts`) beschreibt die Leistungen ebenfalls; damit er dasselbe sagt wie die Seite, müsste es mit angepasst werden – nur Text, die festen `service`-Werte bleiben.
+
 **Die Leistungstitel sind Schnittstellenwerte und dürfen nicht umbenannt werden.** Sie werden wörtlich verglichen in `lib/content.ts`, `components/Contact.tsx` (Chat-Übernahme verwirft unbekannte Werte), `lib/chatbot-knowledge.ts` (feste Werte im `[DATEN]`-Marker) und `lib/notion-api.ts` (Notion-Angebote, Lead-Übernahme über `lib/anfrage-handlers.ts`). Ein anderer sichtbarer Name geht nur über einen getrennten Anzeigetext (siehe `docs/funktionen.md` Abschnitt 4a).
 
 ## Ablauf
@@ -235,9 +241,9 @@ Feste Texte, die Besucher sehen können. Davon zu unterscheiden: **dynamische** 
 (Server-Meldungen gehören zur Logik und bleiben; nur Widget-Texte dürfen beim Neubau auf „Sie“ umgestellt werden.)
 
 ## Platzhalter / fehlt noch (nie als echt ausgeben)
-- Kundenstimmen: **keine vorhanden** → Bereich nur als markierter Platzhalter oder weglassen.
+- Kundenstimmen: **keine vorhanden** → Bereich **ganz weglassen, kein Platzhalter** (entschieden 11.11.2026).
 - Kennzahlen (Anzahl Kunden, gesparte Stunden, …): **keine belegt** → keine Zahlen erfinden.
-- Fotos von Team/Kunden/Projekten: **keine vorhanden** (nur Logo und Zertifikate) → eigene Grafik oder markierte Platzhalter.
+- Fotos von Team/Kunden/Projekten: **keine vorhanden** (nur Logo und Zertifikate) → selbst gezeichnete Grafiken oder frei lizenzierte Web-Bilder mit Quellenangabe (entschieden 11.11.2026); nichts, das Kunden, Projekte oder Team vortäuscht.
 - Live-Demo „Nummer eingeben, Assistent ruft an“: **keine Funktion vorhanden** – bräuchte neue Logik; im Neubau höchstens als Anrufen-Knopf auf die echte Nummer.
 
 ## Offene Entscheidungen für David

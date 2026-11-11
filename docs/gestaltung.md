@@ -11,7 +11,7 @@ Bau-Weg: Code zuerst (keine Bild-Erzeugung). Dieser Auftrag ist noch **kein** Ba
 ## 2. Ziel und Belege
 - Hauptaktion: **Anrufen +49 6108 9694027** – dort nimmt der eigene KI-Assistent ab und macht einen Termin (die Seite ist damit die Vorführung). Knopf immer sichtbar (Kopfleiste, Hero, am Handy schwebende Leiste unten links neben dem Chat).
 - Zweitens: Chat unten rechts. Drittens: Anfrage-Formular, klein, aufklappbar („Lieber schreiben?“).
-- Belege nur echt: Leistungen, Ablauf, Vorteile, 4 Anthropic-Zertifikate (David Hesse, Mijo Schulz), Einzugsgebiet, „meist innerhalb eines Werktages“. Keine Kundenstimmen, keine Zahlen erfinden. Ein Bereich für Kundenstimmen nur als sichtbar markierter Platzhalter („Hier stehen bald Stimmen unserer Kunden“) – oder weglassen (David entscheidet).
+- Belege nur echt: Leistungen, Ablauf, Vorteile, 4 Anthropic-Zertifikate (David Hesse, Mijo Schulz), Einzugsgebiet, „meist innerhalb eines Werktages“. Keine Kundenstimmen, keine Zahlen erfinden. **Kein Kundenstimmen-Bereich, auch kein Platzhalter** (entschieden 11.11.2026). Das Retell-Motiv „Karten schieben sich übereinander“ wird nur für echte Inhalte genutzt (Vorteile, Leistungen).
 
 ## 3. Gewählte Richtung
 - **Welt:** Bühnenhorizont. Fast schwarzes Nachtblau als Grund (nicht reines Schwarz), ein tiefes Kobalt-Band und darüber ein **goldener** Horizont aus dem Logo-Gold. Kein Rosa, kein Lila, keine lila Verläufe: Kobalt und Gold treffen sich nie direkt, dazwischen liegt immer Nachtblau.
@@ -25,6 +25,11 @@ Bau-Weg: Code zuerst (keine Bild-Erzeugung). Dieser Auftrag ist noch **kein** Ba
 3. **Probeanruf (Vapi-Gefühl, ohne neue Logik):** „Rufen Sie unseren Assistenten an – jetzt, um <Uhrzeit>.“ Großer Anrufen-Knopf mit der echten Nummer, Hinweis „Am Telefon nimmt unser KI-Assistent ab und macht direkt einen Termin aus.“
 4. **Was wir machen (Schreibmaschine bleibt):** „Wir bauen in ~~Tagen~~ Stunden*…“ – Text färbt sich beim Lesen Wort für Wort ein. Die Ereignisse für die Chat-Sprechblase bleiben.
 5. **Leistungen (CUE-Liste):** 6 Leistungen als Lichtstellungen untereinander; beim Scrollen wechselt ein großes Bild/Zeichen und fliegt über die Überschrift. Klick wählt die Leistung im Formular vor (Funktion bleibt).
+   Erweiterte Beschreibungen (entschieden 11.11.2026, Namen bleiben wörtlich gleich, nur die Beschreibungen wachsen):
+   - **Automatisierungen** – zusätzlich: CRM einrichten und interne Werkzeuge.
+   - **KI-Chatbots** – zusätzlich: Wissens-KI, die die eigenen Unterlagen eines Betriebs kennt.
+   - **KI-Beratung & Audit** – zusätzlich: individuelle KI-Systeme, z. B. ein Kundenportal.
+   Keine Preise, keine eigenen Software-Produkte nennen.
 6. **So läuft es ab:** drei Schritte auf einer gemeinsamen Horizontlinie; ein glänzender, flüssiger Gold-Tropfen fließt beim Scrollen von Schritt zu Schritt (echte Flüssigkeits-Physik, Oberflächenspannung). Jeder Schritt rastet in einem klaren Endzustand ein, der letzte: „Termin steht“.
 7. **Warum wir:** 4 Vorteile, Karten schieben sich beim Scrollen übereinander (Retell-Gefühl).
 8. **Ausbildung:** Zertifikate als Stapel (Funktion bleibt).
@@ -45,6 +50,7 @@ Bau-Weg: Code zuerst (keine Bild-Erzeugung). Dieser Auftrag ist noch **kein** Ba
 - Nie: lila Verläufe, Inter, 3D-Blobs, KI-Standard-Kästchenraster, Emojis als Symbole, Glas überall, reines Schwarz ohne Farbe, erfundene Zahlen oder Stimmen. Keine fremde Seite 1:1.
 - Leistung: Ladebildschirm darf die Seite nicht blockieren (Inhalt im HTML vorhanden); 3D nur am Computer, nachgeladen.
 
-## Offene Entscheidungen für David
-1. Kundenstimmen-Bereich: als markierter Platzhalter zeigen oder weglassen?
-2. Bilder: Es gibt keine Fotos. Vorschlag: eigene gezeichnete Grafiken (Diamant, Telefon-Wellen, Kalender) im Horizont-Stil statt Fotos. Einverstanden?
+## Entscheidungen von David (11.11.2026)
+1. **Kundenstimmen:** ganz weglassen, kein Platzhalter.
+2. **Bilder:** selbst gezeichnete Grafiken (SVG/Canvas im Horizont-Stil) oder gute Bilder aus dem Web. Web-Bilder nur mit freier Lizenz für gewerbliche Nutzung (z. B. Unsplash, Pexels), Quelle und Lizenz je Bild in `docs/bildquellen.md` vermerken, Adresse vorher prüfen, lokal in `public/` ablegen. Keine Bild- oder Video-Erzeugung (kostet Geld). Keine Bilder, die Kunden, Projekte oder Team vortäuschen.
+3. **Leistungen:** Beschreibungen von „Automatisierungen“, „KI-Chatbots“, „KI-Beratung & Audit“ werden erweitert (siehe Bereich 5); die sechs Namen bleiben unverändert.
