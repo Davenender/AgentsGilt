@@ -10,7 +10,6 @@ import { Wortmarke } from "../Rahmen";
 import { Zeilen } from "../Zeilen";
 import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, istVorschau } from "../umgebung";
 import { KopfAnker, KopfBuehne } from "./KopfBuehne";
-import { LichtName } from "./LichtName";
 
 gsap.registerPlugin(useGSAP, SplitText);
 
@@ -88,32 +87,7 @@ function WortFlug() {
   );
 }
 
-/**
- * 1 · Kern im Schriftzug (gewählt). Der Kopfbereich ist ohne Text: in der Mitte
- * nur das Licht-Logo und davor der Name aus Zeichen-Teilchen (LichtName.tsx),
- * unten das goldene Licht als Scroll-Hinweis. Marke, Navigation und „Anrufen“
- * stehen in der Kopfleiste, der Chat-Knopf unten rechts.
- *
- * Überschrift, Unterzeile und Telefon-Block stehen vorerst direkt darunter;
- * sie werden im nächsten Auftrag neu verteilt.
- */
-export function KopfKern() {
-  return (
-    <>
-      <section id="top" className="ag-hero ag-kopf5" aria-label="Agents Gilt">
-        <LichtName />
-        {/* Scroll-Hinweis: ein sehr schwacher Goldschein von unten (erscheint erst nach 4 Sekunden ohne Scrollen). */}
-        <div className="ag-kopf5__lockruf" aria-hidden="true" />
-      </section>
-      <section className="ag-nachkopf">
-        <div className="ag-wrap ag-nachkopf__innen">
-          <Titel start="scroll" />
-          <Aktionen />
-        </div>
-      </section>
-    </>
-  );
-}
+// 1 · Kern im Schriftzug (gewählt) ist zur neuen Seite geworden: components/neu/seite/Seite.tsx.
 
 /** 2 · Lichtbänder: oben die Überschrift, darunter das Zeichen groß mit kreisenden Bändern. */
 export function KopfBaender() {

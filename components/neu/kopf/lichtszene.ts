@@ -41,8 +41,28 @@ export type LichtLage = {
 
 export type LichtSzene = {
   lage: LichtLage;
-  /** Auftritt: Das Licht blendet auf (sofort, wenn das ruhige Bild schon steht). */
-  zeigen: (sofort: boolean) => void;
+  /**
+   * Auftritt: Das Licht blendet auf (sofort, wenn das ruhige Bild schon steht). Ohne weitere
+   * Angaben in 1,8 s. Die Startanimation gibt Dauer und Kurve vor (Dimmer) und erfährt über
+   * „beiPegel“ in jedem Schritt, wie hell es gerade ist (0 bis 1).
+   */
+  zeigen: (sofort: boolean, dauer?: number, kurve?: (x: number) => number, beiPegel?: (pegel: number) => void) => void;
+  /**
+   * Aufwärmen: Shader übersetzen und Bilder unsichtbar vorzeichnen (eines beim Anlegen, zwei hier; das Licht ist dabei aus).
+   * Danach ruckelt der Auftritt nicht mehr. Meldet sich, wenn die Bilder gezeichnet sind.
+   */
+  aufwaermen: () => Promise<void>;
+  /** Folgt das Licht der Maus? Beim Einschalten dreht es sich weich zur jetzigen Mausposition. */
+  mausFolgen: (ja: boolean) => void;
+  /** Kurz etwas heller aufleuchten (zurück am Seitenanfang). Die Zeichen nahe am Licht leuchten mit. */
+  aufleuchten: () => void;
+  /** Pegel fest einstellen, ohne Übergang (Testseite: so wird das Stern-Bild der Startanimation aufgenommen). */
+  pegel: (wert: number) => void;
+  /**
+   * Nur mit `strahl`: die Form der Öffnung. 1 = ein schmaler, schräger Schlitz (Lichtstrahl),
+   * 0 = der Stern. Dazwischen fächert sich der Strahl zum Stern auf.
+   */
+  form: (schlitz: number) => void;
   /**
    * Schonen: Solange die Zeichen des Namens als Ganzes unterwegs sind (Startflug, Welle), wird
    * das Licht höchstens 20-mal je Sekunde neu gezeichnet. So bleibt ihre Bewegung auch in großen
@@ -59,6 +79,19 @@ export type LichtWahl = {
   wand: number;
   /** Folgt die Wand der Maus? (Am Handy wiegt sie sich nur leicht.) */
   maus: boolean;
+  /**
+   * Auftritt in Stufen (Startanimation): Zuerst leuchtet nur der Stern, so schwach wie das Bild,
+   * das bis dahin an seiner Stelle stand („stern“ = seine Helligkeit zu Beginn, 0 bis 1). Dann
+   * öffnen sich die vier Balken und werden heller, zuletzt wachsen die langen Strahlen nach außen.
+   * Die Maus bleibt aus, bis mausFolgen(true) gerufen wird. Ohne diese Angabe geht alles
+   * zusammen an, und die Maus wirkt sofort.
+   */
+  stufen?: { stern: number };
+  /**
+   * Übergang zu den Leistungen: Die Wand hat statt des Logos einen schmalen, schrägen Schlitz,
+   * der sich zum Stern auffächern lässt (form()). Die Balken bleiben zu.
+   */
+  strahl?: boolean;
   /** Wird nach jedem Bild gerufen, in dem sich das Licht bewegt hat. */
   beiBild?: (lage: LichtLage) => void;
   /** Wird einmal gerufen, wenn das Gerät nicht flüssig mitkommt oder die Grafik ausfällt: Dann gehört das ruhige Bild hin. */
@@ -85,6 +118,9 @@ const KIPP = 0.16;
 const KIPP_HOCH = 1.25;
 // Im Umkreis des halben Logos um ihre Mitte leuchtet die Scheibe schwächer (Anteil ihres Radius).
 const KERN = (0.5855 * LOGO * (ABSTAND + TIEFE)) / ABSTAND / SCHEIBE;
+// Die langen Strahlen (mit dem Vorbild abgeglichen, siehe unten beim Effekt).
+const STRAHL_DICHTE = 0.77;
+const STRAHL_BELICHTUNG = 0.21;
 
 const FLAECHE = `
 varying vec2 vLage;
@@ -126,6 +162,8 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
 
   const uHell = { value: 0 };
   const uZeit = { value: 0 };
+  const uBalken = { value: 1 };
+  const uSchlitz = { value: 1 };
   const wegwerfen: { dispose: () => void }[] = [];
   const merken = <T extends { dispose: () => void }>(ding: T) => {
     wegwerfen.push(ding);
@@ -136,12 +174,19 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   const WEIT = 80;
   const wandStoff = merken(
     new THREE.ShaderMaterial({
-      uniforms: { uFarbe: { value: new THREE.Color(wahl.wand) }, uWeite: { value: WEIT / LOGO }, uStern: { value: STERN } },
+      uniforms: { uFarbe: { value: new THREE.Color(wahl.wand) }, uWeite: { value: WEIT / LOGO }, uStern: { value: STERN }, uBalken, uStrahl: { value: wahl.strahl ? 1 : 0 }, uSchlitz },
       vertexShader: FLAECHE,
       fragmentShader: `
         uniform vec3 uFarbe;
         uniform float uWeite;
         uniform float uStern;
+        // Wie weit die Balken geöffnet sind: 0 = zu (nur der Stern ist offen), 1 = volle Breite.
+        uniform float uBalken;
+        // Übergang zu den Leistungen: uStrahl = 1 schaltet auf Schlitz und Stern um; uSchlitz sagt,
+        // wie viel Schlitz (1) und wie viel Stern (0) die Öffnung gerade ist. Der Schlitz ist 0,09
+        // breit und 2,9 lang (in Logo-Einheiten) und um 32° geneigt.
+        uniform float uStrahl;
+        uniform float uSchlitz;
         varying vec2 vLage;
         // Auf welcher Seite der Kante a→b liegt p? (Kleiner oder gleich 0: rechts davon.)
         float seite(vec2 p, vec2 a, vec2 b) {
@@ -159,6 +204,14 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
           vec2 c = vec2(0.7516, 0.1342);
           vec2 d = vec2(0.1299, 0.7529);
           vec2 t1 = vec2(0.0899, 0.8743);
+          // Beim Auftritt öffnen sich die Balken von ihrer Mittellinie aus (wie eine Blende): erst
+          // feine Schlitze, dann die volle Breite. Die beiden Spitzen bleiben stehen.
+          vec2 mLinks = (a + d) * 0.5;
+          vec2 mRechts = (b + c) * 0.5;
+          a = mix(mLinks, a, uBalken);
+          d = mix(mLinks, d, uBalken);
+          b = mix(mRechts, b, uBalken);
+          c = mix(mRechts, c, uBalken);
           // Die Ecken laufen im Uhrzeigersinn: innen liegt, was rechts jeder Kante liegt.
           return seite(p, a, b) <= 0.0 && seite(p, b, t2) <= 0.0 && seite(p, t2, c) <= 0.0 && seite(p, c, d) <= 0.0 && seite(p, d, t1) <= 0.0 && seite(p, t1, a) <= 0.0;
         }
@@ -170,8 +223,19 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
         void main() {
           // Position auf der Wand in Logo-Einheiten (Außenmaß des Logos = 1 = Rand des Platzes).
           vec2 p = vLage * uWeite;
+          if (uStrahl > 0.5) {
+            // Der Strahl fächert sich zum Stern auf: Der Schlitz wird kürzer und zieht sich in die
+            // Mitte zurück, während der Stern dort aus ihm herauswächst.
+            float q = 0.536;
+            bool stern = pow(pow(abs(p.x), q) + pow(abs(p.y), q), 1.0 / q) < uStern * (1.0 - uSchlitz);
+            vec2 r = vec2(0.848 * p.x + 0.53 * p.y, -0.53 * p.x + 0.848 * p.y);
+            bool schlitz = abs(r.x) < 0.045 && abs(r.y) < 1.45 * uSchlitz;
+            if (stern || schlitz) discard;
+            gl_FragColor = vec4(uFarbe, 1.0);
+            return;
+          }
           // An den Stellen des Logos hat die Wand Löcher: keine Farbe, keine Tiefe.
-          if (imBalken(p) || imStern(p)) discard;
+          if ((uBalken > 0.004 && imBalken(p)) || imStern(p)) discard;
           gl_FragColor = vec4(uFarbe, 1.0);
         }`,
     }),
@@ -272,14 +336,14 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     // nach Licht. Dadurch laufen die Strahlen in einigem Abstand aus und werden dann wirklich schwarz.
     // Bei weniger Proben ist jeder Schritt länger; Abklingen und Gewicht werden umgerechnet,
     // damit das Licht am Handy gleich aussieht.
-    density: 0.77,
+    density: STRAHL_DICHTE,
     decay: Math.pow(0.94, 80 / wahl.proben),
     weight: (0.2 * 80) / wahl.proben,
     // Die Öffnungen haben die Breite der echten Balken, es fällt also mehr Licht hindurch als durch
     // die früheren schmalen Splitter (damals Belichtung 0,42). Mit 0,21 sind die langen Strahlen
     // wieder so stark und so lang wie im Stand 8c455bd: Mittelwert der Helligkeit in Ringen
     // oberhalb des Logos (130–200 / 200–300 / 300–400 px) rund 46 / 16 / 6, Reichweite rund 430 px.
-    exposure: 0.21,
+    exposure: STRAHL_BELICHTUNG,
     clampMax: 1,
     resolutionScale: 0.5,
     kernelSize: KernelSize.MEDIUM,
@@ -337,15 +401,23 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   // ── Maus: Die Wand kippt zur Maus; am Handy wiegt sie sich nur leicht.
   const ziel = { x: 0, y: 0 };
   const ist = { x: 0, y: 0 };
+  // Wo die Maus zuletzt war. Solange das Licht ihr nicht folgt (Startanimation), wird das nur gemerkt.
+  const mausOrt = { x: 0, y: 0 };
+  let folgt = !wahl.stufen;
   const zeiger = (ev: PointerEvent) => {
     if (ev.pointerType !== "mouse") return;
     const r = halter.getBoundingClientRect();
     // Lage der Maus relativ zur Logo-Mitte, auf die halbe Bildbreite bezogen.
-    ziel.x = THREE.MathUtils.clamp((ev.clientX - r.left - lage.mitteX) / (breite * 0.5), -1, 1);
-    ziel.y = THREE.MathUtils.clamp((ev.clientY - r.top - lage.mitteY) / (hoehe * 0.5), -1, 1);
+    mausOrt.x = THREE.MathUtils.clamp((ev.clientX - r.left - lage.mitteX) / (breite * 0.5), -1, 1);
+    mausOrt.y = THREE.MathUtils.clamp((ev.clientY - r.top - lage.mitteY) / (hoehe * 0.5), -1, 1);
+    if (!folgt) return;
+    ziel.x = mausOrt.x;
+    ziel.y = mausOrt.y;
     wecken();
   };
   const zeigerWeg = () => {
+    mausOrt.x = 0;
+    mausOrt.y = 0;
     ziel.x = 0;
     ziel.y = 0;
   };
@@ -355,7 +427,8 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   }
 
   // ── Bild für Bild.
-  const zustand = { auftritt: 0 };
+  const zustand = { auftritt: 0, blitz: 0 };
+  let beiPegel: ((pegel: number) => void) | undefined;
   let zeit = 0;
   let letzte = 0;
   let rahmen = 0;
@@ -397,7 +470,7 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     // Kommt das Gerät mit? Gemessen wird nur, wie lange es nach einem gezeichneten Bild bis zum
     // nächsten dauert (absichtlich ausgelassene Bilder schönen die Messung nicht), und erst nach
     // dem Auftritt (das Laden der Seite zählt nicht als Ruckeln). Je Fenster 30 Bilder.
-    if (warGezeichnet && lage.hell >= 1) {
+    if (warGezeichnet && zustand.auftritt >= 1) {
       warm += 1;
       if (warm > 10) {
         dauerSumme += echt;
@@ -438,7 +511,9 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     ist.x += (ziel.x - ist.x) * zug;
     ist.y += (ziel.y - ist.y) * zug;
     // „Bewegt“ heißt: Die Zeichen müssen davon erfahren (Maus, Auftritt bis zum letzten Wert, neue Maße).
-    const bewegt = Math.abs(ist.x - vorX) + Math.abs(ist.y - vorY) > 0.0005 || lage.hell !== zustand.auftritt || neu;
+    // Helligkeit, die die Zeichen erfahren: der Auftritt, beim Aufleuchten kurz etwas mehr.
+    const hell = zustand.auftritt * (1 + zustand.blitz);
+    const bewegt = Math.abs(ist.x - vorX) + Math.abs(ist.y - vorY) > 0.0005 || lage.hell !== hell || neu;
 
     // In Ruhe genügt jedes zweite Bild (Atmen, Filmkorn und das langsame Wiegen am Handy).
     // Solange nicht feststeht, dass das Gerät flüssig mitkommt, wird jedes Bild gezeichnet.
@@ -446,7 +521,21 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
       zuletztGezeichnet = jetzt;
       uZeit.value = zeit;
       // Das Licht pulsiert nur ganz leicht.
-      uHell.value = zustand.auftritt * (1 + 0.02 * Math.sin(zeit * 0.7));
+      const atem = 1 + 0.02 * Math.sin(zeit * 0.7);
+      if (wahl.stufen) {
+        // Auftritt in Stufen: Der Stern beginnt so schwach wie das Bild, das vorher an seiner Stelle
+        // stand, und wird mit dem Pegel heller. Die Balken öffnen sich in der ersten Hälfte, die
+        // langen Strahlen wachsen danach von den Öffnungen nach außen (Reichweite und Stärke).
+        const p = zustand.auftritt;
+        const weich = (von: number, bis: number) => THREE.MathUtils.smoothstep(p, von, bis);
+        uHell.value = (wahl.stufen.stern + (1 - wahl.stufen.stern) * p) * atem * (1 + zustand.blitz);
+        uBalken.value = weich(0.02, 0.6);
+        const wuchs = weich(0.2, 1);
+        strahlen.godRaysMaterial.exposure = STRAHL_BELICHTUNG * wuchs;
+        strahlen.godRaysMaterial.density = 0.3 + (STRAHL_DICHTE - 0.3) * wuchs;
+      } else {
+        uHell.value = zustand.auftritt * atem * (1 + zustand.blitz);
+      }
       // Ohne Maus wiegt sich die Wand ganz leicht von selbst.
       const kx = ist.x + Math.sin(zeit * 0.31) * (wahl.maus ? 0.03 : 0.05);
       const ky = ist.y + Math.sin(zeit * 0.23 + 1.3) * (wahl.maus ? 0.02 : 0.035);
@@ -467,7 +556,7 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
 
       lage.kippX = kx;
       lage.kippY = ky * KIPP_HOCH;
-      lage.hell = zustand.auftritt;
+      lage.hell = hell;
       if (bewegt) wahl.beiBild?.(lage);
       neu = false;
     }
@@ -506,10 +595,70 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
 
   return {
     lage,
-    zeigen: (sofort) => {
+    zeigen: (sofort, dauer = 1.8, kurve, melden) => {
       gezeigt = true;
-      gsap.to(zustand, { auftritt: 1, duration: sofort ? 0.01 : 1.8, ease: "power2.out" });
+      beiPegel = melden;
+      gsap.killTweensOf(zustand, "auftritt");
+      gsap.to(zustand, {
+        auftritt: 1,
+        duration: sofort ? 0.01 : dauer,
+        ease: kurve ?? "power2.out",
+        onUpdate: () => beiPegel?.(zustand.auftritt),
+      });
       wecken();
+    },
+    aufwaermen: () =>
+      new Promise<void>((fertig) => {
+        // Zwei weitere Bilder zeichnen, je eines pro Bildtakt (das erste zeichnet die Szene beim
+        // Anlegen selbst): Beim ersten übersetzt der Browser die Shader.
+        // Das Licht ist dabei aus (Pegel 0, Stern 0): Zu sehen ist nichts, die Fläche bleibt schwarz.
+        let uebrig = 2;
+        const hellVorher = uHell.value;
+        const vor = () => {
+          if (vorbei) return fertig();
+          uHell.value = 0;
+          logo.updateMatrixWorld();
+          scheibe.position.set(0, 0, -TIEFE);
+          scheibe.updateMatrix();
+          scheibe.updateMatrixWorld();
+          direktScheibe.position.copy(scheibe.position);
+          direktScheibe.updateMatrix();
+          direktScheibe.updateMatrixWorld();
+          composer.render(0.016);
+          uHell.value = hellVorher;
+          uebrig -= 1;
+          if (uebrig > 0) requestAnimationFrame(vor);
+          else fertig();
+        };
+        requestAnimationFrame(vor);
+      }),
+    form: (schlitz) => {
+      const wert = THREE.MathUtils.clamp(schlitz, 0, 1);
+      if (wert === uSchlitz.value) return;
+      uSchlitz.value = wert;
+      neu = true;
+      wecken();
+    },
+    pegel: (wert) => {
+      gezeigt = true;
+      gsap.killTweensOf(zustand, "auftritt");
+      zustand.auftritt = wert;
+      neu = true;
+      wecken();
+    },
+    mausFolgen: (ja) => {
+      folgt = ja;
+      ziel.x = ja ? mausOrt.x : 0;
+      ziel.y = ja ? mausOrt.y : 0;
+      wecken();
+    },
+    aufleuchten: () => {
+      if (!gezeigt || zustand.auftritt < 1) return;
+      gsap.killTweensOf(zustand, "blitz");
+      gsap
+        .timeline()
+        .to(zustand, { blitz: 0.28, duration: 0.22, ease: "power2.out", onUpdate: wecken })
+        .to(zustand, { blitz: 0, duration: 0.9, ease: "power2.inOut", onUpdate: wecken });
     },
     schonen: (ja) => {
       schonend = ja;

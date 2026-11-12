@@ -65,7 +65,7 @@ function DaumenLeiste() {
   );
 }
 
-function Fusszeile() {
+function Fusszeile({ zusatz }: { zusatz?: ReactNode }) {
   return (
     <footer className="ag-fuss">
       <div className="ag-wrap ag-fuss__oben">
@@ -100,6 +100,7 @@ function Fusszeile() {
       </div>
       {/* Stehender Riesen-Schriftzug (kein Laufband). */}
       <div className="ag-wrap ag-fuss__wort">
+        {zusatz}
         <Wortmarke />
       </div>
       <p className="ag-wrap ag-fuss__unten">
@@ -120,15 +121,21 @@ export function Wortmarke({ className }: { className?: string }) {
   );
 }
 
-/** Rahmen jeder Variante: Ladebildschirm, Kopfleiste, Inhalt, Fußleiste. */
-export function Rahmen({ children, klasse }: { children: ReactNode; klasse?: string }) {
+/**
+ * Rahmen jeder Variante: Ladebildschirm, Kopfleiste, Inhalt, Fußleiste.
+ *
+ * `start="licht"`: Die Seite hat die neue Startanimation des Kopfbereichs (Stern im Dunkeln, dann
+ * Licht, dann Zeichen; kopf/LichtName.tsx). Der alte Ladebildschirm mit den Balken entfällt dann.
+ * `fussZusatz` steht in der Fußleiste hinter dem Riesenschriftzug (der Zeichen-Strahl).
+ */
+export function Rahmen({ children, klasse, start = "balken", fussZusatz }: { children: ReactNode; klasse?: string; start?: "balken" | "licht"; fussZusatz?: ReactNode }) {
   return (
     <>
-      <Ladebildschirm />
+      {start === "balken" && <Ladebildschirm />}
       <WeichesScrollen />
       <Kopfleiste />
       <main className={klasse}>{children}</main>
-      <Fusszeile />
+      <Fusszeile zusatz={fussZusatz} />
       <DaumenLeiste />
       <ChatKnopf />
     </>

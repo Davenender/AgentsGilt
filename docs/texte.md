@@ -251,9 +251,17 @@ Noch in der alten Form (du, mit Emojis), weil erst in einem späteren Schritt um
 **Schritt 4 (Kopfbilder):** Die Kopfbereiche nutzen dieselben Texte aus `lib/inhalt-neu.ts` (Überschrift „Es klingelt. Ihr Assistent nimmt ab.“, Unterzeile, Anruf-Leiste, „Leistungen ansehen“). Neu sind nur die Namen und je ein Satz der vier Varianten auf der Übersicht (`components/neu/kopf/kopfbilder.ts`) und deren Überschrift „Vier Kopfbilder, ein Aufbau.“
 - Chat-Knopf der neuen Welt (`lib/inhalt-neu.ts`, `chat`): Sprechblase „Bei Fragen helfe ich dir gerne weiter“ (derselbe Satz wie beim bisherigen Chat-Knopf, ohne das Sternchen-Symbol; der Chat duzt), Knopf-Name für Vorleseprogramme „Chat mit Agents Gilt öffnen“, Schließen-Kreuz „Hinweis schließen“.
 
+**Neue Seite (12.11.2026, `lib/inhalt-neu.ts`):** Fakten und Aussagen sind unverändert; neu sind nur Anordnung und einige kurze Beschriftungen.
+- **Erste Aussage (Hauptüberschrift):** „Wir bauen in Stunden*, wofür Agenturen Wochen brauchen.“ (derselbe Satz wie bisher im Bereich „Was wir machen“, jetzt ohne das getippte „Tagen“); darunter „KI-Telefonassistent, Website und Chatbot für lokale Betriebe in Rhein-Main.“, die Anruf-Leiste und die Fußnote „* Gilt nur bei sehr einfachen Projekten und ist kein Versprechen.“ Die frühere Überschrift „Es klingelt. Ihr Assistent nimmt ab.“ steht auf der neuen Seite als Zeile in der Szene der Karte „Voice-Agenten“.
+- **Vier Wörter** (Übergang und laufendes Band): Persönlich · Schnell · Feste Preise · Aus Rhein-Main.
+- **Szenen der Leistungskarten** (`szenen`): „Es klingelt – Ihr Assistent nimmt ab“, „Termin eingetragen“ · „Haben Sie morgen noch einen Termin frei?“ / „Ja, um 10:30 Uhr. Soll ich ihn eintragen?“ · „Mai“, „10:30“, „Gebucht“ · „Anfrage“, „Angebot“, „Rechnung“, „12 Stunden gespart“ · „ihr-betrieb.de“, „Anfragen +38 %“ · die drei Punkte der KI-Beratung. **Die Zahlen sind Beispiele und tragen das Schild „Beispiel“.**
+- **Warum wir:** Überschrift unverändert; als Text darunter der Absatz „Mit modernster KI entwickeln wir …“ (bisher im Bereich „Was wir machen“). **„Unser Versprechen“:** Persönlich („Ein direkter Ansprechpartner statt Hotline-Warteschleife.“), Schnell („Erste Ergebnisse in Tagen, nicht Monaten.“), Feste Preise („Fairer Setup-Preis plus transparente monatliche Betreuung.“, bisher unter „Planbar“). Der Punkt „Modern“ steht nicht mehr einzeln da; seine Aussage steckt im Absatz darüber.
+- **Mauszeiger:** „Ansehen“.
+- **Kundenstimmen (AUS):** Überschrift „Was unsere Kunden sagen.“ und drei Platzhalter in `lib/content.ts` (`testimonials`); sie erscheinen nicht, solange `aktiv` auf `false` steht.
+
 ## Platzhalter / fehlt noch (nie als echt ausgeben)
-- Kundenstimmen: **keine vorhanden** → Bereich **ganz weglassen, kein Platzhalter** (entschieden 11.11.2026).
-- Kennzahlen (Anzahl Kunden, gesparte Stunden, …): **keine belegt** → keine Zahlen erfinden.
+- Kundenstimmen: **keine vorhanden**. Der Abschnitt ist seit 12.11.2026 fertig gebaut, aber **ausgeschaltet** (`testimonials.aktiv = false` in `lib/content.ts`); die Platzhalter dort nie einschalten, erst echte, freigegebene Stimmen eintragen.
+- Kennzahlen (Anzahl Kunden, gesparte Stunden, …): **keine belegt** → keine Zahlen erfinden. Die Zahlen in den Szenen der Leistungskarten („+38 %“, „12 Stunden gespart“) sind von David gewünschte Beispiele und als „Beispiel“ beschriftet.
 - Fotos von Team/Kunden/Projekten: **keine vorhanden** (nur Logo und Zertifikate) → selbst gezeichnete Grafiken oder frei lizenzierte Web-Bilder mit Quellenangabe (entschieden 11.11.2026); nichts, das Kunden, Projekte oder Team vortäuscht.
 - Live-Demo „Nummer eingeben, Assistent ruft an“: **keine Funktion vorhanden** – bräuchte neue Logik; im Neubau höchstens als Anrufen-Knopf auf die echte Nummer.
 

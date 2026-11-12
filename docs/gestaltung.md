@@ -29,6 +29,21 @@ In Schritt 1 stand vorläufig „Bühnenhorizont“; in Schritt 2 hat David unte
 - **Disziplin aus der Auswahlrunde (von den abgelehnten Karten behalten):** leuchtendes Gold nur auf Bedienbarem; Licht folgt dem Zeiger; Zustände laufen als Welle, nie alles gleichzeitig; ein festes Lesemaß für Fließtext; am Handy entsteht das Logo aus Rasterpunkten.
 
 ## 4. Ablauf der Seite (alle Bereiche bleiben, Reihenfolge darf sich ändern)
+
+**Stand seit 12.11.2026: die neue Seite** (`/varianten/kopf/kern`, `components/neu/seite/Seite.tsx`). Alle Anker bleiben (`#top #leistungen #ablauf #warum #ausbildung #kontakt`).
+1. **Startanimation** (4f): Stern im Dunkeln, während alles lädt; dann geht das Licht an, dann fliegen die Zeichen ein. Ersetzt den Ladebildschirm mit Balken und „0 %“.
+2. **Kopfbereich ohne Text** (4d): Licht-Logo, darunter der Name aus Zeichen; am unteren Rand der Scroll-Hinweis aus Licht (4g).
+3. **Erste Aussage** (4h): Die Zeichen fliegen beim Scrollen auseinander, dann steht groß „Wir bauen in Stunden*, wofür Agenturen Wochen brauchen.“ (die Hauptüberschrift der Seite), darunter ein kurzer Satz und die Anruf-Leiste.
+4. **Übergang** (4h): ein schräger Lichtstrahl, der sich zum Lichtstern auffächert, mit den vier Wörtern Persönlich · Schnell · Feste Preise · Aus Rhein-Main.
+5. **Leistungen** (4h): sechs Karten mit kleinen Szenen und Zeichen-Nummern; „Anfragen“ wählt die Leistung im Formular vor (Funktion bleibt).
+6. **So läuft es ab** (4h): drei Schritte, daneben die gewählte Nummer als großes Zeichen-Bild.
+7. **Warum wir** (4h): Überschrift, Text, „Unser Versprechen“ als drei schräge Karten, darunter das schräg laufende Band.
+8. **Ausbildung** („Über uns“): Zertifikate wie bisher, Überschrift mit Entschlüsselungs-Effekt.
+9. **Kundenstimmen:** fertig gebaut, aber aus (Schalter `testimonials.aktiv` in `lib/content.ts`).
+10. **Kontakt und Fuß:** Anruf-Leiste, WhatsApp, Formular (unverändert); stehender Riesenschriftzug mit Zeichen-Strahl und Lichtschein.
+Überall: der Mauszeiger aus 4i (nur bei echter Maus).
+
+**Ursprünglicher Plan vom 11.11.2026 (durch den Stand oben ersetzt, zum Nachlesen):**
 1. **Ladebildschirm = Startanimation (höchstens 2–3 s):** Die vier Balken und der Stern des Logos gleiten einzeln herein und setzen sich in der Mitte zusammen, darunter dünner Ladebalken und Prozentzahl. Das fertige Zeichen bleibt stehen und wird ohne Schnitt zum Zeichen im Hero. Beim zweiten Besuch in derselben Sitzung kürzer; bei „weniger Bewegung“ und ohne JavaScript ganz ohne.
 2. **Hero mit Probeanruf:** wie die Skizze. Überschrift in zwei Tönen, Zeile für Zeile: gedämpft „Es klingelt.“, dann hell „Ihr Assistent“ mit goldenem Serifenwort „nimmt ab.“. Darunter die Anruf-Leiste mit der echten Nummer (keine neue Logik) und der Nebenknopf „Leistungen ansehen“. Hinweis in der Nähe: „Am Telefon nimmt unser KI-Assistent ab und macht direkt einen Termin aus.“
 3. **Was wir machen (Schreibmaschine bleibt):** Beim Scrollen tauchen Überschrift und Zeichen langsam weg, der Bereich kommt von unten herein. „Wir bauen in ~~Tagen~~ Stunden*…“; der Fließtext färbt sich beim Lesen Wort für Wort ein. Die Ereignisse für die Chat-Sprechblase bleiben.
@@ -141,7 +156,8 @@ Ziel in einem Satz: Man sieht kein Objekt, keine Kante und keine Fläche, nur ei
 - **Maus (seit 12.11.2026 enger):** Nur Zeichen im Umkreis von 40 px weichen aus, um `(1 − Abstand/40) × 10 px`: ein kleiner Kreis eng um den Zeiger. (Das Vorbild rechnet mit 70 und 18 px; bei uns stehen die Zeichen in einer dichten Fläche, da wirkte das wie ein Loch.) Je Bild bewegt sich ein Zeichen um `1 − 0,75^(dt × 60)` zum Ziel hin (`dt` in Sekunden), also unabhängig von der Bildrate gleich schnell; Reste unter 0,05 px fallen weg. Nur bei echter Maus.
 - **Welle beim Klick:** Klick oder Tippen im Bereich des Namens plus 40 px Rand, nicht auf Knöpfen oder Links, nicht während des Startflugs. Ausschlag je Zeichen (seit 12.11.2026 höchstens 40 px statt 56, Band 80 px statt 90): `40 × e^(−((Abstand − 1150 × t) / 80)²) × max(0, 1 − t/1,3)²` (t in Sekunden seit dem Klick): Der Ring schiebt die Zeichen nach außen und ist nach 1,3 s vorbei. Mehrere Wellen addieren sich (höchstens 4 gleichzeitig), zusammen aber nie mehr als 40 px. Getroffene Zeichen werden kräftiger (Deckkraft × (1 + Ausschlag/28), höchstens ganz deckend) und wechseln ab 7 px Ausschlag mit 25 % Wahrscheinlichkeit je Bild ihr Zeichen (auf 60 Bilder je Sekunde bezogen, läuft also auf jedem Bildschirm gleich). Wo Strahlen den Namen streifen, leuchten die Zeichen golden. Am Handy dazu eine kurze Vibration (6 ms, wo das Gerät es kann).
 - **Startflug (seit 12.11.2026, nach dem Vorbild ksenpanchenko.com, Zahlen von dort):** Die Zeichen fliegen wie ein Schwarm von außerhalb des Bildes an ihren Platz. Startpunkt je Zeichen: in der Richtung von der Namensmitte (50 % der Breite, 42 % der Höhe) zu seinem Platz, ± 0,8 im Bogenmaß, 0,5 bis 1,4 × `u` weit draußen (`u` = 0,75 × die größere Bildschirmseite), dazu bis 0,25 × `u` nach oben versetzt. Dauer 2,2 s, Restweg `a = (1 − n)³` (am Anfang sehr schnell, am Ende weich). Reihenfolge: Schwelle `Y = clamp((0,62 − r) × 0,5 + 0,22 × Zufall, 0, 0,45)` mit `r` = Abstand zur Namensmitte (in Anteilen von Breite und Höhe des Namens), eigener Fortschritt `f = smoothstep((a − Y) / 0,55)` (1 = ganz außen, 0 = gelandet): Die Mitte landet zuerst, die Ränder zuletzt. Bahn: Platz + Startversatz × `f`. Unterwegs: Größe × (1 + 0,8 × f); solange 0,02 < f < 0,98, wechselt das Zeichen mit 7 % Wahrscheinlichkeit je Bild zu einem Zufallszeichen (`# + = - : . * / % ·`, ohne die Block-Zeichen; das Ruhe-Flimmern nimmt dieselben). Zeichen mehr als 40 px außerhalb des Bildes werden nicht gezeichnet. **Sichtbarkeit und Farbe unterwegs (seit 12.11.2026):** Fliegende Zeichen haben das Hellgrau des Namens, nur leicht wärmer; golden werden sie nur, wo sie unter dem Licht durchfliegen (Gold über den ganzen Bildschirm wirkte zu voll). Im letzten Fünftel des Wegs gleicht sich die Farbe der ihres Platzes an. Deckkraft = Ruhedeckkraft × (1 − f)^0,8, mindestens 0,22, sobald ein Zeichen losgeflogen und im Bild ist. Unter den Zeichen liegt nichts mehr (das frühere Feld in Zellgröße sah wie Pixel-Schnee aus); die Kacheln im Schwarm sind die Block-Zeichen selbst. So füllt bei 0,3 bis 0,9 s ein klar erkennbarer, aber ruhiger Schwarm das Bild. Maus und Klick wirken auf ein Zeichen erst, wenn es gelandet ist (f < 0,05). 250 ms nach dem Ende des Flugs läuft von selbst eine Welle aus der Mitte des Namens.
-- **Takt des Starts:** Der Flug startet in dem Moment, in dem das Licht angeht. Beides wartet auf die Meldung „Laden fertig“ (`ag:laden-fertig`): Der Ladebildschirm hat das Bild freigegeben und die Schriften sind da, plus 120 ms. War der Kopfbereich beim Start nicht zu sehen, fliegen die Zeichen ein, sobald er ins Bild kommt. Kommt die Licht-Szene nicht rechtzeitig nach (langsames Netz), steht nach 1,2 s das ruhige Bild des Lichts, und der Name fliegt ein, sobald es geladen ist (spätestens 1,5 s später); die Szene überblendet das Bild, wenn sie da ist. Flug und Welle rechnen mit der wirklich vergangenen Zeit, dauern also auch auf langsamen Geräten 2,2 s und 1,3 s.
+- **Takt des Starts (seit 12.11.2026, Einzelheiten in 4f):** Erst wird alles geladen, während nur der Stern schimmert. Dann geht das Licht an, und bei 40 % seiner Stärke (rund 0,5 s später) fliegen die Zeichen los. Flug und Welle rechnen mit der wirklich vergangenen Zeit, dauern also auch auf langsamen Geräten 2,2 s und 1,3 s.
+- **Beim Scrollen (seit 12.11.2026, Einzelheiten in 4h):** Die Zeichen fliegen auf den Bahnen des Startflugs wieder auseinander; zurück am Seitenanfang setzt sich der Name wieder zusammen.
 - **Nichts blitzt auf:** Vor dem Start ist vom Namen nichts zu sehen. Der gewöhnliche Schriftzug hält nur den Platz frei und nennt Vorleseprogrammen den Namen; er ist unsichtbar. Sichtbar wird er nur ohne Skript oder wenn der Browser keine Zeichenfläche hergibt.
 - **Leistung:** Solange die Zeichen als Ganzes unterwegs sind (Startflug, Welle), wird das Licht dahinter höchstens 20-mal je Sekunde neu gezeichnet; sein Bild ändert sich dadurch nicht. So bleibt die Bewegung der Zeichen auch in großen Fenstern flüssig.
 - **Technik:** 2D-Zeichenfläche, pausiert, wenn nicht sichtbar. Bei „weniger Bewegung“ blendet der Name einfach ein (0,6 s): kein Flug, kein Ausweichen, keine Welle, kein Flimmern.
@@ -153,9 +169,9 @@ Nur diese Dinge, kein weiterer Text, kein Hinweistext:
 - Oben Mitte: die Navigationsleiste aus Glas (4e).
 - Oben rechts: „Anrufen“ als Glas-Knopf mit Goldrand (4e).
 - Unten rechts: der Chat-Knopf als Glas-Kugel (4e).
-- Überschrift, Unterzeile und Telefon-Block stehen **vorläufig direkt unter dem Kopfbereich**; sie werden im nächsten Auftrag neu verteilt. Am Handy bleibt der Anrufen-Knopf am Daumen weg, solange der Kopfbereich zu sehen ist („Anrufen“ steht dann in der Kopfleiste).
+- Direkt unter dem Kopfbereich steht seit 12.11.2026 die erste Aussage (4h). Am Handy bleibt der Anrufen-Knopf am Daumen weg, solange der Kopfbereich zu sehen ist („Anrufen“ steht dann in der Kopfleiste).
 
-**Scroll-Hinweis, sehr dezent (seit Runde 3b wieder da):** Wer nach 4 Sekunden nicht gescrollt hat, sieht von ganz unten einen sehr schwachen, warmen Goldschein hereinkommen. Er sitzt am unteren Rand des sichtbaren Bildes (auch in sehr niedrigen Fenstern, in denen der Kopfbereich höher ist als das Bild), ist weich und breit (ein flacher Bogen über rund drei Viertel der Breite, höchstens 320 px hoch), hat keine Kante und trägt ein feines Korn wie das Licht (das verhindert sichtbare Stufen im dunklen Verlauf). Er ist höchstens so hell wie die schwächsten Strahlen (im Mittel höchstens rund 16 von 255) und pulsiert langsam zwischen halber und voller Stärke (eine Runde in 2,6 s). Beim Scrollen blendet er aus, zurück am Seitenanfang kommt er nach 4 Sekunden wieder. Sonst bleibt der Grund rein schwarz. Der frühere helle goldene Streifen bleibt weg.
+**Scroll-Hinweis:** seit 12.11.2026 der Lichtstreifen am unteren Rand (4g). Der frühere ruhende Goldschein von unten ist damit ersetzt.
 
 **Handy:** Gleiche Regeln wie am Computer. Das Logo ist etwa 35 % der Bildbreite groß, das Licht sitzt im oberen Drittel (Logo-Mitte bei 30 % der Bildhöhe), der Name steht zweizeilig darunter (gleicher Zeichensatz wie am Computer, etwas kräftiger und heller gerastert), der Rest ist schwarz. Das Licht läuft dort ebenfalls live, mit 60 Proben, solange es flüssig bleibt. Die Szene misst mit, und zwar erst nach dem Auftritt (das Laden der Seite zählt nicht als Ruckeln) und nur an gezeichneten Bildern, in Fenstern von 30 Bildern: Dauert ein Bild im Schnitt länger als 30 ms, rechnet sie erst gröber (Pixeldichte 1,25, dann 1); ruckelt es auch dann noch (mindestens zwei Fenster in Folge), endet sie und es steht das **ruhige Bild** des Lichts (`public/kopf/licht-logo.jpg`, einmal aus der eigenen Szene aufgenommen, kein fremdes Bild; es atmet leicht über die Deckkraft). Dasselbe gilt, wenn das Gerät kein WebGL kann, nicht in 16-Bit-Zwischenbilder zeichnen kann oder die Grafik mittendrin ausfällt. Hat ein Gerät einmal geruckelt, versucht die Seite es bis zum Neuladen nicht noch einmal (nur im Arbeitsspeicher gemerkt, nichts wird im Browser abgelegt). Der Name aus Zeichen steht ruhig, Tippen löst die Welle aus. „Anrufen“ ist immer sichtbar.
 
@@ -163,7 +179,7 @@ Nur diese Dinge, kein weiterer Text, kein Hinweistext:
 
 **Ruhiges Bild neu aufnehmen**, wenn sich das Licht ändert: von der Testseite `/varianten/licht-test` (dieselbe Szene, schwarzer Grund, ohne Name, Kopfleiste und Goldschein), Quadrat um die Logo-Mitte mit 4,2-facher Logo-Größe, in 1,5-facher Pixeldichte. Das Bild hängt im Kopfbereich am Platz des Logos (`.ag-ln__loch`, Breite 420 %) und sitzt deshalb immer auf dessen Mitte, auch ohne Skript. Es ist als Datei eingebunden, seine Adresse trägt eine Prüfsumme: Ein neues Bild kommt sicher bei allen an.
 
-**Offen für den nächsten Auftrag:** die Abschnitte unter dem Kopfbereich.
+Die Abschnitte unter dem Kopfbereich stehen seit 12.11.2026 (4h).
 
 ## 4e. Kopfleiste und Chat-Knopf (neu gestaltet am 12.11.2026)
 
@@ -199,6 +215,101 @@ Was die Elemente tun, ist unverändert: „Anrufen“ ist ein `tel:`-Link, die M
 - Handy: gleicher Stil, ohne Magnet. Die Sprechblase steht über dem Knopf, erscheint einmal für 4 s und verschwindet von selbst.
 - Technik: Der Chat selbst (`components/ChatWidget.tsx` im Stammlayout) ist unverändert. Sein eigener Knopf und seine Sprechblase sind in der neuen Welt nur ausgeblendet; die Kugel klickt genau diesen Knopf an. Ist der Chat offen oder das Menü, ruht die Kugel. Eine ungelesene Antwort zeigt ein kleiner goldener Punkt.
 
+## 4f. Startanimation: erst laden, dann Licht, dann Zeichen (12.11.2026)
+
+Sie ersetzt den Ladebildschirm mit den Balken (auch am Handy; dort erschien bis dahin noch der alte mit „0 %“). Ziel: Nichts ruckelt, weil alles fertig geladen ist, bevor sich etwas bewegt. Code: `components/neu/kopf/LichtName.tsx` (Ablauf), `lichtszene.ts` (Licht in Stufen), Stile in `app/varianten/kopf/kopf.css` („Startanimation“). Der Zustand steht als `data-start` am Kopfbereich: `warten` → `licht` → `landen` → `fertig`.
+
+1. **Stern im Dunkeln (Warten):** Der Bildschirm ist schwarz, in der Mitte schimmert nur der Stern des Logos, ohne Balken und Strahlen. Er atmet langsam (Deckkraft 0,15–0,3, eine Runde in 2,5 s). Er ist ein vorgerendertes Bild ohne WebGL (`public/kopf/licht-stern.webp`, einmal aus der eigenen Licht-Szene aufgenommen: Testseite `/varianten/licht-test?nur=stern`, Quadrat mit 1,5-facher Logo-Größe). Er hängt am Platz des Logos und sitzt deshalb genau dort und genau so groß wie der Stern der Szene.
+2. **Im Hintergrund wird alles fertig gemacht,** jede Phase wird gemessen (`performance.measure`, Namen `ag-start:…`):
+   - **Schriften:** Namens-Schrift, JetBrains Mono, Serifen- und Textschrift über `document.fonts.load` auf echte Zeichen (höchstens 2,5 s).
+   - **Zeichen:** Raster und Vorrat des Namens bauen.
+   - **Licht:** Szene holen (`licht-laden`; sie wird schon geholt, während die Seite startet), anlegen, Shader übersetzen und Bilder unsichtbar vorzeichnen (`licht-anlegen`).
+   - **Bilder:** Bilder der ersten drei Bildschirme dekodieren (`img.decode()`), dazu das kleine Licht von Logo und Chat-Knopf.
+   - **Probe:** 10 Bilder hintereinander unter 20 ms.
+3. **Weiter geht es, wenn alles fertig ist,** frühestens 0,8 s und spätestens 4 s nach dem ersten Bild der Seite. (Im Auftrag stehen als Mindestzeit einmal 0,8 s und einmal 2 s; gebaut sind 0,8 s, weil nur damit alles nach rund 3,5 s steht. Die Zahl steht als `WARTEN_MIN` in `LichtName.tsx`.)
+4. **Das Licht geht an (1,4 s, am Handy 1 s),** wie ein Dimmer: zügig, weich auslaufend. Die Szene zeigt zuerst nur den Stern, genau so hell wie sein Bild gerade ist (kein Sprung; das Bild blendet in 0,35 s aus). Dann öffnen sich die vier Balken von ihrer Mittellinie aus (erst feine Schlitze, dann volle Breite, in der ersten Hälfte), danach wachsen die langen Strahlen nach außen (Reichweite und Stärke). Nichts Weißes.
+5. **Die Zeichen fliegen bei 40 % der Lichtstärke** (0,46 s nach Beginn des Lichts; am Handy 0,33 s). Der Startflug läuft unverändert (2,2 s); 250 ms nach der Landung kommt die Welle aus der Namensmitte.
+6. **Kopfleiste, „Anrufen“ und Chat-Knopf** erscheinen 1,1 s nach Flugbeginn weich (0,9 s), während die Zeichen landen. Bis dahin sind sie verborgen.
+7. **Die Seite leuchtet selbst:** Die goldenen Wörter der Überschriften und die Anruf-Leiste haben einen dezenten warmen Schein (`text-shadow` bzw. `box-shadow`, von David gewünscht).
+
+**Das Licht schaut erst zur Maus, wenn es hell ist:** Während der Startanimation steht es ruhig in der Mitte (die Mausposition wird nur gemerkt). Ist es ganz an, dreht es sich weich zur Maus (dieselbe Nachführung wie sonst, rund 0,8 s) und folgt ihr danach wie bisher.
+
+**Regeln:**
+- Klick, Taste oder Scrollen überspringt: Alles steht sofort.
+- Bei jedem Laden der Seite komplett, auch bei weiteren Besuchen.
+- „Weniger Bewegung“: kein Stern, kein Warten; es steht das ruhige Bild, der Name und die Kopfleiste blenden ruhig ein.
+- Lädt die Licht-Szene nach 4 s noch, fliegen die Zeichen trotzdem; der Stern schimmert weiter, und das Licht geht normal an, sobald die Szene da ist. Kann sie gar nicht starten (kein WebGL, Gerät ruckelt), blendet das ruhige Bild ein.
+- Ohne Skript: Schriftzug, ruhiges Bild und Kopfleiste stehen sofort. Startet das Skript nicht, erscheint die Kopfleiste nach 8 s von selbst.
+- **Zurück nach oben:** Wer weiter als 60 % weggescrollt war und zurückkommt, sieht das Licht kurz etwas heller aufleuchten (bis +28 %, 0,2 s an, 0,9 s aus); die Zeichen nahe am Licht leuchten mit.
+
+**Gemessen am 12.11.2026** (fertige Fassung `next start` auf demselben Rechner, Apple M1, sichtbares Chrome ohne Bildaufnahme; Zeiten in Millisekunden ab dem ersten Bild der Seite):
+
+| Fenster | Schriften | Zeichen | Licht (holen + anlegen) | Bilder | Probe | Stern steht | alles steht | Bilder/s: Licht an · Flug · Welle · Scrollen |
+|---|---|---|---|---|---|---|---|---|
+| 1440 × 900, erster Besuch | 103 | 66 | 472 (283 + 189) | 187 | 118 | 805 | 3457 | 163 · 149 · 102 · 164 |
+| 1440 × 900, aus dem Zwischenspeicher | 33 | 42 | 226 (111 + 115) | 88 | 135 | 804 | 3458 | 161 · 149 · 124 · 157 |
+| 1440 × 900, Maus bewegt sich | 73 | 42 | 356 | 137 | 84 | 803 | 3454 | 161 · 129 · 102 · 165 |
+| 2560 × 1440 | 66 | 48 | 387 | 123 | 167 | 801 | 3458 | 80 · 109 · 84 · 113 |
+| 1440 × 900, doppelte Pixeldichte | 60 | 42 | 504 | 117 | 213 | 803 | 3461 | 50 · 125 · 89 · 81 |
+| Handy 390 × 844, 4-fache Prozessorbremse | 225 | 69 | 531 | 499 | 288 | 1245 | 3766 | 126 · 97 · 72 · 128 |
+
+Am Handy steht alles etwas früher, wenn nichts bremst (das Licht braucht dort nur 1 s): ohne Bremse nach rund 3,3 s. Mit Bildaufnahme und in der Entwicklungsfassung sind alle Zeiten deutlich länger; dort nicht messen.
+
+## 4g. Scroll-Hinweis: Lichtstreifen am unteren Rand (12.11.2026)
+
+Code: `components/neu/seite/ScrollHinweis.tsx`, Stile in `kopf.css`. Kein Text, kein Pfeil.
+- **Wann:** Steht man nach dem Ende der Startanimation 4,5 s ganz oben, ohne zu scrollen.
+- **Aussehen:** Ein weicher goldener Lichtfleck (240 px breit, 60 px hoch, nach oben auslaufend, höchstens 25 % Deckkraft) gleitet in 2,4 s von links unten nach rechts unten. Danach pulsiert der ganze untere Rand einmal leicht (höchstens 13 %). Das wiederholt sich alle 6 s, höchstens dreimal.
+- **Weg:** Beim ersten Scrollen, Wischen oder Tastendruck blendet er in 0,2 s aus und kommt in dieser Sitzung nicht wieder (`sessionStorage`, Merker `ag-scroll-hinweis-weg`).
+- **Handy:** gleich, der Fleck ist 160 px breit. **„Weniger Bewegung“:** nur ein ruhiger, schwacher Schein am Rand, nichts gleitet.
+
+## 4h. Beim Runterscrollen: die Abschnitte der neuen Seite (12.11.2026)
+
+Code: `components/neu/seite/` (Seite, Aussage, Uebergang, Leistungen, AblaufNummern, Warum, FussStrahl, Entschluesselt, ZeichenNummer, `zeichenbild.ts`), Stile in `components/neu/seite/seite.css`. Die Zahlen zum Auseinanderfliegen und zu den Zeichen-Bildern stammen aus dem Code von ksenpanchenko.com; umgesetzt ist alles selbst.
+
+**1 · Die Zeichen fliegen auseinander** (`zeichenname.ts`, Methode `rollen`)
+- Scroll-Fortschritt `s = scrollY ÷ (0,9 × Bildschirmhöhe)`, begrenzt auf 0–1.
+- Gemeinsamer Antrieb mit dem Startflug: `l = max(s, Restweg des Startflugs)`; jedes Zeichen nutzt `f = smoothstep((l − Y) / 0,55)` mit demselben `Y` wie im Startflug. Die Ränder gehen zuerst, die Mitte zuletzt.
+- Richtung und Weite: dieselben Startversätze wie beim Startflug. Unterwegs gleiche Größe, Farbe, Deckkraft und gleicher Zeichenwechsel. Maus und Welle sind dabei aus. Beim Hochscrollen setzt sich der Name genauso wieder zusammen.
+- Die Zeichenfläche scrollt mit der Seite mit (nichts hinkt nach). Solange gescrollt ist, reicht sie 90 % der Bildschirmhöhe unter den Kopfbereich hinaus, damit die Zeichen dort zu sehen sind; in Ruhe ist sie so hoch wie der Kopfbereich. Steht die Seite mitten im Auseinanderfliegen still, genügt ein neues Bild alle 80 ms.
+- Das Licht tritt beim Scrollen zurück (bis auf 14 %).
+
+**2 · Die erste Aussage** (`Aussage.tsx`): „Wir bauen in Stunden*, wofür Agenturen Wochen brauchen.“ als Hauptüberschrift, mittig, mit Entschlüsselungs-Effekt; „Stunden“ golden mit Schein. Darunter der kurze Satz, die Anruf-Leiste und die Fußnote zum Sternchen (bleibt wörtlich).
+
+**Entschlüsselungs-Effekt** (`Entschluesselt.tsx`): Kommt eine Überschrift ins Bild, laufen ihre Buchstaben als Zufallszeichen (`# + = - : . * / % ·`, JetBrains Mono) durch und rasten von links nach rechts ein (0,9 s, 40 % Wechsel je Bild). Geht über mehrere Zeilen und über Wörter in anderer Schrift; der echte Text bleibt für Vorleseprogramme stehen. Texte laufen zeilenweise ein (`Zeilen.tsx`). Bei „weniger Bewegung“ steht alles sofort.
+
+**3 · Übergang zu den Leistungen** (`Uebergang.tsx`): derselbe Licht-Aufbau wie im Kopfbereich (Wand mit Öffnung, Lichtscheibe dahinter, `lichtszene.ts` mit `strahl`). Die Öffnung ist zuerst ein schmaler, schräger Schlitz (0,09 × 2,9 Logo-Einheiten, 32° geneigt). Beim Scrollen zieht er sich in die Mitte zurück, während dort der Stern aus ihm herauswächst. Um das Licht schweben die vier Wörter. Die Szene wird erst nach der Startanimation angelegt, wenn der Abschnitt bis auf eine halbe Bildschirmhöhe heran ist, und rechnet nur, solange er zu sehen ist. Ersatz bei „weniger Bewegung“ und ohne WebGL: ein ruhiger schräger Lichtstrahl aus dem Stylesheet.
+
+**4 · Leistungen mit kleinen Szenen** (`Leistungen.tsx`): sechs Karten. Jede hat oben eine gezeichnete Szene aus mehreren Ebenen (kleine Kärtchen, Sprechblasen, Kalender, Hörer, Häkchen, Zahlen).
+- Jede Ebene hat eine Ruhe-Lage und eine Hover-Lage (Versatz, Drehung, Deckkraft). Beim Drüberfahren springen die Ebenen federnd in die Hover-Lage: 0,9 s mit leichtem Überschwingen (`cubic-bezier(0.34, 1.45, 0.5, 1)`), jede Ebene 35 ms nach der vorigen. Zahlen zählen dabei hoch (1,1 s, weich auslaufend).
+- Szenen: **Websites** Browserfenster, „Anfragen +38 %“ zählt hoch, die Linie steigt · **Chatbot** Frage, Tipp-Punkte, die Antwort erscheint · **Voice-Agent** der Hörer klingelt, „Es klingelt – Ihr Assistent nimmt ab“, dann „Termin eingetragen“ mit Häkchen · **Terminbuchung** Kalender, ein Tag leuchtet golden, „Gebucht“ · **Automatisierungen** Kärtchen ordnen sich, „12 Stunden gespart“ zählt hoch · **KI-Beratung** die Checkliste hakt sich ab. Zahlen tragen das Schild „Beispiel“.
+- **Nummer der Karte (01–06)** als kleines Zeichen-Bild (150 × 92 px, Zellen 6 × 9,5 px). Beim Drüberfahren zerfällt sie zu Staub und setzt sich nach 260 ms neu zusammen.
+- **Karte beim Drüberfahren:** hebt sich um 6 px, der Schatten wird weicher, der Goldrand glimmt nahe der Maus (`glimmrand.ts`).
+- **Handy:** Die Szene spielt einmal, wenn die Karte zu 55 % im Bild ist. **„Weniger Bewegung“:** sofort das Endbild.
+
+**Zeichen-Bilder** (`zeichenbild.ts`; für die Karten-Nummern, die Ablauf-Nummern und den Strahl im Fuß):
+- Die Form wird unsichtbar gezeichnet (Nummern in kursiver Serifenschrift) und in Zellen von 7 × 11 px zerlegt. Zeichen je Abdeckung: über 0,75 `▓ # %`, über 0,5 `# % = ▒`, über 0,28 `= * + /`, sonst `+ :`, unter 0,1 leer. Drei Tonstufen mit Deckkraft 1 / 0,9 / 0,62.
+- Teilchen: 1,25-mal so viele wie Zellen der größten Form. Überzählige schweben als Staub (`: + . · -`, Deckkraft 0,35) zufällig im Feld; jedes dritte bleibt nahe an der Form (±20 / ±18 px).
+- Wechsel: Jedes Teilchen fliegt auf einer quadratischen Bézier-Kurve zu seiner neuen Zelle (Kontrollpunkt: Mitte plus Zufall ±70 / ±55 px), Verzögerung 0–380 ms, Dauer 650–1100 ms, Kurve `1 − (1 − t)³`. Unterwegs wechselt das Zeichen mit 35 % pro Bild, am Ziel steht das richtige.
+- Erscheinen: Ist das Feld zu 60 % im Bild, setzt sich die Form aus dem Staub zusammen; scrollt sie nach oben aus dem Bild, zerfällt sie wieder.
+- Maus: Zeichen im Umkreis von 34 px verwürfeln sich (45 % pro Bild) und rasten nach `380 + (1 − Abstand/34) × 520 + 0–260` ms wieder ein.
+- „Pro Bild“ gilt für 60 Bilder je Sekunde. Die Block-Zeichen sind wie im Namen als Punktraster gezeichnet.
+
+**5 · So läuft es ab** (`AblaufNummern.tsx`): links die Nummer des gewählten Schritts als großes Zeichen-Bild mit „/ 03“, rechts die drei Schritte. Alle drei sind immer zu lesen; ein Klick auf einen Schritt lässt die Zeichen zur neuen Nummer umfliegen. (Der Gold-Tropfen auf der Lichtbahn ist damit ersetzt.)
+
+**6 · Warum wir mit „Unser Versprechen“** (`Warum.tsx`): Überschrift und Text, dann drei leicht schräge Karten (−2,2°, 1,5°, −1,1°): Persönlich, Schnell, Feste Preise. Beim Drüberfahren richtet sich die Karte gerade aus, hebt sich um 10 px und federt (0,6 s, leichtes Überschwingen); die anderen werden blasser (60 %). Darunter läuft ein um 2° schräges Band mit den vier Wörtern, getrennt durch den Stern des Logos (eine Runde in 46 s).
+
+**7 · Kundenstimmen** (`Stimmen` in `Warum.tsx`): fertig gebaut (drei Karten), aber aus. Der Schalter ist `testimonials.aktiv` in `lib/content.ts`; dort stehen bis dahin nur Platzhalter, die nie auf der Seite erscheinen.
+
+**8 · Kontakt und Fuß:** Kontakt unverändert (Anruf-Leiste, WhatsApp, Formular). In der Fußleiste liegt über dem stehenden Riesenschriftzug ein kleiner Strahl aus Zeichen (`FussStrahl.tsx`, dieselbe Technik) mit weichem Lichtschein dahinter.
+
+## 4i. Mauszeiger (12.11.2026)
+
+Code: `components/neu/seite/Zeiger.tsx`, Stile in `seite.css`. Nur bei echter Maus, nicht am Handy, nicht bei „weniger Bewegung“. In Eingabefeldern und über dem Chat-Fenster gilt der gewöhnliche Zeiger.
+- **Normal:** ein kleiner goldener Punkt (8 px), dem ein dezenter goldener Schein folgt (je Bild `1 − 0,8^(dt × 60)`).
+- **Über Links und Knöpfen:** Der Punkt wird zu einem feinen Ring.
+- **Über Karten und Bildern** (`data-zeiger="ansehen"`): eine Glasblase von 56 px mit „Ansehen“. Durchsichtig, mit heller Lichtkante oben, feinem Goldschimmer am Rand und weichem Schatten; der Text hat einen leichten Schatten. Wo der Browser es kann (Chrome, Edge), verzerrt eine Linse den Hintergrund leicht (SVG-Filter `#ag-linse` als `backdrop-filter`); sonst bleibt es bei weichgezeichnetem Glas. Sie sitzt genau auf der Maus (wird im Maus-Ereignis selbst gesetzt, ohne Nachziehen), wächst federnd in 0,35 s und wird beim Klicken kurz kleiner.
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
@@ -212,11 +323,11 @@ Was die Elemente tun, ist unverändert: „Anrufen“ ist ein `tel:`-Link, die M
 ## 7. Grenzen
 - Keine Änderung an `app/api`, `lib` (außer Texten in `lib/content.ts` und reinen Anzeige-Texten im Chat-Widget), Metadaten, Statistik, Terminseiten-Logik, Weiterleitung. Alle Anker-IDs bleiben. Die sechs Leistungstitel bleiben wörtlich (Schnittstellenwerte für Formular, Chat und Notion, siehe `docs/funktionen.md` 4a); ein anderer Anzeigename nur als getrennter Anzeigetext.
 - Nie: lila Verläufe, Inter, 3D-Blobs, KI-Standard-Kästchenraster, Emojis als Symbole, Glas überall, reines Schwarz ohne Farbe, erfundene Zahlen oder Stimmen. Keine fremde Seite 1:1.
-- Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML). Das Licht (three.js mit postprocessing) wird nachgeladen und rechnet nur, wenn es zu sehen ist; ruckelt es, steht ein Bild. Glas-Effekt nur an der schwebenden Kopfleiste.
+- Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML). Das Licht (three.js mit postprocessing) wird nachgeladen und rechnet nur, wenn es zu sehen ist; ruckelt es, steht ein Bild. Glas-Effekt nur an Kopfleiste, „Anrufen“, Chat-Knopf und an der Glasblase des Mauszeigers.
 
 ## 8. Was die Code-Fehlersuche in Schritt 2 gelehrt hat (im Bau von Anfang an vermeiden)
 - Keine kursive Serife in Riesen-Überschriften: Betonungswörter stehen aufrecht (von David bestätigt, 11.11.2026).
-- Keine farbigen Leuchtschein-Schatten und keine runden Lichthöfe im Hintergrund: Licht als gerade Verläufe und Bänder. Ausnahmen, von David gewünscht (4d): das Licht-Logo im Kopfbereich, der sehr schwache Goldschein von unten als Scroll-Hinweis, das leichte Leuchten von Logo und „Anrufen“ in der Kopfleiste.
+- Keine farbigen Leuchtschein-Schatten und keine runden Lichthöfe im Hintergrund: Licht als gerade Verläufe und Bänder. Ausnahmen, von David gewünscht (4d–4i): das Licht-Logo im Kopfbereich, der Lichtstreifen als Scroll-Hinweis, das leichte Leuchten von Logo und „Anrufen“ in der Kopfleiste, der warme Schein an den goldenen Wörtern der Überschriften und an der Anruf-Leiste („die Seite leuchtet selbst“), der Lichtschein hinter dem Zeichen-Strahl im Fuß.
 - Kein kleines Etikett in Großbuchstaben über einer Überschrift.
 - Kein Deko-Raster aus Linien im Hintergrund; die Punktwolke trägt die Textur.
 - Lange Sätze nicht in Riesengröße: Die Hero-Überschrift bleibt kurz.
@@ -242,3 +353,7 @@ Was die Elemente tun, ist unverändert: „Anrufen“ ist ein `tel:`-Link, die M
 17. **Startflug sichtbarer (12.11.2026):** Fliegende Zeichen sind heller und warm getönt, ihre Deckkraft unterwegs ist höher (Exponent 0,8 statt 1,6, mindestens 0,22), darunter liegt ein schwaches Feld. Angeglichen an die Wirkung des Vorbilds, nicht an dessen Formel. Takt, Bahnen, Reihenfolge, Welle und der Name am Handy bleiben. Der Hinweis „1 Issue“ in der Entwicklungsansicht bleibt, wie er ist: Er kommt von einer Erweiterung in Davids Browser.
 18. **Kopfleiste und Chat-Knopf neu gestaltet (12.11.2026):** einheitliches Glas, Glimmrand nahe der Maus, Menüpunkte in der Schrift des Namens, das kleine Logo leuchtet selbst (Mini-Licht), „Anrufen“ mit pulsierendem Lichtkreis und Lichtstreifen, Chat-Knopf als magnetische Glas-Kugel mit Sprechblase aus einrastenden Zeichen. Funktionen unverändert (Abschnitt 4e).
 19. **Zeichen wie beim Vorbild, Maus enger, Licht hinter dem Glas (12.11.2026):** Licht, Takt des Startflugs, Anrufen und Chat-Knopf bleiben wie in d390d4a. (a) Der Name wirkt nicht mehr „verpixelt“: Schrift JetBrains Mono 500 statt Cutive Mono, die dichten Stellen bestehen aus den Block-Zeichen `▓` und `▒` (Zeichen je Dichte wie beim Vorbild gezählt), am Handy derselbe Satz. Weg sind das Feld unter fliegenden Zeichen, der Grund unter dichten Zeichen am Handy und der dunkle Saum. Jedes Zeichen ist mit 1,8 × Pixeldichte vorgerendert und bleibt im Flug scharf. Fliegende Zeichen sind hellgrau, golden nur unter dem Licht. (b) Maus: Umkreis 40 px, Ausweichen bis 10 px. (c) Welle: Ausschlag höchstens 40 px, Band 80 px; Tempo und Dauer bleiben. Alles läuft unabhängig von der Bildrate. (d) Kopfleiste: Der kleine Lichtpunkt ist weg; dafür liegt hinter dem Glas ein weiches goldenes Licht, das der Maus folgt, und hinter dem aktiven Menüpunkt (golden) ein schwacher Schein (4d, 4e).
+20. **Startanimation (12.11.2026):** erst laden (Stern im Dunkeln), dann Licht (Dimmer: Balken, dann Strahlen), dann Zeichen bei 40 % Lichtstärke; Kopfleiste und Knöpfe erscheinen beim Landen. Das Licht folgt der Maus erst, wenn es hell ist. Klick, Taste oder Scrollen überspringt. Ersetzt den Ladebildschirm mit Balken. Gemessene Ladezeiten in 4f.
+21. **Scroll-Hinweis (12.11.2026):** Lichtstreifen am unteren Rand statt des ruhenden Goldscheins (4g).
+22. **Rest der Seite (12.11.2026):** Zeichen fliegen beim Scrollen auseinander; erste Aussage mit Entschlüsselungs-Effekt; Lichtstrahl als Übergang; Leistungen als Karten mit kleinen Szenen und Zeichen-Nummern; Ablauf mit großen Zeichen-Nummern; „Unser Versprechen“ mit schrägen Karten und Band; Kundenstimmen gebaut, aber aus; Zeichen-Strahl im Fuß (4h). Damit ist Entscheidung 1 („Kundenstimmen ganz weglassen“) so geändert: gebaut, aber ausgeschaltet. Die Zufallszeichen in JetBrains Mono auch bei „Anrufen“ und in der Sprechblase bleiben (Davids Entscheidung).
+23. **Mauszeiger (12.11.2026):** Punkt mit Schein, Ring über Links, Glasblase „Ansehen“ über Karten und Bildern (4i).

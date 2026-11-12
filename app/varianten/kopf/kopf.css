@@ -287,42 +287,6 @@
   }
 }
 
-/* Scroll-Hinweis, sehr dezent: Von ganz unten kommt ein schwacher, warmer Goldschein herein,
-   weich und breit, ohne Kante, höchstens so hell wie die schwächsten Strahlen des Lichts.
-   Er pulsiert langsam (etwa alle 2,6 s) und blendet beim Scrollen aus. Sonst bleibt der Grund schwarz. */
-.ag-kopf5__lockruf {
-  --schein: min(36svh, 320px);
-  position: absolute;
-  /* Am unteren Rand des sichtbaren Bildes, nicht des Kopfbereichs: In sehr niedrigen Fenstern
-     (Handy quer) ist der Kopfbereich höher als das Bild, der Schein läge sonst unter dem Rand. */
-  top: calc(100svh - var(--schein));
-  right: 0;
-  left: 0;
-  /* Über dem Licht, unter den Zeichen. */
-  z-index: 1;
-  height: var(--schein);
-  background: radial-gradient(ellipse 72% 100% at 50% 100%, rgba(240, 168, 58, 0.12) 0%, rgba(240, 168, 58, 0.062) 34%, rgba(240, 168, 58, 0.02) 66%, transparent 100%);
-  /* Feines Korn wie im Licht: Es verhindert sichtbare Stufen in dem sehr dunklen Verlauf. */
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='k' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.5 -0.2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23k)'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='k' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.5 -0.2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23k)'/%3E%3C/svg%3E");
-  -webkit-mask-size: 240px 240px;
-  mask-size: 240px 240px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 1.4s var(--weich);
-}
-.ag-hero[data-lockruf] .ag-kopf5__lockruf {
-  opacity: 1;
-  animation: ag-lockruf 1.3s cubic-bezier(0.45, 0, 0.55, 1) 1.4s infinite alternate;
-}
-@keyframes ag-lockruf {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0.5;
-  }
-}
 /* Steht das ruhige Bild, weil das Gerät nicht mitkommt, atmet es leicht über die Deckkraft. */
 .ag-hero[data-licht="bild"] .ag-ln__standbild {
   animation: ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite alternate;
@@ -336,17 +300,211 @@
   }
 }
 
-/* Vorläufig direkt unter dem Kopfbereich: Überschrift, Unterzeile, Telefon-Block. */
-.ag-nachkopf {
-  padding-block: clamp(72px, 12vh, 140px) clamp(48px, 8vh, 96px);
-  text-align: center;
-  /* Der Kopfbereich darüber ist rein schwarz: ohne harte Linie in den Grund der Seite übergehen. */
-  background: linear-gradient(180deg, #000 0%, transparent min(60%, 320px));
+/* ───────────── Startanimation (LichtName.tsx) ─────────────
+   data-start am Kopfbereich: „warten“ (Stern im Dunkeln, alles lädt) → „licht“ (das Licht geht
+   an, die Zeichen fliegen) → „landen“ (Kopfleiste, „Anrufen“ und Chat-Knopf erscheinen) → „fertig“. */
+
+/* Der Kopfbereich liegt über dem Abschnitt darunter: Beim Scrollen fliegen die Zeichen über
+   seinen unteren Rand hinaus. Das Licht selbst bleibt auf den Kopfbereich begrenzt. */
+.ag-kopf5 {
+  z-index: 2;
+  overflow: visible;
 }
-.ag-nachkopf__innen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.ag-ln--vorn {
+  overflow: visible;
+}
+/* Die Fläche der Zeichen reicht unter den Kopfbereich hinaus; ihre Höhe setzt LichtName.tsx. */
+.ag-ln .ag-ln__zeichen {
+  inset: 0 auto auto 0;
+  height: auto;
+}
+/* Beim Runterscrollen tritt das Licht zurück (LichtName.tsx setzt den Wert). */
+.ag-ln--hinten,
+.ag-ln__loch {
+  opacity: var(--licht-deck, 1);
+}
+/* Stern im Dunkeln: ein vorgerendertes Bild des Sterns allein (aus der eigenen Licht-Szene, ohne
+   Balken und Strahlen). Er sitzt auf der Logo-Mitte, genau so groß wie der Stern der Szene
+   (das Bild zeigt das 1,5-Fache des Logos), und atmet langsam, solange alles lädt. */
+.ag-ln__stern {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  max-width: none;
+  height: auto;
+  translate: -50% -50%;
+  opacity: 0;
+  pointer-events: none;
+}
+/* Er atmet, bis die Licht-Szene ihn übernimmt (LichtName.tsx blendet ihn dann aus). Lädt die Szene
+   beim Start noch, schimmert er auch dann weiter. */
+.ag-kopf5:not([data-licht]) .ag-ln__stern {
+  animation: ag-stern-atmen 1.25s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes ag-stern-atmen {
+  from {
+    opacity: 0.15;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+/* In der Startanimation übernimmt die Szene den Stern ohne Übergang (sie beginnt genau so
+   schwach, wie das Bild gerade ist). */
+.ag-kopf5[data-start="licht"] .ag-ln__licht,
+.ag-kopf5[data-start="landen"] .ag-ln__licht {
+  transition: none;
+}
+/* Steht statt der Szene das ruhige Bild (das Gerät kommt nicht mit), blendet es weich ein. */
+.ag-kopf5:not([data-start="warten"])[data-licht="bild"] .ag-ln__standbild {
+  animation:
+    ag-ln-ein 0.9s var(--weich) both,
+    ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite alternate;
+}
+@keyframes ag-ln-ein {
+  from {
+    opacity: 0;
+  }
+}
+/* Bis die Zeichen landen, bleiben Kopfleiste, „Anrufen“, Chat-Knopf und der Anrufen-Knopf am
+   Daumen verborgen; dann erscheinen sie weich. Sicherheitsnetz: Startet das Skript nicht,
+   sind sie nach 8 Sekunden von selbst da. */
+.ag-neu:has(.ag-kopf5) :is(.ag-kopf, .ag-chat, .ag-daumen) {
+  transition: opacity 0.9s var(--weich);
+}
+.ag-neu:has(.ag-kopf5:is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) {
+  opacity: 0;
+  animation: ag-start-netz 0.6s 8s forwards;
+}
+.ag-neu:has(.ag-kopf5:is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) > * {
+  pointer-events: none;
+}
+@keyframes ag-start-netz {
+  to {
+    opacity: 1;
+  }
+}
+@media (scripting: none) {
+  .ag-neu:has(.ag-kopf5) :is(.ag-kopf, .ag-chat, .ag-daumen) {
+    opacity: 1;
+    animation: none;
+  }
+  .ag-ln__stern {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* „Weniger Bewegung“: kein Stern, kein Warten. Es steht das ruhige Bild, alles blendet ruhig ein. */
+  .ag-ln__stern {
+    display: none;
+  }
+  .ag-neu:has(.ag-kopf5) :is(.ag-kopf, .ag-chat, .ag-daumen) {
+    transition-duration: 0.6s !important;
+  }
+}
+
+/* ───────────── Scroll-Hinweis: Lichtstreifen am unteren Rand (seite/ScrollHinweis.tsx) ─────────────
+   Kein Text, kein Pfeil. Ein weicher goldener Lichtfleck (240 px breit, nach oben auslaufend,
+   60 px hoch, höchstens 25 % Deckkraft) gleitet in 2,4 s von links nach rechts; danach pulsiert
+   der ganze untere Rand einmal leicht. Alle 6 s, höchstens dreimal. */
+.ag-hinweis {
+  position: absolute;
+  /* Am unteren Rand des sichtbaren Bildes, nicht des Kopfbereichs (der in sehr niedrigen Fenstern höher ist). */
+  top: calc(100svh - 60px);
+  right: 0;
+  left: 0;
+  z-index: 3;
+  height: 60px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s linear;
+}
+.ag-hinweis[data-an] {
+  opacity: 1;
+  transition-duration: 0.6s;
+}
+.ag-hinweis__fleck {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 240px;
+  height: 60px;
+  background: radial-gradient(ellipse 50% 100% at 50% 100%, rgba(243, 190, 92, 0.25) 0%, rgba(240, 168, 58, 0.11) 42%, rgba(240, 168, 58, 0) 72%);
+  transform: translateX(-240px);
+}
+.ag-hinweis__rand {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(240, 168, 58, 0.13) 0%, rgba(240, 168, 58, 0.04) 45%, rgba(240, 168, 58, 0) 100%);
+  opacity: 0;
+}
+.ag-hinweis[data-an] .ag-hinweis__fleck {
+  animation: ag-hinweis-gleiten 6s linear 3 both;
+}
+.ag-hinweis[data-an] .ag-hinweis__rand {
+  animation: ag-hinweis-puls 6s linear 3 both;
+}
+/* 0–2,4 s gleiten (40 % der 6 s), dann Ruhe. */
+@keyframes ag-hinweis-gleiten {
+  0% {
+    transform: translateX(-240px);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  40%,
+  100% {
+    transform: translateX(100vw);
+  }
+}
+/* 2,4–3,6 s: Der ganze untere Rand pulsiert einmal. */
+@keyframes ag-hinweis-puls {
+  0%,
+  40% {
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.3, 0, 0.3, 1);
+  }
+  48% {
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  60%,
+  100% {
+    opacity: 0;
+  }
+}
+@media (max-width: 767px) {
+  /* Am Handy etwas schmaler. */
+  .ag-hinweis__fleck {
+    width: 160px;
+    transform: translateX(-160px);
+  }
+  .ag-hinweis[data-an] .ag-hinweis__fleck {
+    animation-name: ag-hinweis-gleiten-schmal;
+  }
+}
+@keyframes ag-hinweis-gleiten-schmal {
+  0% {
+    transform: translateX(-160px);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  40%,
+  100% {
+    transform: translateX(100vw);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Nur ein ruhiger, schwacher Schein, nichts gleitet. */
+  .ag-hinweis__fleck {
+    display: none;
+  }
+  .ag-hinweis[data-an] .ag-hinweis__rand {
+    opacity: 0.8;
+    animation: none;
+  }
+  .ag-hinweis {
+    transition-duration: 0.6s !important;
+  }
 }
 
 /* 2 · Lichtbänder: Name als feine Linie, das Zeichen groß davor */

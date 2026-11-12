@@ -197,6 +197,20 @@ export const credentials = {
   ],
 };
 
+// Kundenstimmen: Der Abschnitt ist fertig gebaut, aber AUS.
+// Zum Einschalten: unten echte, freigegebene Stimmen eintragen und "aktiv" auf true setzen.
+// Solange "aktiv" false ist, erscheint auf der Seite nichts davon.
+export const testimonials = {
+  aktiv: false,
+  headline: "Was unsere Kunden sagen.",
+  // PLATZHALTER – keine echten Stimmen. Vor dem Einschalten ersetzen.
+  items: [
+    { text: "Platzhalter: Hier steht eine echte Kundenstimme.", name: "Name", firma: "Betrieb, Ort" },
+    { text: "Platzhalter: Hier steht eine echte Kundenstimme.", name: "Name", firma: "Betrieb, Ort" },
+    { text: "Platzhalter: Hier steht eine echte Kundenstimme.", name: "Name", firma: "Betrieb, Ort" },
+  ],
+};
+
 export const contact = {
   kicker: "Kontakt",
   headline: "Lass uns über dein Projekt sprechen.",

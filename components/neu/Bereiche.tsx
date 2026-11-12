@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useGSAP } from "@gsap/react";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
@@ -224,13 +224,16 @@ function ZertifikatKarte({ kurs, i }: { kurs: (typeof ausbildung.kurse)[number];
   );
 }
 
-export function Ausbildung({ mitte = false }: { mitte?: boolean }) {
+/** `titel` ersetzt die Überschrift (die neue Seite setzt sie mit dem Entschlüsselungs-Effekt). */
+export function Ausbildung({ mitte = false, titel }: { mitte?: boolean; titel?: ReactNode }) {
   return (
     <div className="ag-wrap ag-abschnitt">
       <header className={`ag-kopfzeile ${mitte ? "ag-kopfzeile--mitte" : ""}`}>
-        <Zeilen als="h2" className="ag-versal ag-titel">
-          {ausbildung.vor} <em className="ag-gold">{ausbildung.gold}</em> {ausbildung.nach}
-        </Zeilen>
+        {titel ?? (
+          <Zeilen als="h2" className="ag-versal ag-titel">
+            {ausbildung.vor} <em className="ag-gold">{ausbildung.gold}</em> {ausbildung.nach}
+          </Zeilen>
+        )}
         <p className="ag-text">{ausbildung.text}</p>
       </header>
       <ul className="ag-zert">

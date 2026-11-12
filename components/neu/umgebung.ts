@@ -18,11 +18,19 @@ export const INTRO_FERTIG = "ag:intro-fertig";
 export const INTRO_FERTIG_KLASSE = "ag-intro-fertig";
 
 /**
- * „Laden fertig“: Der Ladebildschirm hat das Bild freigegeben und die Schriften
- * sind da (plus 120 ms). Darauf warten das Licht und der Startflug des Namens.
+ * „Laden fertig“: Alles ist geladen, das Licht geht an. (In den älteren Varianten: Der
+ * Ladebildschirm hat das Bild freigegeben und die Schriften sind da.) Darauf wartet die
+ * Sprechblase des Chat-Knopfs.
  */
 export const LADEN_FERTIG = "ag:laden-fertig";
 export const LADEN_FERTIG_KLASSE = "ag-laden-fertig";
+
+/**
+ * „Start fertig“: Die Startanimation ist durch (das Licht ist an, der Name steht) oder wurde
+ * übersprungen. Darauf wartet der Scroll-Hinweis.
+ */
+export const START_FERTIG = "ag:start-fertig";
+export const START_FERTIG_KLASSE = "ag-start-fertig";
 
 /** Gleichbleibende Zufallszahlen, damit Server und Browser dasselbe zeichnen. */
 export function zufall(saat: number) {

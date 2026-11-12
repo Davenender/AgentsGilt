@@ -7,7 +7,7 @@
 // Schnittstellenwerte für Formular, Chat-Assistent und Notion
 // (docs/funktionen.md, Abschnitt 4a) und dürfen nicht umbenannt werden.
 // =====================================================================
-import { credentials, services, site } from "@/lib/content";
+import { credentials, services, site, testimonials } from "@/lib/content";
 
 export const marke = {
   name: site.name,
@@ -45,6 +45,19 @@ export const wasWirMachen = {
   text: "Mit modernster KI entwickeln wir maßgeschneiderte digitale Lösungen für kleine und mittlere Unternehmen – schnell, bezahlbar und auf neuestem Stand. Sie bekommen Technik, die sonst großen Firmen vorbehalten ist.",
   fussnote: "* Gilt nur bei sehr einfachen Projekten und ist kein Versprechen.",
 };
+
+// Die erste Aussage unter dem Kopfbereich: die Hauptüberschrift der Seite. Die Buchstaben
+// entschlüsseln sich, das Schlüsselwort leuchtet golden. Darunter ein kurzer Satz und „Jetzt anrufen“.
+export const aussage = {
+  vor: "Wir bauen in",
+  gold: "Stunden",
+  nach: ", wofür Agenturen Wochen brauchen.",
+  satz: hero.unterzeile,
+  fussnote: wasWirMachen.fussnote,
+};
+
+// Die vier Wörter am Lichtstrahl und im laufenden Band.
+export const worte = ["Persönlich", "Schnell", "Feste Preise", "Aus Rhein-Main"];
 
 type LeistungsText = { kurz: string; text: string; punkte: string[] };
 
@@ -99,6 +112,26 @@ export const leistungenKopf = {
   waehlen: "Anfragen",
 };
 
+// Kleine Szenen über den Leistungskarten. Alle Zahlen darin sind Beispiele und so beschriftet.
+export type SzenenArt = "web" | "chat" | "voice" | "termin" | "auto" | "rat";
+export const szeneZu: Record<string, SzenenArt> = {
+  "Websites & Landingpages": "web",
+  "KI-Chatbots": "chat",
+  "Voice-Agenten": "voice",
+  "Online-Terminbuchung": "termin",
+  Automatisierungen: "auto",
+  "KI-Beratung & Audit": "rat",
+};
+export const szenen = {
+  beispiel: "Beispiel",
+  voice: { klingelt: "Es klingelt – Ihr Assistent nimmt ab", fertig: "Termin eingetragen" },
+  chat: { frage: "Haben Sie morgen noch einen Termin frei?", antwort: "Ja, um 10:30 Uhr. Soll ich ihn eintragen?" },
+  termin: { monat: "Mai", tage: ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"], fertig: "Gebucht" },
+  auto: { karten: ["Anfrage", "Angebot", "Rechnung"], zahl: 12, einheit: "Stunden gespart" },
+  web: { adresse: "ihr-betrieb.de", wort: "Anfragen", zahl: 38 },
+  rat: { punkte: leistungsTexte["KI-Beratung & Audit"].punkte },
+};
+
 export const ablauf = {
   vor: "In drei Schritten zu",
   gold: "Ihrer Lösung.",
@@ -122,6 +155,27 @@ export const warum = {
     { titel: "Planbar", text: "Fairer Setup-Preis plus transparente monatliche Betreuung." },
   ],
 };
+
+// „Unser Versprechen“ im Abschnitt „Warum wir“: drei Karten (aus den bisherigen Vorteilen).
+export const versprechen = {
+  text: wasWirMachen.text,
+  titel: "Unser Versprechen",
+  karten: [
+    { titel: "Persönlich", text: "Ein direkter Ansprechpartner statt Hotline-Warteschleife." },
+    { titel: "Schnell", text: "Erste Ergebnisse in Tagen, nicht Monaten." },
+    { titel: "Feste Preise", text: "Fairer Setup-Preis plus transparente monatliche Betreuung." },
+  ],
+};
+
+// Kundenstimmen: fertig gebaut, aber über den Schalter in lib/content.ts AUS.
+export const stimmen = {
+  aktiv: testimonials.aktiv,
+  titel: testimonials.headline,
+  liste: testimonials.items,
+};
+
+// Mauszeiger über Karten und Bildern.
+export const zeiger = { ansehen: "Ansehen" };
 
 export const ausbildung = {
   vor: "Ausgebildet in",

@@ -12,7 +12,8 @@ import type { LichtSzene } from "./lichtszene";
  * Kopfbereich kommt.
  *
  * Bei „weniger Bewegung“ (und wenn das Gerät die Szene nicht zeichnen kann)
- * steht auch hier nur das ruhige Bild.
+ * steht auch hier nur das ruhige Bild. Mit ?nur=stern leuchtet nur der Stern
+ * (Anfang der Startanimation).
  */
 export function LichtTest() {
   const halter = useRef<HTMLDivElement>(null);
@@ -49,8 +50,12 @@ export function LichtTest() {
           // Zum Vergleich mit dem Kopfbereich lässt sich die Wandfarbe mitgeben: ?wand=070b16
           const wunsch = new URLSearchParams(window.location.search).get("wand");
           const wand = wunsch && /^[0-9a-f]{6}$/i.test(wunsch) ? parseInt(wunsch, 16) : 0x000000;
-          szene = starteLichtSzene(el, anker, { proben: maus ? 80 : 60, wand, maus, beiAusfall: stattBild });
-          szene.zeigen(true);
+          // ?nur=stern zeigt den ersten Zustand der Startanimation: nur der Stern, Balken zu, keine
+          // langen Strahlen. Davon wird das Stern-Bild aufgenommen (public/kopf/licht-stern.webp).
+          const nurStern = new URLSearchParams(window.location.search).get("nur") === "stern";
+          szene = starteLichtSzene(el, anker, { proben: maus ? 80 : 60, wand, maus, beiAusfall: stattBild, ...(nurStern ? { stufen: { stern: 1 } } : {}) });
+          if (nurStern) szene.pegel(0);
+          else szene.zeigen(true);
         })
         .catch(stattBild);
     }
