@@ -17,32 +17,22 @@
 // Ein Klick schickt einen Ring durch den Namen (1150 px/s, 90 px breit, schiebt
 // bis 56 px nach außen, klingt in 1,3 s ab); getroffene Zeichen leuchten kurz
 // heller und wechseln ihr Zeichen. Das Licht des Logos färbt die Zeichen:
-// an den vier Balken golden, nahe am Stern hell-cremig, sonst grau. Kippt das
+// im Licht golden, nahe am Stern einen Hauch heller, sonst grau. Kippt das
 // Licht zur Maus, wandert der goldene Schimmer in diese Richtung mit.
 import type { LichtLage } from "./lichtszene";
 
-// Der Balken im rechten oberen Viertel des Logos (Außenkante = 1, y nach oben); die anderen sind gespiegelt.
-const BALKEN_ECKEN = [0.1299, 0.9957, 1.0, 0.1342, 0.7078, 0.1342, 0.1299, 0.71];
+// Mittellinie der schmalen Öffnung im rechten oberen Viertel des Logos, so wie die Licht-Szene sie
+// zeichnet (Außenmaß der Öffnungen = 1, y nach oben); die drei anderen sind gespiegelt.
+const SPLITTER = [0.1521, 0.9988, 1.0, 0.1571];
 
-/** Abstand eines Punktes (Logo-Einheiten) zum nächsten Balken; im Balken 0. */
+/** Abstand eines Punktes (in Logo-Halbmessern) zur nächsten der vier schmalen Öffnungen. */
 function abstandZumBalken(x: number, y: number): number {
-  const px = Math.abs(x);
-  const py = Math.abs(y);
-  let innen = true;
-  let kleinste = Infinity;
-  for (let i = 0; i < 4; i++) {
-    const ax = BALKEN_ECKEN[i * 2];
-    const ay = BALKEN_ECKEN[i * 2 + 1];
-    const ex = BALKEN_ECKEN[((i + 1) % 4) * 2] - ax;
-    const ey = BALKEN_ECKEN[((i + 1) % 4) * 2 + 1] - ay;
-    const wx = px - ax;
-    const wy = py - ay;
-    // Die Ecken laufen im Uhrzeigersinn: innen liegt, was rechts jeder Kante liegt.
-    if (ex * wy - ey * wx > 0) innen = false;
-    const t = Math.max(0, Math.min(1, (wx * ex + wy * ey) / (ex * ex + ey * ey)));
-    kleinste = Math.min(kleinste, (wx - ex * t) ** 2 + (wy - ey * t) ** 2);
-  }
-  return innen ? 0 : Math.sqrt(kleinste);
+  const wx = Math.abs(x) - SPLITTER[0];
+  const wy = Math.abs(y) - SPLITTER[1];
+  const ex = SPLITTER[2] - SPLITTER[0];
+  const ey = SPLITTER[3] - SPLITTER[1];
+  const t = Math.max(0, Math.min(1, (wx * ex + wy * ey) / (ex * ex + ey * ey)));
+  return Math.hypot(wx - ex * t, wy - ey * t);
 }
 
 export type NameMasse = {
@@ -79,8 +69,9 @@ const NACH_DICHTE = [[0], [0, 1], [1, 0, 2], [2, 1, 3], [3, 2, 4], [4, 5, 3], [5
 const GOLD_STUFEN = 6;
 const CREME_STUFEN = 5;
 const GRAU = [124, 130, 152];
-const GOLD = [240, 196, 104];
-const CREME = [255, 244, 218];
+// Die Farben des Lichts: Gold (#f0a83a), nahe am Stern nur einen Hauch heller (#ffd27a). Kein Weiß.
+const GOLD = [240, 172, 66];
+const CREME = [255, 212, 126];
 
 const FLIMMER_TAKT = 0.14;
 const FLIMMER_ANTEIL = 0.004;
@@ -322,10 +313,11 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       sinW[k] = dy / r;
       // Gold: direkt an den Balken am stärksten, dazu der Schein, der von ihnen nach außen strahlt.
       const amBalken = Math.exp(-abstandZumBalken(dx / lage.radius, -dy / lage.radius) * 5.5);
-      const schein = rr > 0.9 ? 0.5 * Math.exp(-(rr - 0.9) * 2.3) : 0.5;
-      goldRuhe[k] = Math.max(amBalken, schein * Math.min(1, rr / 0.6));
-      // Creme: nahe am Stern in der Mitte.
-      kern[k] = Math.exp(-(rr / 0.36) * (rr / 0.36));
+      // Die Strahlen laufen bis etwa drei Logo-Halbmesser aus und werden dann schwarz.
+      const schein = rr > 0.85 ? 0.85 * Math.exp(-(rr - 0.85) * 1.05) : 0.85;
+      goldRuhe[k] = Math.max(amBalken, schein);
+      // Ein Hauch helleres Gold: nahe am Stern in der Mitte.
+      kern[k] = Math.exp(-(rr / 0.45) * (rr / 0.45));
     }
 
     // 4) Vorrat: jedes Zeichen in jeder Dichte und Färbung einmal fertig gezeichnet.
@@ -402,9 +394,10 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
   /** Zeichnet eine Zelle an ihrer aktuellen Stelle. */
   const zeichne = (k: number, deckkraft: number) => {
     // Kippt das Licht zur Maus, bekommt die Seite in dieser Richtung mehr ab, die Gegenseite weniger.
-    let kegel = 1 + 1.15 * (cosW[k] * lage.kippX + sinW[k] * lage.kippY);
-    if (kegel < 0.2) kegel = 0.2;
-    else if (kegel > 2) kegel = 2;
+    // (Das Licht kippt schon bei kleiner Auslenkung deutlich: Zur Gegenseite reißt es ganz ab.)
+    let kegel = 1 + 3.2 * (cosW[k] * lage.kippX + sinW[k] * lage.kippY);
+    if (kegel < 0.04) kegel = 0.04;
+    else if (kegel > 2.2) kegel = 2.2;
     const blitz = hell[k];
     const gold = Math.min(1, lage.hell * goldRuhe[k] * kegel + blitz * 0.55);
     const creme = Math.min(1, lage.hell * kern[k] * 0.85 + blitz * 0.5);

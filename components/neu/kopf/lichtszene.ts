@@ -2,20 +2,22 @@
 // „postprocessing“ (GodRaysEffect), dazu deren Filmkorn (NoiseEffect).
 //
 // Aufbau:
-//   1. In der Szene steht nur eine dunkle Wand. In ihrem Shader werden die
-//      Stellen unseres Logos (vier Balken und Stern) verworfen (discard): Dort
-//      hat die Wand Löcher und schreibt keine Tiefe.
+//   1. In der Szene steht nur eine schwarze Wand. In ihrem Shader werden die
+//      Stellen unseres Logos verworfen (discard): vier schmale, an den Enden
+//      spitz auslaufende Öffnungen und der Stern. Dort hat die Wand Löcher und
+//      schreibt keine Tiefe.
 //   2. Die Lichtscheibe ist NICHT Teil der Szene. Sie wird nur dem
 //      GodRaysEffect als Lichtquelle übergeben (durchsichtig, schreibt keine
 //      Tiefe). Der Effekt vergleicht sie mit der Tiefe der Wand: Licht kommt
 //      nur durch die Löcher.
-//   3. Aus diesem Licht zieht der Effekt die Strahlen. Kippt die Wand zur
-//      Maus, wandert die Lichtscheibe dahinter zur Gegenseite: Die Strahlen
-//      fächern sich als Lichtkegel zur Maus hin auf.
+//   3. Die Lichtscheibe sitzt weit hinter der Wand (100 Einheiten, die Kamera
+//      steht 14 davor). Aus diesem Licht zieht der Effekt die Strahlen. Kippt
+//      die Wand nur wenig zur Maus, wandert die ferne Scheibe weit zur
+//      Gegenseite: Es entsteht ein langer, schmaler Lichtkegel zur Maus hin.
 //
 // Zu sehen ist deshalb kein Gegenstand, keine Kante und keine Fläche: nur
-// weiches, körniges Licht in der Form unseres Logos. Im Kern fast weiß, an den
-// vier Balken warmes Gold.
+// feines, körniges, gedimmtes goldenes Licht in der Form unseres Logos. Kein
+// Weiß, der Grund bleibt schwarz.
 import * as THREE from "three";
 import { BlendFunction, EffectComposer, EffectPass, GodRaysEffect, KernelSize, NoiseEffect, RenderPass } from "postprocessing";
 import { gsap } from "@/lib/gsap";
@@ -43,9 +45,9 @@ export type LichtSzene = {
 export type LichtWahl = {
   /** Proben je Bildpunkt für die Strahlen (Computer 80, Handy 60). */
   proben: number;
-  /** Farbe der Wand = Farbe des Grundes (fast schwarz). */
+  /** Farbe der Wand = Farbe des Grundes (schwarz). */
   wand: number;
-  /** Folgt die Wand der Maus? (Am Handy wiegt sie sich nur leicht von selbst.) */
+  /** Folgt die Wand der Maus? (Am Handy wiegt sie sich nur leicht.) */
   maus: boolean;
   /** Wird nach jedem Bild gerufen, in dem sich das Licht bewegt hat. */
   beiBild?: (lage: LichtLage) => void;
@@ -53,17 +55,29 @@ export type LichtWahl = {
   beiAusfall?: () => void;
 };
 
-const SICHTFELD = 30;
-const ABSTAND = 12;
-// Wie weit die Lichtscheibe hinter der Wand sitzt (in Logo-Höhen) und wie stark die Wand kippt.
-const TIEFE = 1.0;
-const KIPP = 0.62;
+// Maße der Szene (wie beim Vorbild): Die Kamera steht 14 vor der Wand; bei einem Logo von rund
+// einem Viertel der Bildhöhe ergibt das ein Sichtfeld von 35°. Die Lichtscheibe sitzt 100 hinter der Wand.
+const ABSTAND = 14;
+const TIEFE = 100;
+// Halbe Höhe des Logos und Radius der Lichtscheibe, beides in Einheiten der Szene. Die Scheibe ist
+// so groß, dass sie das Logo auch dann noch beleuchtet, wenn sie beim Kippen weit zur Seite wandert.
+const LOGO = 1.2;
+const SCHEIBE = 44;
+// Die Öffnungen des Logos reichen in Logo-Einheiten bis 0,854 (Spitzen der vier Splitter). Sie werden
+// so vergrößert, dass genau diese Spitzen auf dem Rand des Platzes liegen: Das sichtbare Logo-Loch ist
+// dann so breit wie der Platz im Kopfbereich (am Computer rund 245 px).
+const AUSSEN = 0.854;
+// Wie stark die Wand kippt (Bogenmaß bei voller Auslenkung der Maus). Wegen der fernen Scheibe genügt wenig.
+// Nach oben und unten kippt sie etwas stärker als zur Seite: So zeigt der Lichtkegel in den Bildecken
+// wie beim Vorbild leicht steiler als die Diagonale.
+const KIPP = 0.16;
+const KIPP_HOCH = 1.25;
+// Im Umkreis des halben Logos um ihre Mitte leuchtet die Scheibe schwächer (Anteil ihres Radius).
+const KERN = ((0.5 / AUSSEN) * LOGO * (ABSTAND + TIEFE)) / ABSTAND / SCHEIBE;
 
 const FLAECHE = `
-varying vec2 vUv;
 varying vec2 vLage;
 void main() {
-  vUv = uv;
   vLage = position.xy;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
@@ -94,21 +108,13 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
 
   const szene = new THREE.Scene();
   // Der Grund hinter den Löchern hat genau die Farbe der Wand. Als Hintergrund der Szene
-  // rechnet three.js die Farbe richtig in den Arbeitsfarbraum um (eine bloße Löschfarbe
-  // käme in den Löchern zu hell an: Man sähe die Balken als blasse Flächen).
+  // rechnet three.js die Farbe richtig in den Arbeitsfarbraum um.
   szene.background = new THREE.Color(wahl.wand);
-  const kamera = new THREE.PerspectiveCamera(SICHTFELD, 1, 0.1, 200);
+  const kamera = new THREE.PerspectiveCamera(35, 1, 0.1, 400);
   kamera.position.set(0, 0, ABSTAND);
-  const halbeHoehe = Math.tan(THREE.MathUtils.degToRad(SICHTFELD / 2)) * ABSTAND;
 
   const uHell = { value: 0 };
   const uZeit = { value: 0 };
-  // Für die Lichtscheibe: Wo steht die Wand gerade? (Die Farbe des Lichts hängt am Loch.)
-  const uKamera = { value: kamera.position };
-  const uWandMitte = { value: new THREE.Vector3() };
-  const uWandNormal = { value: new THREE.Vector3(0, 0, 1) };
-  const uWandInnen = { value: new THREE.Matrix4() };
-  const uGroesse = { value: 1 };
   const wegwerfen: { dispose: () => void }[] = [];
   const merken = <T extends { dispose: () => void }>(ding: T) => {
     wegwerfen.push(ding);
@@ -116,40 +122,37 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   };
 
   // ── Die Wand mit dem Logo-Loch. Sie hat die Farbe des Grundes, man sieht sie nicht.
+  const WEIT = 80;
   const wandStoff = merken(
     new THREE.ShaderMaterial({
-      uniforms: { uFarbe: { value: new THREE.Color(wahl.wand) }, uWeite: { value: 1 } },
+      uniforms: { uFarbe: { value: new THREE.Color(wahl.wand) }, uWeite: { value: (WEIT / LOGO) * AUSSEN } },
       vertexShader: FLAECHE,
       fragmentShader: `
         uniform vec3 uFarbe;
         uniform float uWeite;
         varying vec2 vLage;
-        // Liegt der Punkt in einem der vier Balken? (Das Logo ist an beiden Achsen gespiegelt.)
-        void kante(vec2 p, vec2 a, vec2 b, inout float s) {
-          vec2 e = b - a;
-          vec2 w = p - a;
-          bvec3 c = bvec3(p.y >= a.y, p.y < b.y, e.x * w.y > e.y * w.x);
-          if (all(c) || all(not(c))) s = -s;
-        }
+        // Eine der vier Öffnungen des Logos (es ist an beiden Achsen gespiegelt): ein schmaler
+        // Splitter entlang der Mittellinie des Balkens, in der Mitte am breitesten (halb so breit
+        // wie der Balken des Logos), an beiden Enden spitz auslaufend.
         bool imBalken(vec2 p) {
           p = abs(p);
-          vec2 a = vec2(0.1299, 0.9957);
-          vec2 b = vec2(1.0, 0.1342);
-          vec2 c = vec2(0.7078, 0.1342);
-          vec2 d = vec2(0.1299, 0.71);
-          float s = 1.0;
-          kante(p, a, d, s);
-          kante(p, b, a, s);
-          kante(p, c, b, s);
-          kante(p, d, c, s);
-          return s < 0.0;
+          vec2 a = vec2(0.1299, 0.853);
+          vec2 e = vec2(0.854, 0.1342) - a;
+          float l = length(e);
+          vec2 n = e / l;
+          vec2 w = p - a;
+          float s = dot(w, n) / l;
+          if (s <= 0.0 || s >= 1.0) return false;
+          float quer = abs(w.x * n.y - w.y * n.x);
+          return quer < 0.05 * (1.0 - abs(2.0 * s - 1.0));
         }
+        // Der Stern in der Mitte: vier lange, feine Spitzen.
         bool imStern(vec2 p) {
           float q = 0.536;
           return pow(pow(abs(p.x), q) + pow(abs(p.y), q), 1.0 / q) < 0.4437;
         }
         void main() {
-          // Position auf der Wand in Logo-Einheiten (Außenkante des Logos = 1).
+          // Position auf der Wand in Logo-Einheiten (die Spitzen der Öffnungen liegen bei 0,854).
           vec2 p = vLage * uWeite;
           // An den Stellen des Logos hat die Wand Löcher: keine Farbe, keine Tiefe.
           if (imBalken(p) || imStern(p)) discard;
@@ -158,38 +161,28 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     }),
   );
   const wand = new THREE.Mesh(merken(new THREE.PlaneGeometry(2, 2)), wandStoff);
+  // Die Wand ist viel größer als das Bild, damit auch gekippt kein Rand zu sehen ist.
+  wand.scale.setScalar(WEIT);
   const logo = new THREE.Group();
   logo.add(wand);
   szene.add(logo);
 
   // ── Die Lichtscheibe: nicht in der Szene, nur Lichtquelle des God-Rays-Effekts.
-  // Im Kern fast weiß, nach außen warmes Gold, am Rand weich aus (keine sichtbare Scheibe).
+  // Gold, in der Mitte nur einen Hauch heller, am Rand weich aus (keine sichtbare Scheibe).
+  // Ihre Störung läuft langsam: feine Speichen um die Mitte, aus denen die Strahlen werden.
   const scheibe = new THREE.Mesh(
     merken(new THREE.PlaneGeometry(2, 2)),
     merken(
       new THREE.ShaderMaterial({
         transparent: true,
         depthWrite: false,
-        uniforms: { uHell, uZeit, uKamera, uWandMitte, uWandNormal, uWandInnen, uGroesse },
-        vertexShader: `
-          varying vec2 vLage;
-          varying vec3 vWelt;
-          void main() {
-            vLage = position.xy;
-            vec4 welt = modelMatrix * vec4(position, 1.0);
-            vWelt = welt.xyz;
-            gl_Position = projectionMatrix * viewMatrix * welt;
-          }`,
+        uniforms: { uHell, uZeit, uKern: { value: KERN } },
+        vertexShader: FLAECHE,
         fragmentShader: `
           uniform float uHell;
           uniform float uZeit;
-          uniform vec3 uKamera;
-          uniform vec3 uWandMitte;
-          uniform vec3 uWandNormal;
-          uniform mat4 uWandInnen;
-          uniform float uGroesse;
+          uniform float uKern;
           varying vec2 vLage;
-          varying vec3 vWelt;
           float hash(vec2 p) {
             vec3 q = fract(vec3(p.xyx) * 0.1031);
             q += dot(q, q.yzx + 33.33);
@@ -203,57 +196,57 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
           }
           void main() {
             float r = length(vLage);
-            // Langsames Flackern im Leuchten.
-            float flackern = 0.9 + 0.2 * rausch(vLage * 2.2 + vec2(uZeit * 0.13, -uZeit * 0.09));
-            // Durch welche Stelle der Wand sieht man diesen Punkt der Scheibe? Die Farbe
-            // hängt am Loch: durch den Stern fast weiß, durch die Balken warmes Gold –
-            // auch wenn die Wand kippt und die Scheibe dahinter wandert.
-            vec3 blick = vWelt - uKamera;
-            float t = dot(uWandMitte - uKamera, uWandNormal) / dot(blick, uWandNormal);
-            vec2 p = (uWandInnen * vec4(uKamera + blick * t, 1.0)).xy / uGroesse;
-            float rw = length(p);
-            vec3 gold = vec3(1.0, 0.55, 0.12);
-            vec3 weiss = vec3(1.0, 0.93, 0.8);
-            vec3 farbe = mix(weiss, gold, smoothstep(0.36, 0.6, rw));
-            float kraft = mix(0.9, 0.7, smoothstep(0.3, 0.7, rw)) * (1.0 - smoothstep(0.5, 1.0, r));
-            gl_FragColor = vec4(farbe * kraft * flackern * uHell, 1.0);
+            // Die Störung hängt nur an der Richtung um die Mitte (auf einem Kreis abgetastet, damit
+            // sie nahtlos umläuft) und verändert sich langsam: So zerfällt das Licht in feine Speichen.
+            vec2 richtung = vLage / max(r, 0.0001);
+            float zeit = uZeit * 0.5;
+            float grob = rausch(richtung * 8.0 + vec2(zeit * 0.11, 7.3 - zeit * 0.07));
+            float fein = rausch(richtung * 18.0 + vec2(31.7 - zeit * 0.09, zeit * 0.13));
+            float speichen = mix(0.18, 1.0, smoothstep(0.3, 0.72, grob * 0.62 + fein * 0.38));
+            // Linear gerechnete Farben: Gold #f0a83a, in der Mitte ein Hauch heller (#ffd27a). Kein Weiß.
+            vec3 gold = vec3(0.871, 0.392, 0.042);
+            vec3 hell = vec3(1.0, 0.644, 0.195);
+            vec3 farbe = mix(mix(gold, hell, 0.6), gold, smoothstep(0.0, uKern, r));
+            // Genau in der Mitte (hinter dem Stern, solange die Wand gerade steht) leuchtet die Scheibe
+            // schwächer: Sonst überstrahlt der Stern, durch den das meiste Licht fällt, alles andere.
+            float kraft = (1.0 - smoothstep(0.45, 1.0, r)) * speichen * mix(0.7, 1.0, smoothstep(uKern * 0.7, uKern * 1.25, r));
+            gl_FragColor = vec4(farbe * kraft * uHell, 1.0);
           }`,
       }),
     ),
   );
   scheibe.frustumCulled = false;
+  scheibe.scale.setScalar(SCHEIBE);
 
   // ── Nachbearbeitung: der fertige God-Rays-Effekt und das Filmkorn der Bibliothek.
   const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
   composer.addPass(new RenderPass(szene, kamera));
   const strahlen = new GodRaysEffect(kamera, scheibe, {
     samples: wahl.proben,
-    // Mit dem Vorbild abgeglichen (bei 80 Proben): lange, schwache Strahlen bis an den Bildrand,
-    // in der Nähe gedimmt. Bei weniger Proben ist jeder Schritt länger; Abklingen und Gewicht
-    // werden umgerechnet, damit das Licht am Handy gleich aussieht.
-    density: 0.96,
-    decay: Math.pow(0.92, 80 / wahl.proben),
-    weight: (0.25 * 80) / wahl.proben,
-    exposure: 0.29,
+    // Mit dem Vorbild abgeglichen (bei 80 Proben): feine Strahlen, gedimmt, nichts überstrahlt.
+    // Dichte 0,77 heißt: Jeder Bildpunkt sucht nur auf gut drei Vierteln des Wegs zur Lichtquelle
+    // nach Licht. Dadurch laufen die Strahlen in einigem Abstand aus und werden dann wirklich schwarz.
+    // Bei weniger Proben ist jeder Schritt länger; Abklingen und Gewicht werden umgerechnet,
+    // damit das Licht am Handy gleich aussieht.
+    density: 0.77,
+    decay: Math.pow(0.94, 80 / wahl.proben),
+    weight: (0.2 * 80) / wahl.proben,
+    exposure: 0.42,
     clampMax: 1,
     resolutionScale: 0.5,
-    kernelSize: KernelSize.LARGE,
+    kernelSize: KernelSize.MEDIUM,
     blur: true,
   });
-  // Korn nach Art eines Films: Es folgt der Helligkeit, der dunkle Grund bleibt dunkel.
-  const korn = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY });
-  korn.blendMode.opacity.value = 0.85;
+  // Korn wie beim Vorbild: nur im Licht sichtbar, das Schwarz bleibt schwarz und sauber.
+  const korn = new NoiseEffect({ blendFunction: BlendFunction.COLOR_DODGE });
+  korn.blendMode.opacity.value = 0.2;
   composer.addPass(new EffectPass(kamera, strahlen, korn));
 
-  // ── Größe und Lage: Das Logo sitzt genau auf dem Platz im Kopfbereich.
+  // ── Größe und Lage: Das Logo sitzt genau auf seinem Platz im Kopfbereich.
   const lage: LichtLage = { mitteX: 0, mitteY: 0, radius: 1, kippX: 0, kippY: 0, hell: 0 };
   let breite = 1;
   let hoehe = 1;
-  let proPixel = 1;
-  let groesse = 1;
   let neu = true;
-  const mitte = new THREE.Vector3();
-  const hinten = new THREE.Vector3();
   const vermessen = () => {
     const r = halter.getBoundingClientRect();
     const a = anker.getBoundingClientRect();
@@ -262,20 +255,16 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     renderer.setPixelRatio(dichte);
     renderer.setSize(breite, hoehe, false);
     composer.setSize(breite, hoehe);
-    kamera.aspect = breite / hoehe;
-    kamera.updateProjectionMatrix();
-    proPixel = (2 * halbeHoehe) / hoehe;
     lage.mitteX = a.left + a.width / 2 - r.left;
     lage.mitteY = a.top + a.height / 2 - r.top;
-    lage.radius = a.height / 2;
-    mitte.set((lage.mitteX - breite / 2) * proPixel, -(lage.mitteY - hoehe / 2) * proPixel, 0);
-    groesse = lage.radius * proPixel;
-    logo.position.copy(mitte);
-    // Die Wand ist viel größer als das Bild, damit auch gekippt kein Rand zu sehen ist.
-    const weit = 60;
-    wand.scale.setScalar(weit);
-    wandStoff.uniforms.uWeite.value = weit / groesse;
-    scheibe.scale.setScalar(groesse * 3.2);
+    lage.radius = Math.max(1, a.height / 2);
+    // Das Logo ist in der Szene immer gleich groß und steht immer in der Blickachse: Das Sichtfeld
+    // richtet sich nach der Bildhöhe, der Bildausschnitt wird auf die Logo-Mitte verschoben. So sieht
+    // das Licht bei jeder Bildgröße und an jeder Stelle gleich aus (am Handy sitzt es im oberen Drittel).
+    const sichtHoehe = (hoehe * LOGO) / lage.radius;
+    kamera.fov = Math.min(120, THREE.MathUtils.radToDeg(2 * Math.atan(sichtHoehe / 2 / ABSTAND)));
+    kamera.aspect = breite / hoehe;
+    kamera.setViewOffset(breite, hoehe, breite / 2 - lage.mitteX, hoehe / 2 - lage.mitteY, breite, hoehe);
     neu = true;
   };
 
@@ -386,30 +375,24 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     // Solange nicht feststeht, dass das Gerät flüssig mitkommt, wird jedes Bild gezeichnet.
     if (bewegt || !geprueft || schlecht > 0 || bildNr % 2 === 0) {
       uZeit.value = zeit;
-      // Das Licht atmet langsam.
-      const atem = 1 + 0.06 * Math.sin(zeit * 0.9) + 0.025 * Math.sin(zeit * 2.1 + 1);
-      uHell.value = zustand.auftritt * atem;
+      // Das Licht pulsiert nur ganz leicht.
+      uHell.value = zustand.auftritt * (1 + 0.02 * Math.sin(zeit * 0.7));
       // Ohne Maus wiegt sich die Wand ganz leicht von selbst.
-      const kx = ist.x + Math.sin(zeit * 0.31) * (wahl.maus ? 0.03 : 0.16);
-      const ky = ist.y + Math.sin(zeit * 0.23 + 1.3) * (wahl.maus ? 0.02 : 0.1);
+      const kx = ist.x + Math.sin(zeit * 0.31) * (wahl.maus ? 0.03 : 0.05);
+      const ky = ist.y + Math.sin(zeit * 0.23 + 1.3) * (wahl.maus ? 0.02 : 0.035);
       // Die Wand dreht sich zur Maus hin …
-      logo.rotation.set(ky * KIPP, kx * KIPP, 0);
+      logo.rotation.set(ky * KIPP * KIPP_HOCH, kx * KIPP, 0);
       logo.updateMatrixWorld();
-      // … und die Lichtscheibe sitzt hinter ihr auf ihrer Achse: Sie wandert zur Gegenseite.
-      hinten.set(0, 0, -groesse * 2 * TIEFE).applyQuaternion(logo.quaternion).add(mitte);
-      scheibe.position.copy(hinten);
+      // … und die Lichtscheibe sitzt weit hinter ihr auf ihrer Achse: Sie wandert zur Gegenseite.
+      scheibe.position.set(0, 0, -TIEFE).applyQuaternion(logo.quaternion);
       scheibe.quaternion.copy(logo.quaternion);
       scheibe.updateMatrix();
       scheibe.updateMatrixWorld();
-      uWandMitte.value.copy(mitte);
-      uWandNormal.value.set(0, 0, 1).applyQuaternion(logo.quaternion);
-      uWandInnen.value.copy(logo.matrixWorld).invert();
-      uGroesse.value = groesse;
       composer.render(dt);
       gezeichnet = true;
 
       lage.kippX = kx;
-      lage.kippY = ky;
+      lage.kippY = ky * KIPP_HOCH;
       lage.hell = zustand.auftritt;
       if (bewegt) wahl.beiBild?.(lage);
       neu = false;

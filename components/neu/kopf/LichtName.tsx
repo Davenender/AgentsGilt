@@ -14,7 +14,7 @@ import { erzeugeZeichenname } from "./zeichenname";
 /**
  * Der Kopfbereich in zwei Ebenen, durchscheinend übereinander:
  * hinten das Licht-Logo, vorn der Name aus Zeichen-Teilchen. Diese Datei hält
- * beide im Takt und steuert das goldene Licht von unten (Scroll-Hinweis).
+ * beide im Takt.
  *
  * - Das Licht läuft als three.js-Szene mit dem God-Rays-Effekt der Bibliothek
  *   postprocessing (lichtszene.ts, wird nachgeladen). Am Computer mit 80 Proben:
@@ -24,9 +24,6 @@ import { erzeugeZeichenname } from "./zeichenname";
  *   Ruckelt es, steht stattdessen ein ruhiges Bild des Lichts (einmal aus
  *   derselben Szene aufgenommen). Tippen löst die Welle aus.
  * - Bei „weniger Bewegung“ steht das ruhige Bild, alles ist still.
- * - Scroll-Hinweis nur durch Licht: Wer nach etwa 4 Sekunden nicht gescrollt
- *   hat, sieht von unten ein warmes goldenes Licht hereinstrahlen. Beim
- *   Scrollen blendet es aus.
  *
  * Gerechnet wird nur, solange der Kopfbereich zu sehen ist. Ohne Skript stehen
  * Name und Logo als gewöhnliche Grafik da.
@@ -47,9 +44,10 @@ export function LichtName() {
     const leinwand = zeichenLeinwand.current;
     const held = el?.closest<HTMLElement>(".ag-hero");
     const platz = held?.querySelector<HTMLElement>(".ag-ln__platz");
+    const loch = platz?.querySelector<HTMLElement>(".ag-ln__loch");
     const wort = platz?.querySelector<SVGElement>(".ag-wortmarke");
     const wortText = wort?.querySelector("text");
-    if (!el || !leinwand || !held || !platz || !wort || !wortText) return;
+    if (!el || !leinwand || !held || !platz || !loch || !wort || !wortText) return;
 
     const wenigBewegung = window.matchMedia("(prefers-reduced-motion: reduce)");
     const feinerZeiger = window.matchMedia("(hover: hover) and (pointer: fine)");
@@ -71,8 +69,8 @@ export function LichtName() {
     // Lage des Lichts ohne laufende Szene: Die Wand steht gerade, nichts kippt.
     const ruheLage = (): LichtLage => {
       const e = el.getBoundingClientRect();
-      const p = platz.getBoundingClientRect();
-      return { mitteX: p.left + p.width / 2 - e.left, mitteY: p.top + p.height / 2 - e.top, radius: p.height / 2, kippX: 0, kippY: 0, hell: 1 };
+      const l = loch.getBoundingClientRect();
+      return { mitteX: l.left + l.width / 2 - e.left, mitteY: l.top + l.height / 2 - e.top, radius: l.height / 2, kippX: 0, kippY: 0, hell: 1 };
     };
 
     const vermessen = async () => {
@@ -139,10 +137,11 @@ export function LichtName() {
       import("./lichtszene")
         .then(({ starteLichtSzene }) => {
           if (vorbei) return;
-          szene = starteLichtSzene(el, platz, {
+          szene = starteLichtSzene(el, loch, {
             // Am Computer 80 Proben je Bildpunkt, am Handy 60.
             proben: maus ? 80 : 60,
-            wand: 0x070b16,
+            // Rein schwarz: Kopfbereich, Wand und Grund der Szene haben denselben Ton.
+            wand: 0x000000,
             maus,
             // Die Zeichen erfahren, wie hell das Licht gerade ist. Am Computer wandert ihr Schimmer
             // außerdem mit dem Lichtkegel; am Handy steht er ruhig (das Licht wiegt sich nur leicht).
@@ -178,7 +177,6 @@ export function LichtName() {
           feld.einblenden(() => spaeter.push(gsap.delayedCall(0.4, mitteWelle)));
         }),
       );
-      lockPlanen();
     };
 
     // Klick oder Tippen irgendwo im Kopfbereich (nicht auf Knöpfe und Links): eine Welle.
@@ -197,24 +195,6 @@ export function LichtName() {
     };
     const zeigerWeg = () => feld.zeiger(-9999, -9999, false);
 
-    // Scroll-Hinweis nur durch Licht: nach 4 Sekunden ohne Scrollen, weg beim Scrollen.
-    let lockUhr = 0;
-    const lockPlanen = () => {
-      window.clearTimeout(lockUhr);
-      if (window.scrollY > 24) return;
-      lockUhr = window.setTimeout(() => {
-        if (!vorbei && window.scrollY <= 24) held.dataset.lockruf = "1";
-      }, 4000);
-    };
-    const beimScrollen = () => {
-      if (window.scrollY > 24) {
-        window.clearTimeout(lockUhr);
-        delete held.dataset.lockruf;
-      } else if (!held.dataset.lockruf && aufgetreten) {
-        lockPlanen();
-      }
-    };
-
     let warten = 0;
     const beobachter = new ResizeObserver(() => {
       window.clearTimeout(warten);
@@ -222,15 +202,13 @@ export function LichtName() {
     });
     beobachter.observe(el);
     beobachter.observe(platz);
+    beobachter.observe(loch);
     // Kommen mehrere Meldungen auf einmal (etwa wenn die Seite beim Laden gleich nach unten springt),
     // zählt die letzte: Sie beschreibt den jetzigen Stand.
     const waechter = new IntersectionObserver((eintraege) => feld.sichtbar(eintraege[eintraege.length - 1].isIntersecting));
     waechter.observe(el);
-    window.addEventListener("scroll", beimScrollen, { passive: true });
 
-    if (still) {
-      lockPlanen();
-    } else {
+    if (!still) {
       held.addEventListener("click", klick);
       if (maus) {
         window.addEventListener("pointermove", zeigerBewegt, { passive: true });
@@ -245,10 +223,8 @@ export function LichtName() {
       wenigBewegung.removeEventListener("change", umstellen);
       feinerZeiger.removeEventListener("change", umstellen);
       window.clearTimeout(warten);
-      window.clearTimeout(lockUhr);
       beobachter.disconnect();
       waechter.disconnect();
-      window.removeEventListener("scroll", beimScrollen);
       held.removeEventListener("click", klick);
       window.removeEventListener("pointermove", zeigerBewegt);
       document.documentElement.removeEventListener("pointerleave", zeigerWeg);
@@ -258,7 +234,6 @@ export function LichtName() {
       feld.ende();
       delete held.dataset.ln;
       delete held.dataset.licht;
-      delete held.dataset.lockruf;
     };
   }, [einstellung]);
 
@@ -268,11 +243,12 @@ export function LichtName() {
     <>
       <div ref={ebene} className="ag-ln ag-ln--hinten" data-weg="buehne" aria-hidden="true">
         {/* Ruhiges Bild des Lichts: nur bei „weniger Bewegung“ oder wenn die Szene nicht flüssig läuft. Sonst wird es nicht geladen. */}
-        <Image className="ag-ln__standbild" src={lichtBild} alt="" sizes="(max-width: 767px) 250vw, 1472px" loading="lazy" />
+        <Image className="ag-ln__standbild" src={lichtBild} alt="" sizes="(max-width: 767px) 150vw, min(72vw, 1260px)" loading="lazy" />
       </div>
       <div className="ag-kopf5__mitte" data-weg="oben">
-        {/* Der Kasten ist so hoch wie das Licht-Logo, der Schriftzug steht mittig darin. */}
+        {/* Der Schriftzug steht mittig auf dem Platz des Licht-Logos (ag-ln__loch: so groß wie das Logo-Loch). */}
         <div className="ag-ln__platz">
+          <span className="ag-ln__loch" aria-hidden="true" />
           <Wortmarke />
         </div>
       </div>

@@ -102,7 +102,6 @@ export function KopfKern() {
     <>
       <section id="top" className="ag-hero ag-kopf5" aria-label="Agents Gilt">
         <LichtName />
-        <div className="ag-kopf5__lockruf" aria-hidden="true" />
       </section>
       <section className="ag-nachkopf">
         <div className="ag-wrap ag-nachkopf__innen">

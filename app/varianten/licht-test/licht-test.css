@@ -1,8 +1,19 @@
-/* Testseite für das Licht allein: schwarzer Grund, das Licht in Bildmitte. */
+/* Testseite für das Licht allein: schwarzer Grund, das Licht an derselben Stelle und
+   in derselben Größe wie im Kopfbereich. */
 .ag-lichttest {
+  /* Logo etwa so breit wie die Buchstaben „TS“ im Namen (am Computer rund 245 px). */
+  --licht: clamp(150px, 17vw, 300px);
+  --licht-oben: 50%;
   position: fixed;
   inset: 0;
   background: #000;
+}
+@media (max-width: 767px) {
+  /* Am Handy: Logo etwa 35 % der Bildbreite, im oberen Drittel. */
+  .ag-lichttest {
+    --licht: 35vw;
+    --licht-oben: 30svh;
+  }
 }
 .ag-lichttest canvas {
   position: absolute;
@@ -11,12 +22,12 @@
   width: 100%;
   height: 100%;
 }
-/* Platz des Logos: so groß wie im Kopfbereich. */
+/* Platz des Logos. */
 .ag-lichttest__platz {
   position: absolute;
-  top: 50%;
+  top: var(--licht-oben);
   left: 50%;
-  width: clamp(260px, 46svh, 460px);
+  width: var(--licht);
   aspect-ratio: 1;
   translate: -50% -50%;
 }
@@ -25,13 +36,13 @@ body:has(.ag-lichttest) > :not(.ag-neu) {
   display: none;
 }
 /* Ruhiges Bild des Lichts: nur bei „weniger Bewegung“ oder wenn die Szene nicht zeichnen kann.
-   Sonst wird es nicht geladen. 3,2-fache Logo-Höhe, an den Rändern weich in den Grund. */
+   Sonst wird es nicht geladen. Es sitzt auf der Logo-Mitte und läuft an den Rändern weich in den Grund. */
 .ag-lichttest__bild {
   display: none;
   position: absolute;
-  top: 50%;
+  top: var(--licht-oben);
   left: 50%;
-  width: calc(clamp(260px, 46svh, 460px) * 3.2);
+  width: calc(var(--licht) * 4.2);
   max-width: none;
   height: auto;
   translate: -50% -50%;

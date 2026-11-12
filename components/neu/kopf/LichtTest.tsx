@@ -64,7 +64,7 @@ export function LichtTest() {
 
   return (
     <div ref={halter} className="ag-lichttest" aria-hidden="true">
-      <Image className="ag-lichttest__bild" src={lichtBild} alt="" sizes="(max-width: 767px) 250vw, 1472px" loading="lazy" />
+      <Image className="ag-lichttest__bild" src={lichtBild} alt="" sizes="(max-width: 767px) 150vw, min(72vw, 1260px)" loading="lazy" />
       <div ref={platz} className="ag-lichttest__platz" />
     </div>
   );

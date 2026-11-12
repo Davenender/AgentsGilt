@@ -170,13 +170,16 @@
    Licht-Logo und davor der Name aus Zeichen (LichtName.tsx), unten das goldene
    Licht als Scroll-Hinweis. Fast schwarz, oben ein Hauch Dunkelblau. */
 .ag-kopf5 {
-  --licht: clamp(260px, 46svh, 460px);
+  /* Das Logo-Loch ist etwa so breit wie die Buchstaben „TS“ im Namen (am Computer rund 245 px). */
+  --licht: clamp(150px, 17vw, 300px);
+  /* Höhe der Logo-Mitte im Kopfbereich (am Handy weiter oben). Gilt auch ohne Skript für das ruhige Bild. */
+  --licht-oben: 50%;
   min-height: max(100svh, 620px);
   padding-top: 0;
   align-items: center;
   justify-content: center;
-  /* Fast schwarz: dieselbe Farbe wie die Wand der Licht-Szene. */
-  background: #070b16;
+  /* Rein schwarz: Kopfbereich, Wand und Grund der Licht-Szene haben denselben Ton. */
+  background: #000;
 }
 .ag-kopf5__mitte {
   position: relative;
@@ -197,13 +200,6 @@
 .ag-ln--vorn {
   z-index: 2;
 }
-/* Dunkelblauer Akzent: ein Hauch Blau von oben, über dem Licht, unter den Zeichen. */
-.ag-ln--hinten::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(20, 34, 84, 0.34) 0%, rgba(20, 34, 84, 0.1) 30%, transparent 58%);
-}
 .ag-ln canvas {
   position: absolute;
   inset: 0;
@@ -223,12 +219,12 @@
    in den Grund aus. Maße kommen aus LichtName.tsx (--lx, --ly, --lr). */
 .ag-ln__standbild {
   position: absolute;
-  top: var(--ly, 50%);
+  top: var(--ly, var(--licht-oben));
   left: var(--lx, 50%);
   /* Solange die Licht-Szene läuft, wird das Bild gar nicht erst geladen. */
   display: none;
   /* Ohne Skript gibt es keine gemessene Größe: Dann gilt die halbe Logo-Höhe aus dem Stylesheet. */
-  width: calc(var(--lr, calc(var(--licht) / 2)) * 6.4);
+  width: calc(var(--lr, calc(var(--licht) / 2)) * 8.4);
   max-width: none;
   height: auto;
   translate: -50% -50%;
@@ -249,7 +245,13 @@
   display: grid;
   place-items: center;
   width: min(100%, 1760px);
+  min-height: var(--licht);
+}
+/* Platz des Logo-Lochs: Hier sitzt das Licht, genau in der Mitte des Namens. */
+.ag-ln__loch {
+  width: var(--licht);
   height: var(--licht);
+  pointer-events: none;
 }
 .ag-ln__platz > * {
   grid-area: 1 / 1;
@@ -264,32 +266,6 @@
   opacity: 0;
 }
 
-/* Scroll-Hinweis nur durch Licht: Von ganz unten strahlt warmes Gold herein,
-   über die ganze Breite, und pulsiert langsam. Beim Scrollen blendet es aus. */
-.ag-kopf5__lockruf {
-  position: absolute;
-  inset: auto 0 0;
-  z-index: 3;
-  height: min(42%, 380px);
-  background:
-    linear-gradient(to top, rgba(243, 210, 122, 0.5) 0%, rgba(212, 162, 60, 0.22) 9%, rgba(212, 162, 60, 0.07) 34%, transparent 100%),
-    linear-gradient(to top, rgba(109, 51, 25, 0.5), transparent 46%);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 1.4s var(--weich);
-}
-.ag-hero[data-lockruf] .ag-kopf5__lockruf {
-  opacity: 1;
-  animation: ag-lockruf 2.6s cubic-bezier(0.45, 0, 0.55, 1) 1.4s infinite alternate;
-}
-@keyframes ag-lockruf {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0.45;
-  }
-}
 /* Steht das ruhige Bild, weil das Gerät nicht mitkommt, atmet es leicht über die Deckkraft. */
 .ag-hero[data-licht="bild"] .ag-ln__standbild {
   animation: ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite alternate;
@@ -307,6 +283,8 @@
 .ag-nachkopf {
   padding-block: clamp(72px, 12vh, 140px) clamp(48px, 8vh, 96px);
   text-align: center;
+  /* Der Kopfbereich darüber ist rein schwarz: ohne harte Linie in den Grund der Seite übergehen. */
+  background: linear-gradient(180deg, #000 0%, transparent min(60%, 320px));
 }
 .ag-nachkopf__innen {
   display: flex;
@@ -399,8 +377,14 @@
     min-height: 56px;
     padding: 8px 8px 8px 26px;
   }
+  /* Handy: Das Logo ist etwa 35 % der Bildbreite groß und sitzt im oberen Drittel, der Rest ist schwarz. */
   .ag-kopf5 {
-    --licht: 290px;
+    --licht: 35vw;
+    --licht-oben: 30svh;
+    justify-content: flex-start;
+  }
+  .ag-kopf5__mitte {
+    margin-top: calc(var(--licht-oben) - var(--licht) / 2);
   }
   .ag-kopf4--baender .ag-kb__anker {
     --zeichen: 120px;
