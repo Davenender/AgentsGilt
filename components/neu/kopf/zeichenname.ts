@@ -21,11 +21,11 @@
 // Licht zur Maus, wandert der goldene Schimmer in diese Richtung mit.
 import type { LichtLage } from "./lichtszene";
 
-// Mittellinie der schmalen Öffnung im rechten oberen Viertel des Logos, so wie die Licht-Szene sie
-// zeichnet (Außenmaß der Öffnungen = 1, y nach oben); die drei anderen sind gespiegelt.
-const SPLITTER = [0.0584, 0.9988, 1.0, 0.0635];
+// Mittellinie der Balken-Öffnung im rechten oberen Viertel des Logos, so wie die Licht-Szene sie
+// zeichnet (Außenmaß des Logos = 1, y nach oben); die drei anderen sind gespiegelt.
+const SPLITTER = [0.1299, 0.8743, 0.8758, 0.1342];
 
-/** Abstand eines Punktes (in Logo-Halbmessern) zur nächsten der vier schmalen Öffnungen. */
+/** Abstand eines Punktes (in Logo-Halbmessern) zur Mittellinie der nächsten der vier Balken-Öffnungen. */
 function abstandZumBalken(x: number, y: number): number {
   const wx = Math.abs(x) - SPLITTER[0];
   const wy = Math.abs(y) - SPLITTER[1];
@@ -47,6 +47,8 @@ export type NameMasse = {
   mono: string;
   /** Die Zeilen des Namens: am Computer eine, am Handy zwei übereinander. */
   zeilen: string[];
+  /** Nur feine Zeichen (· . : - = +), keine schweren (* / % #). Fürs Handy. */
+  fein?: boolean;
 };
 
 export type Zeichenname = {
@@ -66,9 +68,13 @@ export type Zeichenname = {
 const ZEICHEN = ["·", ".", ":", "-", "=", "+", "*", "/", "%", "#"];
 // Welche Zeichen zu welcher Dichte passen (Index 1 bis 9).
 const NACH_DICHTE = [[0], [0, 1], [1, 0, 2], [2, 1, 3], [3, 2, 4], [4, 5, 3], [5, 6, 4], [6, 7, 5], [8, 7, 9], [9, 9, 8]];
+// Dasselbe nur mit den sechs feinen Zeichen (· . : - = +): fürs Handy.
+const FEINE = 6;
+const NACH_DICHTE_FEIN = [[0], [0, 1], [1, 0], [1, 2], [2, 1, 3], [2, 3], [3, 4, 2], [4, 3, 5], [4, 5], [5, 4]];
 const GOLD_STUFEN = 6;
 const CREME_STUFEN = 5;
 const GRAU = [124, 130, 152];
+const GRAU_FEIN = [176, 182, 204];
 // Die Farben des Lichts: Gold (#f0a83a), nahe am Stern nur einen Hauch heller (#ffd27a). Kein Weiß.
 const GOLD = [240, 172, 66];
 const CREME = [255, 212, 126];
@@ -126,6 +132,9 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
   let dichte = 1;
   let n = 0;
   let zb = 6.5;
+  // Welche Zeichen zur Wahl stehen (am Handy nur die feinen).
+  let nachDichte = NACH_DICHTE;
+  let zeichenZahl = ZEICHEN.length;
   let zh = 8.5;
   let kb = 9;
   let kh = 11;
@@ -180,6 +189,8 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     leinwand.height = Math.round(hoehe * dichte);
     zb = m.zelle;
     zh = m.zelle * 1.3;
+    nachDichte = m.fein ? NACH_DICHTE_FEIN : NACH_DICHTE;
+    zeichenZahl = m.fein ? FEINE : ZEICHEN.length;
     Object.assign(lage, neueLage);
 
     // 1) Graustufenbild: der Name, mit Platz für die Strahlen rundherum.
@@ -273,7 +284,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
         const deckung = summe / 9;
         if (deckung < 0.08) continue;
         const d = Math.max(1, Math.min(9, Math.round(deckung * 9)));
-        const wahl = NACH_DICHTE[d];
+        const wahl = nachDichte[d];
         teile.push(x0 + (i + 0.5) * zb, y0 + (j + 0.5) * zh, d, wahl[Math.floor(saat() * wahl.length)]);
       }
     }
@@ -333,16 +344,21 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     ac.textAlign = "center";
     ac.textBaseline = "middle";
     ac.lineJoin = "round";
-    const kontur = Math.max(0.35, zb * 0.06);
+    // Die feinen Zeichen fürs Handy tragen wenig Farbe: Sie werden etwas kräftiger nachgezogen und
+    // stehen in einem helleren Grau, damit der Name lesbar bleibt.
+    const kontur = m.fein ? Math.max(0.55, zb * 0.11) : Math.max(0.35, zb * 0.06);
+    const grundGrau = m.fein ? GRAU_FEIN : GRAU;
     for (let g = 0; g < GOLD_STUFEN; g++) {
       for (let c = 0; c < CREME_STUFEN; c++) {
         const go = Math.pow(g / (GOLD_STUFEN - 1), 0.85);
         const cr = c / (CREME_STUFEN - 1);
-        const kanal = (i: number) => Math.round((GRAU[i] + (GOLD[i] - GRAU[i]) * go) * (1 - cr) + CREME[i] * cr);
+        const kanal = (i: number) => Math.round((grundGrau[i] + (GOLD[i] - grundGrau[i]) * go) * (1 - cr) + CREME[i] * cr);
         const zeile = (g * CREME_STUFEN + c) * kh;
         for (let d = 1; d <= 9; d++) {
-          // Deckkraft folgt der Dichte; angestrahlte Zeichen dürfen etwas kräftiger sein.
-          const deck = Math.min(1, (d / 9) * (1 + 0.5 * Math.max(go, cr)));
+          // Deckkraft folgt der Dichte; angestrahlte Zeichen dürfen etwas kräftiger sein. Die feinen
+          // Zeichen fürs Handy tragen weniger Farbe: Sie bekommen mehr Deckkraft, damit der Name lesbar bleibt.
+          const grund = m.fein ? 0.5 + 0.5 * (d / 9) : d / 9;
+          const deck = Math.min(1, grund * (1 + 0.5 * Math.max(go, cr)));
           const farbe = `rgba(${kanal(0)}, ${kanal(1)}, ${kanal(2)}, ${deck.toFixed(3)})`;
           // Angestrahlte Zeichen bekommen einen dunklen Saum: So bleiben sie auch
           // direkt vor dem Licht lesbar. Vor dem dunklen Grund sieht man ihn nicht.
@@ -358,7 +374,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
             }
             ac.fillText(ZEICHEN[z], mx, my + 0.5);
             // Dichte Zeichen etwas kräftiger: Der Name soll innen gefüllt wirken.
-            if (d >= 6) {
+            if (d >= (m.fein ? 2 : 6)) {
               ac.strokeStyle = farbe;
               ac.lineWidth = kontur;
               ac.strokeText(ZEICHEN[z], mx, my + 0.5);
@@ -496,7 +512,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
               // Getroffen: kurz heller, und das Zeichen wechselt.
               getroffen[k] = w.nr;
               hell[k] = 1;
-              ersatz[k] = Math.floor(rnd() * ZEICHEN.length);
+              ersatz[k] = Math.floor(rnd() * zeichenZahl);
               ersatzBis[k] = zeit + 0.16 + rnd() * 0.22;
             }
           }
@@ -547,7 +563,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
           const k = Math.floor(rnd() * n);
           if (ersatz[k] >= 0) continue;
           // Ein anderes Zeichen ähnlicher Dichte, damit der Name lesbar bleibt.
-          const wahl = NACH_DICHTE[staerke[k]];
+          const wahl = nachDichte[staerke[k]];
           let neues = wahl[Math.floor(rnd() * wahl.length)];
           if (neues === glyphe[k]) neues = glyphe[k] > 0 ? glyphe[k] - 1 : 1;
           ersatz[k] = neues;

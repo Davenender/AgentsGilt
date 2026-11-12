@@ -3,9 +3,9 @@
 //
 // Aufbau:
 //   1. In der Szene steht nur eine schwarze Wand. In ihrem Shader werden die
-//      Stellen unseres Logos verworfen (discard): vier schmale, an den Enden
-//      spitz auslaufende Öffnungen und der Stern. Dort hat die Wand Löcher und
-//      schreibt keine Tiefe.
+//      Stellen unseres Logos verworfen (discard): die vier Balken in der Form
+//      des echten Logos (85 % der Balkenbreite, Enden leicht angespitzt) und
+//      der Stern. Dort hat die Wand Löcher und schreibt keine Tiefe.
 //   2. Die Lichtscheibe ist NICHT Teil der Szene. Sie wird nur dem
 //      GodRaysEffect als Lichtquelle übergeben (durchsichtig, schreibt keine
 //      Tiefe). Der Effekt vergleicht sie mit der Tiefe der Wand: Licht kommt
@@ -14,6 +14,10 @@
 //      steht 14 davor). Aus diesem Licht zieht der Effekt die Strahlen. Kippt
 //      die Wand nur wenig zur Maus, wandert die ferne Scheibe weit zur
 //      Gegenseite: Es entsteht ein langer, schmaler Lichtkegel zur Maus hin.
+//   4. Derselbe Effekt läuft ein zweites Mal mit ganz kurzer Reichweite (aus
+//      einer zweiten, gleichmäßigen Lichtscheibe an derselben Stelle): Er
+//      zeigt das Licht direkt in den Öffnungen, damit Balken und Stern als
+//      Form lesbar bleiben.
 //
 // Zu sehen ist deshalb kein Gegenstand, keine Kante und keine Fläche: nur
 // feines, körniges, gedimmtes goldenes Licht in der Form unseres Logos. Kein
@@ -63,17 +67,16 @@ const TIEFE = 100;
 // so groß, dass sie das Logo auch dann noch beleuchtet, wenn sie beim Kippen weit zur Seite wandert.
 const LOGO = 1.2;
 const SCHEIBE = 44;
-// Die Öffnungen des Logos reichen in Logo-Einheiten bis 0,854 (Spitzen der vier Splitter). Sie werden
-// so vergrößert, dass genau diese Spitzen auf dem Rand des Platzes liegen: Das sichtbare Logo-Loch ist
-// dann so breit wie der Platz im Kopfbereich (am Computer rund 245 px).
-const AUSSEN = 0.854;
+// Der Stern ist in der Szene etwas größer als im Logo (Faktor 1/0,854): Er behält die Größe, die er
+// seit der dritten Runde hat, während die Balken wieder die echten Maße des Logos haben.
+const STERN = 0.4437 / 0.854;
 // Wie stark die Wand kippt (Bogenmaß bei voller Auslenkung der Maus). Wegen der fernen Scheibe genügt wenig.
 // Nach oben und unten kippt sie etwas stärker als zur Seite: So zeigt der Lichtkegel in den Bildecken
 // wie beim Vorbild leicht steiler als die Diagonale.
 const KIPP = 0.16;
 const KIPP_HOCH = 1.25;
 // Im Umkreis des halben Logos um ihre Mitte leuchtet die Scheibe schwächer (Anteil ihres Radius).
-const KERN = ((0.5 / AUSSEN) * LOGO * (ABSTAND + TIEFE)) / ABSTAND / SCHEIBE;
+const KERN = (0.5855 * LOGO * (ABSTAND + TIEFE)) / ABSTAND / SCHEIBE;
 
 const FLAECHE = `
 varying vec2 vLage;
@@ -125,36 +128,39 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   const WEIT = 80;
   const wandStoff = merken(
     new THREE.ShaderMaterial({
-      uniforms: { uFarbe: { value: new THREE.Color(wahl.wand) }, uWeite: { value: (WEIT / LOGO) * AUSSEN } },
+      uniforms: { uFarbe: { value: new THREE.Color(wahl.wand) }, uWeite: { value: WEIT / LOGO }, uStern: { value: STERN } },
       vertexShader: FLAECHE,
       fragmentShader: `
         uniform vec3 uFarbe;
         uniform float uWeite;
+        uniform float uStern;
         varying vec2 vLage;
-        // Eine der vier Öffnungen des Logos (es ist an beiden Achsen gespiegelt): ein schmaler
-        // Splitter entlang der Mittellinie des Balkens, in der Mitte am breitesten (gut halb so
-        // breit wie der Balken des Logos), an beiden Enden spitz auslaufend. Seine Spitzen reichen
-        // ein Stück über die Enden des Balkens hinaus zu den Achsen hin (rund 11 % länger); nach
-        // außen bleibt er bei 0,854: Die Gesamtbreite des Lochs ändert sich dadurch nicht.
+        // Auf welcher Seite der Kante a→b liegt p? (Kleiner oder gleich 0: rechts davon.)
+        float seite(vec2 p, vec2 a, vec2 b) {
+          return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+        }
+        // Eine der vier Balken-Öffnungen (das Logo ist an beiden Achsen gespiegelt). Form und Winkel
+        // sind die des Balkens aus dem Logo (components/neu/Marke.tsx, auf das Außenmaß 1 gebracht):
+        // Die Außenkante A→B ist unverändert, die Innenkante liegt etwas weiter außen (Breite 85 %
+        // des Balkens), und die beiden stumpfen Enden sind nur leicht angespitzt (Spitzen T1 und T2).
         bool imBalken(vec2 p) {
           p = abs(p);
-          vec2 a = vec2(0.0499, 0.853);
-          vec2 e = vec2(0.854, 0.0542) - a;
-          float l = length(e);
-          vec2 n = e / l;
-          vec2 w = p - a;
-          float s = dot(w, n) / l;
-          if (s <= 0.0 || s >= 1.0) return false;
-          float quer = abs(w.x * n.y - w.y * n.x);
-          return quer < 0.0575 * (1.0 - abs(2.0 * s - 1.0));
+          vec2 a = vec2(0.1299, 0.9957);
+          vec2 b = vec2(1.0, 0.1342);
+          vec2 t2 = vec2(0.8758, 0.0942);
+          vec2 c = vec2(0.7516, 0.1342);
+          vec2 d = vec2(0.1299, 0.7529);
+          vec2 t1 = vec2(0.0899, 0.8743);
+          // Die Ecken laufen im Uhrzeigersinn: innen liegt, was rechts jeder Kante liegt.
+          return seite(p, a, b) <= 0.0 && seite(p, b, t2) <= 0.0 && seite(p, t2, c) <= 0.0 && seite(p, c, d) <= 0.0 && seite(p, d, t1) <= 0.0 && seite(p, t1, a) <= 0.0;
         }
         // Der Stern in der Mitte: vier lange, feine Spitzen.
         bool imStern(vec2 p) {
           float q = 0.536;
-          return pow(pow(abs(p.x), q) + pow(abs(p.y), q), 1.0 / q) < 0.4437;
+          return pow(pow(abs(p.x), q) + pow(abs(p.y), q), 1.0 / q) < uStern;
         }
         void main() {
-          // Position auf der Wand in Logo-Einheiten (die Spitzen der Öffnungen liegen bei 0,854).
+          // Position auf der Wand in Logo-Einheiten (Außenmaß des Logos = 1 = Rand des Platzes).
           vec2 p = vLage * uWeite;
           // An den Stellen des Logos hat die Wand Löcher: keine Farbe, keine Tiefe.
           if (imBalken(p) || imStern(p)) discard;
@@ -220,6 +226,34 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   scheibe.frustumCulled = false;
   scheibe.scale.setScalar(SCHEIBE);
 
+  // ── Eine zweite, gleichmäßige Lichtscheibe an derselben Stelle (auch sie nicht in der Szene, nur
+  // Lichtquelle): Aus ihr kommt das Licht, das man direkt in den Öffnungen sieht. Ohne Speichen,
+  // damit Balken und Stern ruhig und gleichmäßig leuchten.
+  const direktScheibe = new THREE.Mesh(
+    scheibe.geometry,
+    merken(
+      new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        uniforms: { uHell, uKern: { value: KERN } },
+        vertexShader: FLAECHE,
+        fragmentShader: `
+          uniform float uHell;
+          uniform float uKern;
+          varying vec2 vLage;
+          void main() {
+            float r = length(vLage);
+            vec3 gold = vec3(0.871, 0.392, 0.042);
+            vec3 hell = vec3(1.0, 0.644, 0.195);
+            vec3 farbe = mix(mix(gold, hell, 0.6), gold, smoothstep(0.0, uKern, r));
+            gl_FragColor = vec4(farbe * (1.0 - smoothstep(0.45, 1.0, r)) * uHell, 1.0);
+          }`,
+      }),
+    ),
+  );
+  direktScheibe.frustumCulled = false;
+  direktScheibe.scale.setScalar(SCHEIBE);
+
   // ── Nachbearbeitung: der fertige God-Rays-Effekt und das Filmkorn der Bibliothek.
   const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
   composer.addPass(new RenderPass(szene, kamera));
@@ -233,16 +267,35 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     density: 0.77,
     decay: Math.pow(0.94, 80 / wahl.proben),
     weight: (0.2 * 80) / wahl.proben,
-    exposure: 0.42,
+    // Seit die Öffnungen wieder die Breite der echten Balken haben, fällt mehr Licht hindurch: Die
+    // Belichtung ist so weit gesenkt, dass die Speichen so hell sind wie zuvor (in 160 und 250 px
+    // Abstand rund 77 und 30 von 255).
+    exposure: 0.15,
     clampMax: 1,
     resolutionScale: 0.5,
     kernelSize: KernelSize.MEDIUM,
     blur: true,
   });
+  // Derselbe Effekt ein zweites Mal, mit ganz kurzer Reichweite: Er zeigt das Licht direkt in den
+  // Öffnungen. Die langen Strahlen allein lassen die Außenkanten der Balken verschwinden (ein
+  // Balken liegt quer zu den Strahlen); so bleiben die vier Balken und der Stern als Form lesbar.
+  const direkt = new GodRaysEffect(kamera, direktScheibe, {
+    samples: 30,
+    // Kurze Reichweite: Jeder Bildpunkt sucht nur auf den ersten 15 % des Wegs zur Lichtquelle, und
+    // das Licht klingt nach wenigen Schritten ab. Gedimmt, nichts überstrahlt.
+    density: 0.15,
+    decay: 0.82,
+    weight: 0.3,
+    exposure: 0.26,
+    clampMax: 1,
+    resolutionScale: 0.5,
+    kernelSize: KernelSize.SMALL,
+    blur: true,
+  });
   // Korn wie beim Vorbild: nur im Licht sichtbar, das Schwarz bleibt schwarz und sauber.
   const korn = new NoiseEffect({ blendFunction: BlendFunction.COLOR_DODGE });
   korn.blendMode.opacity.value = 0.2;
-  composer.addPass(new EffectPass(kamera, strahlen, korn));
+  composer.addPass(new EffectPass(kamera, strahlen, direkt, korn));
 
   // ── Größe und Lage: Das Logo sitzt genau auf seinem Platz im Kopfbereich.
   const lage: LichtLage = { mitteX: 0, mitteY: 0, radius: 1, kippX: 0, kippY: 0, hell: 0 };
@@ -390,6 +443,10 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
       scheibe.quaternion.copy(logo.quaternion);
       scheibe.updateMatrix();
       scheibe.updateMatrixWorld();
+      direktScheibe.position.copy(scheibe.position);
+      direktScheibe.quaternion.copy(scheibe.quaternion);
+      direktScheibe.updateMatrix();
+      direktScheibe.updateMatrixWorld();
       composer.render(dt);
       gezeichnet = true;
 
@@ -450,6 +507,7 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
       window.removeEventListener("pointermove", zeiger);
       document.documentElement.removeEventListener("pointerleave", zeigerWeg);
       strahlen.dispose();
+      direkt.dispose();
       korn.dispose();
       wegwerfen.forEach((d) => d.dispose());
       composer.dispose();

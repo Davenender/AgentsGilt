@@ -13,8 +13,10 @@ import { erzeugeZeichenname } from "./zeichenname";
 
 /**
  * Der Kopfbereich in zwei Ebenen, durchscheinend übereinander:
- * hinten das Licht-Logo, vorn der Name aus Zeichen-Teilchen. Diese Datei hält
- * beide im Takt.
+ * hinten das Licht-Logo, vorn der Name aus Zeichen-Teilchen. Das Licht-Logo
+ * steht oben mittig, der Name mittig darunter (er liegt nicht mehr im Kern des
+ * Lichts; die Strahlen laufen weich hinter seinem oberen Rand aus). Diese
+ * Datei hält beide im Takt.
  *
  * - Das Licht läuft als three.js-Szene mit dem God-Rays-Effekt der Bibliothek
  *   postprocessing (lichtszene.ts, wird nachgeladen). Am Computer mit 80 Proben:
@@ -85,25 +87,26 @@ export function LichtName() {
       if (vorbei) return;
       const e = el.getBoundingClientRect();
       const w = wort.getBoundingClientRect();
-      const p = platz.getBoundingClientRect();
       const ruhe = ruheLage();
-      // Das ruhige Bild des Lichts sitzt genau auf der Logo-Mitte.
-      el.style.setProperty("--lx", `${ruhe.mitteX}px`);
-      el.style.setProperty("--ly", `${ruhe.mitteY}px`);
-      el.style.setProperty("--lr", `${ruhe.radius}px`);
-      // Am Computer steht der Name in einer Zeile über fast die ganze Breite. Am
-      // Handy wäre er so zu klein: Dort stehen die beiden Wörter übereinander.
+      // Der Name steht unter dem Licht-Logo, genau dort, wo das Stylesheet den gewöhnlichen
+      // Schriftzug hinsetzt. Am Computer in einer Zeile; am Handy wäre er so zu klein: Dort
+      // stehen die beiden Wörter übereinander (gleiche Breite, entsprechend höher).
       const woerter = marke.name.toUpperCase().split(" ");
-      const gestapelt = e.width < 600 && woerter.length > 1;
+      // Dieselben Grenzen wie im Stylesheet (kopf.css), an der Fensterbreite gemessen: Nur so
+      // passen die dort freigehaltene Höhe und der gezeichnete Name sicher zusammen.
+      const schmal = window.matchMedia("(max-width: 599px)").matches;
+      const handyBreite = window.matchMedia("(max-width: 767px)").matches;
+      const gestapelt = schmal && woerter.length > 1;
       let name = { x: w.left - e.left, y: w.top - e.top, b: w.width, h: w.height };
       if (gestapelt) {
         const probe = document.createElement("canvas").getContext("2d");
         if (probe) {
           probe.font = `800 100px ${stil.fontFamily}`;
           const breiteste = Math.max(...woerter.map((wortTeil) => probe.measureText(wortTeil).width || 1));
-          const zeilenHoehe = ((p.width / breiteste) * 100 * 212) / 285;
+          const zeilenHoehe = ((w.width / breiteste) * 100 * 212) / 285;
           const h = (zeilenHoehe * woerter.length) / (1 - 0.045 * (woerter.length - 1));
-          name = { x: p.left - e.left, y: ruhe.mitteY - h / 2, b: p.width, h };
+          // Das Stylesheet hält unter 600 px Breite die Höhe für zwei Zeilen frei: mittig hineinsetzen.
+          name = { x: w.left - e.left, y: w.top - e.top + Math.max(0, (w.height - h) / 2), b: w.width, h };
         }
       }
       const anzahl = feld.bauen(
@@ -111,10 +114,12 @@ export function LichtName() {
           breite: Math.max(1, e.width),
           hoehe: Math.max(1, e.height),
           name,
-          zelle: e.width < 768 ? 5 : 6.5,
+          zelle: handyBreite ? 4.4 : 6.5,
           schrift: stil.fontFamily,
           mono,
           zeilen: gestapelt ? woerter : [woerter.join(" ")],
+          // Am Handy nur feine Zeichen (· . : - = +), keine schweren.
+          fein: handyBreite,
         },
         // Am Handy steht der Schimmer ruhig, auch wenn sich das Licht dort leicht wiegt.
         szene ? (maus ? szene.lage : { ...szene.lage, kippX: 0, kippY: 0 }) : ruhe,
@@ -271,14 +276,15 @@ export function LichtName() {
   // (ohne Skript sichtbar, sonst nur Maß und Name für Vorleseprogramme), die Zeichen.
   return (
     <>
-      <div ref={ebene} className="ag-ln ag-ln--hinten" data-weg="buehne" aria-hidden="true">
-        {/* Ruhiges Bild des Lichts: nur bei „weniger Bewegung“ oder wenn die Szene nicht flüssig läuft. Sonst wird es nicht geladen. */}
-        <Image className="ag-ln__standbild" src={lichtBild} alt="" sizes="(max-width: 767px) 150vw, min(72vw, 1260px)" loading="lazy" />
-      </div>
+      {/* Hinten: Hierhin setzt die Licht-Szene ihre Zeichenfläche. */}
+      <div ref={ebene} className="ag-ln ag-ln--hinten" data-weg="buehne" aria-hidden="true" />
       <div className="ag-kopf5__mitte" data-weg="oben">
-        {/* Der Schriftzug steht mittig auf dem Platz des Licht-Logos (ag-ln__loch: so groß wie das Logo-Loch). */}
+        {/* Oben der Platz des Licht-Logos (so groß wie das Logo-Loch), darunter mit Abstand der Schriftzug. */}
         <div className="ag-ln__platz">
-          <span className="ag-ln__loch" aria-hidden="true" />
+          <span className="ag-ln__loch" aria-hidden="true">
+            {/* Ruhiges Bild des Lichts: nur bei „weniger Bewegung“ oder wenn die Szene nicht flüssig läuft. Sonst wird es nicht geladen. */}
+            <Image className="ag-ln__standbild" src={lichtBild} alt="" sizes="(max-width: 767px) 150vw, min(72vw, 1260px)" loading="lazy" />
+          </span>
           <Wortmarke />
         </div>
       </div>

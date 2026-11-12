@@ -1,7 +1,7 @@
 /* Testseite für das Licht allein: schwarzer Grund, das Licht an derselben Stelle und
    in derselben Größe wie im Kopfbereich. */
 .ag-lichttest {
-  /* Logo etwa so breit wie die Buchstaben „TS“ im Namen (am Computer rund 245 px). */
+  /* Logo so groß wie im Kopfbereich (am Computer rund 245 px). */
   --licht: clamp(150px, 17vw, 300px);
   --licht-oben: 50%;
   position: fixed;

@@ -170,12 +170,14 @@
    Licht-Logo und davor der Name aus Zeichen (LichtName.tsx), unten das goldene
    Licht als Scroll-Hinweis. Fast schwarz, oben ein Hauch Dunkelblau. */
 .ag-kopf5 {
-  /* Das Logo-Loch ist etwa so breit wie die Buchstaben „TS“ im Namen (am Computer rund 245 px). */
+  /* Das Logo-Loch ist am Computer rund 245 px breit (17 % der Bildbreite). */
   --licht: clamp(150px, 17vw, 300px);
-  /* Höhe der Logo-Mitte im Kopfbereich (am Handy weiter oben). Gilt auch ohne Skript für das ruhige Bild. */
-  --licht-oben: 50%;
+  /* Abstand zwischen Licht-Logo und Name: Der Name liegt nicht im Kern des Lichts. */
+  --abstand: clamp(30px, 4.6vw, 84px);
   min-height: max(100svh, 620px);
-  padding-top: 0;
+  /* Licht-Logo und Name stehen als Gruppe mittig im Raum unter der Kopfleiste. In sehr niedrigen
+     Fenstern wächst der Kopfbereich mit, damit unter dem Namen Luft bleibt. */
+  padding-block: clamp(84px, 9svh, 96px) clamp(36px, 6svh, 72px);
   align-items: center;
   justify-content: center;
   /* Rein schwarz: Kopfbereich, Wand und Grund der Licht-Szene haben denselben Ton. */
@@ -215,16 +217,15 @@
 .ag-hero[data-licht="live"] .ag-ln__licht {
   opacity: 1;
 }
-/* Ruhiges Bild des Lichts: sitzt auf der Logo-Mitte, läuft an den Rändern weich
-   in den Grund aus. Maße kommen aus LichtName.tsx (--lx, --ly, --lr). */
+/* Ruhiges Bild des Lichts: Es hängt am Platz des Logos, sitzt auf dessen Mitte (4,2-fache
+   Logo-Größe) und läuft an den Rändern weich in den Grund aus. Auch ohne Skript richtig. */
 .ag-ln__standbild {
   position: absolute;
-  top: var(--ly, var(--licht-oben));
-  left: var(--lx, 50%);
+  top: 50%;
+  left: 50%;
   /* Solange die Licht-Szene läuft, wird das Bild gar nicht erst geladen. */
   display: none;
-  /* Ohne Skript gibt es keine gemessene Größe: Dann gilt die halbe Logo-Höhe aus dem Stylesheet. */
-  width: calc(var(--lr, calc(var(--licht) / 2)) * 8.4);
+  width: 420%;
   max-width: none;
   height: auto;
   translate: -50% -50%;
@@ -240,21 +241,27 @@
     display: block;
   }
 }
+/* Oben das Licht-Logo, darunter mit Abstand der Name. Nichts überdeckt sich. */
 .ag-ln__platz {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--abstand);
   width: min(100%, 1760px);
-  min-height: var(--licht);
 }
-/* Platz des Logo-Lochs: Hier sitzt das Licht, genau in der Mitte des Namens. */
+/* Platz des Logo-Lochs: Hier sitzt das Licht. */
 .ag-ln__loch {
+  position: relative;
+  flex: none;
   width: var(--licht);
   height: var(--licht);
   pointer-events: none;
 }
-.ag-ln__platz > * {
-  grid-area: 1 / 1;
+/* Der Name: etwa drei Viertel der Bildbreite, über dem ruhigen Bild des Lichts. */
+.ag-ln__platz .ag-wortmarke {
+  position: relative;
+  width: min(76vw, 1340px);
   transition: opacity 0.4s var(--weich);
 }
 .ag-ln__platz .ag-wortmarke text {
@@ -416,11 +423,17 @@
   /* Handy: Das Logo ist etwa 35 % der Bildbreite groß und sitzt im oberen Drittel, der Rest ist schwarz. */
   .ag-kopf5 {
     --licht: 35vw;
-    --licht-oben: 30svh;
+    --abstand: 9vw;
     justify-content: flex-start;
+    padding-block: 0 clamp(36px, 6svh, 72px);
   }
+  /* Die Logo-Mitte liegt bei 30 % der Bildhöhe, der Name steht darunter. */
   .ag-kopf5__mitte {
-    margin-top: calc(var(--licht-oben) - var(--licht) / 2);
+    /* In sehr niedrigen Fenstern bleibt das Logo unter der Kopfleiste. */
+    margin-top: max(calc(30svh - var(--licht) / 2), 92px);
+  }
+  .ag-ln__platz .ag-wortmarke {
+    width: 78vw;
   }
   .ag-kopf4--baender .ag-kb__anker {
     --zeichen: 120px;
@@ -448,5 +461,14 @@
   }
   .ag-kopf4__h1--gross {
     font-size: clamp(2.6rem, 11.5vw, 3.4rem);
+  }
+}
+
+/* Unter 600 px Breite zeichnet LichtName.tsx den Namen in zwei Zeilen. Der gewöhnliche Schriftzug
+   hält dafür im Seitenfluss die nötige Höhe frei (er selbst steht mittig darin): So wächst der
+   Kopfbereich in niedrigen Fenstern mit, und der Name wird unten nicht abgeschnitten. */
+@media (max-width: 599px) {
+  .ag-ln__platz .ag-wortmarke {
+    aspect-ratio: 1000 / 660;
   }
 }
