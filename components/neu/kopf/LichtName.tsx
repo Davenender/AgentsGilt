@@ -154,7 +154,7 @@ export function LichtName() {
           schrift: stil.fontFamily,
           mono,
           zeilen: gestapelt ? woerter : [woerter.join(" ")],
-          // Am Handy nur feine Zeichen (· . : - = +), keine schweren; Strahlen nach unten halb so lang.
+          // Am Handy: kräftigere Striche, helleres Grau, Strahlen nach unten halb so lang (gleicher Zeichensatz).
           fein: handyBreite,
           // Pixeldichte: am Handy höchstens 1,5, am Computer höchstens 2.
           dichteMax: handyBreite ? 1.5 : 2,

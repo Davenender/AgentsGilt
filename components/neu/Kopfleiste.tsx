@@ -19,8 +19,9 @@ gsap.registerPlugin(useGSAP);
  *   großen Lichts), daneben der Name in Grau.
  * - In der Mitte die Navigation: Der feine Goldrand glimmt nur dort auf, wo die
  *   Maus in der Nähe ist (glimmrand.ts). Die Menüpunkte stehen in der Schrift
- *   des Namens. Ein kleines goldenes Licht gleitet federnd unter den Menüpunkt
- *   unter der Maus und bleibt sonst unter dem Abschnitt, der gerade zu sehen ist.
+ *   des Namens. Hinter dem Glas liegt Licht: unter der Maus ein weiches goldenes
+ *   Licht, das ihr folgt, und hinter dem Menüpunkt des aktiven Abschnitts (er ist
+ *   golden) dauerhaft ein ganz schwacher Schein.
  *   Nach dem ersten Bildschirm wird die Leiste schmaler und dunkler; beim
  *   Runterscrollen gleitet sie nach oben weg, beim Hochscrollen kommt sie wieder.
  * - Rechts „Anrufen“: Glas-Knopf mit Goldrand, der Hörer in einem pulsierenden
@@ -83,7 +84,13 @@ export function Kopfleiste() {
       const y = window.scrollY;
       nav.dataset.eng = String(y > window.innerHeight * 0.9);
       if (Math.abs(y - anker) < 8) return;
-      nav.dataset.weg = String(y > anker && y > 80);
+      const weg = y > anker && y > 80;
+      nav.dataset.weg = String(weg);
+      // Gleitet die Leiste weg, gehen auch die Lichter hinter ihr aus.
+      if (kopf.current) {
+        kopf.current.dataset.leisteweg = String(weg);
+        if (weg) kopf.current.dataset.licht = "aus";
+      }
       anker = y;
     };
     beimScrollen();
@@ -91,33 +98,23 @@ export function Kopfleiste() {
     return () => window.removeEventListener("scroll", beimScrollen);
   }, []);
 
-  // Lichtpunkt der Navigation: folgt der Maus, sonst zeigt er den aktiven Abschnitt.
+  // Aktiver Abschnitt: Der Menüpunkt ist golden, und hinter dem Glas liegt dort dauerhaft ein ganz
+  // schwacher Schein. Dasselbe gilt für den Menüpunkt im Handy-Menü.
   useEffect(() => {
     const nav = leiste.current;
-    if (!nav) return;
+    const el = kopf.current;
+    if (!nav || !el) return;
     const links = Array.from(nav.querySelectorAll<HTMLAnchorElement>("a"));
+    const imMenue = Array.from(menue.current?.querySelectorAll<HTMLAnchorElement>("a.ag-menue__punkt") ?? []);
     let aktiv: HTMLAnchorElement | null = null;
-    let schwebt: HTMLAnchorElement | null = null;
     const setzen = () => {
-      const zielLink = schwebt ?? aktiv;
       // Nur messen, wenn die Leiste zu sehen ist (unter 1100 px ist sie ausgeblendet).
-      if (zielLink && zielLink.offsetWidth > 0) nav.style.setProperty("--punkt", `${zielLink.offsetLeft + zielLink.offsetWidth / 2}px`);
-      nav.dataset.punkt = zielLink ? "an" : "aus";
+      if (aktiv && aktiv.offsetWidth > 0) {
+        const a = aktiv.getBoundingClientRect();
+        el.style.setProperty("--ax", `${(a.left + a.width / 2 - el.getBoundingClientRect().left).toFixed(1)}px`);
+      }
+      el.dataset.aktiv = aktiv ? "an" : "aus";
     };
-    const rein = (ev: Event) => {
-      schwebt = ev.currentTarget as HTMLAnchorElement;
-      setzen();
-    };
-    const raus = () => {
-      schwebt = null;
-      setzen();
-    };
-    links.forEach((l) => {
-      l.addEventListener("pointerenter", rein);
-      l.addEventListener("focus", rein);
-      l.addEventListener("blur", raus);
-    });
-    nav.addEventListener("pointerleave", raus);
     // Aktiv ist der Abschnitt, der gerade die Lesehöhe (55 % des Bildschirms) kreuzt.
     const spuren = links.map((link) => {
       const abschnitt = document.querySelector<HTMLElement>(link.getAttribute("href") ?? "#-");
@@ -126,13 +123,14 @@ export function Kopfleiste() {
         trigger: abschnitt,
         start: "top 55%",
         end: "bottom 55%",
-        // Nach Größenänderungen neu messen: Der Punkt bleibt unter seinem Menüpunkt.
+        // Nach Größenänderungen neu messen: Der Schein bleibt hinter seinem Menüpunkt.
         onRefresh: setzen,
         onToggle: (st) => {
           if (st.isActive) aktiv = link;
           else if (aktiv === link) aktiv = null;
-          links.forEach((l) => {
-            if (l === aktiv) l.setAttribute("aria-current", "true");
+          const ziel = aktiv?.getAttribute("href");
+          [...links, ...imMenue].forEach((l) => {
+            if (ziel && l.getAttribute("href") === ziel) l.setAttribute("aria-current", "true");
             else l.removeAttribute("aria-current");
           });
           setzen();
@@ -144,13 +142,93 @@ export function Kopfleiste() {
     groesse.observe(nav);
     return () => {
       groesse.disconnect();
-      links.forEach((l) => {
-        l.removeEventListener("pointerenter", rein);
-        l.removeEventListener("focus", rein);
-        l.removeEventListener("blur", raus);
-      });
-      nav.removeEventListener("pointerleave", raus);
       spuren.forEach((st) => st?.kill());
+      delete el.dataset.aktiv;
+      el.style.removeProperty("--ax");
+    };
+  }, []);
+
+  // Licht hinter dem Glas: Fährt die Maus über die Leiste, liegt unter ihr ein weiches goldenes
+  // Licht (wie durch Milchglas). Es folgt der Maus waagerecht, je Bild 1 − 0,82^(dt × 60) zum Ziel
+  // hin, blendet beim Betreten ein und beim Verlassen aus (im Stylesheet). Nur bei echter Maus und
+  // nicht bei „weniger Bewegung“.
+  useEffect(() => {
+    const nav = leiste.current;
+    const el = kopf.current;
+    if (!nav || !el) return;
+    const feinerZeiger = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const wenigBewegung = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const erlaubt = () => feinerZeiger.matches && !wenigBewegung.matches;
+    let ziel = 0;
+    let ist = 0;
+    let rahmen = 0;
+    let zuletzt = 0;
+    let mausX = 0;
+    const setzen = () => el.style.setProperty("--lx", `${ist.toFixed(1)}px`);
+    const bild = (jetzt: number) => {
+      rahmen = 0;
+      const dt = zuletzt ? Math.min(0.1, (jetzt - zuletzt) / 1000) : 1 / 60;
+      zuletzt = jetzt;
+      ist += (ziel - ist) * (1 - Math.pow(0.82, dt * 60));
+      if (Math.abs(ziel - ist) < 0.3) {
+        ist = ziel;
+        zuletzt = 0;
+      } else rahmen = requestAnimationFrame(bild);
+      setzen();
+    };
+    const aus = () => {
+      cancelAnimationFrame(rahmen);
+      rahmen = 0;
+      zuletzt = 0;
+      el.dataset.licht = "aus";
+    };
+    /** Wo das Licht stehen soll: unter der Maus, höchstens bis 36 px an die Enden der Leiste. */
+    const messen = () => {
+      const r = nav.getBoundingClientRect();
+      ziel = Math.max(r.left + 36, Math.min(r.right - 36, mausX)) - el.getBoundingClientRect().left;
+      return mausX >= r.left && mausX <= r.right;
+    };
+    const bewegt = (ev: PointerEvent) => {
+      if (ev.pointerType !== "mouse" || !erlaubt()) return aus();
+      mausX = ev.clientX;
+      messen();
+      if (el.dataset.licht !== "an") {
+        // Beim Betreten (auch wenn die Leiste zurückkommt) sitzt das Licht gleich unter der Maus
+        // und blendet dort ein.
+        ist = ziel;
+        setzen();
+        el.dataset.licht = "an";
+      }
+      if (!rahmen) rahmen = requestAnimationFrame(bild);
+    };
+    // Ändert sich die Fenstergröße bei ruhender Maus, rückt die Leiste: Das Licht wird neu
+    // eingemessen (oder geht aus, wenn die Maus nicht mehr über der Leiste steht).
+    const neuMessen = () => {
+      if (el.dataset.licht !== "an") return;
+      if (!messen()) return aus();
+      ist = ziel;
+      setzen();
+    };
+    // Wird „weniger Bewegung“ eingeschaltet oder der Zeiger grob, geht das Licht sofort aus.
+    const umstellen = () => {
+      if (!erlaubt()) aus();
+    };
+    nav.addEventListener("pointerenter", bewegt);
+    nav.addEventListener("pointermove", bewegt);
+    nav.addEventListener("pointerleave", aus);
+    window.addEventListener("resize", neuMessen);
+    feinerZeiger.addEventListener("change", umstellen);
+    wenigBewegung.addEventListener("change", umstellen);
+    return () => {
+      cancelAnimationFrame(rahmen);
+      nav.removeEventListener("pointerenter", bewegt);
+      nav.removeEventListener("pointermove", bewegt);
+      nav.removeEventListener("pointerleave", aus);
+      window.removeEventListener("resize", neuMessen);
+      feinerZeiger.removeEventListener("change", umstellen);
+      wenigBewegung.removeEventListener("change", umstellen);
+      delete el.dataset.licht;
+      el.style.removeProperty("--lx");
     };
   }, []);
 
@@ -216,7 +294,10 @@ export function Kopfleiste() {
             <span className="ag-wuerfel__echt">{marke.name}</span>
           </span>
         </a>
-        <nav ref={leiste} className="ag-kopf__kachel ag-glas ag-glimm" aria-label="Hauptnavigation" data-punkt="aus" data-glimm>
+        {/* Hinter dem Glas der Leiste: der schwache Schein des aktiven Abschnitts und das Licht unter der Maus. */}
+        <span className="ag-kopf__schein" aria-hidden="true" />
+        <span className="ag-kopf__licht" aria-hidden="true" />
+        <nav ref={leiste} className="ag-kopf__kachel ag-glas ag-glimm" aria-label="Hauptnavigation" data-glimm>
           {navigation.map((n) => (
             <a key={n.href} href={n.href} data-wuerfel>
               <span className="ag-wuerfel">
@@ -224,7 +305,6 @@ export function Kopfleiste() {
               </span>
             </a>
           ))}
-          <span className="ag-kopf__punkt" aria-hidden="true" />
         </nav>
         <div className="ag-kopf__rechts">
           <Anruf />

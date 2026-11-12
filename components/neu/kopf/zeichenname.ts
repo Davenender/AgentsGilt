@@ -9,23 +9,27 @@
 //      Die Dichte ist round(Grundwert × (0,45 + 0,55 × min(1, 1,6 × Abdeckung))),
 //      begrenzt auf 1 bis 9. Der Grundwert ist 9 × die Stärke der Tinte in der
 //      Zelle (Buchstaben voll, Strahlen laufen aus). Die Deckkraft ist
-//      Dichte/9 × 0,7. Innen stehen dichte Zeichen wie # und %, am Rand lockere.
-//   3. Jedes Zeichen liegt einmal fertig gezeichnet in einem Vorrat (Atlas),
-//      in jeder Deckkraft und Färbung. Das ruhende Bild liegt als fertiges Bild
-//      im Zwischenspeicher; neu gezeichnet wird nur, solange sich etwas bewegt.
+//      Dichte/9 × 0,7. Die dichtesten Stellen bestehen aus den Block-Zeichen ▓ und ▒
+//      (daraus entstehen die „Kacheln“), dazu #; nach außen folgen + - = und zuletzt
+//      . : ·. Am Handy gilt derselbe Zeichensatz.
+//   3. Jedes Zeichen liegt einmal fertig gezeichnet in einem Vorrat (Atlas), in jeder
+//      Färbung und mit 1,8-facher Pixeldichte: So bleibt es auch im Flug scharf. Das
+//      ruhende Bild liegt als fertiges Bild im Zwischenspeicher; neu gezeichnet wird
+//      nur, solange sich etwas bewegt.
 //
 // Start: Die Zeichen fliegen von außerhalb des Bildes an ihren Platz
 // (2,2 Sekunden, am Anfang sehr schnell, am Ende weich; die Mitte des Namens
-// landet zuerst). Unterwegs sind sie größer, heller (warmes Hellgrau bis zartes
-// Gold, Deckkraft mindestens 0,22) und wechseln ihr Zeichen; beim Landen werden
-// sie zum Grau des Namens.
+// landet zuerst). Unterwegs sind sie größer, haben das Hellgrau des Namens (nur
+// leicht wärmer, Deckkraft mindestens 0,22) und wechseln ihr Zeichen; golden
+// werden sie nur unter dem Licht.
 //
 // Leben: Alle 140 ms tauschen rund 0,4 % der Zellen für einen Takt ihr Zeichen.
-// Die Zeichen weichen dem Zeiger aus (Umkreis 70 px, bis 18 px) und federn zurück.
-// Ein Klick schickt einen Ring durch den Namen (1150 px/s, schiebt bis 56 px
+// Die Zeichen weichen dem Zeiger aus (Umkreis 40 px, bis 10 px) und federn zurück.
+// Ein Klick schickt einen Ring durch den Namen (1150 px/s, schiebt bis 40 px
 // nach außen, klingt in 1,3 s ab); getroffene Zeichen werden kräftiger und
 // wechseln ihr Zeichen. Das Licht des Logos färbt die Zeichen: im Licht golden,
-// nahe am Stern einen Hauch heller, sonst grau.
+// nahe am Stern einen Hauch heller, sonst grau. Alle Bewegungen rechnen mit der
+// vergangenen Zeit und laufen auf jedem Bildschirm gleich schnell.
 import type { LichtLage } from "./lichtszene";
 
 // Mittellinie der Balken-Öffnung im rechten oberen Viertel des Logos, so wie die Licht-Szene sie
@@ -54,7 +58,11 @@ export type NameMasse = {
   mono: string;
   /** Die Zeilen des Namens: am Computer eine, am Handy zwei übereinander. */
   zeilen: string[];
-  /** Handy: nur feine Zeichen (· . : - = +), keine schweren (* / % #), und die Strahlen nach unten halb so lang. */
+  /**
+   * Handy: Der Name ist klein. Die Striche der Buchstaben werden etwas kräftiger gerastert, das
+   * Grau ist heller, und die Strahlen nach unten sind nur halb so lang. (Der Zeichensatz ist
+   * überall derselbe.)
+   */
   fein?: boolean;
   /** Höchste Pixeldichte der Zeichenfläche (Computer 2, Handy 1,5). */
   dichteMax: number;
@@ -78,44 +86,65 @@ export type Zeichenname = {
   ende: () => void;
 };
 
-// Von locker nach dicht.
-const ZEICHEN = ["·", ".", ":", "-", "=", "+", "*", "/", "%", "#"];
-// Welche Zeichen zu welcher Dichte passen (Index 1 bis 9).
-const NACH_DICHTE = [[0], [0, 1], [1, 0, 2], [2, 1, 3], [3, 2, 4], [4, 5, 3], [5, 6, 4], [6, 7, 5], [8, 7, 9], [9, 9, 8]];
-// Dasselbe nur mit den sechs feinen Zeichen (· . : - = +): fürs Handy. Innen stehen fast nur
-// + und =, damit die Buchstaben geschlossen wirken.
-const FEINE = 6;
-const NACH_DICHTE_FEIN = [[0], [0, 1], [1, 0], [2, 1], [2, 3], [3, 2], [3, 4], [4, 3], [4, 5], [4, 4, 5]];
+// Von locker nach dicht; die letzten beiden sind die Block-Zeichen für die dichtesten Stellen
+// (aus ihnen entstehen die „Kacheln“).
+const ZEICHEN = ["·", ".", ":", "-", "=", "+", "*", "/", "%", "#", "▒", "▓"];
+// Zufallszeichen fürs Flimmern, im Flug und in der Welle: die ersten zehn, ohne die Block-Zeichen.
+const ZUFALL = 10;
+const BLOCK_MITTEL = 10;
+const BLOCK_DICHT = 11;
+// Welche Zeichen zu welcher Dichte gehören (Index 1 bis 9), jeweils mit ihrem Anteil. So ist es
+// in der Zeichen-Grafik des Vorbilds gezählt. Je Zelle wird einmal fest gewählt: Das Bild steht ruhig.
+const NACH_DICHTE: [zeichen: number, anteil: number][][] = [
+  [[0, 1]],
+  [[0, 0.5], [1, 0.5]],
+  [[0, 0.5], [1, 0.5]],
+  [[1, 1 / 3], [0, 1 / 3], [2, 1 / 3]],
+  [[1, 1 / 3], [0, 1 / 3], [2, 1 / 3]],
+  [[1, 0.25], [2, 0.25], [3, 0.25], [5, 0.25]],
+  [[1, 0.25], [2, 0.25], [3, 0.25], [5, 0.25]],
+  [[5, 0.5], [3, 0.25], [4, 0.25]],
+  [[9, 0.45], [BLOCK_MITTEL, 0.25], [4, 0.2], [5, 0.1]],
+  [[BLOCK_DICHT, 0.5], [BLOCK_MITTEL, 0.3], [9, 0.2]],
+];
+/** Wählt ein Zeichen für die Dichte, nach den Anteilen. */
+function waehle(dichte: number, zufallszahl: number): number {
+  const wahl = NACH_DICHTE[dichte];
+  let rest = zufallszahl;
+  for (const [zeichen, anteil] of wahl) {
+    rest -= anteil;
+    if (rest < 0) return zeichen;
+  }
+  return wahl[wahl.length - 1][0];
+}
 const GOLD_STUFEN = 6;
 const CREME_STUFEN = 5;
-// Deckkraft-Stufen im Vorrat: 1 bis 9 sind die Dichten (Dichte/9 × 0,7), darüber liegen die
-// kräftigeren Stufen für Zeichen, die gerade von einer Welle getroffen werden (bis ganz deckend).
-const DECK_STUFEN = 13;
-// Die Farben sind heller angesetzt, als sie am Ende wirken: Die dichtesten Zeichen decken nur zu
-// 70 %, davor steht also höchstens 70 % dieser Töne (ein kühles Grau, im Licht Gold).
+// Schärfe: Jedes Zeichen wird einmal mit 1,8-facher Pixeldichte vorgerendert und verkleinert
+// gezeichnet. So bleibt es auch im Flug scharf, wenn es bis zu 1,8-fach groß ist.
+const VORRAT_SCHARF = 1.8;
+// Die Farbe ist heller angesetzt, als sie am Ende wirkt: Die dichtesten Zeichen decken nur zu
+// 70 %, davor steht also höchstens 70 % dieses Tons (ein kühles Hellgrau, im Licht Gold).
 const GRAU = [210, 218, 246];
-const GRAU_FEIN = [214, 220, 242];
+const GRAU_HANDY = [236, 240, 255];
 // Die Farben des Lichts: Gold, nahe am Stern nur einen Hauch heller. Kein Weiß.
 const GOLD = [255, 190, 78];
 const CREME = [255, 220, 140];
 
 const FLIMMER_TAKT = 140; // ms
 const FLIMMER_ANTEIL = 0.004;
-const MAUS_UMKREIS = 70;
-const MAUS_SCHUB = 18;
+// Maus und Welle: Tempo und Dauer wie beim Vorbild. Umkreis und Ausschlag sind kleiner, weil die
+// Zeichen bei uns in einer dichten Fläche stehen und nicht in dünnen Strahlen.
+const MAUS_UMKREIS = 40;
+const MAUS_SCHUB = 10;
 const WELLE_TEMPO = 1150;
-const WELLE_BAND = 90;
-const WELLE_SCHUB = 56;
+const WELLE_BAND = 80;
+const WELLE_SCHUB = 40;
 const WELLE_DAUER = 1.3;
 const FLUG_DAUER = 2.2;
-// Unterwegs: Mindest-Deckkraft und Färbung der fliegenden Zeichen (warmes Hellgrau bis zartes Gold).
+// Unterwegs: Mindest-Deckkraft der fliegenden Zeichen. Sie haben das Hellgrau des Namens, nur
+// leicht wärmer (eine Stufe); golden werden sie nur, wo sie unter dem Licht durchfliegen.
 const FLUG_BODEN = 0.22;
-// Unterwegs liegt unter jedem Zeichen ein schwaches Feld in Zellgröße (wie die kleinen Kacheln
-// beim Vorbild): So ist der Schwarm auf dem dunklen Grund klar zu sehen. Es blendet beim Landen aus.
-const FLUG_FELD = 0.5;
-const FLUG_FELD_FARBE = "rgb(240, 214, 168)";
-const FLUG_GOLD = 0.2;
-const FLUG_CREME = 0.55;
+const FLUG_WAERME = 0.25;
 const BLENDE_DAUER = 0.6;
 
 /** Gleichbleibende Zufallszahlen: Der Name sieht bei jedem Aufbau gleich aus. */
@@ -173,11 +202,8 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
   let zh = 8.5;
   let kb = 9;
   let kh = 11;
-  // Liegt schon im Vorrat unter jedem Zeichen ein Grund (Handy, schmale Fenster)?
-  let mitGrund = false;
-  // Welche Zeichen zur Wahl stehen (am Handy nur die feinen).
-  let nachDichte = NACH_DICHTE;
-  let zeichenZahl = ZEICHEN.length;
+  // Maßstab des Vorrats (Pixeldichte × 1,8).
+  let vorratMass = 1.8;
   // Der Kasten des Namens: Mitte für Flug und Welle, Bereich für den Klick.
   const kasten = { x: 0, y: 0, b: 1, h: 1 };
   // Je Zelle: Platz, Dichte, Zeichen und die festen Anteile des Lichts.
@@ -185,6 +211,8 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
   let hy = new Float32Array(0);
   let staerke = new Uint8Array(0);
   let glyphe = new Uint8Array(0);
+  // Deckkraft in Ruhe: Dichte/9 × 0,7.
+  let ruheDeck = new Float32Array(0);
   let cosW = new Float32Array(0);
   let sinW = new Float32Array(0);
   let goldRuhe = new Float32Array(0);
@@ -249,8 +277,6 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     ruhe.height = leinwand.height;
     zb = m.zelle;
     zh = m.zelle * 1.3;
-    nachDichte = m.fein ? NACH_DICHTE_FEIN : NACH_DICHTE;
-    zeichenZahl = m.fein ? FEINE : ZEICHEN.length;
     Object.assign(kasten, m.name);
     Object.assign(lage, neueLage);
 
@@ -279,6 +305,15 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       bc.translate(randX + (m.name.b - breiten[i] * zug) / 2, randY + i * (zeilenHoehe + luecke));
       bc.scale(zug, 1);
       bc.fillText(zeile, 0, (zeilenHoehe * 205) / 212);
+      // Am Handy sind die Striche der Buchstaben nur zwei, drei Zellen breit: Dort werden sie um
+      // knapp eine halbe Zelle je Seite kräftiger gezeichnet. So erreichen mehr Zellen die volle
+      // Dichte (die Block-Zeichen), und die Buchstaben wirken geschlossen.
+      if (m.fein) {
+        bc.strokeStyle = "#fff";
+        bc.lineJoin = "round";
+        bc.lineWidth = m.zelle * 0.9;
+        bc.strokeText(zeile, 0, (zeilenHoehe * 205) / 212);
+      }
       bc.restore();
     });
     const roh = bc.getImageData(0, 0, rb, rh).data;
@@ -354,8 +389,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
         // Grundwert: 9 × Stärke der Tinte (Buchstaben voll, Strahlen laufen aus).
         const grundwert = 9 * (tinte / bedeckt);
         const d = Math.max(1, Math.min(9, Math.round(grundwert * (0.45 + 0.55 * Math.min(1, 1.6 * cov)))));
-        const wahl = nachDichte[d];
-        teile.push(x0 + (i + 0.5) * zb, y0 + (j + 0.5) * zh, d, wahl[Math.floor(saat() * wahl.length)], i, j);
+        teile.push(x0 + (i + 0.5) * zb, y0 + (j + 0.5) * zh, d, waehle(d, saat()), i, j);
       }
     }
 
@@ -370,6 +404,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     hy = new Float32Array(n);
     staerke = new Uint8Array(n);
     glyphe = new Uint8Array(n);
+    ruheDeck = new Float32Array(n);
     cosW = new Float32Array(n);
     sinW = new Float32Array(n);
     goldRuhe = new Float32Array(n);
@@ -402,6 +437,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       if (py > rand.y1) rand.y1 = py;
       staerke[k] = teile[k * 6 + 2];
       glyphe[k] = teile[k * 6 + 3];
+      ruheDeck[k] = Math.min(1, (staerke[k] / 9) * 0.7);
       const dx = px - lage.mitteX;
       const dy = py - lage.mitteY;
       const r = Math.hypot(dx, dy) || 0.001;
@@ -424,63 +460,56 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       schwelle[k] = Math.max(0, Math.min(0.45, (0.62 - abstandMitte) * 0.5 + 0.22 * rnd()));
     }
 
-    // 4) Vorrat: jedes Zeichen in jeder Deckkraft und Färbung einmal fertig gezeichnet.
+    // 4) Vorrat: jedes Zeichen in jeder Färbung einmal fertig gezeichnet, mit 1,8-facher
+    // Pixeldichte (die Deckkraft kommt erst beim Zeichnen dazu).
     kb = Math.ceil(zb + 2);
     kh = Math.ceil(zh + 2);
-    atlas.width = Math.ceil(ZEICHEN.length * DECK_STUFEN * kb * dichte);
-    atlas.height = Math.ceil(GOLD_STUFEN * CREME_STUFEN * kh * dichte);
+    vorratMass = dichte * VORRAT_SCHARF;
+    atlas.width = Math.ceil(ZEICHEN.length * kb * vorratMass);
+    atlas.height = Math.ceil(GOLD_STUFEN * CREME_STUFEN * kh * vorratMass);
     const ac = atlas.getContext("2d");
     if (!ac) return 0;
-    ac.setTransform(dichte, 0, 0, dichte, 0, 0);
+    ac.setTransform(vorratMass, 0, 0, vorratMass, 0, 0);
     ac.clearRect(0, 0, atlas.width, atlas.height);
-    // Monospace, Stärke 500, gezeichnet mit 1,25 × Zellbreite.
-    ac.font = `500 ${(zb * 1.25).toFixed(2)}px ${m.mono}, ui-monospace, Menlo, monospace`;
+    // Monospace (JetBrains Mono), Stärke 500, gezeichnet mit 1,25 × Zellbreite.
+    const schriftGroesse = zb * 1.25;
+    ac.font = `500 ${schriftGroesse.toFixed(2)}px ${m.mono}, ui-monospace, Menlo, monospace`;
     ac.textAlign = "center";
     ac.textBaseline = "middle";
-    ac.lineJoin = "round";
-    const grundGrau = m.fein ? GRAU_FEIN : GRAU;
-    // Ist der Name klein (Handy, schmale Fenster), tragen die Zeichen allein zu wenig Farbe: Dann
-    // liegt unter jedem Zeichen ein schwacher Grund in der Größe der Zelle, und die feinen Zeichen
-    // werden etwas nachgezogen. So wirken die Buchstaben geschlossen und bleiben lesbar.
-    const grund = m.fein ? 0.5 : m.name.b < 900 ? 0.28 : 0;
-    mitGrund = grund > 0;
-    const kontur = m.fein ? zb * 0.16 : 0;
+    // Die Block-Zeichen ▒ und ▓ werden als Raster gezeichnet, so wie sie in einer Monospace-Schrift
+    // aussehen: ein Feld in Zeichenbreite (0,6 der Schriftgröße) über die ganze Zeilenhöhe, zur
+    // Hälfte bzw. zu drei Vierteln mit Punkten gefüllt; übereinander schließen sie zu Streifen. So
+    // sehen sie auf jedem Gerät gleich aus (die Web-Fassung von JetBrains Mono liefert diese beiden
+    // Zeichen nicht mit; sonst spränge je Gerät eine andere, viel breitere Ersatzschrift ein).
+    const blockB = schriftGroesse * 0.6;
+    const blockH = zh;
+    const punkt = blockB / 6;
+    const block = (mx2: number, my2: number, dicht: boolean) => {
+      const links = mx2 - blockB / 2;
+      const oben = my2 - blockH / 2;
+      const reihen = Math.round(blockH / punkt);
+      const hoch = blockH / reihen;
+      for (let j = 0; j < reihen; j++) {
+        for (let i = 0; i < 6; i++) {
+          // ▒: Schachbrett (jeder zweite Punkt). ▓: drei von vier Punkten.
+          const an = dicht ? !(i % 2 === 1 && j % 2 === 1) : (i + j) % 2 === 0;
+          if (an) ac.fillRect(links + i * punkt, oben + j * hoch, punkt, hoch);
+        }
+      }
+    };
+    // Am Handy ist der Name klein: Dort steht er in einem helleren Grau, damit er gut lesbar bleibt.
+    const grundGrau = m.fein ? GRAU_HANDY : GRAU;
     for (let g = 0; g < GOLD_STUFEN; g++) {
       for (let c = 0; c < CREME_STUFEN; c++) {
         const go = Math.pow(g / (GOLD_STUFEN - 1), 0.85);
         const cr = c / (CREME_STUFEN - 1);
         const kanal = (i: number) => Math.round((grundGrau[i] + (GOLD[i] - grundGrau[i]) * go) * (1 - cr) + CREME[i] * cr);
-        const zeile = (g * CREME_STUFEN + c) * kh;
-        for (let s = 1; s <= DECK_STUFEN; s++) {
-          // Deckkraft: Dichte/9 × 0,7.
-          const deck = Math.min(1, (s / 9) * 0.7);
-          const farbe = `rgba(${kanal(0)}, ${kanal(1)}, ${kanal(2)}, ${deck.toFixed(3)})`;
-          // Angestrahlte Zeichen bekommen einen dunklen Saum: So bleiben sie auch
-          // direkt vor dem Licht lesbar. Vor dem dunklen Grund sieht man ihn nicht.
-          const saum = Math.min(0.9, Math.max(go, cr) * (0.35 + Math.min(1, s / 9) * 0.65) * 1.1);
-          // Der Grund trägt nur die dichten Zellen (die Buchstaben); die auslaufenden Strahlen bleiben feine Zeichen.
-          const grundDeck = deck * grund * Math.max(0, Math.min(1, (s - 3) / 3));
-          const grundFarbe = `rgba(${kanal(0)}, ${kanal(1)}, ${kanal(2)}, ${grundDeck.toFixed(3)})`;
-          for (let z = 0; z < ZEICHEN.length; z++) {
-            const zx = ((s - 1) * ZEICHEN.length + z) * kb + kb / 2;
-            const zy = zeile + kh / 2;
-            if (grundDeck > 0.004) {
-              ac.fillStyle = grundFarbe;
-              ac.fillRect(zx - zb / 2 + 0.3, zy - zh / 2 + 0.3, zb - 0.6, zh - 0.6);
-            }
-            ac.fillStyle = farbe;
-            if (saum > 0.05) {
-              ac.strokeStyle = `rgba(5, 7, 16, ${saum.toFixed(3)})`;
-              ac.lineWidth = zb * 0.5;
-              ac.strokeText(ZEICHEN[z], zx, zy + 0.5);
-            }
-            ac.fillText(ZEICHEN[z], zx, zy + 0.5);
-            if (kontur > 0 && s >= 4) {
-              ac.strokeStyle = farbe;
-              ac.lineWidth = kontur;
-              ac.strokeText(ZEICHEN[z], zx, zy + 0.5);
-            }
-          }
+        ac.fillStyle = `rgb(${kanal(0)}, ${kanal(1)}, ${kanal(2)})`;
+        const my2 = (g * CREME_STUFEN + c) * kh + kh / 2;
+        for (let z = 0; z < ZEICHEN.length; z++) {
+          const mx2 = z * kb + kb / 2;
+          if (z === BLOCK_MITTEL || z === BLOCK_DICHT) block(mx2, my2, z === BLOCK_DICHT);
+          else ac.fillText(ZEICHEN[z], mx2, my2 + 0.5);
         }
       }
     }
@@ -515,9 +544,9 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     }
   };
 
-  /** Zeichnet eine Zelle: Stelle, Größe, Deckkraft, Ausschlag der Welle und wie weit sie noch fliegt (0 = am Platz). */
+  /** Zeichnet eine Zelle: Stelle, Größe, Deckkraft und wie weit sie noch fliegt (0 = am Platz). */
   let deckJetzt = 1;
-  const male = (c: CanvasRenderingContext2D, k: number, x: number, y: number, groesse: number, deck: number, ausschlag: number, flug: number) => {
+  const male = (c: CanvasRenderingContext2D, k: number, x: number, y: number, groesse: number, deck: number, flug: number) => {
     // Kippt das Licht zur Maus, bekommt die Seite in dieser Richtung mehr ab, die Gegenseite weniger.
     let kegel = 1 + 3.2 * (cosW[k] * lage.kippX + sinW[k] * lage.kippY);
     if (kegel < 0.04) kegel = 0.04;
@@ -525,27 +554,23 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     let gold = lage.hell * goldRuhe[k] * kegel;
     let creme = lage.hell * kern[k] * 0.85;
     if (flug > 0) {
-      // Unterwegs sind die Zeichen heller: ein warmes Hellgrau bis zartes Gold, unter dem Licht
-      // goldener. Erst beim Landen (letztes Fünftel des Wegs) werden sie zum Grau des Namens.
+      // Unterwegs haben die Zeichen das Hellgrau des Namens, nur leicht wärmer. Golden werden sie
+      // nur, wo sie unter dem Licht durchfliegen. Im letzten Fünftel des Wegs gleicht sich die
+      // Farbe der ihres Platzes an.
       const anteil = flug > 0.2 ? 1 : flug * 5;
       const unterLicht = lage.hell * schein(Math.hypot(x - lage.mitteX, y - lage.mitteY) / lage.radius) * 0.8;
-      gold += (FLUG_GOLD + unterLicht * (1 - FLUG_GOLD) - gold) * anteil;
-      creme += (FLUG_CREME - creme) * anteil;
+      gold += (unterLicht - gold) * anteil;
+      creme += (FLUG_WAERME - creme) * anteil;
     }
     if (gold > 1) gold = 1;
     if (creme > 1) creme = 1;
     const stufe = Math.round(gold * (GOLD_STUFEN - 1)) * CREME_STUFEN + Math.round(creme * (CREME_STUFEN - 1));
-    // Von einer Welle getroffen: Deckkraft × (1 + Ausschlag/28), höchstens ganz deckend.
-    // Unterwegs (flug > 0,05) kommt die Deckkraft als fertiger Wert herein: Dann wird die ganz
-    // deckende Stufe des Vorrats gezeichnet.
-    let s = flug > 0.05 ? DECK_STUFEN : staerke[k];
-    if (ausschlag > 0) s = Math.min(DECK_STUFEN, Math.round(s * (1 + ausschlag / 28)));
     const z = tausch[k] >= 0 ? tausch[k] : flimmer[k] >= 0 ? flimmer[k] : glyphe[k];
     if (deck !== deckJetzt) {
       c.globalAlpha = deck;
       deckJetzt = deck;
     }
-    c.drawImage(atlas, ((s - 1) * ZEICHEN.length + z) * kb * dichte, stufe * kh * dichte, kb * dichte, kh * dichte, x - (kb * groesse) / 2, y - (kh * groesse) / 2, kb * groesse, kh * groesse);
+    c.drawImage(atlas, z * kb * vorratMass, stufe * kh * vorratMass, kb * vorratMass, kh * vorratMass, x - (kb * groesse) / 2, y - (kh * groesse) / 2, kb * groesse, kh * groesse);
   };
 
   /** Merken, in welchem Licht die Fläche zuletzt gezeichnet wurde. */
@@ -562,14 +587,14 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     ruheCtx.clearRect(0, 0, breite, hoehe);
     deckJetzt = 1;
     ruheCtx.globalAlpha = 1;
-    for (let k = 0; k < n; k++) male(ruheCtx, k, hx[k], hy[k], 1, 1, 0, 0);
+    for (let k = 0; k < n; k++) male(ruheCtx, k, hx[k], hy[k], 1, ruheDeck[k], 0);
     lichtGemalt();
     speicherAlt = false;
   };
 
   /**
-   * Eine einzelne Zelle neu zeichnen (ihr Zeichen hat gewechselt). Ein Zeichen ragt mit seinem Saum
-   * etwas über seine Zelle hinaus: Deshalb wird genau sein Feld geleert und alles, was hineinragt
+   * Eine einzelne Zelle neu zeichnen (ihr Zeichen hat gewechselt). Ein Zeichen ragt etwas über
+   * seine Zelle hinaus: Deshalb wird genau sein Feld geleert und alles, was hineinragt
    * (die Zelle selbst und ihre Nachbarn), in der ursprünglichen Reihenfolge neu gezeichnet. So
    * bleiben keine Reste stehen, auch nach beliebig vielen Wechseln.
    */
@@ -591,7 +616,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       for (let i = spalte[k] - 1; i <= spalte[k] + 1; i++) {
         if (i < 0 || i >= gSpalten) continue;
         const q = gitter[j * gSpalten + i];
-        if (q >= 0) male(c, q, hx[q], hy[q], 1, 1, 0, 0);
+        if (q >= 0) male(c, q, hx[q], hy[q], 1, ruheDeck[q], 0);
       }
     }
     c.restore();
@@ -670,10 +695,9 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       for (let i = 0; i < viele; i++) {
         const k = Math.floor(rnd() * n);
         if (flimmer[k] >= 0) continue;
-        // Ein anderes Zeichen ähnlicher Dichte, damit der Name lesbar bleibt.
-        const wahl = nachDichte[staerke[k]];
-        let neues = wahl[Math.floor(rnd() * wahl.length)];
-        if (neues === glyphe[k]) neues = glyphe[k] > 0 ? glyphe[k] - 1 : 1;
+        // Für einen Takt ein anderes Zeichen (aus den zehn Zufallszeichen).
+        let neues = Math.floor(rnd() * ZUFALL);
+        if (neues === glyphe[k]) neues = (neues + 1) % ZUFALL;
         flimmer[k] = neues;
         flimmernde.push(k);
         einzeln.push(k);
@@ -698,7 +722,6 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       ctx.clearRect(0, 0, breite, hoehe);
       deckJetzt = 1;
       ctx.globalAlpha = 1;
-      ctx.fillStyle = FLUG_FELD_FARBE;
       for (let k = 0; k < n; k++) {
         // Eigener Fortschritt im Flug: 1 = ganz außen, 0 = gelandet.
         let f = 0;
@@ -749,12 +772,21 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
             wy += (dy / d) * schub;
             ausschlag += schub;
           }
+          // Mehrere Wellen addieren sich, zusammen aber höchstens 40 px.
+          if (ausschlag > WELLE_SCHUB) {
+            const laenge = Math.hypot(wx, wy);
+            if (laenge > WELLE_SCHUB) {
+              wx *= WELLE_SCHUB / laenge;
+              wy *= WELLE_SCHUB / laenge;
+            }
+            ausschlag = WELLE_SCHUB;
+          }
         }
         // Zeichenwechsel: unterwegs mit 7 % je Bild, von einer Welle getroffen (ab 7 px) mit 25 % je Bild.
         if (f > 0.02 && f < 0.98) {
-          if (rnd() < wechselFlug) tausch[k] = Math.floor(rnd() * zeichenZahl);
+          if (rnd() < wechselFlug) tausch[k] = Math.floor(rnd() * ZUFALL);
         } else if (ausschlag >= 7) {
-          if (rnd() < wechselWelle) tausch[k] = Math.floor(rnd() * zeichenZahl);
+          if (rnd() < wechselWelle) tausch[k] = Math.floor(rnd() * ZUFALL);
         } else if (tausch[k] >= 0) {
           // Am Ziel steht immer das richtige Zeichen.
           tausch[k] = -1;
@@ -764,27 +796,16 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
         const y = hy[k] + sy[k] * f + oy[k] + wy;
         // Zeichen außerhalb des Bildes (mehr als 40 px über den Rand) werden nicht gezeichnet.
         if (x < -40 || y < -40 || x > breite + 40 || y > hoehe + 40) continue;
-        // Deckkraft unterwegs: Ruhedeckkraft × (1 − f)^0,8, mindestens 0,22, sobald das Zeichen
-        // losgeflogen und im Bild ist. So ist der Schwarm auf dem dunklen Grund gut zu sehen.
-        let deck = 1;
+        // Deckkraft: in Ruhe Dichte/9 × 0,7. Unterwegs × (1 − f)^0,8, mindestens 0,22, sobald das
+        // Zeichen losgeflogen und im Bild ist. Von einer Welle getroffen × (1 + Ausschlag/28),
+        // höchstens ganz deckend.
+        let deck = ruheDeck[k];
         if (f > 0) {
-          deck = Math.pow(1 - f, 0.8);
-          if (f > 0.05) {
-            const boden = FLUG_BODEN * Math.min(1, (f - 0.05) / 0.15) * Math.min(1, (1 - f) / 0.03);
-            deck = Math.max(Math.min(1, (staerke[k] / 9) * 0.7) * deck, boden);
-            if (!mitGrund) {
-              // Das Feld unter dem fliegenden Zeichen: wächst mit dem Zeichen, blendet beim Landen aus.
-              const feld = deck * FLUG_FELD * Math.min(1, (f - 0.05) / 0.25);
-              if (feld > 0.01) {
-                const g = 1 + 0.8 * f;
-                ctx.globalAlpha = feld;
-                deckJetzt = feld;
-                ctx.fillRect(x - (zb * g) / 2, y - (zh * g) / 2, zb * g, zh * g);
-              }
-            }
-          }
+          deck *= Math.pow(1 - f, 0.8);
+          if (f > 0.05) deck = Math.max(deck, FLUG_BODEN * Math.min(1, (f - 0.05) / 0.15) * Math.min(1, (1 - f) / 0.03));
         }
-        male(ctx, k, x, y, 1 + 0.8 * f, deck, ausschlag, f);
+        if (ausschlag > 0) deck = Math.min(1, deck * (1 + ausschlag / 28));
+        male(ctx, k, x, y, 1 + 0.8 * f, deck, f);
       }
       ctx.globalAlpha = 1;
       unruhe = nochUnruhe;

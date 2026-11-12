@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cutive_Mono, Gloock, Sofia_Sans, Sofia_Sans_Extra_Condensed } from "next/font/google";
+import { Gloock, JetBrains_Mono, Sofia_Sans, Sofia_Sans_Extra_Condensed } from "next/font/google";
 import "./welt.css";
 
 // Schriften der neuen Welt (nicht Inter): kräftige schmale Großbuchstaben,
@@ -8,7 +8,9 @@ import "./welt.css";
 const versal = Sofia_Sans_Extra_Condensed({ subsets: ["latin"], weight: ["800"], variable: "--font-versal", display: "swap" });
 const text = Sofia_Sans({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-text", display: "swap" });
 const serife = Gloock({ subsets: ["latin"], weight: "400", variable: "--font-serife", display: "swap" });
-const mono = Cutive_Mono({ subsets: ["latin"], weight: "400", variable: "--font-mono-ag", display: "swap" });
+// JetBrains Mono (ersetzt Cutive Mono): für den Namen aus Zeichen, die fliegenden Zeichen, das
+// Verwürfeln und die kleinen Status-Zeilen.
+const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono-ag", display: "swap" });
 
 // Die Varianten sind Arbeitsstände zum Vergleichen: nicht für Suchmaschinen.
 export const metadata: Metadata = {

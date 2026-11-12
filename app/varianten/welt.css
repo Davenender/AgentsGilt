@@ -343,6 +343,14 @@ html.lenis body {
   text-align: center;
   white-space: pre;
 }
+/* Die Zufallszeichen stehen in derselben Schrift wie der Name aus Zeichen (JetBrains Mono),
+   etwas kleiner, damit sie in den Platz des Buchstabens passen. */
+.ag-wuerfel__spiel span.ag-zufall {
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 0.74em;
+  font-weight: 500;
+  text-transform: none;
+}
 /* Das kleine Logo leuchtet selbst, mit demselben Licht wie das große: ein einmal aus der eigenen
    Licht-Szene vorgerendertes Bild (Schein und feine Speichen in Logo-Form), kein zweites WebGL.
    Es atmet im Takt des großen Lichts. */
@@ -448,8 +456,9 @@ html.lenis body {
   white-space: nowrap;
   transition: color 0.3s var(--weich);
 }
+/* Aktiver Abschnitt: Der Menüpunkt ist golden. */
 .ag-kopf__kachel a[aria-current] {
-  color: var(--elfenbein);
+  color: var(--gold-hell);
 }
 /* Beim Drüberfahren wird der Menüpunkt golden und verwürfelt sich kurz. */
 @media (hover: hover) and (pointer: fine) {
@@ -457,25 +466,50 @@ html.lenis body {
     color: var(--gold-hell);
   }
 }
-/* Aktiver Abschnitt: ein kleines goldenes Licht mit winzigen Strahlen (das Mini-Licht des Logos).
-   Es gleitet federnd unter den Menüpunkt (0,45 s, leichtes Überschwingen) und sitzt auf der
-   Unterkante der Leiste. */
-.ag-kopf__punkt {
+/* Licht hinter dem Glas der Leiste (also unter ihrer Unschärfe): weich und golden wie das Logo,
+   warmer Kern, nach außen auslaufend, etwa 120 × 44 px. Es wirkt wie Licht, das durch Milchglas
+   scheint. Beide Lichter sind Geschwister der Leiste und liegen im Bild vor ihr. */
+.ag-kopf__licht,
+.ag-kopf__schein {
   position: absolute;
-  bottom: -9px;
-  left: var(--punkt, 50%);
-  width: 24px;
-  height: 24px;
-  margin-left: -12px;
-  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
+  top: 50%;
+  left: 0;
+  width: 120px;
+  height: 44px;
+  margin: -22px 0 0 -60px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, var(--gold-hell) 0%, rgba(212, 162, 60, 0.75) 36%, rgba(212, 162, 60, 0) 72%);
   opacity: 0;
   pointer-events: none;
-  transition:
-    left 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
-    opacity 0.35s var(--weich);
 }
-.ag-kopf__kachel[data-punkt="an"] .ag-kopf__punkt {
-  opacity: 1;
+/* Unter der Maus (Kopfleiste.tsx setzt den Ort): höchstens 30 % Deckkraft, blendet in 0,3 s ein
+   und in 0,5 s aus. */
+.ag-kopf__licht {
+  transform: translateX(var(--lx, 0px));
+  transition: opacity 0.5s var(--weich);
+}
+.ag-kopf[data-licht="an"] .ag-kopf__licht {
+  opacity: 0.3;
+  transition-duration: 0.3s;
+}
+/* Hinter dem Menüpunkt des aktiven Abschnitts: dauerhaft, ganz schwach (10 %). Das Licht unter der
+   Maus überblendet ihn. */
+.ag-kopf__schein {
+  transform: translateX(var(--ax, 0px));
+  /* Er blendet etwas verzögert ein: Kommt die Leiste zurück, liegt sie dann schon davor. */
+  transition:
+    opacity 0.4s var(--weich) 0.2s,
+    transform 0.45s var(--weich);
+}
+.ag-kopf[data-aktiv="an"] .ag-kopf__schein {
+  opacity: 0.1;
+}
+/* Gleitet die Leiste weg, gehen die Lichter sofort aus: Sie sind nie ohne das Glas davor zu sehen. */
+.ag-kopf[data-leisteweg="true"] .ag-kopf__licht,
+.ag-kopf[data-leisteweg="true"] .ag-kopf__schein {
+  opacity: 0;
+  transition-duration: 0.12s;
+  transition-delay: 0s;
 }
 
 /* „Anrufen“ oben rechts: Glas-Knopf mit Goldrand. Der Hörer sitzt in einem kleinen goldenen
@@ -660,6 +694,11 @@ html.lenis body {
   opacity: 1;
   transform: none;
 }
+/* Aktiver Abschnitt im Handy-Menü: golden, dahinter nur ein ganz schwacher Schein (kein Maus-Licht). */
+.ag-menue a.ag-menue__punkt[aria-current] {
+  background: radial-gradient(ellipse 150px 46% at 90px 52%, rgba(212, 162, 60, 0.1) 0%, rgba(212, 162, 60, 0) 100%);
+  color: var(--gold-hell);
+}
 .ag-menue .ag-knopf {
   margin-top: 28px;
 }
@@ -691,7 +730,9 @@ html.ag-menue-offen body > :not(.ag-neu) {
   visibility: hidden;
 }
 @media (max-width: 1099px) {
-  .ag-kopf__kachel {
+  .ag-kopf__kachel,
+  .ag-kopf__licht,
+  .ag-kopf__schein {
     display: none;
   }
   .ag-kopf__menue {

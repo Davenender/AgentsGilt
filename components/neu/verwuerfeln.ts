@@ -25,7 +25,11 @@ type Spiel = {
   gleichZufall: boolean;
 };
 
-const zufallszeichen = () => ZEICHEN[Math.floor(Math.random() * ZEICHEN.length)];
+/** Setzt ein Zufallszeichen in das Feld (in der Schrift der Zeichen, JetBrains Mono). */
+const zufaellig = (el: HTMLElement) => {
+  el.className = "ag-zufall";
+  el.textContent = ZEICHEN[Math.floor(Math.random() * ZEICHEN.length)];
+};
 
 /** Startet das Spiel über dem Text von „huelle“. Gibt eine Funktion zurück, die es sofort beendet. */
 function spiele(huelle: HTMLElement, spiel: Spiel): () => void {
@@ -60,7 +64,8 @@ function spiele(huelle: HTMLElement, spiel: Spiel): () => void {
     el.style.width = `${Math.max(1, b.width / massstab - sperrung)}px`;
     el.style.height = `${b.height / massstab}px`;
     el.style.lineHeight = `${b.height / massstab}px`;
-    el.textContent = spiel.gleichZufall ? zufallszeichen() : zeichen;
+    if (spiel.gleichZufall) zufaellig(el);
+    else el.textContent = zeichen;
     ebene.append(el);
     felder.push({ el, zeichen, rastet: 0, fest: false });
   }
@@ -87,10 +92,11 @@ function spiele(huelle: HTMLElement, spiel: Spiel): () => void {
       if (f.fest) continue;
       if (t >= f.rastet) {
         f.fest = true;
+        f.el.className = "";
         f.el.textContent = f.zeichen;
       } else {
         offen = true;
-        if (Math.random() < wechsel) f.el.textContent = zufallszeichen();
+        if (Math.random() < wechsel) zufaellig(f.el);
       }
     }
     if (offen) rahmen = requestAnimationFrame(bild);
