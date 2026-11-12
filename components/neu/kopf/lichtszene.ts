@@ -132,19 +132,21 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
         uniform float uWeite;
         varying vec2 vLage;
         // Eine der vier Öffnungen des Logos (es ist an beiden Achsen gespiegelt): ein schmaler
-        // Splitter entlang der Mittellinie des Balkens, in der Mitte am breitesten (halb so breit
-        // wie der Balken des Logos), an beiden Enden spitz auslaufend.
+        // Splitter entlang der Mittellinie des Balkens, in der Mitte am breitesten (gut halb so
+        // breit wie der Balken des Logos), an beiden Enden spitz auslaufend. Seine Spitzen reichen
+        // ein Stück über die Enden des Balkens hinaus zu den Achsen hin (rund 11 % länger); nach
+        // außen bleibt er bei 0,854: Die Gesamtbreite des Lochs ändert sich dadurch nicht.
         bool imBalken(vec2 p) {
           p = abs(p);
-          vec2 a = vec2(0.1299, 0.853);
-          vec2 e = vec2(0.854, 0.1342) - a;
+          vec2 a = vec2(0.0499, 0.853);
+          vec2 e = vec2(0.854, 0.0542) - a;
           float l = length(e);
           vec2 n = e / l;
           vec2 w = p - a;
           float s = dot(w, n) / l;
           if (s <= 0.0 || s >= 1.0) return false;
           float quer = abs(w.x * n.y - w.y * n.x);
-          return quer < 0.05 * (1.0 - abs(2.0 * s - 1.0));
+          return quer < 0.0575 * (1.0 - abs(2.0 * s - 1.0));
         }
         // Der Stern in der Mitte: vier lange, feine Spitzen.
         bool imStern(vec2 p) {

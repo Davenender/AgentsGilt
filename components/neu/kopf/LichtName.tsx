@@ -25,6 +25,10 @@ import { erzeugeZeichenname } from "./zeichenname";
  *   derselben Szene aufgenommen). Tippen löst die Welle aus.
  * - Bei „weniger Bewegung“ steht das ruhige Bild, alles ist still.
  *
+ * - Scroll-Hinweis nur durch Licht, sehr dezent: Wer nach 4 Sekunden nicht
+ *   gescrollt hat, sieht von ganz unten einen schwachen Goldschein. Beim
+ *   Scrollen blendet er aus.
+ *
  * Gerechnet wird nur, solange der Kopfbereich zu sehen ist. Ohne Skript stehen
  * Name und Logo als gewöhnliche Grafik da.
  */
@@ -177,6 +181,7 @@ export function LichtName() {
           feld.einblenden(() => spaeter.push(gsap.delayedCall(0.4, mitteWelle)));
         }),
       );
+      lockPlanen();
     };
 
     // Klick oder Tippen irgendwo im Kopfbereich (nicht auf Knöpfe und Links): eine Welle.
@@ -195,6 +200,25 @@ export function LichtName() {
     };
     const zeigerWeg = () => feld.zeiger(-9999, -9999, false);
 
+    // Scroll-Hinweis, sehr dezent: Wer nach 4 Sekunden nicht gescrollt hat, sieht von ganz unten
+    // einen schwachen Goldschein. Beim Scrollen blendet er aus.
+    let lockUhr = 0;
+    const lockPlanen = () => {
+      window.clearTimeout(lockUhr);
+      if (window.scrollY > 24) return;
+      lockUhr = window.setTimeout(() => {
+        if (!vorbei && window.scrollY <= 24) held.dataset.lockruf = "1";
+      }, 4000);
+    };
+    const beimScrollen = () => {
+      if (window.scrollY > 24) {
+        window.clearTimeout(lockUhr);
+        delete held.dataset.lockruf;
+      } else if (!held.dataset.lockruf && aufgetreten) {
+        lockPlanen();
+      }
+    };
+
     let warten = 0;
     const beobachter = new ResizeObserver(() => {
       window.clearTimeout(warten);
@@ -207,8 +231,11 @@ export function LichtName() {
     // zählt die letzte: Sie beschreibt den jetzigen Stand.
     const waechter = new IntersectionObserver((eintraege) => feld.sichtbar(eintraege[eintraege.length - 1].isIntersecting));
     waechter.observe(el);
+    window.addEventListener("scroll", beimScrollen, { passive: true });
 
-    if (!still) {
+    if (still) {
+      lockPlanen();
+    } else {
       held.addEventListener("click", klick);
       if (maus) {
         window.addEventListener("pointermove", zeigerBewegt, { passive: true });
@@ -223,8 +250,10 @@ export function LichtName() {
       wenigBewegung.removeEventListener("change", umstellen);
       feinerZeiger.removeEventListener("change", umstellen);
       window.clearTimeout(warten);
+      window.clearTimeout(lockUhr);
       beobachter.disconnect();
       waechter.disconnect();
+      window.removeEventListener("scroll", beimScrollen);
       held.removeEventListener("click", klick);
       window.removeEventListener("pointermove", zeigerBewegt);
       document.documentElement.removeEventListener("pointerleave", zeigerWeg);
@@ -234,6 +263,7 @@ export function LichtName() {
       feld.ende();
       delete held.dataset.ln;
       delete held.dataset.licht;
+      delete held.dataset.lockruf;
     };
   }, [einstellung]);
 

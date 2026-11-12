@@ -266,6 +266,42 @@
   opacity: 0;
 }
 
+/* Scroll-Hinweis, sehr dezent: Von ganz unten kommt ein schwacher, warmer Goldschein herein,
+   weich und breit, ohne Kante, höchstens so hell wie die schwächsten Strahlen des Lichts.
+   Er pulsiert langsam (etwa alle 2,6 s) und blendet beim Scrollen aus. Sonst bleibt der Grund schwarz. */
+.ag-kopf5__lockruf {
+  --schein: min(36svh, 320px);
+  position: absolute;
+  /* Am unteren Rand des sichtbaren Bildes, nicht des Kopfbereichs: In sehr niedrigen Fenstern
+     (Handy quer) ist der Kopfbereich höher als das Bild, der Schein läge sonst unter dem Rand. */
+  top: calc(100svh - var(--schein));
+  right: 0;
+  left: 0;
+  /* Über dem Licht, unter den Zeichen. */
+  z-index: 1;
+  height: var(--schein);
+  background: radial-gradient(ellipse 72% 100% at 50% 100%, rgba(240, 168, 58, 0.12) 0%, rgba(240, 168, 58, 0.062) 34%, rgba(240, 168, 58, 0.02) 66%, transparent 100%);
+  /* Feines Korn wie im Licht: Es verhindert sichtbare Stufen in dem sehr dunklen Verlauf. */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='k' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.5 -0.2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23k)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='k' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.5 -0.2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23k)'/%3E%3C/svg%3E");
+  -webkit-mask-size: 240px 240px;
+  mask-size: 240px 240px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.4s var(--weich);
+}
+.ag-hero[data-lockruf] .ag-kopf5__lockruf {
+  opacity: 1;
+  animation: ag-lockruf 1.3s cubic-bezier(0.45, 0, 0.55, 1) 1.4s infinite alternate;
+}
+@keyframes ag-lockruf {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.5;
+  }
+}
 /* Steht das ruhige Bild, weil das Gerät nicht mitkommt, atmet es leicht über die Deckkraft. */
 .ag-hero[data-licht="bild"] .ag-ln__standbild {
   animation: ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite alternate;

@@ -23,7 +23,7 @@ import type { LichtLage } from "./lichtszene";
 
 // Mittellinie der schmalen Öffnung im rechten oberen Viertel des Logos, so wie die Licht-Szene sie
 // zeichnet (Außenmaß der Öffnungen = 1, y nach oben); die drei anderen sind gespiegelt.
-const SPLITTER = [0.1521, 0.9988, 1.0, 0.1571];
+const SPLITTER = [0.0584, 0.9988, 1.0, 0.0635];
 
 /** Abstand eines Punktes (in Logo-Halbmessern) zur nächsten der vier schmalen Öffnungen. */
 function abstandZumBalken(x: number, y: number): number {

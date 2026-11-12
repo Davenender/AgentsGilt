@@ -102,6 +102,8 @@ export function KopfKern() {
     <>
       <section id="top" className="ag-hero ag-kopf5" aria-label="Agents Gilt">
         <LichtName />
+        {/* Scroll-Hinweis: ein sehr schwacher Goldschein von unten (erscheint erst nach 4 Sekunden ohne Scrollen). */}
+        <div className="ag-kopf5__lockruf" aria-hidden="true" />
       </section>
       <section className="ag-nachkopf">
         <div className="ag-wrap ag-nachkopf__innen">
