@@ -16,7 +16,9 @@
 //
 // Start: Die Zeichen fliegen von außerhalb des Bildes an ihren Platz
 // (2,2 Sekunden, am Anfang sehr schnell, am Ende weich; die Mitte des Namens
-// landet zuerst). Unterwegs sind sie größer, blasser und wechseln ihr Zeichen.
+// landet zuerst). Unterwegs sind sie größer, heller (warmes Hellgrau bis zartes
+// Gold, Deckkraft mindestens 0,22) und wechseln ihr Zeichen; beim Landen werden
+// sie zum Grau des Namens.
 //
 // Leben: Alle 140 ms tauschen rund 0,4 % der Zellen für einen Takt ihr Zeichen.
 // Die Zeichen weichen dem Zeiger aus (Umkreis 70 px, bis 18 px) und federn zurück.
@@ -106,6 +108,14 @@ const WELLE_BAND = 90;
 const WELLE_SCHUB = 56;
 const WELLE_DAUER = 1.3;
 const FLUG_DAUER = 2.2;
+// Unterwegs: Mindest-Deckkraft und Färbung der fliegenden Zeichen (warmes Hellgrau bis zartes Gold).
+const FLUG_BODEN = 0.22;
+// Unterwegs liegt unter jedem Zeichen ein schwaches Feld in Zellgröße (wie die kleinen Kacheln
+// beim Vorbild): So ist der Schwarm auf dem dunklen Grund klar zu sehen. Es blendet beim Landen aus.
+const FLUG_FELD = 0.5;
+const FLUG_FELD_FARBE = "rgb(240, 214, 168)";
+const FLUG_GOLD = 0.2;
+const FLUG_CREME = 0.55;
 const BLENDE_DAUER = 0.6;
 
 /** Gleichbleibende Zufallszahlen: Der Name sieht bei jedem Aufbau gleich aus. */
@@ -163,6 +173,8 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
   let zh = 8.5;
   let kb = 9;
   let kh = 11;
+  // Liegt schon im Vorrat unter jedem Zeichen ein Grund (Handy, schmale Fenster)?
+  let mitGrund = false;
   // Welche Zeichen zur Wahl stehen (am Handy nur die feinen).
   let nachDichte = NACH_DICHTE;
   let zeichenZahl = ZEICHEN.length;
@@ -431,6 +443,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     // liegt unter jedem Zeichen ein schwacher Grund in der Größe der Zelle, und die feinen Zeichen
     // werden etwas nachgezogen. So wirken die Buchstaben geschlossen und bleiben lesbar.
     const grund = m.fein ? 0.5 : m.name.b < 900 ? 0.28 : 0;
+    mitGrund = grund > 0;
     const kontur = m.fein ? zb * 0.16 : 0;
     for (let g = 0; g < GOLD_STUFEN; g++) {
       for (let c = 0; c < CREME_STUFEN; c++) {
@@ -512,17 +525,20 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     let gold = lage.hell * goldRuhe[k] * kegel;
     let creme = lage.hell * kern[k] * 0.85;
     if (flug > 0) {
-      // Unterwegs: Wo ein Zeichen unter dem Licht durchfliegt, leuchtet es leicht golden.
-      const anteil = flug > 0.125 ? 1 : flug * 8;
+      // Unterwegs sind die Zeichen heller: ein warmes Hellgrau bis zartes Gold, unter dem Licht
+      // goldener. Erst beim Landen (letztes Fünftel des Wegs) werden sie zum Grau des Namens.
+      const anteil = flug > 0.2 ? 1 : flug * 5;
       const unterLicht = lage.hell * schein(Math.hypot(x - lage.mitteX, y - lage.mitteY) / lage.radius) * 0.8;
-      gold += (unterLicht - gold) * anteil;
-      creme *= 1 - anteil;
+      gold += (FLUG_GOLD + unterLicht * (1 - FLUG_GOLD) - gold) * anteil;
+      creme += (FLUG_CREME - creme) * anteil;
     }
     if (gold > 1) gold = 1;
     if (creme > 1) creme = 1;
     const stufe = Math.round(gold * (GOLD_STUFEN - 1)) * CREME_STUFEN + Math.round(creme * (CREME_STUFEN - 1));
     // Von einer Welle getroffen: Deckkraft × (1 + Ausschlag/28), höchstens ganz deckend.
-    let s = staerke[k];
+    // Unterwegs (flug > 0,05) kommt die Deckkraft als fertiger Wert herein: Dann wird die ganz
+    // deckende Stufe des Vorrats gezeichnet.
+    let s = flug > 0.05 ? DECK_STUFEN : staerke[k];
     if (ausschlag > 0) s = Math.min(DECK_STUFEN, Math.round(s * (1 + ausschlag / 28)));
     const z = tausch[k] >= 0 ? tausch[k] : flimmer[k] >= 0 ? flimmer[k] : glyphe[k];
     if (deck !== deckJetzt) {
@@ -682,6 +698,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       ctx.clearRect(0, 0, breite, hoehe);
       deckJetzt = 1;
       ctx.globalAlpha = 1;
+      ctx.fillStyle = FLUG_FELD_FARBE;
       for (let k = 0; k < n; k++) {
         // Eigener Fortschritt im Flug: 1 = ganz außen, 0 = gelandet.
         let f = 0;
@@ -747,7 +764,27 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
         const y = hy[k] + sy[k] * f + oy[k] + wy;
         // Zeichen außerhalb des Bildes (mehr als 40 px über den Rand) werden nicht gezeichnet.
         if (x < -40 || y < -40 || x > breite + 40 || y > hoehe + 40) continue;
-        male(ctx, k, x, y, 1 + 0.8 * f, f > 0 ? Math.pow(1 - f, 1.6) : 1, ausschlag, f);
+        // Deckkraft unterwegs: Ruhedeckkraft × (1 − f)^0,8, mindestens 0,22, sobald das Zeichen
+        // losgeflogen und im Bild ist. So ist der Schwarm auf dem dunklen Grund gut zu sehen.
+        let deck = 1;
+        if (f > 0) {
+          deck = Math.pow(1 - f, 0.8);
+          if (f > 0.05) {
+            const boden = FLUG_BODEN * Math.min(1, (f - 0.05) / 0.15) * Math.min(1, (1 - f) / 0.03);
+            deck = Math.max(Math.min(1, (staerke[k] / 9) * 0.7) * deck, boden);
+            if (!mitGrund) {
+              // Das Feld unter dem fliegenden Zeichen: wächst mit dem Zeichen, blendet beim Landen aus.
+              const feld = deck * FLUG_FELD * Math.min(1, (f - 0.05) / 0.25);
+              if (feld > 0.01) {
+                const g = 1 + 0.8 * f;
+                ctx.globalAlpha = feld;
+                deckJetzt = feld;
+                ctx.fillRect(x - (zb * g) / 2, y - (zh * g) / 2, zb * g, zh * g);
+              }
+            }
+          }
+        }
+        male(ctx, k, x, y, 1 + 0.8 * f, deck, ausschlag, f);
       }
       ctx.globalAlpha = 1;
       unruhe = nochUnruhe;
