@@ -162,6 +162,16 @@ export const kontakt = {
   },
 };
 
+/**
+ * Chat-Knopf unten rechts. Der Chat selbst gehört zum Stammlayout (components/ChatWidget.tsx)
+ * und duzt seine Besucher; die Sprechblase spricht deshalb wie er.
+ */
+export const chat = {
+  oeffnen: "Chat mit Agents Gilt öffnen",
+  blase: "Bei Fragen helfe ich dir gerne weiter",
+  blaseSchliessen: "Hinweis schließen",
+};
+
 export const fuss = {
   text: "KI-Lösungen für lokale Unternehmen – moderne Websites, Chatbots, Voice-Agenten und Automatisierungen.",
   rechte: "Alle Rechte vorbehalten.",

@@ -42,6 +42,8 @@ html.lenis body {
   --glut: #6d3319;
   --weich: cubic-bezier(0.32, 0.72, 0, 1);
   --rand: clamp(20px, 4.4vw, 64px);
+  /* Ein Atemzug des großen Lichts (lichtszene.ts: sin(Zeit × 0,7)). Kleine Lichter atmen im selben Takt. */
+  --atem: 8.976s;
 
   position: relative;
   min-height: 100svh;
@@ -294,11 +296,12 @@ html.lenis body {
 .ag-kopf__marke {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 9px;
   min-height: 48px;
   padding: 0 18px 0 12px;
-  border: 1px solid transparent;
   border-radius: 999px;
+  /* Der Schriftzug ist grau wie der Name im Kopfbereich; beim Drüberfahren wird er golden. */
+  color: var(--nebel);
   font-family: var(--font-versal), sans-serif;
   font-size: 27px;
   font-weight: 800;
@@ -309,7 +312,7 @@ html.lenis body {
   white-space: nowrap;
   transition:
     background-color 0.4s var(--weich),
-    border-color 0.4s var(--weich),
+    box-shadow 0.4s var(--weich),
     color 0.3s var(--weich);
 }
 /* Beim Drüberfahren wird der Name golden und verwürfelt sich kurz (verwuerfeln.ts). */
@@ -335,47 +338,116 @@ html.lenis body {
 .ag-wuerfel__spiel span {
   position: absolute;
   top: 0;
+  overflow: hidden;
   letter-spacing: 0;
   text-align: center;
   white-space: pre;
 }
-.ag-kopf__marke svg {
-  width: 28px;
-  height: 28px;
-  color: var(--gold-hell);
-  /* Das kleine Logo leuchtet leicht golden. */
-  filter: drop-shadow(0 0 7px rgba(243, 210, 122, 0.55));
+/* Das kleine Logo leuchtet selbst, mit demselben Licht wie das große: ein einmal aus der eigenen
+   Licht-Szene vorgerendertes Bild (Schein und feine Speichen in Logo-Form), kein zweites WebGL.
+   Es atmet im Takt des großen Lichts. */
+.ag-minilicht {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  margin: -6px -4px -6px -8px;
+  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
+  animation: ag-atem var(--atem) cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
+@keyframes ag-atem {
+  0%,
+  100% {
+    opacity: 0.84;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+/* Nach dem Scrollen bekommt die Marke eine Glasfläche und bleibt lesbar. */
 .ag-kopf[data-los="true"] .ag-kopf__marke {
-  border-color: rgba(212, 162, 60, 0.2);
-  background: rgba(8, 12, 26, 0.62);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 12px 30px rgba(0, 0, 0, 0.45);
 }
-/* Navigation: schwebende Leiste aus dunklem Glas mit feinem Goldrand. */
+
+/* ───────────── Glas, überall gleich ─────────────
+   Dunkle, fast durchsichtige Fläche, Unschärfe dahinter, oben eine 1 px helle Lichtkante,
+   weicher Schatten nach unten. */
+.ag-glas {
+  position: relative;
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 12px 30px rgba(0, 0, 0, 0.45);
+}
+/* Glimmrand: ein 1 px feiner Goldrand, der nur dort aufglimmt, wo die Maus in der Nähe ist.
+   Ein weicher Lichtfleck von rund 120 px folgt ihr am Rand entlang (glimmrand.ts setzt Ort und
+   Nähe); ist sie weit weg, bleibt nur der ganz schwache Grundrand. */
+.ag-glimm::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background:
+    radial-gradient(60px circle at var(--gx, 50%) var(--gy, 0px), rgba(243, 210, 122, calc(var(--gn, 0) * 0.95)) 0%, rgba(212, 162, 60, calc(var(--gn, 0) * 0.4)) 55%, rgba(212, 162, 60, 0) 100%),
+    linear-gradient(rgba(212, 162, 60, var(--grundrand, 0.16)), rgba(212, 162, 60, var(--grundrand, 0.16)));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+/* Navigation: schwebendes Glas mit Glimmrand. Die Menüpunkte stehen in der Schrift des Namens. */
 .ag-kopf__kachel {
   position: absolute;
   left: 50%;
   display: flex;
   gap: 2px;
-  padding: 5px 8px;
-  border: 1px solid rgba(212, 162, 60, 0.32);
+  padding: 5px 10px;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(22, 30, 60, 0.5), rgba(7, 10, 22, 0.62));
-  -webkit-backdrop-filter: blur(16px) saturate(1.3);
-  backdrop-filter: blur(16px) saturate(1.3);
-  font-size: 15px;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(var(--weg, 0px));
+  transition:
+    transform 0.3s var(--weich),
+    opacity 0.3s var(--weich),
+    padding 0.3s var(--weich),
+    background-color 0.3s var(--weich);
+}
+/* Nach dem ersten Bildschirm: etwas schmaler und dunkler. */
+.ag-kopf__kachel[data-eng="true"] {
+  padding-block: 1px;
+  background-color: rgba(0, 0, 0, 0.58);
+}
+/* Beim Runterscrollen gleitet die Leiste nach oben weg, beim Hochscrollen kommt sie wieder.
+   Hat ein Menüpunkt den Tastatur-Fokus, bleibt sie da. */
+.ag-kopf__kachel[data-weg="true"]:not(:focus-within) {
+  --weg: -120px;
+  opacity: 0;
+  pointer-events: none;
 }
 .ag-kopf__kachel a {
-  padding: 10px 18px 14px;
+  padding: 13px 18px 15px;
   border-radius: 999px;
-  color: #a9aec2;
+  color: var(--nebel);
+  font-family: var(--font-versal), sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
   text-decoration: none;
+  text-transform: uppercase;
   white-space: nowrap;
   transition: color 0.3s var(--weich);
 }
-.ag-kopf__kachel a:hover,
 .ag-kopf__kachel a[aria-current] {
   color: var(--elfenbein);
 }
@@ -385,48 +457,130 @@ html.lenis body {
     color: var(--gold-hell);
   }
 }
-/* Kleiner Lichtpunkt: gleitet unter den Menüpunkt, über dem die Maus ist,
-   und bleibt sonst unter dem Abschnitt, der gerade zu sehen ist. */
+/* Aktiver Abschnitt: ein kleines goldenes Licht mit winzigen Strahlen (das Mini-Licht des Logos).
+   Es gleitet federnd unter den Menüpunkt (0,45 s, leichtes Überschwingen) und sitzt auf der
+   Unterkante der Leiste. */
 .ag-kopf__punkt {
   position: absolute;
-  bottom: 7px;
+  bottom: -9px;
   left: var(--punkt, 50%);
-  width: 5px;
-  height: 5px;
-  margin-left: -2.5px;
-  border-radius: 50%;
-  background: var(--gold-hell);
-  filter: drop-shadow(0 0 5px rgba(243, 210, 122, 0.85));
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
   opacity: 0;
   pointer-events: none;
   transition:
-    left 0.55s var(--weich),
+    left 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
     opacity 0.35s var(--weich);
 }
 .ag-kopf__kachel[data-punkt="an"] .ag-kopf__punkt {
   opacity: 1;
 }
-/* „Anrufen“ oben rechts glüht sanft golden. */
-.ag-kopf__rechts .ag-knopf--rand {
-  position: relative;
-  border-color: rgba(243, 210, 122, 0.55);
-  background: rgba(10, 14, 30, 0.7);
+
+/* „Anrufen“ oben rechts: Glas-Knopf mit Goldrand. Der Hörer sitzt in einem kleinen goldenen
+   Lichtkreis, der langsam pulsiert; alle 6 s läuft ein schmaler Lichtstreifen schräg darüber. */
+.ag-ruf {
+  --grundrand: 0.5;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 5px 20px 5px 6px;
+  border-radius: 999px;
+  color: var(--elfenbein);
+  font-family: var(--font-versal), sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+  /* magnetisch (magnet.ts): höchstens 8 px zur Maus hin */
+  transform: translate(var(--mx, 0px), var(--my, 0px));
+  transition: color 0.3s var(--weich);
 }
-.ag-kopf__rechts .ag-knopf--rand::before {
+.ag-ruf__kreis {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--gold-hell) 0%, var(--gold) 62%, rgba(212, 162, 60, 0.82) 100%);
+  color: #140d02;
+}
+/* Der Lichtkreis atmet: etwa 3 s je Atemzug, ein Drittel des Takts des großen Lichts. */
+.ag-ruf__kreis::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(243, 210, 122, 0.55) 0%, rgba(212, 162, 60, 0.22) 48%, rgba(212, 162, 60, 0) 72%);
+  animation: ag-puls calc(var(--atem) / 3) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes ag-puls {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+.ag-ruf__kreis svg {
+  position: relative;
+  width: 17px;
+  height: 17px;
+}
+/* Lichtstreifen: 20° schräg, 0,8 s lang, etwa alle 6 s. */
+.ag-ruf__streif {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.ag-ruf__streif::before {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: rgba(212, 162, 60, 0.5);
-  filter: blur(14px);
-  opacity: 0.45;
-  animation: ag-gluehen 3.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  background: linear-gradient(110deg, rgba(255, 236, 190, 0) 40%, rgba(255, 236, 190, 0.42) 50%, rgba(255, 236, 190, 0) 60%);
+  transform: translateX(-101%);
+  animation: ag-streif 6s linear 2s infinite;
 }
-@keyframes ag-gluehen {
-  to {
-    opacity: 0.8;
+@keyframes ag-streif {
+  0% {
+    transform: translateX(-101%);
   }
+  13.33%,
+  100% {
+    transform: translateX(101%);
+  }
+}
+/* Hover: Der Goldrand glüht auf (das Wort verwürfelt sich, der Knopf folgt der Maus ein Stück). */
+@media (hover: hover) and (pointer: fine) {
+  .ag-ruf:hover {
+    --grundrand: 1;
+    color: var(--gold-hell);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 12px 30px rgba(0, 0, 0, 0.45),
+      0 0 22px rgba(212, 162, 60, 0.35);
+  }
+}
+.ag-ruf:focus-visible,
+.ag-kopf__kachel a:focus-visible,
+.ag-kopf__marke:focus-visible,
+.ag-chat__kugel:focus-visible,
+.ag-chat__text:focus-visible,
+.ag-chat__zu:focus-visible {
+  outline: 2px solid var(--gold-hell);
+  outline-offset: 3px;
 }
 .ag-kopf__rechts {
   display: flex;
@@ -439,9 +593,15 @@ html.lenis body {
   align-content: center;
   width: 48px;
   height: 48px;
-  border: 1px solid var(--linie);
+  border: 1px solid rgba(212, 162, 60, 0.22);
   border-radius: 50%;
-  background: var(--flaeche);
+  /* dasselbe Glas wie die übrige Kopfleiste */
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 12px 30px rgba(0, 0, 0, 0.45);
   color: var(--elfenbein);
   cursor: pointer;
 }
@@ -539,14 +699,18 @@ html.ag-menue-offen body > :not(.ag-neu) {
   }
 }
 @media (max-width: 767px) {
+  /* Am Handy schwebt alles als eine Glas-Kachel (dasselbe Glas wie überall). */
   .ag-kopf {
     inset: 12px 12px auto;
     padding: 6px;
-    border: 1px solid rgba(212, 162, 60, 0.3);
+    border: 1px solid rgba(212, 162, 60, 0.22);
     border-radius: 999px;
-    background: linear-gradient(180deg, rgba(22, 30, 60, 0.55), rgba(7, 10, 22, 0.68));
-    -webkit-backdrop-filter: blur(16px) saturate(1.3);
-    backdrop-filter: blur(16px) saturate(1.3);
+    background: rgba(0, 0, 0, 0.35);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 12px 30px rgba(0, 0, 0, 0.45);
     pointer-events: auto;
   }
   .ag-menue__kopf {
@@ -558,28 +722,219 @@ html.ag-menue-offen body > :not(.ag-neu) {
   }
   .ag-kopf__marke,
   .ag-kopf[data-los="true"] .ag-kopf__marke {
-    gap: 8px;
+    gap: 6px;
     padding: 0 4px 0 8px;
-    border-color: transparent;
     background: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+    box-shadow: none;
     font-size: 20px;
   }
-  .ag-kopf__marke svg {
-    width: 24px;
-    height: 24px;
+  .ag-minilicht {
+    width: 38px;
+    height: 38px;
+    margin: -6px -4px -6px -6px;
   }
+  /* „Anrufen“ in der Kachel: ohne eigene Glasfläche (die Kachel ist schon Glas), etwas kleiner. */
+  .ag-ruf {
+    gap: 8px;
+    min-height: 44px;
+    padding: 4px 14px 4px 4px;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+    font-size: 18px;
+  }
+  /* In der Glas-Kachel braucht der Menü-Knopf keine eigene Glasfläche. */
   .ag-kopf__menue {
     width: 44px;
     height: 44px;
-    border-color: transparent;
-    background: var(--flaeche-hell);
+    border-color: rgba(212, 162, 60, 0.22);
+    background: rgba(255, 255, 255, 0.05);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
   }
   .ag-knopf--rand {
     gap: 10px;
     min-height: 44px;
     padding: 4px 4px 4px 14px;
+  }
+}
+
+/* ───────────── Chat-Knopf unten rechts ─────────────
+   Eine runde Glas-Kugel mit einem kleinen goldenen Licht in Logo-Form. Sie löst den Chat des
+   Stammlayouts aus (components/ChatWidget.tsx, unverändert). Dessen eigener Knopf und dessen
+   Sprechblase sind nur dort ausgeblendet, wo die Kugel wirklich auf der Seite ist: Auf Seiten
+   ohne sie (etwa den Übersichten der Varianten) bleibt der bisherige Chat-Knopf. */
+body:has(.ag-chat) > button[aria-label="Chat mit Agents Gilt öffnen"],
+body:has(.ag-chat) > button:has(> span[role="button"][aria-label="Schließen"]) {
+  display: none;
+}
+.ag-chat {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  pointer-events: none;
+}
+.ag-chat > * {
+  pointer-events: auto;
+}
+/* Ist der Chat offen oder das Menü, ruht der Knopf. */
+.ag-chat[data-offen="true"],
+html.ag-menue-offen .ag-chat {
+  visibility: hidden;
+}
+.ag-chat__kugel {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  /* Glas mit einem Hauch Wölbung: oben fällt mehr Licht ein. */
+  background:
+    radial-gradient(circle at 50% 14%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 48%),
+    rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  /* magnetisch (magnet.ts): bis 28 px zur Maus hin, wächst bis 1,08 */
+  transform: translate(var(--mx, 0px), var(--my, 0px)) scale(var(--ms, 1));
+}
+.ag-chat__kugel.ag-glimm {
+  --grundrand: 0.3;
+}
+/* Das innere Licht bewegt sich 40 % mehr mit als die Kugel (Tiefenwirkung) und atmet langsam. */
+.ag-chat__licht {
+  position: absolute;
+  inset: 7px;
+  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
+  transform: translate(calc(var(--mx, 0px) * 0.4), calc(var(--my, 0px) * 0.4));
+  animation: ag-atem var(--atem) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  pointer-events: none;
+}
+/* Ungelesene Antwort im Chat: kleiner goldener Punkt. */
+.ag-chat__neu {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--nacht);
+  border-radius: 50%;
+  background: var(--gold-hell);
+}
+/* Sprechblase: dasselbe Glas mit feinem Lichtrand; sie wächst federnd aus dem Knopf heraus. */
+.ag-chat__blase {
+  --grundrand: 0.3;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 264px;
+  padding: 6px 6px 6px 18px;
+  border-radius: 22px 22px 6px 22px;
+  transform-origin: 100% 60%;
+  animation: ag-blase-auf 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes ag-blase-auf {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Dahinter ein weicher goldener Schimmer, der langsam atmet und leicht wandert. */
+.ag-chat__blase::before {
+  content: "";
+  position: absolute;
+  inset: -14px -10px;
+  z-index: -1;
+  border-radius: 40px;
+  background: radial-gradient(ellipse 60% 70% at 50% 50%, rgba(212, 162, 60, 0.4) 0%, rgba(212, 162, 60, 0.12) 55%, rgba(212, 162, 60, 0) 100%);
+  filter: blur(14px);
+  animation: ag-schimmer var(--atem) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  pointer-events: none;
+}
+@keyframes ag-schimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translate(-10px, 4px);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(12px, -5px);
+  }
+}
+.ag-chat__text {
+  padding: 9px 0 10px;
+  border: 0;
+  background: none;
+  color: var(--elfenbein);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+.ag-chat__zu {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -1px -2px 0 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--nebel);
+  cursor: pointer;
+  transition: color 0.3s var(--weich);
+}
+.ag-chat__zu svg {
+  width: 14px;
+  height: 14px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-chat__zu:hover {
+    color: var(--gold-hell);
+  }
+}
+@media (min-width: 640px) {
+  .ag-chat {
+    right: 28px;
+    bottom: 28px;
+  }
+}
+/* Handy: Die Sprechblase steht über dem Knopf (unten liegt der Anrufen-Knopf am Daumen). */
+@media (max-width: 767px) {
+  .ag-chat {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .ag-chat__blase {
+    max-width: min(264px, calc(100vw - 40px));
+    border-radius: 22px 22px 6px 22px;
+    transform-origin: 100% 100%;
+    animation-name: ag-blase-hoch;
+  }
+}
+@keyframes ag-blase-hoch {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -1863,7 +2218,8 @@ html.ag-menue-offen body > :not(.ag-neu) {
 /* ───────────── Anrufen am Daumen (Handy) ───────────── */
 .ag-daumen {
   position: fixed;
-  right: 88px;
+  /* rechts bleibt Platz für die Chat-Kugel (64 px) */
+  right: 96px;
   bottom: 20px;
   left: 16px;
   z-index: 30;

@@ -249,6 +249,7 @@ Noch in der alten Form (du, mit Emojis), weil erst in einem späteren Schritt um
 **Korrektur Kopfbereich (12.11.2026):** Der Kopfbereich trägt keinen Text mehr (nur den Namen als Schriftzug und die Kopfleiste). Der Hinweis „Klicken Sie irgendwo“ ist entfallen. Überschrift „Es klingelt. Ihr Assistent nimmt ab.“, Unterzeile und Anruf-Leiste stehen unverändert, vorerst direkt unter dem Kopfbereich.
 
 **Schritt 4 (Kopfbilder):** Die Kopfbereiche nutzen dieselben Texte aus `lib/inhalt-neu.ts` (Überschrift „Es klingelt. Ihr Assistent nimmt ab.“, Unterzeile, Anruf-Leiste, „Leistungen ansehen“). Neu sind nur die Namen und je ein Satz der vier Varianten auf der Übersicht (`components/neu/kopf/kopfbilder.ts`) und deren Überschrift „Vier Kopfbilder, ein Aufbau.“
+- Chat-Knopf der neuen Welt (`lib/inhalt-neu.ts`, `chat`): Sprechblase „Bei Fragen helfe ich dir gerne weiter“ (derselbe Satz wie beim bisherigen Chat-Knopf, ohne das Sternchen-Symbol; der Chat duzt), Knopf-Name für Vorleseprogramme „Chat mit Agents Gilt öffnen“, Schließen-Kreuz „Hinweis schließen“.
 
 ## Platzhalter / fehlt noch (nie als echt ausgeben)
 - Kundenstimmen: **keine vorhanden** → Bereich **ganz weglassen, kein Platzhalter** (entschieden 11.11.2026).

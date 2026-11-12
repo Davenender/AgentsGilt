@@ -7,6 +7,7 @@ import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { fuss, hero, marke, navigation } from "@/lib/inhalt-neu";
 import { Knopf } from "./Knoepfe";
 import { Kopfleiste } from "./Kopfleiste";
+import { ChatKnopf } from "./ChatKnopf";
 import { Ladebildschirm } from "./Ladebildschirm";
 import { Marke } from "./Marke";
 import { istVorschau, willWenigerBewegung } from "./umgebung";
@@ -129,6 +130,7 @@ export function Rahmen({ children, klasse }: { children: ReactNode; klasse?: str
       <main className={klasse}>{children}</main>
       <Fusszeile />
       <DaumenLeiste />
+      <ChatKnopf />
     </>
   );
 }

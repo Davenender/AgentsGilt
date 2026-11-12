@@ -149,10 +149,10 @@ Ziel in einem Satz: Man sieht kein Objekt, keine Kante und keine Fläche, nur ei
 **3 · Kopfbereich ohne Text**
 Nur diese Dinge, kein weiterer Text, kein Hinweistext:
 - Oben mittig das Licht-Logo, mittig darunter der Name.
-- Oben links: kleines Logo, leicht golden leuchtend, daneben der Name. **Beim Drüberfahren** wird der Name golden und verwürfelt sich 0,5 s lang: Jeder Buchstabe rastet zu einer eigenen Zeit zwischen 20 % und 100 % der Dauer ein und zeigt bis dahin mit 40 % Wahrscheinlichkeit je Bild ein Zufallszeichen aus `# + = - : . * / % ·`. Jeder Buchstabe behält Platz und Breite, nichts springt. Dasselbe gilt für die Menüpunkte. Nur bei echter Maus, nicht bei „weniger Bewegung“; der echte Text bleibt für Vorleseprogramme stehen (`components/neu/verwuerfeln.ts`).
-- Oben Mitte: Navigationsleiste, schwebend, aus dunklem Glas, mit feinem Goldrand. Ein kleiner Lichtpunkt gleitet unter den Menüpunkt, über dem die Maus ist, und bleibt sonst unter dem Abschnitt, der gerade zu sehen ist.
-- Oben rechts: „Anrufen“, sanft golden glühend.
-- Unten rechts: Chat-Knopf.
+- Oben links: das kleine, selbst leuchtende Logo und der Name in Grau (Einzelheiten in 4e).
+- Oben Mitte: die Navigationsleiste aus Glas (4e).
+- Oben rechts: „Anrufen“ als Glas-Knopf mit Goldrand (4e).
+- Unten rechts: der Chat-Knopf als Glas-Kugel (4e).
 - Überschrift, Unterzeile und Telefon-Block stehen **vorläufig direkt unter dem Kopfbereich**; sie werden im nächsten Auftrag neu verteilt. Am Handy bleibt der Anrufen-Knopf am Daumen weg, solange der Kopfbereich zu sehen ist („Anrufen“ steht dann in der Kopfleiste).
 
 **Scroll-Hinweis, sehr dezent (seit Runde 3b wieder da):** Wer nach 4 Sekunden nicht gescrollt hat, sieht von ganz unten einen sehr schwachen, warmen Goldschein hereinkommen. Er sitzt am unteren Rand des sichtbaren Bildes (auch in sehr niedrigen Fenstern, in denen der Kopfbereich höher ist als das Bild), ist weich und breit (ein flacher Bogen über rund drei Viertel der Breite, höchstens 320 px hoch), hat keine Kante und trägt ein feines Korn wie das Licht (das verhindert sichtbare Stufen im dunklen Verlauf). Er ist höchstens so hell wie die schwächsten Strahlen (im Mittel höchstens rund 16 von 255) und pulsiert langsam zwischen halber und voller Stärke (eine Runde in 2,6 s). Beim Scrollen blendet er aus, zurück am Seitenanfang kommt er nach 4 Sekunden wieder. Sonst bleibt der Grund rein schwarz. Der frühere helle goldene Streifen bleibt weg.
@@ -164,6 +164,38 @@ Nur diese Dinge, kein weiterer Text, kein Hinweistext:
 **Ruhiges Bild neu aufnehmen**, wenn sich das Licht ändert: von der Testseite `/varianten/licht-test` (dieselbe Szene, schwarzer Grund, ohne Name, Kopfleiste und Goldschein), Quadrat um die Logo-Mitte mit 4,2-facher Logo-Größe, in 1,5-facher Pixeldichte. Das Bild hängt im Kopfbereich am Platz des Logos (`.ag-ln__loch`, Breite 420 %) und sitzt deshalb immer auf dessen Mitte, auch ohne Skript. Es ist als Datei eingebunden, seine Adresse trägt eine Prüfsumme: Ein neues Bild kommt sicher bei allen an.
 
 **Offen für den nächsten Auftrag:** die Abschnitte unter dem Kopfbereich.
+
+## 4e. Kopfleiste und Chat-Knopf (neu gestaltet am 12.11.2026)
+
+Was die Elemente tun, ist unverändert: „Anrufen“ ist ein `tel:`-Link, die Menüpunkte springen zu den Abschnitten, der Chat-Knopf öffnet den Chat. Neu sind nur Aussehen und Bewegung. Alles passt zum Licht-Logo und zur Schrift des Namens: dunkel, Gold, Licht, Zeichen. Code: `components/neu/Kopfleiste.tsx`, `ChatKnopf.tsx`, `glimmrand.ts`, `magnet.ts`, `verwuerfeln.ts`, Stile in `app/varianten/welt.css`.
+
+**Glas, überall gleich** (`.ag-glas`): Schwarz mit 35 % Deckkraft, Unschärfe dahinter 16 px bei 140 % Sättigung, oben eine 1 px helle Lichtkante (Weiß 18 %), weicher Schatten nach unten (30 px, Schwarz 45 %). Gold nur aus den vorhandenen Tönen (`--gold`, `--gold-hell`).
+
+**Glimmrand** (`.ag-glimm`, `glimmrand.ts`): ein 1 px feiner Goldrand, der nur dort aufglimmt, wo die Maus in der Nähe ist. Ein weicher Lichtfleck von rund 120 px sitzt an der Stelle des Rands, die der Maus am nächsten ist, und zieht je Bild 20 % nach. Ist die Maus weiter als 200 px weg, bleibt nur der ganz schwache Grundrand. Nur bei echter Maus, nicht bei „weniger Bewegung“.
+
+**Mini-Licht** (`public/kopf/licht-mini.webp`): das große Licht-Logo als kleines Bild mit durchsichtigem Grund, einmal aus dem eigenen ruhigen Bild `licht-logo.jpg` abgeleitet (Schein und feine Speichen in Logo-Form, kein zweites WebGL, kein fremdes Bild). Es atmet im Takt des großen Lichts (`--atem`, 8,976 s = ein Atemzug der Licht-Szene). Neu aufnehmen, wenn sich das große Licht ändert.
+
+**1 · Kopfleiste (oben Mitte)**
+- Schwebendes Glas mit Glimmrand.
+- Menüpunkte in der Schrift des Namens (schmal und fett, Großbuchstaben, etwas Buchstabenabstand), grau. Beim Drüberfahren werden sie golden und verwürfeln sich wie der Name (0,5 s, gleiche Regeln).
+- Aktiver Abschnitt: Das Mini-Licht gleitet federnd unter den Menüpunkt (0,45 s, leichtes Überschwingen) und sitzt auf der Unterkante der Leiste. Wie bisher folgt es beim Drüberfahren dem Menüpunkt unter der Maus und bleibt sonst unter dem Abschnitt, der gerade zu sehen ist.
+- Beim Scrollen: Nach dem ersten Bildschirm (ab 90 % der Bildhöhe) wird die Leiste etwas schmaler und dunkler (0,3 s). Beim Runterscrollen gleitet sie nach oben weg, beim Hochscrollen kommt sie wieder; das gilt erst ab 8 px Bewegung in eine Richtung. Hat ein Menüpunkt den Tastatur-Fokus, bleibt sie da.
+
+**2 · Oben links: Logo und Name**
+- Das kleine Logo ist das Mini-Licht: Es leuchtet selbst und atmet.
+- „AGENTS GILT“ in der Schrift des Namens, grau. Beim Drüberfahren golden und verwürfelt (wie in 4d).
+
+**3 · Oben rechts: Anrufen**
+- Glas-Knopf mit Goldrand. Der Hörer sitzt in einem kleinen goldenen Lichtkreis, der langsam pulsiert (ein Drittel von `--atem`, also rund 3 s je Atemzug).
+- Etwa alle 6 s läuft ein schmaler Lichtstreifen schräg (20°) über den Knopf, 0,8 s lang.
+- Drüberfahren: leicht magnetisch (Fangbereich 100 px ab dem Rand, höchstens 8 px Versatz), der Goldrand glüht auf, „Anrufen“ verwürfelt sich.
+
+**4 · Unten rechts: Chat-Knopf**
+- Eine runde Glas-Kugel von 64 px mit heller Lichtkante oben und weichem Schatten; innen das Mini-Licht, das langsam atmet.
+- Magnetisch (`magnet.ts`): Ist die Maus näher als 160 px, zieht es die Kugel zu ihr hin, um bis zu 35 % des Abstands und höchstens 28 px, je näher desto stärker. Das innere Licht bewegt sich 40 % mehr mit (Tiefenwirkung), die Kugel wächst bis 1,08. Entfernt sich die Maus, federt sie mit leichtem Überschwingen zurück (etwa 0,6 s). Nur bei echter Maus, bei „weniger Bewegung“ aus.
+- Sprechblase: etwa 6 s nach „Laden fertig“ (oder beim Drüberfahren) wächst sie federnd aus dem Knopf (0,4 s, leichtes Überschwingen). Glas mit feinem Lichtrand; dahinter ein weicher goldener Schimmer, der langsam atmet und leicht wandert. Der Text besteht zuerst nur aus Zufallszeichen (`# + = - : . * / % ·`) und rastet über 0,7 s von links nach rechts ein (bis dahin 40 % Wechsel je Bild); die Breite bleibt fest. Sie lässt sich wegklicken und kommt in dieser Sitzung nicht wieder (auch nicht, wenn der Chat schon geöffnet wurde). Ein Klick auf den Text öffnet den Chat.
+- Handy: gleicher Stil, ohne Magnet. Die Sprechblase steht über dem Knopf, erscheint einmal für 4 s und verschwindet von selbst.
+- Technik: Der Chat selbst (`components/ChatWidget.tsx` im Stammlayout) ist unverändert. Sein eigener Knopf und seine Sprechblase sind in der neuen Welt nur ausgeblendet; die Kugel klickt genau diesen Knopf an. Ist der Chat offen oder das Menü, ruht die Kugel. Eine ungelesene Antwort zeigt ein kleiner goldener Punkt.
 
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
@@ -205,3 +237,5 @@ Nur diese Dinge, kein weiterer Text, kein Hinweistext:
 14. **Licht und Aufbau, Runde 4 (12.11.2026):** (a) Logo eindeutig erkennbar: Die vier Balken-Öffnungen haben wieder Form und Winkel der Balken des echten Logos, 85 % so breit, Enden nur leicht angespitzt; Stern und Gesamtbreite des Lochs (rund 245 px) unverändert. Die Helligkeit der Speichen ist nur über die Belichtung ausgeglichen. Dazu läuft derselbe Bibliotheks-Effekt ein zweites Mal mit kurzer Reichweite und zeigt das Licht direkt in den Öffnungen; ohne ihn lösen sich die Außenkanten der Balken in den Strahlen auf. (b) Der Name steht jetzt unter dem Licht, auch am Computer: Licht-Logo oben mittig, Name mittig darunter mit Abstand, rund 76 % der Bildbreite; nichts überdeckt sich. Am Handy besteht der Name nur aus feinen Zeichen. Der Scroll-Hinweis bleibt am unteren Rand (4d).
 15. **Strahlen wieder wie in 8c455bd (12.11.2026):** Stern, Balkenbreite und der zweite Durchgang bleiben. Die langen Strahlen waren seit der Senkung der Belichtung auf 0,15 zu schwach und zu kurz; der erste Durchgang steht jetzt auf 0,21, der zweite zum Ausgleich auf 0,24. Maßstab und Messung stehen in 4d unter „Werte der Strahlen“.
 16. **Zeichen-Name mit Startflug, Maus und Welle (12.11.2026):** Licht, Stern, Balken und Strahlen bleiben wie in 66da8be. Der Name ist nach den Zahlen des Vorbilds ksenpanchenko.com neu gebaut (Raster, Dichte, Deckkraft, Startflug vom Rand in 2,2 s, Maus, Welle; eigene Umsetzung). Am Handy ist eine Zelle 5 px breit, die Buchstaben wirken geschlossen. Vor dem Start blitzt nichts auf. Der Name oben links und die Menüpunkte werden beim Drüberfahren golden und verwürfeln sich 0,5 s lang (4d).
+17. **Startflug sichtbarer (12.11.2026):** Fliegende Zeichen sind heller und warm getönt, ihre Deckkraft unterwegs ist höher (Exponent 0,8 statt 1,6, mindestens 0,22), darunter liegt ein schwaches Feld. Angeglichen an die Wirkung des Vorbilds, nicht an dessen Formel. Takt, Bahnen, Reihenfolge, Welle und der Name am Handy bleiben. Der Hinweis „1 Issue“ in der Entwicklungsansicht bleibt, wie er ist: Er kommt von einer Erweiterung in Davids Browser.
+18. **Kopfleiste und Chat-Knopf neu gestaltet (12.11.2026):** einheitliches Glas, Glimmrand nahe der Maus, Menüpunkte in der Schrift des Namens, das kleine Logo leuchtet selbst (Mini-Licht), „Anrufen“ mit pulsierendem Lichtkreis und Lichtstreifen, Chat-Knopf als magnetische Glas-Kugel mit Sprechblase aus einrastenden Zeichen. Funktionen unverändert (Abschnitt 4e).
