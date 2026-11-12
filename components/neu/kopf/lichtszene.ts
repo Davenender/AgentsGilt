@@ -267,10 +267,11 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     density: 0.77,
     decay: Math.pow(0.94, 80 / wahl.proben),
     weight: (0.2 * 80) / wahl.proben,
-    // Seit die Öffnungen wieder die Breite der echten Balken haben, fällt mehr Licht hindurch: Die
-    // Belichtung ist so weit gesenkt, dass die Speichen so hell sind wie zuvor (in 160 und 250 px
-    // Abstand rund 77 und 30 von 255).
-    exposure: 0.15,
+    // Die Öffnungen haben die Breite der echten Balken, es fällt also mehr Licht hindurch als durch
+    // die früheren schmalen Splitter (damals Belichtung 0,42). Mit 0,21 sind die langen Strahlen
+    // wieder so stark und so lang wie im Stand 8c455bd: Mittelwert der Helligkeit in Ringen
+    // oberhalb des Logos (130–200 / 200–300 / 300–400 px) rund 46 / 16 / 6, Reichweite rund 430 px.
+    exposure: 0.21,
     clampMax: 1,
     resolutionScale: 0.5,
     kernelSize: KernelSize.MEDIUM,
@@ -286,7 +287,9 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     density: 0.15,
     decay: 0.82,
     weight: 0.3,
-    exposure: 0.26,
+    // So eingestellt, dass Balken und Stern zusammen mit den langen Strahlen bei rund 205 von 255
+    // bleiben: klar erkennbar, nichts überstrahlt.
+    exposure: 0.24,
     clampMax: 1,
     resolutionScale: 0.5,
     kernelSize: KernelSize.SMALL,
