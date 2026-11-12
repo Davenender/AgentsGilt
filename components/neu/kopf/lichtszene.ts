@@ -43,6 +43,12 @@ export type LichtSzene = {
   lage: LichtLage;
   /** Auftritt: Das Licht blendet auf (sofort, wenn das ruhige Bild schon steht). */
   zeigen: (sofort: boolean) => void;
+  /**
+   * Schonen: Solange die Zeichen des Namens als Ganzes unterwegs sind (Startflug, Welle), wird
+   * das Licht höchstens 20-mal je Sekunde neu gezeichnet. So bleibt ihre Bewegung auch in großen
+   * Fenstern flüssig. Das Bild selbst ändert sich dadurch nicht. Danach (false) läuft alles wie immer.
+   */
+  schonen: (ja: boolean) => void;
   ende: () => void;
 };
 
@@ -61,6 +67,8 @@ export type LichtWahl = {
 
 // Maße der Szene (wie beim Vorbild): Die Kamera steht 14 vor der Wand; bei einem Logo von rund
 // einem Viertel der Bildhöhe ergibt das ein Sichtfeld von 35°. Die Lichtscheibe sitzt 100 hinter der Wand.
+// Schonen (nur solange die Zeichen des Namens fliegen oder eine Welle läuft): frühestens alle 50 ms ein neues Bild des Lichts.
+const SCHON_TAKT = 50;
 const ABSTAND = 14;
 const TIEFE = 100;
 // Halbe Höhe des Logos und Radius der Lichtscheibe, beides in Einheiten der Szene. Die Scheibe ist
@@ -355,6 +363,9 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   let vorbei = false;
   let gezeigt = false;
   let bildNr = 0;
+  // Schonen: Solange die Zeichen des Namens fliegen oder eine Welle läuft, höchstens alle 50 ms ein neues Bild des Lichts.
+  let schonend = false;
+  let zuletztGezeichnet = 0;
   // Messung, ob das Gerät flüssig mitkommt.
   let gezeichnet = false; // Hat das vorige Bild gezeichnet?
   let warm = 0;
@@ -431,7 +442,8 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
 
     // In Ruhe genügt jedes zweite Bild (Atmen, Filmkorn und das langsame Wiegen am Handy).
     // Solange nicht feststeht, dass das Gerät flüssig mitkommt, wird jedes Bild gezeichnet.
-    if (bewegt || !geprueft || schlecht > 0 || bildNr % 2 === 0) {
+    if (schonend && !neu ? jetzt - zuletztGezeichnet >= SCHON_TAKT : bewegt || !geprueft || schlecht > 0 || bildNr % 2 === 0) {
+      zuletztGezeichnet = jetzt;
       uZeit.value = zeit;
       // Das Licht pulsiert nur ganz leicht.
       uHell.value = zustand.auftritt * (1 + 0.02 * Math.sin(zeit * 0.7));
@@ -497,6 +509,10 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     zeigen: (sofort) => {
       gezeigt = true;
       gsap.to(zustand, { auftritt: 1, duration: sofort ? 0.01 : 1.8, ease: "power2.out" });
+      wecken();
+    },
+    schonen: (ja) => {
+      schonend = ja;
       wecken();
     },
     ende: () => {

@@ -6,6 +6,7 @@ import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { hero, marke, navigation } from "@/lib/inhalt-neu";
 import { Knopf } from "./Knoepfe";
 import { Marke } from "./Marke";
+import { richteVerwuerfelnEin } from "./verwuerfeln";
 
 gsap.registerPlugin(useGSAP);
 
@@ -14,8 +15,9 @@ gsap.registerPlugin(useGSAP);
  * der Mitte als Leiste aus dunklem Glas mit feinem Goldrand, „Anrufen“ rechts
  * (sanft golden glühend). Unter dem Menüpunkt, über dem die Maus ist, gleitet
  * ein kleiner Lichtpunkt mit; sonst bleibt er unter dem Abschnitt, der gerade
- * zu sehen ist. Am Handy schwebt alles als eine Kachel, das Menü öffnet sich
- * über den ganzen Bildschirm.
+ * zu sehen ist. Beim Drüberfahren werden der Name oben links und die Menüpunkte
+ * golden und verwürfeln sich eine halbe Sekunde lang (verwuerfeln.ts). Am Handy
+ * schwebt alles als eine Kachel, das Menü öffnet sich über den ganzen Bildschirm.
  *
  * Das offene Menü ist ein echter Dialog: Es liegt über der ganzen Seite und
  * bringt seine eigene Kopfzeile mit Schließen-Knopf mit. Alles andere ist
@@ -46,6 +48,12 @@ export function Kopfleiste() {
       onToggle: (s) => kopf.current?.setAttribute("data-los", String(s.isActive)),
     });
   });
+
+  // Name oben links und Menüpunkte verwürfeln sich beim Drüberfahren.
+  useEffect(() => {
+    if (!kopf.current) return;
+    return richteVerwuerfelnEin(kopf.current);
+  }, []);
 
   // Lichtpunkt der Navigation: folgt der Maus, sonst zeigt er den aktiven Abschnitt.
   useEffect(() => {
@@ -166,14 +174,18 @@ export function Kopfleiste() {
   return (
     <>
       <header ref={kopf} className="ag-kopf" data-los="false">
-        <a className="ag-kopf__marke" href="#top" aria-label={`${marke.name}, zum Seitenanfang`}>
+        <a className="ag-kopf__marke" href="#top" aria-label={`${marke.name}, zum Seitenanfang`} data-wuerfel>
           <Marke />
-          {marke.name}
+          <span className="ag-wuerfel">
+            <span className="ag-wuerfel__echt">{marke.name}</span>
+          </span>
         </a>
         <nav ref={leiste} className="ag-kopf__kachel" aria-label="Hauptnavigation" data-punkt="aus">
           {navigation.map((n) => (
-            <a key={n.href} href={n.href}>
-              {n.label}
+            <a key={n.href} href={n.href} data-wuerfel>
+              <span className="ag-wuerfel">
+                <span className="ag-wuerfel__echt">{n.label}</span>
+              </span>
             </a>
           ))}
           <span className="ag-kopf__punkt" aria-hidden="true" />

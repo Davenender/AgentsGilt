@@ -236,6 +236,13 @@
 .ag-hero[data-licht="bild"] .ag-ln__standbild {
   display: block;
 }
+/* Kommt die Szene erst spät, wird überblendet: Das ruhige Bild blendet über der Szene aus
+   (während sie darunter einblendet) und verschwindet erst danach. */
+.ag-hero[data-lichtwechsel] .ag-ln__standbild {
+  display: block;
+  opacity: 0;
+  transition: opacity 0.9s var(--weich);
+}
 @media (prefers-reduced-motion: reduce) {
   .ag-ln__standbild {
     display: block;
@@ -258,19 +265,26 @@
   height: var(--licht);
   pointer-events: none;
 }
-/* Der Name: etwa drei Viertel der Bildbreite, über dem ruhigen Bild des Lichts. */
+/* Der Name: etwa drei Viertel der Bildbreite. Der gewöhnliche Schriftzug hält nur den Platz frei
+   und nennt Vorleseprogrammen den Namen; zu sehen ist er nicht (nichts blitzt vor dem Start auf).
+   Gezeichnet wird der Name von LichtName.tsx aus Zeichen. */
 .ag-ln__platz .ag-wortmarke {
   position: relative;
   width: min(76vw, 1340px);
-  transition: opacity 0.4s var(--weich);
+  opacity: 0;
 }
 .ag-ln__platz .ag-wortmarke text {
   fill: #232a45;
 }
-/* Sobald die Zeichen stehen, tritt der gewöhnliche Schriftzug zurück. Er bleibt
-   als Name für Vorleseprogramme erhalten. */
-.ag-hero[data-ln] .ag-ln__platz .ag-wortmarke {
-  opacity: 0;
+/* Einzige Ausnahme: Können die Zeichen gar nicht gezeichnet werden (ohne Skript, oder der Browser
+   gibt keine Zeichenfläche her), steht der gewöhnliche Schriftzug dauerhaft da. */
+.ag-hero[data-ln="ersatz"] .ag-ln__platz .ag-wortmarke {
+  opacity: 1;
+}
+@media (scripting: none) {
+  .ag-ln__platz .ag-wortmarke {
+    opacity: 1;
+  }
 }
 
 /* Scroll-Hinweis, sehr dezent: Von ganz unten kommt ein schwacher, warmer Goldschein herein,

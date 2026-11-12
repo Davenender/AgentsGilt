@@ -309,7 +309,35 @@ html.lenis body {
   white-space: nowrap;
   transition:
     background-color 0.4s var(--weich),
-    border-color 0.4s var(--weich);
+    border-color 0.4s var(--weich),
+    color 0.3s var(--weich);
+}
+/* Beim Drüberfahren wird der Name golden und verwürfelt sich kurz (verwuerfeln.ts). */
+@media (hover: hover) and (pointer: fine) {
+  .ag-kopf__marke:hover {
+    color: var(--gold-hell);
+  }
+}
+/* Verwürfeln: Der echte Text bleibt stehen (für Vorleseprogramme) und wird nur durchsichtig;
+   darüber liegt das Spiel, jeder Buchstabe an seinem Platz und in seiner Breite. */
+.ag-wuerfel {
+  position: relative;
+  display: inline-block;
+}
+.ag-wuerfel[data-spiel] .ag-wuerfel__echt {
+  opacity: 0;
+}
+.ag-wuerfel__spiel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ag-wuerfel__spiel span {
+  position: absolute;
+  top: 0;
+  letter-spacing: 0;
+  text-align: center;
+  white-space: pre;
 }
 .ag-kopf__marke svg {
   width: 28px;
@@ -350,6 +378,12 @@ html.lenis body {
 .ag-kopf__kachel a:hover,
 .ag-kopf__kachel a[aria-current] {
   color: var(--elfenbein);
+}
+/* Beim Drüberfahren wird der Menüpunkt golden und verwürfelt sich kurz. */
+@media (hover: hover) and (pointer: fine) {
+  .ag-kopf__kachel a:hover {
+    color: var(--gold-hell);
+  }
 }
 /* Kleiner Lichtpunkt: gleitet unter den Menüpunkt, über dem die Maus ist,
    und bleibt sonst unter dem Abschnitt, der gerade zu sehen ist. */

@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "@/lib/gsap";
 import { BALKEN, STERN } from "./Marke";
-import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, istVorschau, willWenigerBewegung } from "./umgebung";
+import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, LADEN_FERTIG, LADEN_FERTIG_KLASSE, istVorschau, willWenigerBewegung } from "./umgebung";
 
 gsap.registerPlugin(useGSAP);
 
@@ -16,6 +16,10 @@ const MERKER = "ag-neu-intro";
  * Ladebalken und Prozentzahl. Danach hebt sich der Schirm und gibt den
  * Kopfbereich frei. Dauer höchstens gut zwei Sekunden, beim zweiten Besuch in
  * derselben Sitzung kürzer.
+ *
+ * Zwei Meldungen: „Intro fertig“, sobald sich der Schirm zu heben beginnt (die
+ * Texte treten auf), und „Laden fertig“, sobald er das Bild freigegeben hat
+ * und die Schriften da sind, plus 120 ms (das Licht geht an, der Name fliegt ein).
  *
  * Bei „weniger Bewegung“ und in der Vorschau erscheint er nicht. Fällt das
  * Skript aus, blendet ihn ein Sicherheitsnetz im Stylesheet nach 5 Sekunden
@@ -35,11 +39,33 @@ export function Ladebildschirm() {
         document.documentElement.classList.add(INTRO_FERTIG_KLASSE);
         window.dispatchEvent(new Event(INTRO_FERTIG));
       };
+      // „Laden fertig“: erst wenn die Schriften fertig sind, plus 120 ms. Die Meldung gehört zu
+      // genau diesem Ladebildschirm: Eine Freigabe von einem früheren Besuch der Seite gilt nicht.
+      document.documentElement.classList.remove(LADEN_FERTIG_KLASSE);
+      let uhr = 0;
+      let abgebaut = false;
+      const ladenFertig = () => {
+        const melden = () => {
+          if (abgebaut) return;
+          uhr = window.setTimeout(() => {
+            document.documentElement.classList.add(LADEN_FERTIG_KLASSE);
+            window.dispatchEvent(new Event(LADEN_FERTIG));
+          }, 120);
+        };
+        if (document.fonts?.ready) document.fonts.ready.then(melden, melden);
+        else melden();
+      };
+      const abbau = () => {
+        abgebaut = true;
+        window.clearTimeout(uhr);
+        document.documentElement.classList.remove(LADEN_FERTIG_KLASSE);
+      };
 
       if (willWenigerBewegung() || istVorschau()) {
         gsap.set(el, { display: "none" });
         fertig();
-        return;
+        ladenFertig();
+        return abbau;
       }
 
       let wieder = false;
@@ -78,7 +104,10 @@ export function Ladebildschirm() {
         )
         .call(fertig, undefined, dauer + 0.1)
         .to(el, { yPercent: -100, duration: 0.9, ease: "expo.inOut" }, dauer + 0.1)
+        // Nach 0,6 s ist der Schirm fast ganz oben: Das Bild ist frei.
+        .call(ladenFertig, undefined, dauer + 0.7)
         .set(el, { display: "none" });
+      return abbau;
     },
     { scope: wurzel },
   );

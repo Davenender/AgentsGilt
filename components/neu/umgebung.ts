@@ -17,6 +17,13 @@ export function willWenigerBewegung(): boolean {
 export const INTRO_FERTIG = "ag:intro-fertig";
 export const INTRO_FERTIG_KLASSE = "ag-intro-fertig";
 
+/**
+ * „Laden fertig“: Der Ladebildschirm hat das Bild freigegeben und die Schriften
+ * sind da (plus 120 ms). Darauf warten das Licht und der Startflug des Namens.
+ */
+export const LADEN_FERTIG = "ag:laden-fertig";
+export const LADEN_FERTIG_KLASSE = "ag-laden-fertig";
+
 /** Gleichbleibende Zufallszahlen, damit Server und Browser dasselbe zeichnen. */
 export function zufall(saat: number) {
   let a = saat >>> 0;

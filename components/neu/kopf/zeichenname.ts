@@ -2,23 +2,28 @@
 //
 // So ist er gebaut:
 //   1. „AGENTS GILT“ wird unsichtbar als Graustufenbild gezeichnet: unsere
-//      schmale, fette Schrift, am Rand weich, dazu ein paar feine Strahlen
-//      nach außen (wie spritzende Tinte).
-//   2. Das Bild wird in ein Raster aus Zellen zerlegt. Jede Zelle bekommt eine
-//      Dichte von 1 bis 9. Zellen mit weniger als 8 % Abdeckung fallen weg.
-//      Aus der Dichte folgen Deckkraft (Dichte/9) und Zeichen: innen dichte
-//      Zeichen wie # und %, am Rand lockere wie · . :
+//      schmale, fette Schrift, dazu ein paar feine Strahlen nach außen (wie
+//      spritzende Tinte).
+//   2. Das Bild wird in ein Raster aus Zellen zerlegt (Computer 6,5 px breit,
+//      Handy 5 px). Je Zelle zählt die Abdeckung: unter 8 % fällt die Zelle weg.
+//      Die Dichte ist round(Grundwert × (0,45 + 0,55 × min(1, 1,6 × Abdeckung))),
+//      begrenzt auf 1 bis 9. Der Grundwert ist 9 × die Stärke der Tinte in der
+//      Zelle (Buchstaben voll, Strahlen laufen aus). Die Deckkraft ist
+//      Dichte/9 × 0,7. Innen stehen dichte Zeichen wie # und %, am Rand lockere.
 //   3. Jedes Zeichen liegt einmal fertig gezeichnet in einem Vorrat (Atlas),
-//      in jeder Dichte und Färbung. Gezeichnet wird nur, wenn sich etwas
-//      bewegt; in Ruhe bleibt das Bild einfach stehen.
+//      in jeder Deckkraft und Färbung. Das ruhende Bild liegt als fertiges Bild
+//      im Zwischenspeicher; neu gezeichnet wird nur, solange sich etwas bewegt.
 //
-// Leben: Alle 140 ms tauschen rund 0,4 % der Zellen kurz ihr Zeichen. Die
-// Zeichen weichen dem Zeiger aus (Umkreis 70 px, bis 18 px) und federn zurück.
-// Ein Klick schickt einen Ring durch den Namen (1150 px/s, 90 px breit, schiebt
-// bis 56 px nach außen, klingt in 1,3 s ab); getroffene Zeichen leuchten kurz
-// heller und wechseln ihr Zeichen. Das Licht des Logos färbt die Zeichen:
-// im Licht golden, nahe am Stern einen Hauch heller, sonst grau. Kippt das
-// Licht zur Maus, wandert der goldene Schimmer in diese Richtung mit.
+// Start: Die Zeichen fliegen von außerhalb des Bildes an ihren Platz
+// (2,2 Sekunden, am Anfang sehr schnell, am Ende weich; die Mitte des Namens
+// landet zuerst). Unterwegs sind sie größer, blasser und wechseln ihr Zeichen.
+//
+// Leben: Alle 140 ms tauschen rund 0,4 % der Zellen für einen Takt ihr Zeichen.
+// Die Zeichen weichen dem Zeiger aus (Umkreis 70 px, bis 18 px) und federn zurück.
+// Ein Klick schickt einen Ring durch den Namen (1150 px/s, schiebt bis 56 px
+// nach außen, klingt in 1,3 s ab); getroffene Zeichen werden kräftiger und
+// wechseln ihr Zeichen. Das Licht des Logos färbt die Zeichen: im Licht golden,
+// nahe am Stern einen Hauch heller, sonst grau.
 import type { LichtLage } from "./lichtszene";
 
 // Mittellinie der Balken-Öffnung im rechten oberen Viertel des Logos, so wie die Licht-Szene sie
@@ -41,25 +46,32 @@ export type NameMasse = {
   hoehe: number;
   /** Kasten, in dem der Name steht. */
   name: { x: number; y: number; b: number; h: number };
-  /** Breite einer Rasterzelle (Computer etwa 6,5 px, Handy 5 px). */
+  /** Breite einer Rasterzelle (Computer 6,5 px, Handy 5 px). */
   zelle: number;
   schrift: string;
   mono: string;
   /** Die Zeilen des Namens: am Computer eine, am Handy zwei übereinander. */
   zeilen: string[];
-  /** Nur feine Zeichen (· . : - = +), keine schweren (* / % #). Fürs Handy. */
+  /** Handy: nur feine Zeichen (· . : - = +), keine schweren (* / % #), und die Strahlen nach unten halb so lang. */
   fein?: boolean;
+  /** Höchste Pixeldichte der Zeichenfläche (Computer 2, Handy 1,5). */
+  dichteMax: number;
+  /** Die größere Seite des Bildschirms: Sie bestimmt, von wie weit außen die Zeichen anfliegen. */
+  schirm: number;
 };
 
 export type Zeichenname = {
   /** Baut das Raster neu auf und meldet, wie viele Zeichen es hat. */
-  bauen: (m: NameMasse, lage: LichtLage, sichtbar: boolean) => number;
-  /** Das Licht hat sich bewegt: Schimmer neu berechnen. */
+  bauen: (m: NameMasse, lage: LichtLage) => number;
+  /** Das Licht hat sich bewegt: Schimmer neu berechnen (nur wenn es sich sichtbar geändert hat). */
   licht: (lage: LichtLage) => void;
   zeiger: (x: number, y: number, aktiv: boolean) => void;
-  welle: (x: number, y: number) => void;
-  /** Auftritt: Der Name blendet von der Mitte nach außen ein. Danach wird „danach“ einmal aufgerufen. */
-  einblenden: (danach?: () => void) => void;
+  /** Welle an dieser Stelle. Meldet, ob sie ausgelöst wurde (nur im Bereich des Namens, nicht im Startflug). */
+  welle: (x: number, y: number) => boolean;
+  /** Welle aus der Mitte des Namens. */
+  welleMitte: () => void;
+  /** Startflug: Die Zeichen fliegen von außen an ihren Platz. Danach wird „danach“ einmal aufgerufen. */
+  starten: (danach?: () => void) => void;
   sichtbar: (ja: boolean) => void;
   ende: () => void;
 };
@@ -68,26 +80,33 @@ export type Zeichenname = {
 const ZEICHEN = ["·", ".", ":", "-", "=", "+", "*", "/", "%", "#"];
 // Welche Zeichen zu welcher Dichte passen (Index 1 bis 9).
 const NACH_DICHTE = [[0], [0, 1], [1, 0, 2], [2, 1, 3], [3, 2, 4], [4, 5, 3], [5, 6, 4], [6, 7, 5], [8, 7, 9], [9, 9, 8]];
-// Dasselbe nur mit den sechs feinen Zeichen (· . : - = +): fürs Handy.
+// Dasselbe nur mit den sechs feinen Zeichen (· . : - = +): fürs Handy. Innen stehen fast nur
+// + und =, damit die Buchstaben geschlossen wirken.
 const FEINE = 6;
-const NACH_DICHTE_FEIN = [[0], [0, 1], [1, 0], [1, 2], [2, 1, 3], [2, 3], [3, 4, 2], [4, 3, 5], [4, 5], [5, 4]];
+const NACH_DICHTE_FEIN = [[0], [0, 1], [1, 0], [2, 1], [2, 3], [3, 2], [3, 4], [4, 3], [4, 5], [4, 4, 5]];
 const GOLD_STUFEN = 6;
 const CREME_STUFEN = 5;
-const GRAU = [124, 130, 152];
-const GRAU_FEIN = [176, 182, 204];
-// Die Farben des Lichts: Gold (#f0a83a), nahe am Stern nur einen Hauch heller (#ffd27a). Kein Weiß.
-const GOLD = [240, 172, 66];
-const CREME = [255, 212, 126];
+// Deckkraft-Stufen im Vorrat: 1 bis 9 sind die Dichten (Dichte/9 × 0,7), darüber liegen die
+// kräftigeren Stufen für Zeichen, die gerade von einer Welle getroffen werden (bis ganz deckend).
+const DECK_STUFEN = 13;
+// Die Farben sind heller angesetzt, als sie am Ende wirken: Die dichtesten Zeichen decken nur zu
+// 70 %, davor steht also höchstens 70 % dieser Töne (ein kühles Grau, im Licht Gold).
+const GRAU = [210, 218, 246];
+const GRAU_FEIN = [214, 220, 242];
+// Die Farben des Lichts: Gold, nahe am Stern nur einen Hauch heller. Kein Weiß.
+const GOLD = [255, 190, 78];
+const CREME = [255, 220, 140];
 
-const FLIMMER_TAKT = 0.14;
+const FLIMMER_TAKT = 140; // ms
 const FLIMMER_ANTEIL = 0.004;
 const MAUS_UMKREIS = 70;
 const MAUS_SCHUB = 18;
 const WELLE_TEMPO = 1150;
-const WELLE_BAND = 45; // halbe Breite des weichen Bandes
+const WELLE_BAND = 90;
 const WELLE_SCHUB = 56;
 const WELLE_DAUER = 1.3;
-const EINBLEND_DAUER = 1.1;
+const FLUG_DAUER = 2.2;
+const BLENDE_DAUER = 0.6;
 
 /** Gleichbleibende Zufallszahlen: Der Name sieht bei jedem Aufbau gleich aus. */
 function zufall(saat: number) {
@@ -122,22 +141,33 @@ function weichzeichnen(werte: Float32Array, b: number, h: number, radius: number
   }
 }
 
+/** Der Schein des Lichts in einem Abstand (in Logo-Halbmessern): läuft bis etwa drei Halbmesser aus. */
+function schein(rr: number): number {
+  return rr > 0.85 ? 0.85 * Math.exp(-(rr - 0.85) * 1.05) : 0.85;
+}
+
 export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean): Zeichenname | null {
   const ctx = leinwand.getContext("2d");
   if (!ctx) return null;
   const atlas = document.createElement("canvas");
+  // Das ruhende Bild als fertiges Bild im Zwischenspeicher.
+  const ruhe = document.createElement("canvas");
+  const ruheCtx = ruhe.getContext("2d");
+  if (!ruheCtx) return null;
 
   let breite = 0;
   let hoehe = 0;
   let dichte = 1;
   let n = 0;
   let zb = 6.5;
-  // Welche Zeichen zur Wahl stehen (am Handy nur die feinen).
-  let nachDichte = NACH_DICHTE;
-  let zeichenZahl = ZEICHEN.length;
   let zh = 8.5;
   let kb = 9;
   let kh = 11;
+  // Welche Zeichen zur Wahl stehen (am Handy nur die feinen).
+  let nachDichte = NACH_DICHTE;
+  let zeichenZahl = ZEICHEN.length;
+  // Der Kasten des Namens: Mitte für Flug und Welle, Bereich für den Klick.
+  const kasten = { x: 0, y: 0, b: 1, h: 1 };
   // Je Zelle: Platz, Dichte, Zeichen und die festen Anteile des Lichts.
   let hx = new Float32Array(0);
   let hy = new Float32Array(0);
@@ -147,50 +177,69 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
   let sinW = new Float32Array(0);
   let goldRuhe = new Float32Array(0);
   let kern = new Float32Array(0);
-  let abstand = new Float32Array(0);
-  // Bewegung
+  // Startflug: Versatz des Startpunkts und die Schwelle, ab der das Zeichen losfliegt.
+  let sx = new Float32Array(0);
+  let sy = new Float32Array(0);
+  let schwelle = new Float32Array(0);
+  // Bewegung: Ausweichen vor dem Zeiger, getauschte Zeichen (Flug und Welle), Flimmern.
   let ox = new Float32Array(0);
   let oy = new Float32Array(0);
-  let hell = new Float32Array(0);
-  let ersatz = new Int8Array(0);
-  let ersatzBis = new Float32Array(0);
-  let getroffen = new Int32Array(0);
-  let flimmert = new Uint8Array(0);
+  let tausch = new Int8Array(0);
+  let flimmer = new Int8Array(0);
+  // Wo jede Zelle im Raster sitzt (zum Flicken einzelner Zellen samt ihrer Nachbarn).
+  let spalte = new Int16Array(0);
+  let reihe = new Int16Array(0);
+  let gitter = new Int32Array(0);
+  let gSpalten = 0;
+  let gZeilen = 0;
 
   const lage: LichtLage = { mitteX: 0, mitteY: 0, radius: 1, kippX: 0, kippY: 0, hell: 1 };
+  // So stand das Licht, als das Bild zuletzt gezeichnet wurde.
+  const gemalt = { kippX: 0, kippY: 0, hell: -1 };
   const maus = { x: -9999, y: -9999, aktiv: false };
   // Hat sich der Zeiger seit dem letzten Bild bewegt? Ein ruhender Zeiger kostet nichts.
   let mausNeu = false;
-  let nachEinblenden: (() => void) | undefined;
-  let wellen: { nr: number; x: number; y: number; t: number }[] = [];
-  let wellenNr = 0;
+  let nachFlug: (() => void) | undefined;
+  let wellen: { x: number; y: number; t: number }[] = [];
   let flimmernde: number[] = [];
-  let zeit = 0;
-  let flimmerUhr = 0;
+  let flimmerZuletzt = 0;
   let letzte = 0;
   let rahmen = 0;
+  let uhr = 0;
   let imBild = true;
   let vorbei = false;
-  let zustand: "verborgen" | "einblenden" | "da" = "verborgen";
-  let einblendZeit = 0;
-  let allesNeu = true;
+  let zustand: "verborgen" | "flug" | "blende" | "da" = "verborgen";
+  let flugZeit = 0;
+  let blendZeit = 0;
+  // Hat sich das Licht geändert, seit die Fläche zuletzt gezeichnet wurde?
+  let lichtNeu = true;
+  // Stimmt der Zwischenspeicher nicht mehr mit dem ruhenden Bild überein?
+  let speicherAlt = true;
+  // Rahmen um alle Zeichen: Ein Zeiger weit daneben kostet nichts.
+  const rand = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  // Zeigt die Zeichenfläche gerade etwas anderes als das ruhende Bild?
+  let bewegtBild = true;
+  // Sind Zeichen noch auf dem Weg (Ausweichen, Zurückfedern, getauschte Zeichen)?
   let unruhe = false;
   // Stehen gerade Zeichen neben ihrem Platz (ruhender Zeiger)?
   let verschoben = false;
 
   const rnd = Math.random;
 
-  const bauen = (m: NameMasse, neueLage: LichtLage, gleichDa: boolean) => {
+  const bauen = (m: NameMasse, neueLage: LichtLage) => {
     breite = m.breite;
     hoehe = m.hoehe;
-    dichte = Math.min(window.devicePixelRatio || 1, 2);
+    dichte = Math.min(window.devicePixelRatio || 1, m.dichteMax);
     if (breite * hoehe * dichte * dichte > 7e6) dichte = 1;
     leinwand.width = Math.round(breite * dichte);
     leinwand.height = Math.round(hoehe * dichte);
+    ruhe.width = leinwand.width;
+    ruhe.height = leinwand.height;
     zb = m.zelle;
     zh = m.zelle * 1.3;
     nachDichte = m.fein ? NACH_DICHTE_FEIN : NACH_DICHTE;
     zeichenZahl = m.fein ? FEINE : ZEICHEN.length;
+    Object.assign(kasten, m.name);
     Object.assign(lage, neueLage);
 
     // 1) Graustufenbild: der Name, mit Platz für die Strahlen rundherum.
@@ -244,7 +293,9 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       if (!gefunden) continue;
       const seite = ((px - randX) / m.name.b) * 2 - 1;
       const winkel = (nachOben ? -Math.PI / 2 : Math.PI / 2) + seite * 0.75 * (nachOben ? 1 : -1) + (saat() - 0.5) * 0.3;
-      const lang = m.name.h * (0.2 + Math.pow(saat(), 1.6) * 0.72);
+      // Am Handy laufen die Strahlen nach unten nur etwa halb so weit aus.
+      const lang = m.name.h * (0.2 + Math.pow(saat(), 1.6) * 0.72) * (m.fein && !nachOben ? 0.5 : 1);
+      const dick = m.zelle * (0.9 + saat() * 0.9);
       const ex = px + Math.cos(winkel) * lang;
       const ey = py + Math.sin(winkel) * lang;
       const verlauf = bc.createLinearGradient(px, py, ex, ey);
@@ -252,45 +303,57 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       verlauf.addColorStop(0.55, "rgba(255,255,255,0.55)");
       verlauf.addColorStop(1, "rgba(255,255,255,0)");
       bc.strokeStyle = verlauf;
-      bc.lineWidth = m.zelle * (0.9 + saat() * 0.9);
+      bc.lineWidth = dick;
       bc.beginPath();
       bc.moveTo(px, py);
       bc.lineTo(ex, ey);
       bc.stroke();
     }
 
-    // Weicher Rand: leicht weichzeichnen.
+    // Kanten leicht weichzeichnen, damit die Ränder der Buchstaben nicht stufig werden.
     const mitStrahlen = bc.getImageData(0, 0, rb, rh).data;
     const grau = new Float32Array(rb * rh);
     for (let i = 0; i < grau.length; i++) grau[i] = mitStrahlen[i * 4 + 3] / 255;
-    weichzeichnen(grau, rb, rh, m.zelle * 0.42);
+    weichzeichnen(grau, rb, rh, m.zelle * 0.3);
 
-    // 2) Raster: mittlere Abdeckung je Zelle → Dichte 1 bis 9.
-    const spalten = Math.floor(rb / zb);
-    const zeilen = Math.floor(rh / zh);
+    // 2) Raster: Abdeckung und Tinte je Zelle → Dichte 1 bis 9.
+    const spalten = Math.max(12, Math.floor(rb / zb));
+    const zeilen = Math.max(1, Math.floor(rh / zh));
     const x0 = m.name.x - randX + (rb - spalten * zb) / 2;
     const y0 = m.name.y - randY + (rh - zeilen * zh) / 2;
     const teile: number[] = [];
     for (let j = 0; j < zeilen; j++) {
       for (let i = 0; i < spalten; i++) {
-        let summe = 0;
-        for (let sy = 0; sy < 3; sy++) {
-          for (let sx = 0; sx < 3; sx++) {
-            const px = Math.min(rb - 1, Math.floor((rb - spalten * zb) / 2 + (i + (sx + 0.5) / 3) * zb));
-            const py = Math.min(rh - 1, Math.floor((rh - zeilen * zh) / 2 + (j + (sy + 0.5) / 3) * zh));
-            summe += grau[py * rb + px];
+        let bedeckt = 0;
+        let tinte = 0;
+        for (let py2 = 0; py2 < 4; py2++) {
+          for (let px2 = 0; px2 < 4; px2++) {
+            const px = Math.min(rb - 1, Math.max(0, Math.floor((rb - spalten * zb) / 2 + (i + (px2 + 0.5) / 4) * zb)));
+            const py = Math.min(rh - 1, Math.max(0, Math.floor((rh - zeilen * zh) / 2 + (j + (py2 + 0.5) / 4) * zh)));
+            const wert = grau[py * rb + px];
+            if (wert > 0.1) {
+              bedeckt += 1;
+              tinte += wert;
+            }
           }
         }
-        const deckung = summe / 9;
-        if (deckung < 0.08) continue;
-        const d = Math.max(1, Math.min(9, Math.round(deckung * 9)));
+        const cov = bedeckt / 16;
+        if (cov < 0.08) continue;
+        // Grundwert: 9 × Stärke der Tinte (Buchstaben voll, Strahlen laufen aus).
+        const grundwert = 9 * (tinte / bedeckt);
+        const d = Math.max(1, Math.min(9, Math.round(grundwert * (0.45 + 0.55 * Math.min(1, 1.6 * cov)))));
         const wahl = nachDichte[d];
-        teile.push(x0 + (i + 0.5) * zb, y0 + (j + 0.5) * zh, d, wahl[Math.floor(saat() * wahl.length)]);
+        teile.push(x0 + (i + 0.5) * zb, y0 + (j + 0.5) * zh, d, wahl[Math.floor(saat() * wahl.length)], i, j);
       }
     }
 
-    // 3) Zellen anlegen, mit den festen Anteilen des Lichts (Lage zur Logo-Mitte).
-    n = teile.length / 4;
+    // 3) Zellen anlegen, mit den festen Anteilen des Lichts (Lage zur Logo-Mitte) und dem Startflug.
+    n = teile.length / 6;
+    gSpalten = spalten;
+    gZeilen = zeilen;
+    gitter = new Int32Array(spalten * zeilen).fill(-1);
+    spalte = new Int16Array(n);
+    reihe = new Int16Array(n);
     hx = new Float32Array(n);
     hy = new Float32Array(n);
     staerke = new Uint8Array(n);
@@ -299,85 +362,110 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     sinW = new Float32Array(n);
     goldRuhe = new Float32Array(n);
     kern = new Float32Array(n);
-    abstand = new Float32Array(n);
+    sx = new Float32Array(n);
+    sy = new Float32Array(n);
+    schwelle = new Float32Array(n);
     ox = new Float32Array(n);
     oy = new Float32Array(n);
-    hell = new Float32Array(n);
-    ersatz = new Int8Array(n).fill(-1);
-    ersatzBis = new Float32Array(n);
-    getroffen = new Int32Array(n);
-    flimmert = new Uint8Array(n);
+    tausch = new Int8Array(n).fill(-1);
+    flimmer = new Int8Array(n).fill(-1);
+    // Mitte des Namens für den Flug: 50 % der Breite, 42 % der Höhe.
+    const mx = m.name.x + m.name.b * 0.5;
+    const my = m.name.y + m.name.h * 0.42;
+    const u = 0.75 * m.schirm;
+    rand.x0 = rand.y0 = Infinity;
+    rand.x1 = rand.y1 = -Infinity;
     for (let k = 0; k < n; k++) {
       // Auf ganze Bildpunkte legen, damit die Zeichen scharf stehen.
-      const px = Math.round(teile[k * 4] * dichte) / dichte;
-      const py = Math.round(teile[k * 4 + 1] * dichte) / dichte;
+      const px = Math.round(teile[k * 6] * dichte) / dichte;
+      const py = Math.round(teile[k * 6 + 1] * dichte) / dichte;
+      spalte[k] = teile[k * 6 + 4];
+      reihe[k] = teile[k * 6 + 5];
+      gitter[reihe[k] * spalten + spalte[k]] = k;
       hx[k] = px;
       hy[k] = py;
-      staerke[k] = teile[k * 4 + 2];
-      glyphe[k] = teile[k * 4 + 3];
+      if (px < rand.x0) rand.x0 = px;
+      if (px > rand.x1) rand.x1 = px;
+      if (py < rand.y0) rand.y0 = py;
+      if (py > rand.y1) rand.y1 = py;
+      staerke[k] = teile[k * 6 + 2];
+      glyphe[k] = teile[k * 6 + 3];
       const dx = px - lage.mitteX;
       const dy = py - lage.mitteY;
       const r = Math.hypot(dx, dy) || 0.001;
       const rr = r / lage.radius;
-      abstand[k] = r;
       cosW[k] = dx / r;
       sinW[k] = dy / r;
       // Gold: direkt an den Balken am stärksten, dazu der Schein, der von ihnen nach außen strahlt.
       const amBalken = Math.exp(-abstandZumBalken(dx / lage.radius, -dy / lage.radius) * 5.5);
-      // Die Strahlen laufen bis etwa drei Logo-Halbmesser aus und werden dann schwarz.
-      const schein = rr > 0.85 ? 0.85 * Math.exp(-(rr - 0.85) * 1.05) : 0.85;
-      goldRuhe[k] = Math.max(amBalken, schein);
+      goldRuhe[k] = Math.max(amBalken, schein(rr));
       // Ein Hauch helleres Gold: nahe am Stern in der Mitte.
       kern[k] = Math.exp(-(rr / 0.45) * (rr / 0.45));
+      // Startpunkt: in der Richtung von der Namensmitte zum Platz (± 0,8 im Bogenmaß), 0,5 bis
+      // 1,4 × u weit draußen, dazu bis 0,25 × u nach oben versetzt.
+      const winkel = Math.atan2(py - my, px - mx) + (rnd() * 2 - 1) * 0.8;
+      const weite = (0.5 + rnd() * 0.9) * u;
+      sx[k] = Math.cos(winkel) * weite;
+      sy[k] = Math.sin(winkel) * weite - rnd() * 0.25 * u;
+      // Reihenfolge: Die Mitte des Namens landet zuerst, die Ränder zuletzt.
+      const abstandMitte = Math.hypot((px - mx) / m.name.b, (py - my) / m.name.h);
+      schwelle[k] = Math.max(0, Math.min(0.45, (0.62 - abstandMitte) * 0.5 + 0.22 * rnd()));
     }
 
-    // 4) Vorrat: jedes Zeichen in jeder Dichte und Färbung einmal fertig gezeichnet.
+    // 4) Vorrat: jedes Zeichen in jeder Deckkraft und Färbung einmal fertig gezeichnet.
     kb = Math.ceil(zb + 2);
     kh = Math.ceil(zh + 2);
-    atlas.width = ZEICHEN.length * 9 * kb * dichte;
-    atlas.height = GOLD_STUFEN * CREME_STUFEN * kh * dichte;
+    atlas.width = Math.ceil(ZEICHEN.length * DECK_STUFEN * kb * dichte);
+    atlas.height = Math.ceil(GOLD_STUFEN * CREME_STUFEN * kh * dichte);
     const ac = atlas.getContext("2d");
     if (!ac) return 0;
     ac.setTransform(dichte, 0, 0, dichte, 0, 0);
     ac.clearRect(0, 0, atlas.width, atlas.height);
-    ac.font = `500 ${(zh * 1.04).toFixed(2)}px ${m.mono}, ui-monospace, Menlo, monospace`;
+    // Monospace, Stärke 500, gezeichnet mit 1,25 × Zellbreite.
+    ac.font = `500 ${(zb * 1.25).toFixed(2)}px ${m.mono}, ui-monospace, Menlo, monospace`;
     ac.textAlign = "center";
     ac.textBaseline = "middle";
     ac.lineJoin = "round";
-    // Die feinen Zeichen fürs Handy tragen wenig Farbe: Sie werden etwas kräftiger nachgezogen und
-    // stehen in einem helleren Grau, damit der Name lesbar bleibt.
-    const kontur = m.fein ? Math.max(0.55, zb * 0.11) : Math.max(0.35, zb * 0.06);
     const grundGrau = m.fein ? GRAU_FEIN : GRAU;
+    // Ist der Name klein (Handy, schmale Fenster), tragen die Zeichen allein zu wenig Farbe: Dann
+    // liegt unter jedem Zeichen ein schwacher Grund in der Größe der Zelle, und die feinen Zeichen
+    // werden etwas nachgezogen. So wirken die Buchstaben geschlossen und bleiben lesbar.
+    const grund = m.fein ? 0.5 : m.name.b < 900 ? 0.28 : 0;
+    const kontur = m.fein ? zb * 0.16 : 0;
     for (let g = 0; g < GOLD_STUFEN; g++) {
       for (let c = 0; c < CREME_STUFEN; c++) {
         const go = Math.pow(g / (GOLD_STUFEN - 1), 0.85);
         const cr = c / (CREME_STUFEN - 1);
         const kanal = (i: number) => Math.round((grundGrau[i] + (GOLD[i] - grundGrau[i]) * go) * (1 - cr) + CREME[i] * cr);
         const zeile = (g * CREME_STUFEN + c) * kh;
-        for (let d = 1; d <= 9; d++) {
-          // Deckkraft folgt der Dichte; angestrahlte Zeichen dürfen etwas kräftiger sein. Die feinen
-          // Zeichen fürs Handy tragen weniger Farbe: Sie bekommen mehr Deckkraft, damit der Name lesbar bleibt.
-          const grund = m.fein ? 0.5 + 0.5 * (d / 9) : d / 9;
-          const deck = Math.min(1, grund * (1 + 0.5 * Math.max(go, cr)));
+        for (let s = 1; s <= DECK_STUFEN; s++) {
+          // Deckkraft: Dichte/9 × 0,7.
+          const deck = Math.min(1, (s / 9) * 0.7);
           const farbe = `rgba(${kanal(0)}, ${kanal(1)}, ${kanal(2)}, ${deck.toFixed(3)})`;
           // Angestrahlte Zeichen bekommen einen dunklen Saum: So bleiben sie auch
           // direkt vor dem Licht lesbar. Vor dem dunklen Grund sieht man ihn nicht.
-          const saum = Math.min(0.9, Math.max(go, cr) * (0.35 + (d / 9) * 0.65) * 1.1);
-          ac.fillStyle = farbe;
+          const saum = Math.min(0.9, Math.max(go, cr) * (0.35 + Math.min(1, s / 9) * 0.65) * 1.1);
+          // Der Grund trägt nur die dichten Zellen (die Buchstaben); die auslaufenden Strahlen bleiben feine Zeichen.
+          const grundDeck = deck * grund * Math.max(0, Math.min(1, (s - 3) / 3));
+          const grundFarbe = `rgba(${kanal(0)}, ${kanal(1)}, ${kanal(2)}, ${grundDeck.toFixed(3)})`;
           for (let z = 0; z < ZEICHEN.length; z++) {
-            const mx = ((d - 1) * ZEICHEN.length + z) * kb + kb / 2;
-            const my = zeile + kh / 2;
+            const zx = ((s - 1) * ZEICHEN.length + z) * kb + kb / 2;
+            const zy = zeile + kh / 2;
+            if (grundDeck > 0.004) {
+              ac.fillStyle = grundFarbe;
+              ac.fillRect(zx - zb / 2 + 0.3, zy - zh / 2 + 0.3, zb - 0.6, zh - 0.6);
+            }
+            ac.fillStyle = farbe;
             if (saum > 0.05) {
               ac.strokeStyle = `rgba(5, 7, 16, ${saum.toFixed(3)})`;
               ac.lineWidth = zb * 0.5;
-              ac.strokeText(ZEICHEN[z], mx, my + 0.5);
+              ac.strokeText(ZEICHEN[z], zx, zy + 0.5);
             }
-            ac.fillText(ZEICHEN[z], mx, my + 0.5);
-            // Dichte Zeichen etwas kräftiger: Der Name soll innen gefüllt wirken.
-            if (d >= (m.fein ? 2 : 6)) {
+            ac.fillText(ZEICHEN[z], zx, zy + 0.5);
+            if (kontur > 0 && s >= 4) {
               ac.strokeStyle = farbe;
               ac.lineWidth = kontur;
-              ac.strokeText(ZEICHEN[z], mx, my + 0.5);
+              ac.strokeText(ZEICHEN[z], zx, zy + 0.5);
             }
           }
         }
@@ -387,220 +475,322 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     wellen = [];
     flimmernde = [];
     verschoben = false;
-    // Aufbau und Auftritt sind getrennt: Ein laufendes Einblenden (samt dem, was
-    // danach kommen soll) übersteht einen Neuaufbau, etwa nach einer Größenänderung
-    // oder wenn die Schrift erst spät geladen ist.
-    if (still) zustand = "da";
-    else if (zustand === "verborgen" && gleichDa) zustand = "da";
-    allesNeu = true;
-    licht(lage);
+    unruhe = false;
+    // Aufbau und Auftritt sind getrennt: Ein laufender Startflug (samt dem, was danach kommen
+    // soll) übersteht einen Neuaufbau, etwa nach einer Größenänderung. Bei „weniger Bewegung“
+    // blendet der Name beim ersten Aufbau einfach ein.
+    if (still && zustand === "verborgen") {
+      zustand = "blende";
+      blendZeit = 0;
+    }
+    lichtNeu = true;
+    speicherAlt = true;
+    bewegtBild = true;
     wecken();
     return n;
   };
 
-  // Helligkeit und Kipprichtung des Lichts merken.
+  // Helligkeit und Kipprichtung des Lichts merken. Neu gezeichnet wird nur, wenn man es sähe.
   const licht = (neu: LichtLage) => {
     lage.hell = neu.hell;
     lage.kippX = neu.kippX;
     lage.kippY = neu.kippY;
-    allesNeu = true;
-    wecken();
+    // (Das leichte Atmen des Lichts, ± 2 %, zählt nicht; ein Kippen ab gut einem Hundertstel schon.)
+    if (Math.abs(lage.hell - gemalt.hell) > 0.03 || Math.abs(lage.kippX - gemalt.kippX) > 0.012 || Math.abs(lage.kippY - gemalt.kippY) > 0.012) {
+      lichtNeu = true;
+      wecken();
+    }
   };
 
-  /** Zeichnet eine Zelle an ihrer aktuellen Stelle. */
-  const zeichne = (k: number, deckkraft: number) => {
+  /** Zeichnet eine Zelle: Stelle, Größe, Deckkraft, Ausschlag der Welle und wie weit sie noch fliegt (0 = am Platz). */
+  let deckJetzt = 1;
+  const male = (c: CanvasRenderingContext2D, k: number, x: number, y: number, groesse: number, deck: number, ausschlag: number, flug: number) => {
     // Kippt das Licht zur Maus, bekommt die Seite in dieser Richtung mehr ab, die Gegenseite weniger.
-    // (Das Licht kippt schon bei kleiner Auslenkung deutlich: Zur Gegenseite reißt es ganz ab.)
     let kegel = 1 + 3.2 * (cosW[k] * lage.kippX + sinW[k] * lage.kippY);
     if (kegel < 0.04) kegel = 0.04;
     else if (kegel > 2.2) kegel = 2.2;
-    const blitz = hell[k];
-    const gold = Math.min(1, lage.hell * goldRuhe[k] * kegel + blitz * 0.55);
-    const creme = Math.min(1, lage.hell * kern[k] * 0.85 + blitz * 0.5);
+    let gold = lage.hell * goldRuhe[k] * kegel;
+    let creme = lage.hell * kern[k] * 0.85;
+    if (flug > 0) {
+      // Unterwegs: Wo ein Zeichen unter dem Licht durchfliegt, leuchtet es leicht golden.
+      const anteil = flug > 0.125 ? 1 : flug * 8;
+      const unterLicht = lage.hell * schein(Math.hypot(x - lage.mitteX, y - lage.mitteY) / lage.radius) * 0.8;
+      gold += (unterLicht - gold) * anteil;
+      creme *= 1 - anteil;
+    }
+    if (gold > 1) gold = 1;
+    if (creme > 1) creme = 1;
     const stufe = Math.round(gold * (GOLD_STUFEN - 1)) * CREME_STUFEN + Math.round(creme * (CREME_STUFEN - 1));
-    const d = blitz > 0.3 ? Math.min(9, staerke[k] + 3) : staerke[k];
-    const z = ersatz[k] >= 0 ? ersatz[k] : glyphe[k];
-    if (deckkraft !== 1) ctx.globalAlpha = deckkraft;
-    ctx.drawImage(
-      atlas,
-      ((d - 1) * ZEICHEN.length + z) * kb * dichte,
-      stufe * kh * dichte,
-      kb * dichte,
-      kh * dichte,
-      hx[k] + ox[k] - kb / 2,
-      hy[k] + oy[k] - kh / 2,
-      kb,
-      kh,
-    );
-    if (deckkraft !== 1) ctx.globalAlpha = 1;
+    // Von einer Welle getroffen: Deckkraft × (1 + Ausschlag/28), höchstens ganz deckend.
+    let s = staerke[k];
+    if (ausschlag > 0) s = Math.min(DECK_STUFEN, Math.round(s * (1 + ausschlag / 28)));
+    const z = tausch[k] >= 0 ? tausch[k] : flimmer[k] >= 0 ? flimmer[k] : glyphe[k];
+    if (deck !== deckJetzt) {
+      c.globalAlpha = deck;
+      deckJetzt = deck;
+    }
+    c.drawImage(atlas, ((s - 1) * ZEICHEN.length + z) * kb * dichte, stufe * kh * dichte, kb * dichte, kh * dichte, x - (kb * groesse) / 2, y - (kh * groesse) / 2, kb * groesse, kh * groesse);
+  };
+
+  /** Merken, in welchem Licht die Fläche zuletzt gezeichnet wurde. */
+  const lichtGemalt = () => {
+    gemalt.hell = lage.hell;
+    gemalt.kippX = lage.kippX;
+    gemalt.kippY = lage.kippY;
+    lichtNeu = false;
+  };
+
+  /** Das ruhende Bild neu in den Zwischenspeicher zeichnen: alle Zeichen am Platz, im jetzigen Licht. */
+  const ruheZeichnen = () => {
+    ruheCtx.setTransform(dichte, 0, 0, dichte, 0, 0);
+    ruheCtx.clearRect(0, 0, breite, hoehe);
+    deckJetzt = 1;
+    ruheCtx.globalAlpha = 1;
+    for (let k = 0; k < n; k++) male(ruheCtx, k, hx[k], hy[k], 1, 1, 0, 0);
+    lichtGemalt();
+    speicherAlt = false;
+  };
+
+  /**
+   * Eine einzelne Zelle neu zeichnen (ihr Zeichen hat gewechselt). Ein Zeichen ragt mit seinem Saum
+   * etwas über seine Zelle hinaus: Deshalb wird genau sein Feld geleert und alles, was hineinragt
+   * (die Zelle selbst und ihre Nachbarn), in der ursprünglichen Reihenfolge neu gezeichnet. So
+   * bleiben keine Reste stehen, auch nach beliebig vielen Wechseln.
+   */
+  const flicke = (c: CanvasRenderingContext2D, k: number) => {
+    // Das Feld auf ganze Bildpunkte legen, damit Leeren und Zeichnen sich genau decken.
+    const xa = Math.floor((hx[k] - kb / 2) * dichte) / dichte;
+    const ya = Math.floor((hy[k] - kh / 2) * dichte) / dichte;
+    const xb = Math.ceil((hx[k] + kb / 2) * dichte) / dichte;
+    const yb = Math.ceil((hy[k] + kh / 2) * dichte) / dichte;
+    c.save();
+    c.beginPath();
+    c.rect(xa, ya, xb - xa, yb - ya);
+    c.clip();
+    c.clearRect(xa, ya, xb - xa, yb - ya);
+    c.globalAlpha = 1;
+    deckJetzt = 1;
+    for (let j = reihe[k] - 1; j <= reihe[k] + 1; j++) {
+      if (j < 0 || j >= gZeilen) continue;
+      for (let i = spalte[k] - 1; i <= spalte[k] + 1; i++) {
+        if (i < 0 || i >= gSpalten) continue;
+        const q = gitter[j * gSpalten + i];
+        if (q >= 0) male(c, q, hx[q], hy[q], 1, 1, 0, 0);
+      }
+    }
+    c.restore();
+    deckJetzt = 1;
+  };
+
+  /** Den Zwischenspeicher auf die Zeichenfläche legen. */
+  const ruheZeigen = (deck: number) => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, leinwand.width, leinwand.height);
+    ctx.globalAlpha = deck;
+    ctx.drawImage(ruhe, 0, 0);
+    ctx.globalAlpha = 1;
   };
 
   const bildSchritt = (jetzt: number) => {
     rahmen = 0;
     if (vorbei || !n) return;
-    const dt = letzte ? Math.min(0.05, (jetzt - letzte) / 1000) : 0.016;
+    // Gerechnet wird mit der wirklich vergangenen Zeit: Flug und Welle dauern auch auf langsamen
+    // Geräten so lange wie vorgesehen (2,2 s und 1,3 s). Pausen zählen nicht mit: Nach einer Ruhe,
+    // einem verdeckten Fenster oder wenn der Kopfbereich aus dem Bild war, beginnt die Uhr neu.
+    const dt = letzte ? Math.min(1, (jetzt - letzte) / 1000) : 1 / 60;
     letzte = jetzt;
-    zeit += dt;
+    // Wahrscheinlichkeiten „pro Bild“ gelten für 60 Bilder je Sekunde.
+    const bilder = dt * 60;
 
     if (zustand === "verborgen") {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, leinwand.width, leinwand.height);
-      allesNeu = false;
       return;
     }
 
-    let weiter = false;
-    let voll = allesNeu;
-    allesNeu = false;
-
-    let reichweite = Infinity;
-    if (zustand === "einblenden") {
-      einblendZeit += dt;
-      // Von der Mitte nach außen, wie Licht, das sich ausbreitet.
-      const weit = Math.hypot(breite, hoehe) * 0.62;
-      const f = Math.min(1, einblendZeit / EINBLEND_DAUER);
-      reichweite = (1 - Math.pow(1 - f, 2.2)) * (weit + 160);
-      if (f >= 1) {
-        zustand = "da";
-        // Erst jetzt steht der Name wirklich: Was danach kommen soll, kommt genau einmal.
-        const danach = nachEinblenden;
-        nachEinblenden = undefined;
-        danach?.();
-      }
-      voll = true;
-      weiter = true;
+    if (zustand === "blende") {
+      // „Weniger Bewegung“: Der Name blendet einfach ein.
+      blendZeit += dt;
+      const f = Math.min(1, blendZeit / BLENDE_DAUER);
+      if (speicherAlt || lichtNeu) ruheZeichnen();
+      ruheZeigen(f * f * (3 - 2 * f));
+      bewegtBild = false;
+      if (f >= 1) zustand = "da";
+      else wecken();
+      return;
     }
 
-    if (!still) {
-      // Wellen laufen als Ring nach außen.
-      for (const w of wellen) w.t += dt;
-      wellen = wellen.filter((w) => w.t < WELLE_DAUER);
-      // Gerechnet wird nur, wenn sich wirklich etwas ändert: eine Welle läuft, der
-      // Zeiger hat sich bewegt oder Zeichen sind noch unterwegs.
-      const bewegung = wellen.length > 0 || mausNeu || unruhe;
-      mausNeu = false;
-      if (bewegung) {
-        const zug = 1 - Math.pow(0.75, dt * 60);
-        let nochUnruhe = false;
-        let nebenPlatz = false;
-        for (let k = 0; k < n; k++) {
-          let tx = 0;
-          let ty = 0;
-          if (maus.aktiv) {
-            const dx = hx[k] - maus.x;
-            const dy = hy[k] - maus.y;
-            const d2 = dx * dx + dy * dy;
-            if (d2 < MAUS_UMKREIS * MAUS_UMKREIS) {
-              const d = Math.sqrt(d2) || 0.001;
-              const f = 1 - d / MAUS_UMKREIS;
-              const schub = MAUS_SCHUB * f * f * (3 - 2 * f);
-              tx += (dx / d) * schub;
-              ty += (dy / d) * schub;
-            }
+    let imFlug = zustand === "flug";
+    let a = 0;
+    let gelandet = false;
+    if (imFlug) {
+      flugZeit += dt;
+      const fort = Math.min(1, flugZeit / FLUG_DAUER);
+      // Restweg: am Anfang sehr schnell, am Ende weich landend.
+      a = (1 - fort) * (1 - fort) * (1 - fort);
+      if (fort >= 1) {
+        imFlug = false;
+        gelandet = true;
+        zustand = "da";
+        tausch.fill(-1);
+      }
+    }
+
+    const hatteWellen = wellen.length > 0;
+    for (const w of wellen) w.t += dt;
+    if (hatteWellen) wellen = wellen.filter((w) => w.t < WELLE_DAUER);
+    const mitWellen = wellen.length > 0;
+
+    // Ruhe-Flimmern: Alle 140 ms wechseln ein paar Zellen ihr Zeichen und beim nächsten Takt zurück.
+    const einzeln: number[] = [];
+    if (!still && zustand === "da" && jetzt - flimmerZuletzt >= FLIMMER_TAKT) {
+      flimmerZuletzt = jetzt;
+      for (const k of flimmernde) {
+        flimmer[k] = -1;
+        einzeln.push(k);
+      }
+      flimmernde = [];
+      const viele = Math.max(1, Math.round(n * FLIMMER_ANTEIL));
+      for (let i = 0; i < viele; i++) {
+        const k = Math.floor(rnd() * n);
+        if (flimmer[k] >= 0) continue;
+        // Ein anderes Zeichen ähnlicher Dichte, damit der Name lesbar bleibt.
+        const wahl = nachDichte[staerke[k]];
+        let neues = wahl[Math.floor(rnd() * wahl.length)];
+        if (neues === glyphe[k]) neues = glyphe[k] > 0 ? glyphe[k] - 1 : 1;
+        flimmer[k] = neues;
+        flimmernde.push(k);
+        einzeln.push(k);
+      }
+    }
+
+    // Gerechnet wird nur, wenn sich wirklich etwas ändert: Die Zeichen fliegen, eine Welle läuft,
+    // der Zeiger hat sich bewegt oder Zeichen sind noch unterwegs. Stehen Zeichen neben ihrem Platz
+    // (ruhender Zeiger), wird auch dann alles gezeichnet, wenn sich nur das Licht oder ein Zeichen ändert.
+    const mausNah = maus.aktiv && maus.x > rand.x0 - MAUS_UMKREIS && maus.x < rand.x1 + MAUS_UMKREIS && maus.y > rand.y0 - MAUS_UMKREIS && maus.y < rand.y1 + MAUS_UMKREIS;
+    const rechnen = imFlug || gelandet || hatteWellen || unruhe || (mausNeu && (mausNah || verschoben)) || (verschoben && (lichtNeu || einzeln.length > 0));
+    mausNeu = false;
+    let weiter = imFlug || mitWellen;
+
+    if (rechnen) {
+      const zug = 1 - Math.pow(0.75, bilder);
+      const wechselFlug = 1 - Math.pow(0.93, bilder);
+      const wechselWelle = 1 - Math.pow(0.75, bilder);
+      let nochUnruhe = false;
+      let nebenPlatz = false;
+      ctx.setTransform(dichte, 0, 0, dichte, 0, 0);
+      ctx.clearRect(0, 0, breite, hoehe);
+      deckJetzt = 1;
+      ctx.globalAlpha = 1;
+      for (let k = 0; k < n; k++) {
+        // Eigener Fortschritt im Flug: 1 = ganz außen, 0 = gelandet.
+        let f = 0;
+        if (imFlug) {
+          const q = (a - schwelle[k]) / 0.55;
+          f = q <= 0 ? 0 : q >= 1 ? 1 : q * q * (3 - 2 * q);
+        }
+        // Maus und Welle wirken erst, wenn das Zeichen gelandet ist.
+        const amPlatz = f < 0.05;
+        let tx = 0;
+        let ty = 0;
+        if (amPlatz && maus.aktiv) {
+          const dx = hx[k] - maus.x;
+          const dy = hy[k] - maus.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < MAUS_UMKREIS * MAUS_UMKREIS) {
+            const d = Math.sqrt(d2) || 0.001;
+            const schub = (1 - d / MAUS_UMKREIS) * MAUS_SCHUB;
+            tx = (dx / d) * schub;
+            ty = (dy / d) * schub;
           }
+        }
+        // Jedes Bild 25 % zum Ziel hin; kleinste Reste unter 0,05 px fallen weg.
+        if (ox[k] !== tx || oy[k] !== ty) {
+          ox[k] += (tx - ox[k]) * zug;
+          oy[k] += (ty - oy[k]) * zug;
+          if (Math.abs(tx - ox[k]) < 0.05 && Math.abs(ty - oy[k]) < 0.05) {
+            ox[k] = tx;
+            oy[k] = ty;
+          } else {
+            nochUnruhe = true;
+          }
+        }
+        if (ox[k] !== 0 || oy[k] !== 0) nebenPlatz = true;
+        let wx = 0;
+        let wy = 0;
+        let ausschlag = 0;
+        if (mitWellen && amPlatz) {
           for (const w of wellen) {
             const dx = hx[k] - w.x;
             const dy = hy[k] - w.y;
             const d = Math.hypot(dx, dy) || 0.001;
-            const zurFront = (d - w.t * WELLE_TEMPO) / WELLE_BAND;
+            const zurFront = (d - WELLE_TEMPO * w.t) / WELLE_BAND;
             if (zurFront > 3 || zurFront < -3) continue;
-            const band = Math.exp(-zurFront * zurFront);
-            const schub = WELLE_SCHUB * band * Math.pow(1 - w.t / WELLE_DAUER, 1.2);
-            tx += (dx / d) * schub;
-            ty += (dy / d) * schub;
-            if (band > 0.5 && getroffen[k] !== w.nr) {
-              // Getroffen: kurz heller, und das Zeichen wechselt.
-              getroffen[k] = w.nr;
-              hell[k] = 1;
-              ersatz[k] = Math.floor(rnd() * zeichenZahl);
-              ersatzBis[k] = zeit + 0.16 + rnd() * 0.22;
-            }
-          }
-          // Noch auf dem Weg zum Ziel? (Ein ruhender Zeiger hält Zeichen verschoben, aber still.)
-          if (Math.abs(tx - ox[k]) > 0.05 || Math.abs(ty - oy[k]) > 0.05) {
-            ox[k] += (tx - ox[k]) * zug;
-            oy[k] += (ty - oy[k]) * zug;
-            nochUnruhe = true;
-          } else {
-            ox[k] = tx;
-            oy[k] = ty;
-          }
-          if (ox[k] !== 0 || oy[k] !== 0) nebenPlatz = true;
-          if (hell[k] > 0) {
-            hell[k] = Math.max(0, hell[k] - dt / 0.5);
-            nochUnruhe = true;
-          }
-          if (ersatz[k] >= 0 && !flimmert[k]) {
-            if (zeit > ersatzBis[k]) ersatz[k] = -1;
-            nochUnruhe = true;
+            const rest = 1 - w.t / WELLE_DAUER;
+            const schub = WELLE_SCHUB * Math.exp(-zurFront * zurFront) * rest * rest;
+            wx += (dx / d) * schub;
+            wy += (dy / d) * schub;
+            ausschlag += schub;
           }
         }
-        unruhe = nochUnruhe;
-        verschoben = nebenPlatz;
-        voll = true;
-        weiter = weiter || nochUnruhe || wellen.length > 0;
+        // Zeichenwechsel: unterwegs mit 7 % je Bild, von einer Welle getroffen (ab 7 px) mit 25 % je Bild.
+        if (f > 0.02 && f < 0.98) {
+          if (rnd() < wechselFlug) tausch[k] = Math.floor(rnd() * zeichenZahl);
+        } else if (ausschlag >= 7) {
+          if (rnd() < wechselWelle) tausch[k] = Math.floor(rnd() * zeichenZahl);
+        } else if (tausch[k] >= 0) {
+          // Am Ziel steht immer das richtige Zeichen.
+          tausch[k] = -1;
+        }
+        if (f >= 0.995) continue;
+        const x = hx[k] + sx[k] * f + ox[k] + wx;
+        const y = hy[k] + sy[k] * f + oy[k] + wy;
+        // Zeichen außerhalb des Bildes (mehr als 40 px über den Rand) werden nicht gezeichnet.
+        if (x < -40 || y < -40 || x > breite + 40 || y > hoehe + 40) continue;
+        male(ctx, k, x, y, 1 + 0.8 * f, f > 0 ? Math.pow(1 - f, 1.6) : 1, ausschlag, f);
+      }
+      ctx.globalAlpha = 1;
+      unruhe = nochUnruhe;
+      verschoben = nebenPlatz;
+      weiter = weiter || nochUnruhe;
+      lichtGemalt();
+      // Steht jetzt wieder alles am Platz, zeigt die Fläche das ruhende Bild: Es wandert so, wie
+      // es ist, in den Zwischenspeicher.
+      bewegtBild = imFlug || mitWellen || nebenPlatz;
+      speicherAlt = bewegtBild;
+      if (!bewegtBild) {
+        ruheCtx.setTransform(1, 0, 0, 1, 0, 0);
+        ruheCtx.clearRect(0, 0, ruhe.width, ruhe.height);
+        ruheCtx.drawImage(leinwand, 0, 0);
+      }
+    } else if (lichtNeu || bewegtBild) {
+      // Nichts bewegt sich, aber das Licht hat sich geändert: ruhendes Bild neu, dann als Ganzes zeigen.
+      if (speicherAlt || lichtNeu) ruheZeichnen();
+      ruheZeigen(1);
+      bewegtBild = false;
+    } else if (einzeln.length > 0) {
+      // Nur die Zellen, die ihr Zeichen getauscht haben: auf der Fläche und im Zwischenspeicher.
+      for (const c of speicherAlt ? [ctx] : [ctx, ruheCtx]) {
+        c.setTransform(dichte, 0, 0, dichte, 0, 0);
+        for (const k of einzeln) flicke(c, k);
       }
     }
 
-    // Ruhe-Flimmern: Ein paar Zellen tauschen kurz ihr Zeichen. Getauscht und
-    // zurückgetauscht wird nur im Takt (alle 140 ms), dazwischen bleibt das Bild stehen.
-    const einzeln: number[] = [];
-    if (!still && zustand === "da") {
-      flimmerUhr += dt;
-      if (flimmerUhr >= FLIMMER_TAKT) {
-        flimmerUhr = 0;
-        for (let i = flimmernde.length - 1; i >= 0; i--) {
-          const k = flimmernde[i];
-          if (zeit >= ersatzBis[k]) {
-            ersatz[k] = -1;
-            flimmert[k] = 0;
-            flimmernde.splice(i, 1);
-            einzeln.push(k);
-          }
-        }
-        const viele = Math.max(1, Math.round(n * FLIMMER_ANTEIL));
-        for (let i = 0; i < viele; i++) {
-          const k = Math.floor(rnd() * n);
-          if (ersatz[k] >= 0) continue;
-          // Ein anderes Zeichen ähnlicher Dichte, damit der Name lesbar bleibt.
-          const wahl = nachDichte[staerke[k]];
-          let neues = wahl[Math.floor(rnd() * wahl.length)];
-          if (neues === glyphe[k]) neues = glyphe[k] > 0 ? glyphe[k] - 1 : 1;
-          ersatz[k] = neues;
-          // Bleibt einen oder zwei Takte stehen.
-          ersatzBis[k] = zeit + FLIMMER_TAKT * (rnd() < 0.5 ? 0.9 : 1.9);
-          flimmert[k] = 1;
-          flimmernde.push(k);
-          einzeln.push(k);
-        }
-      }
-      weiter = true; // Die Uhr fürs Flimmern läuft weiter, gezeichnet wird nur das Nötige.
+    if (gelandet) {
+      // Erst jetzt steht der Name wirklich: Was danach kommen soll, kommt genau einmal.
+      const danach = nachFlug;
+      nachFlug = undefined;
+      danach?.();
     }
 
-    // Stehen Zeichen neben ihrem Platz, überlappen sie Nachbarn: Dann wird beim
-    // Flimmern das ganze Bild gezeichnet statt einzelner Zellen (nur im Flimmer-Takt).
-    if (!voll && einzeln.length > 0 && verschoben) voll = true;
-
-    ctx.setTransform(dichte, 0, 0, dichte, 0, 0);
-    if (voll) {
-      ctx.clearRect(0, 0, breite, hoehe);
-      if (reichweite === Infinity) {
-        for (let k = 0; k < n; k++) zeichne(k, 1);
-      } else {
-        for (let k = 0; k < n; k++) {
-          const a = (reichweite - abstand[k]) / 160;
-          if (a > 0) zeichne(k, a > 1 ? 1 : a);
-        }
-      }
-    } else {
-      // Nur die Zellen, die ihr Zeichen getauscht haben.
-      for (const k of einzeln) {
-        ctx.clearRect(hx[k] - zb / 2, hy[k] - zh / 2, zb, zh);
-        zeichne(k, 1);
-      }
-    }
-
+    // In Ruhe steht die Uhr: Das nächste bewegte Bild beginnt mit einem frischen Zeitschritt.
+    if (!weiter) letzte = 0;
     if (weiter) wecken();
+    else if (!still && zustand === "da") {
+      // Nur das Flimmern braucht noch die Uhr: zum nächsten Takt wieder melden.
+      window.clearTimeout(uhr);
+      uhr = window.setTimeout(wecken, Math.max(16, FLIMMER_TAKT - (performance.now() - flimmerZuletzt)));
+    }
   };
 
   const wecken = () => {
@@ -612,6 +802,14 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     wecken();
   };
   document.addEventListener("visibilitychange", wiederDa);
+
+  const welleBei = (x: number, y: number) => {
+    wellen.push({ x, y, t: 0 });
+    // Höchstens vier Wellen gleichzeitig.
+    if (wellen.length > 4) wellen.shift();
+    letzte = 0;
+    wecken();
+  };
 
   return {
     bauen,
@@ -626,31 +824,33 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       wecken();
     },
     welle: (x, y) => {
-      if (still || zustand !== "da") return;
-      wellenNr += 1;
-      wellen.push({ nr: wellenNr, x, y, t: 0 });
-      // Höchstens vier Wellen gleichzeitig.
-      if (wellen.length > 4) wellen.shift();
-      unruhe = true;
-      wecken();
+      // Nur im Bereich des Namens (plus 40 px Rand) und nicht während des Startflugs.
+      if (still || zustand !== "da" || !n) return false;
+      if (x < kasten.x - 40 || x > kasten.x + kasten.b + 40 || y < kasten.y - 40 || y > kasten.y + kasten.h + 40) return false;
+      welleBei(x, y);
+      return true;
     },
-    einblenden: (danach) => {
-      if (zustand !== "verborgen") return;
-      nachEinblenden = danach;
-      zustand = "einblenden";
-      einblendZeit = 0;
-      allesNeu = true;
+    welleMitte: () => {
+      if (still || zustand !== "da" || !n) return;
+      welleBei(kasten.x + kasten.b * 0.5, kasten.y + kasten.h * 0.42);
+    },
+    starten: (danach) => {
+      if (still || zustand !== "verborgen") return;
+      nachFlug = danach;
+      zustand = "flug";
+      flugZeit = 0;
+      letzte = 0;
       wecken();
     },
     sichtbar: (ja) => {
       imBild = ja;
       letzte = 0;
-      if (ja) allesNeu = true;
       wecken();
     },
     ende: () => {
       vorbei = true;
       cancelAnimationFrame(rahmen);
+      window.clearTimeout(uhr);
       document.removeEventListener("visibilitychange", wiederDa);
     },
   };
