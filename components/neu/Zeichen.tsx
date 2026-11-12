@@ -54,8 +54,9 @@ export function Zeichen({ className, material = "chrom" }: { className?: string;
         const ziel = { x: 0, y: 0 };
         const ist = { x: 0, y: 0 };
         let sichtbar = true;
-        const waechter = new IntersectionObserver(([eintrag]) => {
-          sichtbar = eintrag.isIntersecting;
+        const waechter = new IntersectionObserver((eintraege) => {
+          // Kommen mehrere Meldungen auf einmal, zählt die letzte (der jetzige Stand).
+          sichtbar = eintraege[eintraege.length - 1].isIntersecting;
         });
         waechter.observe(el);
 

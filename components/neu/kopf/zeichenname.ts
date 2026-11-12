@@ -17,8 +17,33 @@
 // Ein Klick schickt einen Ring durch den Namen (1150 px/s, 90 px breit, schiebt
 // bis 56 px nach außen, klingt in 1,3 s ab); getroffene Zeichen leuchten kurz
 // heller und wechseln ihr Zeichen. Das Licht des Logos färbt die Zeichen:
-// in den Strahlen golden, nahe am Stern hell-cremig, sonst grau.
+// an den vier Balken golden, nahe am Stern hell-cremig, sonst grau. Kippt das
+// Licht zur Maus, wandert der goldene Schimmer in diese Richtung mit.
 import type { LichtLage } from "./lichtszene";
+
+// Der Balken im rechten oberen Viertel des Logos (Außenkante = 1, y nach oben); die anderen sind gespiegelt.
+const BALKEN_ECKEN = [0.1299, 0.9957, 1.0, 0.1342, 0.7078, 0.1342, 0.1299, 0.71];
+
+/** Abstand eines Punktes (Logo-Einheiten) zum nächsten Balken; im Balken 0. */
+function abstandZumBalken(x: number, y: number): number {
+  const px = Math.abs(x);
+  const py = Math.abs(y);
+  let innen = true;
+  let kleinste = Infinity;
+  for (let i = 0; i < 4; i++) {
+    const ax = BALKEN_ECKEN[i * 2];
+    const ay = BALKEN_ECKEN[i * 2 + 1];
+    const ex = BALKEN_ECKEN[((i + 1) % 4) * 2] - ax;
+    const ey = BALKEN_ECKEN[((i + 1) % 4) * 2 + 1] - ay;
+    const wx = px - ax;
+    const wy = py - ay;
+    // Die Ecken laufen im Uhrzeigersinn: innen liegt, was rechts jeder Kante liegt.
+    if (ex * wy - ey * wx > 0) innen = false;
+    const t = Math.max(0, Math.min(1, (wx * ex + wy * ey) / (ex * ex + ey * ey)));
+    kleinste = Math.min(kleinste, (wx - ex * t) ** 2 + (wy - ey * t) ** 2);
+  }
+  return innen ? 0 : Math.sqrt(kleinste);
+}
 
 export type NameMasse = {
   /** Größe der Zeichenfläche in CSS-Pixeln. */
@@ -120,8 +145,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
   let glyphe = new Uint8Array(0);
   let cosW = new Float32Array(0);
   let sinW = new Float32Array(0);
-  let fern = new Float32Array(0);
-  let innen = new Float32Array(0);
+  let goldRuhe = new Float32Array(0);
   let kern = new Float32Array(0);
   let abstand = new Float32Array(0);
   // Bewegung
@@ -133,9 +157,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
   let getroffen = new Int32Array(0);
   let flimmert = new Uint8Array(0);
 
-  const lage: LichtLage = { mitteX: 0, mitteY: 0, radius: 1, winkel: [-Math.PI / 2, Math.PI / 2, Math.PI, 0], hell: 1 };
-  const strahlCos = [0, 0, 0, 0];
-  const strahlSin = [0, 0, 0, 0];
+  const lage: LichtLage = { mitteX: 0, mitteY: 0, radius: 1, kippX: 0, kippY: 0, hell: 1 };
   const maus = { x: -9999, y: -9999, aktiv: false };
   // Hat sich der Zeiger seit dem letzten Bild bewegt? Ein ruhender Zeiger kostet nichts.
   let mausNeu = false;
@@ -167,7 +189,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     leinwand.height = Math.round(hoehe * dichte);
     zb = m.zelle;
     zh = m.zelle * 1.3;
-    Object.assign(lage, neueLage, { winkel: [...neueLage.winkel] });
+    Object.assign(lage, neueLage);
 
     // 1) Graustufenbild: der Name, mit Platz für die Strahlen rundherum.
     const randX = Math.round(Math.min(m.name.x, m.name.b * 0.06));
@@ -273,8 +295,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     glyphe = new Uint8Array(n);
     cosW = new Float32Array(n);
     sinW = new Float32Array(n);
-    fern = new Float32Array(n);
-    innen = new Float32Array(n);
+    goldRuhe = new Float32Array(n);
     kern = new Float32Array(n);
     abstand = new Float32Array(n);
     ox = new Float32Array(n);
@@ -299,9 +320,12 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       abstand[k] = r;
       cosW[k] = dx / r;
       sinW[k] = dy / r;
-      fern[k] = Math.exp(-rr * 1.05);
-      innen[k] = 0.42 * Math.exp(-(rr / 0.75) * (rr / 0.75));
-      kern[k] = Math.exp(-(rr / 0.3) * (rr / 0.3));
+      // Gold: direkt an den Balken am stärksten, dazu der Schein, der von ihnen nach außen strahlt.
+      const amBalken = Math.exp(-abstandZumBalken(dx / lage.radius, -dy / lage.radius) * 5.5);
+      const schein = rr > 0.9 ? 0.5 * Math.exp(-(rr - 0.9) * 2.3) : 0.5;
+      goldRuhe[k] = Math.max(amBalken, schein * Math.min(1, rr / 0.6));
+      // Creme: nahe am Stern in der Mitte.
+      kern[k] = Math.exp(-(rr / 0.36) * (rr / 0.36));
     }
 
     // 4) Vorrat: jedes Zeichen in jeder Dichte und Färbung einmal fertig gezeichnet.
@@ -366,34 +390,24 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     return n;
   };
 
-  // Richtungen der vier Strahlen merken.
+  // Helligkeit und Kipprichtung des Lichts merken.
   const licht = (neu: LichtLage) => {
     lage.hell = neu.hell;
-    for (let i = 0; i < 4; i++) {
-      lage.winkel[i] = neu.winkel[i];
-      strahlCos[i] = Math.cos(neu.winkel[i]);
-      strahlSin[i] = Math.sin(neu.winkel[i]);
-    }
+    lage.kippX = neu.kippX;
+    lage.kippY = neu.kippY;
     allesNeu = true;
     wecken();
   };
 
   /** Zeichnet eine Zelle an ihrer aktuellen Stelle. */
   const zeichne = (k: number, deckkraft: number) => {
-    // Wie stark trifft einer der vier Strahlen diese Zelle?
-    let strahl = 0;
-    for (let i = 0; i < 4; i++) {
-      const c = cosW[k] * strahlCos[i] + sinW[k] * strahlSin[i];
-      if (c > 0) {
-        const c2 = c * c;
-        const c8 = c2 * c2 * c2 * c2;
-        const s = c8 * c8 * c2 * c2; // hoch 20: ein schmaler Strahl
-        if (s > strahl) strahl = s;
-      }
-    }
+    // Kippt das Licht zur Maus, bekommt die Seite in dieser Richtung mehr ab, die Gegenseite weniger.
+    let kegel = 1 + 1.15 * (cosW[k] * lage.kippX + sinW[k] * lage.kippY);
+    if (kegel < 0.2) kegel = 0.2;
+    else if (kegel > 2) kegel = 2;
     const blitz = hell[k];
-    const gold = Math.min(1, lage.hell * (fern[k] * (0.16 + 1.55 * strahl) + innen[k]) + blitz * 0.55);
-    const creme = Math.min(1, lage.hell * kern[k] + blitz * 0.5);
+    const gold = Math.min(1, lage.hell * goldRuhe[k] * kegel + blitz * 0.55);
+    const creme = Math.min(1, lage.hell * kern[k] * 0.85 + blitz * 0.5);
     const stufe = Math.round(gold * (GOLD_STUFEN - 1)) * CREME_STUFEN + Math.round(creme * (CREME_STUFEN - 1));
     const d = blitz > 0.3 ? Math.min(9, staerke[k] + 3) : staerke[k];
     const z = ersatz[k] >= 0 ? ersatz[k] : glyphe[k];

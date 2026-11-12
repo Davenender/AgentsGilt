@@ -595,7 +595,8 @@ export async function starteSzene(
     renderer.setAnimationLoop(an ? bild : null);
   };
   // Nur rechnen, solange der Kopfbereich zu sehen ist.
-  const waechter = new IntersectionObserver(([eintrag]) => laufen(eintrag.isIntersecting));
+  // Kommen mehrere Meldungen auf einmal, zählt die letzte (der jetzige Stand).
+  const waechter = new IntersectionObserver((eintraege) => laufen(eintraege[eintraege.length - 1].isIntersecting));
   waechter.observe(leinwand);
   laufen(true);
 

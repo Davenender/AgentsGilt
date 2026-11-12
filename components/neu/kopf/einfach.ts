@@ -180,8 +180,9 @@ export function starteEinfach(leinwand: HTMLCanvasElement, anker: HTMLElement, a
   let waechter: IntersectionObserver | undefined;
   if (!still) {
     held.addEventListener("pointerdown", tippen);
-    waechter = new IntersectionObserver(([eintrag]) => {
-      sichtbar = eintrag.isIntersecting;
+    waechter = new IntersectionObserver((eintraege) => {
+      // Kommen mehrere Meldungen auf einmal, zählt die letzte (der jetzige Stand).
+      sichtbar = eintraege[eintraege.length - 1].isIntersecting;
       if (sichtbar && !rahmen) {
         letzte = 0;
         rahmen = requestAnimationFrame(schritt);

@@ -1,0 +1,48 @@
+/* Testseite für das Licht allein: schwarzer Grund, das Licht in Bildmitte. */
+.ag-lichttest {
+  position: fixed;
+  inset: 0;
+  background: #000;
+}
+.ag-lichttest canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Platz des Logos: so groß wie im Kopfbereich. */
+.ag-lichttest__platz {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(260px, 46svh, 460px);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+}
+/* Auf der Testseite steht nur das Licht: Der Chat-Knopf des Stammlayouts bleibt hier weg. */
+body:has(.ag-lichttest) > :not(.ag-neu) {
+  display: none;
+}
+/* Ruhiges Bild des Lichts: nur bei „weniger Bewegung“ oder wenn die Szene nicht zeichnen kann.
+   Sonst wird es nicht geladen. 3,2-fache Logo-Höhe, an den Rändern weich in den Grund. */
+.ag-lichttest__bild {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(clamp(260px, 46svh, 460px) * 3.2);
+  max-width: none;
+  height: auto;
+  translate: -50% -50%;
+  -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
+}
+.ag-lichttest[data-still] .ag-lichttest__bild {
+  display: block;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ag-lichttest__bild {
+    display: block;
+  }
+}

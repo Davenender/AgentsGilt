@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "@/lib/gsap";
+// Als Datei eingebunden: Die Adresse trägt dann eine Prüfsumme, ein neu aufgenommenes Bild kommt sicher an.
+import lichtBild from "@/public/kopf/licht-logo.jpg";
 import { marke } from "@/lib/inhalt-neu";
 import { Wortmarke } from "../Rahmen";
 import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, istVorschau } from "../umgebung";
@@ -14,13 +16,14 @@ import { erzeugeZeichenname } from "./zeichenname";
  * hinten das Licht-Logo, vorn der Name aus Zeichen-Teilchen. Diese Datei hält
  * beide im Takt und steuert das goldene Licht von unten (Scroll-Hinweis).
  *
- * - Am Computer läuft das Licht als three.js-Szene mit God Rays (lichtszene.ts,
- *   wird nachgeladen): Das Logo dreht und neigt sich leicht mit der Maus, die
- *   Strahlen wandern. Die Zeichen weichen dem Zeiger aus; ein Klick schickt
- *   eine Welle hindurch.
- * - Am Handy und bei „weniger Bewegung“ steht das Licht als ruhiges Bild
- *   (einmal aus derselben Szene aufgenommen, am Handy atmet es leicht).
- *   Tippen löst die Welle aus; bei „weniger Bewegung“ ist alles still.
+ * - Das Licht läuft als three.js-Szene mit dem God-Rays-Effekt der Bibliothek
+ *   postprocessing (lichtszene.ts, wird nachgeladen). Am Computer mit 80 Proben:
+ *   Die Wand mit dem Logo-Loch kippt zur Maus, das Licht fächert sich als Kegel
+ *   auf. Die Zeichen weichen dem Zeiger aus; ein Klick schickt eine Welle hindurch.
+ * - Am Handy läuft dieselbe Szene mit 60 Proben, solange es flüssig bleibt.
+ *   Ruckelt es, steht stattdessen ein ruhiges Bild des Lichts (einmal aus
+ *   derselben Szene aufgenommen). Tippen löst die Welle aus.
+ * - Bei „weniger Bewegung“ steht das ruhige Bild, alles ist still.
  * - Scroll-Hinweis nur durch Licht: Wer nach etwa 4 Sekunden nicht gescrollt
  *   hat, sieht von unten ein warmes goldenes Licht hereinstrahlen. Beim
  *   Scrollen blendet es aus.
@@ -28,6 +31,10 @@ import { erzeugeZeichenname } from "./zeichenname";
  * Gerechnet wird nur, solange der Kopfbereich zu sehen ist. Ohne Skript stehen
  * Name und Logo als gewöhnliche Grafik da.
  */
+// Hat das Gerät bei diesem Besuch schon einmal geruckelt, versucht es die Seite nicht noch einmal
+// (nur im Arbeitsspeicher gemerkt, nichts wird im Browser abgelegt).
+let geraetRuckelt = false;
+
 export function LichtName() {
   const ebene = useRef<HTMLDivElement>(null);
   const zeichenLeinwand = useRef<HTMLCanvasElement>(null);
@@ -61,17 +68,11 @@ export function LichtName() {
     let aufgetreten = still;
     let eingeblendet = still;
 
-    // Lage des Lichts ohne laufende Szene: Logo steht gerade, Strahlen nach oben, unten, links, rechts.
+    // Lage des Lichts ohne laufende Szene: Die Wand steht gerade, nichts kippt.
     const ruheLage = (): LichtLage => {
       const e = el.getBoundingClientRect();
       const p = platz.getBoundingClientRect();
-      return {
-        mitteX: p.left + p.width / 2 - e.left,
-        mitteY: p.top + p.height / 2 - e.top,
-        radius: p.height / 2,
-        winkel: [-Math.PI / 2, Math.PI / 2, Math.PI, 0],
-        hell: 1,
-      };
+      return { mitteX: p.left + p.width / 2 - e.left, mitteY: p.top + p.height / 2 - e.top, radius: p.height / 2, kippX: 0, kippY: 0, hell: 1 };
     };
 
     const vermessen = async () => {
@@ -113,7 +114,8 @@ export function LichtName() {
           mono,
           zeilen: gestapelt ? woerter : [woerter.join(" ")],
         },
-        szene?.lage ?? ruhe,
+        // Am Handy steht der Schimmer ruhig, auch wenn sich das Licht dort leicht wiegt.
+        szene ? (maus ? szene.lage : { ...szene.lage, kippX: 0, kippY: 0 }) : ruhe,
         eingeblendet,
       );
       gebaut = true;
@@ -122,22 +124,39 @@ export function LichtName() {
       else delete held.dataset.ln;
     };
 
-    // Am Computer: die Licht-Szene nachladen.
-    if (maus) {
+    // Die Licht-Szene nachladen (nicht bei „weniger Bewegung“). Kann sie nicht starten oder
+    // kommt das Gerät nicht flüssig mit, steht stattdessen das ruhige Bild des Lichts.
+    const stattBild = () => {
+      if (vorbei) return;
+      szene?.ende();
+      szene = undefined;
+      held.dataset.licht = "bild";
+      feld.licht(ruheLage());
+    };
+    if (still || geraetRuckelt) {
+      held.dataset.licht = "bild";
+    } else {
       import("./lichtszene")
         .then(({ starteLichtSzene }) => {
           if (vorbei) return;
-          szene = starteLichtSzene(el, platz, (lage) => feld.licht(lage));
+          szene = starteLichtSzene(el, platz, {
+            // Am Computer 80 Proben je Bildpunkt, am Handy 60.
+            proben: maus ? 80 : 60,
+            wand: 0x070b16,
+            maus,
+            // Die Zeichen erfahren, wie hell das Licht gerade ist. Am Computer wandert ihr Schimmer
+            // außerdem mit dem Lichtkegel; am Handy steht er ruhig (das Licht wiegt sich nur leicht).
+            beiBild: (lage) => feld.licht(maus ? lage : { ...lage, kippX: 0, kippY: 0 }),
+            beiAusfall: () => {
+              geraetRuckelt = true;
+              stattBild();
+            },
+          });
           held.dataset.licht = "live";
           // Läuft der Auftritt schon, ist das Licht sofort da.
           if (aufgetreten) szene.zeigen(true);
         })
-        .catch(() => {
-          // Kein WebGL: Dann steht das ruhige Bild des Lichts.
-          if (!vorbei) held.dataset.licht = "bild";
-        });
-    } else {
-      held.dataset.licht = "bild";
+        .catch(stattBild);
     }
 
     // Auftritt. (Die eigentliche Startanimation folgt in einem späteren Auftrag.)
@@ -203,7 +222,9 @@ export function LichtName() {
     });
     beobachter.observe(el);
     beobachter.observe(platz);
-    const waechter = new IntersectionObserver(([eintrag]) => feld.sichtbar(eintrag.isIntersecting));
+    // Kommen mehrere Meldungen auf einmal (etwa wenn die Seite beim Laden gleich nach unten springt),
+    // zählt die letzte: Sie beschreibt den jetzigen Stand.
+    const waechter = new IntersectionObserver((eintraege) => feld.sichtbar(eintraege[eintraege.length - 1].isIntersecting));
     waechter.observe(el);
     window.addEventListener("scroll", beimScrollen, { passive: true });
 
@@ -246,8 +267,8 @@ export function LichtName() {
   return (
     <>
       <div ref={ebene} className="ag-ln ag-ln--hinten" data-weg="buehne" aria-hidden="true">
-        {/* Ruhiges Bild des Lichts für Handy und „weniger Bewegung“. Am Computer bleibt es ausgeblendet und wird nicht geladen. */}
-        <Image className="ag-ln__standbild" src="/kopf/licht-logo.jpg" alt="" width={1472} height={1472} sizes="(max-width: 767px) 250vw, 1472px" loading="lazy" />
+        {/* Ruhiges Bild des Lichts: nur bei „weniger Bewegung“ oder wenn die Szene nicht flüssig läuft. Sonst wird es nicht geladen. */}
+        <Image className="ag-ln__standbild" src={lichtBild} alt="" sizes="(max-width: 767px) 250vw, 1472px" loading="lazy" />
       </div>
       <div className="ag-kopf5__mitte" data-weg="oben">
         {/* Der Kasten ist so hoch wie das Licht-Logo, der Schriftzug steht mittig darin. */}

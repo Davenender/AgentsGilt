@@ -107,19 +107,26 @@ Gemeinsam: Das Zeichen neigt sich zur Maus, das Glanzlicht folgt ihr, ein Glanzs
 
 Zu sehen unter `/varianten/kopf/kern`. Code: `components/neu/kopf/LichtName.tsx` (hält alles im Takt), `lichtszene.ts` (Licht), `zeichenname.ts` (Name), `components/neu/Kopfleiste.tsx` (Navigation). Vorbilder nur für Wirkung und Machart, eigene Umsetzung, kein Code übernommen: das Licht von madebyigor.com, die Zeichen von ksenpanchenko.com.
 
-**1 · Licht-Logo (statt des 3D-Logos)**
-- **Lichtquelle:** Hinter der Logo-Mitte sitzt eine weiche Lichtkugel, warmes Gold, im Kern fast weiß; ihr Leuchten flackert leicht mit langsamem Rauschen.
-- **Verdeckender Gegenstand:** unser Logo als flacher dunkler Scherenschnitt mit den vier Balken. Die Strahlen scheinen durch die Lücken zwischen den Balken, deshalb hat der Lichtstern von selbst unsere Form (vier Strahlen: oben, unten, links, rechts). Die Kanten der Balken glimmen golden, der Stern in der Mitte leuchtet weiß.
-- **Über allem:** feines Filmkorn über das ganze Bild und ein weicher Glanz (Bloom).
-- **Wirkung:** dunkel, körnig, zurückhaltend. Nichts Grelles, keine harten Ränder, keine sichtbaren Kreise.
-- **Bewegung:** Die Logo-Form dreht und neigt sich leicht mit der Maus, die Strahlen wandern und fächern sich. In Ruhe atmet das Licht langsam.
-- **Technik:** three.js mit der Bibliothek `postprocessing`; wird nur am Computer nachgeladen. Rechnet nur, solange der Kopfbereich zu sehen ist, mit höchstens 2-facher Pixeldichte; kommt der Rechner nicht mit, wird stufenweise gröber gerechnet. God Rays mit 80 Proben je Bildpunkt, das Licht nimmt nach außen ab.
-- **Eigener God-Rays-Effekt:** Der mitgelieferte Effekt der Bibliothek ließ das Licht durch die Balken hindurchscheinen (alles wurde ein heller Fleck). Der Effekt ist deshalb selbst geschrieben, als Effekt für `postprocessing`: Steht ein Balken im Weg, kommt dahinter kein Licht an. Auch das Filmkorn ist ein eigener Effekt: Es folgt der Helligkeit, damit der fast schwarze Grund fast schwarz bleibt.
+**1 · Licht-Logo (statt des 3D-Logos) – am 12.11.2026 ein zweites Mal neu gebaut, gilt ab jetzt**
+
+Ziel in einem Satz: Man sieht kein Objekt, keine Kante und keine Fläche, nur ein weiches, körniges, gedimmtes goldenes Licht, das in der Form unseres Logos aus dem Dunkel strahlt. Im Kern fast weiß, an den vier Balken warmes Gold.
+
+- **Fertiger Effekt der Bibliothek, kein eigener:** Das Licht kommt vom `GodRaysEffect` der Bibliothek `postprocessing`, das Korn von deren `NoiseEffect`. Der frühere eigene Strahlen-Effekt, die Balken als Körper, die goldenen Kanten und der weiße Blitz sind vollständig gelöscht.
+- **Aufbau (so macht es auch das Vorbild):**
+  1. In der Szene steht nur eine **dunkle Wand** in der Farbe des Grundes. In ihrem Shader werden die Stellen unseres Logos (vier Balken und Stern) verworfen (`discard`): Dort hat die Wand Löcher und schreibt keine Tiefe. Die Wand wird ganz normal gezeichnet und schreibt sonst überall Tiefe.
+  2. Die **Lichtscheibe** ist nicht Teil der Szene. Sie wird nur dem Effekt als Lichtquelle (`lightSource`) übergeben, durchsichtig und ohne Tiefe zu schreiben. Der Effekt vergleicht sie mit der Tiefe der Wand: Licht kommt nur durch die Löcher.
+  3. Aus diesem Licht zieht der Effekt die Strahlen.
+- **Farbe:** Die Farbe des Lichts hängt am Loch, nicht an der Scheibe: durch den Stern fast weiß, durch die Balken warmes Gold, auch wenn die Wand kippt.
+- **Grund hinter den Löchern:** Er hat genau die Farbe der Wand und ist als Hintergrund der Szene gesetzt (nicht als Löschfarbe). Sonst kommt die Farbe in den Löchern zu hell an und man sieht die Balken als blasse Flächen.
+- **Bewegung:** Die Wand kippt zur Maus. Die Lichtscheibe sitzt hinter ihr auf ihrer Achse und wandert dadurch zur Gegenseite: Die Strahlen fächern sich als Lichtkegel zur Maus hin auf, auf der abgewandten Seite reißt das Licht ab. In Ruhe atmet und flackert das Licht leicht. Ohne Maus (Handy) wiegt sich die Wand langsam von selbst.
+- **Werte (mit dem Vorbild abgeglichen):** 80 Proben je Bildpunkt am Computer, 60 am Handy; Dichte 0,96, Abklingen 0,92, Gewicht 0,25, Belichtung 0,29 (Abklingen und Gewicht werden auf die Probenzahl umgerechnet, damit das Licht am Handy gleich aussieht); halbe Auflösung mit Weichzeichner; Lichtscheibe eine Logo-Höhe hinter der Wand; Korn als Überlagerung (bleibt auf dunklem Grund dunkel).
+- **Technik:** three.js mit `postprocessing`, wird nachgeladen (nicht bei „weniger Bewegung“). Rechnet nur, solange der Kopfbereich zu sehen ist, mit höchstens 2-facher Pixeldichte. Vor dem Auftritt wird nur einmal der dunkle Grund gezeichnet; in Ruhe genügt jedes zweite Bild.
+- **Testseite:** `/varianten/licht-test` zeigt das Licht allein (schwarze Wand mit Logo-Loch, Lichtscheibe, God Rays, Filmkorn; ohne Name und Kopfleiste). Dort wurde es neben madebyigor.com/lab gelegt (Maus in der Mitte und links oben) und angeglichen: Weichheit, Körnung, Helligkeit, Kippen zum Lichtkegel. Nur die Farbe (Gold) und die Form (unser Logo) sind anders. Mit `?wand=070b16` zeigt die Testseite das Licht auf dem Grund des Kopfbereichs. Bei „weniger Bewegung“ steht auch dort nur das ruhige Bild. Wer das Licht ändert, gleicht zuerst dort ab.
 
 **2 · Name aus Zeichen-Teilchen, deutlich größer**
 - **Form:** „AGENTS GILT“ in unserer schmalen, fetten Schrift wird unsichtbar als Graustufenbild gezeichnet, am Rand weich, dazu ein paar feine Strahlen nach außen (wie spritzende Tinte). Das Bild wird in ein Raster zerlegt (Zellen am Computer 6,5 px, am Handy 5 px). Jede Zelle hat eine Dichte von 1 bis 9; daraus folgen Deckkraft (Dichte/9) und Zeichen. Zeichensatz `· . : - = + * / % #`: innen dichte Zeichen (# %), am Rand lockere (· . :). Zellen unter 8 % Abdeckung fallen weg.
 - **Größe:** fast die ganze Breite (am Computer bis 1760 px). Am Handy stehen die beiden Wörter übereinander, damit der Name groß genug bleibt.
-- **Farbe:** Grundfarbe grau. Wo das Licht des Logos die Zeichen trifft (in den vier Strahlen), leuchten sie golden, nahe am weißen Stern hell-cremig. Bewegt sich das Licht, wandert der Schimmer mit. Angestrahlte Zeichen haben einen dunklen Saum, damit der Name auch direkt vor dem Licht lesbar bleibt.
+- **Farbe:** Grundfarbe grau. Wo das Licht des Logos die Zeichen trifft (an den vier Balken und in ihrem Schein), leuchten sie golden, nahe am weißen Stern hell-cremig. Kippt das Licht zur Maus, wandert der Schimmer in diese Richtung mit. Angestrahlte Zeichen haben einen dunklen Saum, damit der Name auch direkt vor dem Licht lesbar bleibt.
 - **Lage:** vor dem Licht; das Licht scheint zwischen den Zeichen durch.
 - **Zeichnen:** Jedes Zeichen liegt einmal fertig in einem Vorrat (Monospace Cutive Mono, Stärke 500), in jeder Dichte und Färbung. Neu gezeichnet wird nur, wenn sich etwas bewegt.
 - **Ruhe-Flimmern:** Alle 140 ms tauschen rund 0,4 % der Zellen kurz ihr Zeichen.
@@ -138,15 +145,19 @@ Nur diese Dinge, kein weiterer Text, kein Hinweistext:
 
 **Scroll-Hinweis nur durch Licht:** Wer nach etwa 4 Sekunden nicht gescrollt hat, sieht von ganz unten ein warmes goldenes Licht hereinstrahlen, über die ganze Breite, langsam pulsierend (etwa alle 2,6 s). Beim Scrollen blendet es aus; zurück am Seitenanfang kommt es nach 4 Sekunden wieder. Es ersetzt im Kopfbereich die frühere Glut-Kante.
 
-**Handy und „weniger Bewegung“:** Das Licht steht als ruhiges Bild (`public/kopf/licht-logo.jpg`, einmal aus der eigenen Licht-Szene aufgenommen, kein fremdes Bild; am Handy atmet es leicht über die Deckkraft). three.js wird dort nicht geladen. Der Name aus Zeichen steht ruhig, Tippen löst die Welle aus. „Anrufen“ ist immer sichtbar. Bei „weniger Bewegung“ ist alles still.
+**Handy:** Das Licht läuft dort ebenfalls live, mit 60 Proben, solange es flüssig bleibt. Die Szene misst mit, und zwar erst nach dem Auftritt (das Laden der Seite zählt nicht als Ruckeln) und nur an gezeichneten Bildern, in Fenstern von 30 Bildern: Dauert ein Bild im Schnitt länger als 30 ms, rechnet sie erst gröber (Pixeldichte 1,25, dann 1); ruckelt es auch dann noch (mindestens zwei Fenster in Folge), endet sie und es steht das **ruhige Bild** des Lichts (`public/kopf/licht-logo.jpg`, einmal aus der eigenen Szene aufgenommen, kein fremdes Bild; es atmet leicht über die Deckkraft). Dasselbe gilt, wenn das Gerät kein WebGL kann, nicht in 16-Bit-Zwischenbilder zeichnen kann oder die Grafik mittendrin ausfällt. Hat ein Gerät einmal geruckelt, versucht die Seite es bis zum Neuladen nicht noch einmal (nur im Arbeitsspeicher gemerkt, nichts wird im Browser abgelegt). Der Name aus Zeichen steht ruhig, Tippen löst die Welle aus. „Anrufen“ ist immer sichtbar.
+
+**„Weniger Bewegung“:** Es steht das ruhige Bild, three.js wird nicht geladen, alles ist still.
+
+**Ruhiges Bild neu aufnehmen**, wenn sich das Licht ändert (aus der laufenden Szene, ohne Zeichen und Kopfleiste, Quadrat um die Logo-Mitte mit 3,2-facher Logo-Höhe). Es ist als Datei eingebunden, seine Adresse trägt eine Prüfsumme: Ein neues Bild kommt sicher bei allen an.
 
 **Offen für den nächsten Auftrag:** die Startanimation (derzeit nur: Licht blendet auf, der Name blendet von der Mitte nach außen ein, dann die eine Hinweis-Welle) und die Abschnitte unter dem Kopfbereich.
 
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
-- **Kennzeichen „Das Licht folgt“:** Das Logo dreht und neigt sich mit dem Zeiger, die Strahlen wandern, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
+- **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
 - Kein Scroll-Zwang: normales Scrollen, kein Festhalten ganzer Bereiche, Animationen begleiten nur. `prefers-reduced-motion` zeigt alles sofort im Endzustand.
-- **Handy leichter:** Licht-Logo als ruhiges Bild, Name aus Zeichen steht still, Tippen löst die Welle aus (4d); kein Zeiger-Effekt, kürzerer Ladebildschirm, Tropfen als einfache Linie mit Punkt, Kopfleiste als schwebende Kachel, Anrufen-Knopf in voller Breite am Daumen.
+- **Handy leichter:** Licht mit 60 statt 80 Proben, ohne Maus (wiegt sich leicht von selbst), ruhiges Bild nur, wenn es ruckelt; Name aus Zeichen steht still, Tippen löst die Welle aus (4d); kein Zeiger-Effekt, kürzerer Ladebildschirm, Tropfen als einfache Linie mit Punkt, Kopfleiste als schwebende Kachel, Anrufen-Knopf in voller Breite am Daumen.
 
 ## 6. Zustände und Mengen
 - Formular: leer, Fehler am Feld, sendet, Erfolg (Texte aus `docs/texte.md`, gesiezt). Chat: zu, Sprechblase, offen, Übergabe, Support-Chat. Ladebildschirm: erster Besuch, Wiederkehr, reduzierte Bewegung, kein JavaScript (Seite sofort sichtbar).
@@ -155,7 +166,7 @@ Nur diese Dinge, kein weiterer Text, kein Hinweistext:
 ## 7. Grenzen
 - Keine Änderung an `app/api`, `lib` (außer Texten in `lib/content.ts` und reinen Anzeige-Texten im Chat-Widget), Metadaten, Statistik, Terminseiten-Logik, Weiterleitung. Alle Anker-IDs bleiben. Die sechs Leistungstitel bleiben wörtlich (Schnittstellenwerte für Formular, Chat und Notion, siehe `docs/funktionen.md` 4a); ein anderer Anzeigename nur als getrennter Anzeigetext.
 - Nie: lila Verläufe, Inter, 3D-Blobs, KI-Standard-Kästchenraster, Emojis als Symbole, Glas überall, reines Schwarz ohne Farbe, erfundene Zahlen oder Stimmen. Keine fremde Seite 1:1.
-- Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML). Das Licht (three.js mit postprocessing) wird nur am Computer nachgeladen und rechnet nur, wenn es zu sehen ist; am Handy steht ein Bild. Glas-Effekt nur an der schwebenden Kopfleiste.
+- Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML). Das Licht (three.js mit postprocessing) wird nachgeladen und rechnet nur, wenn es zu sehen ist; ruckelt es, steht ein Bild. Glas-Effekt nur an der schwebenden Kopfleiste.
 
 ## 8. Was die Code-Fehlersuche in Schritt 2 gelehrt hat (im Bau von Anfang an vermeiden)
 - Keine kursive Serife in Riesen-Überschriften: Betonungswörter stehen aufrecht (von David bestätigt, 11.11.2026).
@@ -175,4 +186,5 @@ Nur diese Dinge, kein weiterer Text, kein Hinweistext:
 7. **Aufbau:** Riesen-Schriftzug (Schritt 3 → 4).
 8. **Kopfbild:** Kern im Schriftzug (Schritt 4) – der Name riesig quer über die Mitte, das Logo genau darin. Die Ausführung mit 3D-Zeichen ist durch Entscheidung 9 ersetzt.
 9. **Richtungswechsel (Zwischenauftrag vor Schritt 5):** Das 3D-Logo fällt weg. Kopfbereich in zwei Ebenen: hinten das Logo aus Licht, vorn der Name aus Zeichen-Teilchen (erster Wurf, Abschnitt 4c).
-10. **Korrektur Kopfbereich (12.11.2026):** Licht und Name komplett neu gebaut (Licht als Scherenschnitt vor einer Lichtkugel mit God Rays, three.js mit postprocessing; Name als Zeichen-Raster, fast über die ganze Breite). Kopfbereich ohne Text, neue Navigationsleiste aus dunklem Glas mit Lichtpunkt, Scroll-Hinweis nur durch goldenes Licht von unten; Überschrift, Unterzeile und Telefon-Block vorerst direkt darunter (Abschnitt 4d). Stil: fast schwarz mit dunkelblauen Akzenten, Name grau, Gold beim Licht und bei wichtigen Wörtern, nichts Helles.
+10. **Korrektur Kopfbereich (12.11.2026):** Licht und Name komplett neu gebaut (Licht mit God Rays, three.js mit postprocessing; Name als Zeichen-Raster, fast über die ganze Breite). Kopfbereich ohne Text, neue Navigationsleiste aus dunklem Glas mit Lichtpunkt, Scroll-Hinweis nur durch goldenes Licht von unten; Überschrift, Unterzeile und Telefon-Block vorerst direkt darunter (Abschnitt 4d). Stil: fast schwarz mit dunkelblauen Akzenten, Name grau, Gold beim Licht und bei wichtigen Wörtern, nichts Helles.
+11. **Licht neu, mit dem fertigen Effekt (12.11.2026):** Der eigene Strahlen-Effekt, die Balken als Körper, die goldenen Kanten und der weiße Blitz sind gelöscht. Das Licht kommt jetzt vom fertigen `GodRaysEffect` der Bibliothek, richtig eingebunden: Wand mit Logo-Loch in der Szene, Lichtscheibe nur als Lichtquelle (Abschnitt 4d, Punkt 1). Zuerst auf der Testseite `/varianten/licht-test` mit madebyigor.com/lab abgeglichen, dann in den Kopfbereich gebaut. Am Handy läuft es live mit 60 Proben; das ruhige Bild steht nur, wenn es ruckelt, und bei „weniger Bewegung“.

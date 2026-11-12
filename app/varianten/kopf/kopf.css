@@ -175,8 +175,8 @@
   padding-top: 0;
   align-items: center;
   justify-content: center;
-  /* Gleicher Verlauf wie in der Licht-Szene, damit das ruhige Bild nahtlos sitzt. */
-  background: linear-gradient(180deg, #090f26 0%, #080d1e 38%, #070b16 70%);
+  /* Fast schwarz: dieselbe Farbe wie die Wand der Licht-Szene. */
+  background: #070b16;
 }
 .ag-kopf5__mitte {
   position: relative;
@@ -197,6 +197,13 @@
 .ag-ln--vorn {
   z-index: 2;
 }
+/* Dunkelblauer Akzent: ein Hauch Blau von oben, über dem Licht, unter den Zeichen. */
+.ag-ln--hinten::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(20, 34, 84, 0.34) 0%, rgba(20, 34, 84, 0.1) 30%, transparent 58%);
+}
 .ag-ln canvas {
   position: absolute;
   inset: 0;
@@ -204,7 +211,7 @@
   width: 100%;
   height: 100%;
 }
-/* Licht-Szene (Computer): blendet über das ruhige Bild. */
+/* Licht-Szene: blendet ein, sobald sie läuft. */
 .ag-ln__licht {
   opacity: 0;
   transition: opacity 0.9s var(--weich);
@@ -218,7 +225,7 @@
   position: absolute;
   top: var(--ly, 50%);
   left: var(--lx, 50%);
-  /* Am Computer läuft die Licht-Szene: Dort wird das Bild gar nicht erst geladen. */
+  /* Solange die Licht-Szene läuft, wird das Bild gar nicht erst geladen. */
   display: none;
   /* Ohne Skript gibt es keine gemessene Größe: Dann gilt die halbe Logo-Höhe aus dem Stylesheet. */
   width: calc(var(--lr, calc(var(--licht) / 2)) * 6.4);
@@ -228,11 +235,11 @@
   -webkit-mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
   mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
 }
-/* Gezeigt wird es am Handy, bei „weniger Bewegung“ und wenn die Szene nicht starten kann. */
+/* Gezeigt wird es bei „weniger Bewegung“ und wenn die Szene nicht starten kann oder ruckelt. */
 .ag-hero[data-licht="bild"] .ag-ln__standbild {
   display: block;
 }
-@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) {
   .ag-ln__standbild {
     display: block;
   }
@@ -283,11 +290,9 @@
     opacity: 0.45;
   }
 }
-@media (hover: none), (pointer: coarse) {
-  /* Am Handy rechnet das Licht nicht: Das Bild atmet nur über die Deckkraft. */
-  .ag-ln__standbild {
-    animation: ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite alternate;
-  }
+/* Steht das ruhige Bild, weil das Gerät nicht mitkommt, atmet es leicht über die Deckkraft. */
+.ag-hero[data-licht="bild"] .ag-ln__standbild {
+  animation: ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite alternate;
 }
 @keyframes ag-ln-atmen {
   from {
