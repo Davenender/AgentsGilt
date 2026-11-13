@@ -46,18 +46,20 @@ export const wasWirMachen = {
   fussnote: "* Gilt nur bei sehr einfachen Projekten und ist kein Versprechen.",
 };
 
-// Die erste Aussage unter dem Kopfbereich: die Hauptüberschrift der Seite. Die Buchstaben
-// entschlüsseln sich, das Schlüsselwort leuchtet golden. Darunter ein kurzer Satz und „Jetzt anrufen“.
+// Die erste Aussage unter dem Kopfbereich: die Hauptüberschrift der Seite. Sie setzt sich aus
+// Zufallszeichen zusammen, zuerst mit dem falschen Wort („Tagen“); das zerfällt und rastet als
+// das richtige ein („Stunden“), das golden aufleuchtet. Darunter Davids Text in der Sie-Form.
 export const aussage = {
-  vor: "Wir bauen in",
-  gold: "Stunden",
-  nach: ", wofür Agenturen Wochen brauchen.",
-  satz: hero.unterzeile,
+  vor: wasWirMachen.vor.trim(),
+  erst: wasWirMachen.falsch,
+  gold: wasWirMachen.richtig,
+  nach: wasWirMachen.nach,
+  text: wasWirMachen.text,
   fussnote: wasWirMachen.fussnote,
 };
 
-// Die vier Wörter am Lichtstrahl und im laufenden Band.
-export const worte = ["Persönlich", "Schnell", "Feste Preise", "Aus Rhein-Main"];
+// Die Wörter im Wörter-Feld um den Stern und im laufenden Band.
+export const worte = ["Persönlich", "Schnell", "Feste Preise", "Aus Rhein-Main", "Modern", "Rund um die Uhr"];
 
 type LeistungsText = { kurz: string; text: string; punkte: string[] };
 
@@ -158,7 +160,7 @@ export const warum = {
 
 // „Unser Versprechen“ im Abschnitt „Warum wir“: drei Karten (aus den bisherigen Vorteilen).
 export const versprechen = {
-  text: wasWirMachen.text,
+  text: "Technik wie bei den Großen – persönlich betreut.",
   titel: "Unser Versprechen",
   karten: [
     { titel: "Persönlich", text: "Ein direkter Ansprechpartner statt Hotline-Warteschleife." },

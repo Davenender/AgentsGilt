@@ -53,7 +53,7 @@ export function LichtTest() {
           // ?nur=stern zeigt den ersten Zustand der Startanimation: nur der Stern, Balken zu, keine
           // langen Strahlen. Davon wird das Stern-Bild aufgenommen (public/kopf/licht-stern.webp).
           const nurStern = new URLSearchParams(window.location.search).get("nur") === "stern";
-          szene = starteLichtSzene(el, anker, { proben: maus ? 80 : 60, wand, maus, beiAusfall: stattBild, ...(nurStern ? { stufen: { stern: 1 } } : {}) });
+          szene = starteLichtSzene(el, anker, { proben: maus ? 80 : 60, wand, maus, beiAusfall: stattBild, ...(nurStern ? { stufen: { stern: 1, zeiten: [0.7, 0.6, 1.2] as [number, number, number] } } : {}) });
           if (nurStern) szene.pegel(0);
           else szene.zeigen(true);
         })

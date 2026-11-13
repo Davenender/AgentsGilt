@@ -8,7 +8,7 @@ import lichtBild from "@/public/kopf/licht-logo.jpg";
 import sternBild from "@/public/kopf/licht-stern.webp";
 import { marke } from "@/lib/inhalt-neu";
 import { Wortmarke } from "../Rahmen";
-import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, LADEN_FERTIG, LADEN_FERTIG_KLASSE, START_FERTIG, START_FERTIG_KLASSE, istVorschau } from "../umgebung";
+import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, LADEN_FERTIG, LADEN_FERTIG_KLASSE, START_FERTIG, START_FERTIG_KLASSE, istVorschau, vorarbeit } from "../umgebung";
 import type { LichtLage, LichtSzene } from "./lichtszene";
 import { erzeugeZeichenname } from "./zeichenname";
 
@@ -21,21 +21,25 @@ import { erzeugeZeichenname } from "./zeichenname";
  *   1. Warten: Der Bildschirm ist schwarz, in der Mitte schimmert nur der Stern
  *      des Logos (ein vorgerendertes Bild, genau an der Stelle des späteren
  *      Sterns). Währenddessen wird alles fertig gemacht: Schriften, Raster und
- *      Vorrat der Zeichen, die Licht-Szene (Shader übersetzt, drei Bilder
- *      vorgezeichnet), die Bilder der ersten Abschnitte; zum Schluss die Probe,
- *      ob es ruhig läuft (10 Bilder hintereinander unter 20 ms).
- *   2. Weiter geht es, wenn alles fertig ist: frühestens 0,8 s, spätestens 4 s
+ *      Vorrat der Zeichen, die Licht-Szene (Shader übersetzt, die echte Szene
+ *      in voller Größe unsichtbar vorgezeichnet), die Bilder der ersten
+ *      Abschnitte und alles, was sich für das erste Scrollen angemeldet hat
+ *      (die zweite Licht-Szene im Wörter-Feld). Zum Schluss die Probe unter
+ *      echter Last: 30 Bilder hintereinander unter 17 ms.
+ *   2. Weiter geht es, wenn alles fertig ist: frühestens 3 s, spätestens 6 s
  *      nach dem ersten Bild.
- *   3. Das Licht geht an wie ein Dimmer (1,4 s, am Handy 1 s): erst die vier
- *      Balken, dann die Strahlen. Der Stern geht ohne Sprung vom Bild in die
- *      Szene über.
- *   4. Bei 40 % der Lichtstärke fliegen die Zeichen ein (2,2 s); 250 ms nach
+ *   3. Das Licht baut sich von innen nach außen auf, jeder Schritt weich in
+ *      den nächsten: Der Stern wird heller (0,7 s; er geht ohne Sprung vom
+ *      Bild in die Szene über), dann kommen die vier Balken (0,6 s), dann
+ *      wachsen die Strahlen (1,2 s). Am Handy etwas kürzer.
+ *   4. Bei 60 % der Lichtstärke fliegen die Zeichen ein (2,2 s); 250 ms nach
  *      der Landung läuft die Welle aus der Namensmitte.
  *   5. Während die Zeichen landen, erscheinen Kopfleiste, „Anrufen“ und
  *      Chat-Knopf (Stylesheet, über data-start am Kopfbereich).
- * Solange das läuft, steht das Licht ruhig in der Mitte; erst wenn es ganz an
- * ist, dreht es sich weich zur Maus. Klick, Taste oder Scrollen überspringen:
- * Dann steht alles sofort. Bei „weniger Bewegung“ blendet alles ruhig ein.
+ * Solange das läuft, steht das Licht ruhig in der Mitte. Wenn alles steht
+ * (Zeichen gelandet, Welle vorbei), wartet es 1 s und dreht sich dann langsam
+ * zur Maus (1,5 s). Klick, Taste oder Scrollen überspringen: Dann steht alles
+ * sofort. Bei „weniger Bewegung“ blendet alles ruhig ein.
  *
  * Danach: Die Zeichen weichen dem Zeiger aus, ein Klick auf den Namen schickt
  * eine Welle hindurch. Beim Runterscrollen fliegen die Zeichen auf den Bahnen
@@ -59,19 +63,26 @@ const szeneVorab =
 // (nur im Arbeitsspeicher gemerkt, nichts wird im Browser abgelegt).
 let geraetRuckelt = false;
 
-// Der Stern steht mindestens so lange (Sekunden seit dem ersten Bild), damit man ihn bewusst sieht.
-const WARTEN_MIN = 0.8;
-// Spätestens dann geht es los, auch wenn noch nicht alles fertig ist.
-const WARTEN_MAX = 4;
-// So lange braucht das Licht bis zur vollen Stärke (Computer, Handy).
-const LICHT_DAUER = 1.4;
-const LICHT_DAUER_HANDY = 1;
-// Die Zeichen fliegen los, sobald das Licht diese Stärke hat (rund 0,5 s nach seinem Beginn).
-const FLUG_AB_PEGEL = 0.4;
+// Der Stern steht jedes Mal mindestens so lange im Dunkeln (Sekunden seit dem ersten Bild) …
+const WARTEN_MIN = 3;
+// … und höchstens so lange: Dann geht es los, auch wenn noch nicht alles fertig ist.
+const WARTEN_MAX = 6;
+// Aufbau des Lichts von innen nach außen (Sekunden): Der Stern wird heller, dann kommen die vier
+// Balken, dann wachsen die Strahlen. Am Handy etwas kürzer.
+const LICHT_STUFEN: [number, number, number] = [0.7, 0.6, 1.2];
+const LICHT_STUFEN_HANDY: [number, number, number] = [0.5, 0.45, 0.9];
+// Die Zeichen fliegen los, sobald das Licht diese Stärke hat (die Balken stehen, die Strahlen beginnen).
+const FLUG_AB_PEGEL = 0.6;
 // So lange nach Beginn des Flugs erscheinen Kopfleiste, „Anrufen“ und Chat-Knopf (die Zeichen landen dann).
 const LEISTE_NACH = 1.1;
-// Dimmer: zügig an, weich auslaufend (ein Hauch Anlauf, damit nichts aufspringt).
-const dimmer = (x: number) => 0.5 * (x * x * (3 - 2 * x)) + 0.5 * (1 - (1 - x) * (1 - x));
+// Wenn alles steht (Zeichen gelandet, Welle vorbei: 0,25 s Pause + 1,3 s Welle), wartet das Licht
+// noch 1 s. Dann dreht es sich langsam zur Maus (1,5 s) und folgt ihr danach wie immer.
+const MAUS_NACH = 0.25 + 1.3 + 1;
+const MAUS_DREHEN = 1.5;
+// Probe vor dem Start: so viele Bilder hintereinander müssen schneller sein als diese Zeit
+// (17 ms, mit einer halben Millisekunde Luft für Browser, die Zeiten runden).
+const PROBE_BILDER = 30;
+const PROBE_MS = 17.5;
 
 export function LichtName() {
   const ebene = useRef<HTMLDivElement>(null);
@@ -143,9 +154,9 @@ export function LichtName() {
     let fertig = false;
     let sofortNachBau = false;
     let uebersprungenUm = 0;
-    // Solange die Zeichen als Ganzes unterwegs sind (Startflug, Welle, Scrollen), wird das Licht
-    // seltener neu gezeichnet (höchstens 20-mal je Sekunde): So bleibt die Bewegung der Zeichen
-    // auch in großen Fenstern flüssig. Am Bild des Lichts ändert das nichts.
+    // Solange die Zeichen als Ganzes unterwegs sind (Startflug, Welle, Scrollen), darf das Licht
+    // kürzertreten: Hält das Gerät den Takt des Bildschirms nicht, wird es nur in jedem zweiten Bild
+    // neu gezeichnet (sonst in jedem). Am Bild des Lichts ändert das nichts.
     const spaeter: gsap.core.Tween[] = [];
     let schont = false;
     let schonEnde: gsap.core.Tween | undefined;
@@ -280,7 +291,7 @@ export function LichtName() {
       if (lichtAn) mitRuhigemBild(0.6);
     };
     // Der Stern beginnt in der Szene so schwach, wie sein Bild gerade ist (wird beim Übergang gesetzt).
-    const stufen = { stern: 0.05 };
+    const stufen = { stern: 0.05, zeiten: maus ? LICHT_STUFEN : LICHT_STUFEN_HANDY };
     // Kommt die Szene gar nicht (kein WebGL, Laden gescheitert, Gerät ruckelt)? Dann gehört das ruhige Bild hin.
     let ohneSzene = still || geraetRuckelt;
     const lichtLaden = async () => {
@@ -296,7 +307,9 @@ export function LichtName() {
     };
     const lichtHolen = async () => {
       const geholt = await gemessen("licht-laden", async () => (await szeneVorab) ?? import("./lichtszene"));
-      if (vorbei || !geholt) return;
+      if (vorbei) return;
+      // Ließ sich die Szene nicht holen, gehört das ruhige Bild hin (lichtLaden() fängt das ab).
+      if (!geholt) throw new Error("Licht-Szene nicht geladen");
       const { starteLichtSzene } = geholt;
       const anlegenAb = performance.now();
       const neu = starteLichtSzene(el, loch, {
@@ -327,7 +340,7 @@ export function LichtName() {
       if (!lichtAn) return;
       // Der Start läuft schon (die Szene kam zu spät): Das Licht kommt jetzt nach.
       if (held.dataset.licht !== "bild") {
-        // Bis jetzt schimmert noch der Stern: Das Licht geht ganz normal an (Dimmer).
+        // Bis jetzt schimmert noch der Stern: Das Licht baut sich ganz normal auf.
         lichtAuftritt();
         return;
       }
@@ -351,17 +364,61 @@ export function LichtName() {
       await hoechstens(Promise.allSettled([...bilder, mini].map((bild) => bild.decode?.())), 2.5);
     };
 
-    // ── Phase „Probe“: Läuft es ruhig? 10 Bilder hintereinander unter 20 ms.
+    // ── Phase „Probe“: Läuft es unter echter Last ruhig? In jedem Bild wird das volle Licht mit
+    // allen Teilen gezeichnet und dazu die Zeichen wie mitten im Flug. Beide Flächen sind dabei
+    // fast unsichtbar (unter 1 % Deckkraft), aber nicht ganz: So bringt der Browser die Bilder
+    // wirklich auf den Bildschirm, und ihr Abstand ist die echte Bildzeit unter voller Last.
+    // Weiter geht es, wenn 30 Bilder hintereinander unter 17 ms lagen. Danach laufen die Probebilder
+    // weiter, bis das Licht angeht: So bleibt die Grafikkarte bis zum Start auf Touren.
+    let probeAus: (() => void) | undefined;
     const probe = () =>
       new Promise<void>((ruhig) => {
+        // Inzwischen abgebaut oder schon gestartet (übersprungen): keine Probe mehr, nichts anfassen.
+        if (vorbei || lichtAn) return ruhig();
         let zuletzt = 0;
         let folge = 0;
+        let zahl = 0;
+        let summe = 0;
+        let laengstes = 0;
+        let gemeldet = false;
+        let aus = false;
+        feld.probe(true);
+        szene?.probe(true);
+        const melde = (bestanden: boolean) => {
+          if (gemeldet) return;
+          gemeldet = true;
+          try {
+            // Nachzulesen über performance.getEntriesByName("ag-start:probe-bilder").
+            performance.mark("ag-start:probe-bilder", { detail: { bilder: zahl, mittel: zahl ? summe / zahl : 0, laengstes, bestanden } });
+          } catch {
+            /* ohne Messung */
+          }
+          ruhig();
+        };
+        probeAus = () => {
+          if (aus) return;
+          aus = true;
+          probeAus = undefined;
+          feld.probe(false);
+          szene?.probe(false);
+          melde(false);
+        };
         const bild = (jetzt: number) => {
-          if (vorbei || lichtAn) return ruhig();
-          folge = zuletzt && jetzt - zuletzt < 20 ? folge + 1 : 0;
+          if (aus) return;
+          if (vorbei || lichtAn) return probeAus?.();
+          // Kommt die Grafikkarte nicht nach, zeichnet die Szene nicht: Das Bild zählt als zu langsam.
+          const imTritt = !szene || szene.probeBild();
+          if (imTritt) feld.probeBild();
+          if (zuletzt && !gemeldet) {
+            const dauer = jetzt - zuletzt;
+            zahl += 1;
+            summe += dauer;
+            laengstes = Math.max(laengstes, dauer);
+            folge = imTritt && dauer < PROBE_MS ? folge + 1 : 0;
+            if (folge >= PROBE_BILDER) melde(true);
+          }
           zuletzt = jetzt;
-          if (folge >= 10) ruhig();
-          else requestAnimationFrame(bild);
+          requestAnimationFrame(bild);
         };
         requestAnimationFrame(bild);
       });
@@ -396,6 +453,8 @@ export function LichtName() {
         // Bis diese Welle durch ist (0,25 s Pause + 1,3 s), bleibt das Licht geschont.
         schoneFuer(1.6);
         spaeter.push(gsap.delayedCall(0.25, feld.welleMitte));
+        // Wenn alles steht, wartet das Licht 1 s und dreht sich dann langsam zur Maus.
+        spaeter.push(gsap.delayedCall(MAUS_NACH, () => szene?.mausFolgen(true, MAUS_DREHEN)));
         stehen();
       });
       // Während die Zeichen landen, erscheinen Kopfleiste, „Anrufen“ und Chat-Knopf.
@@ -405,19 +464,19 @@ export function LichtName() {
         }),
       );
     };
-    // Die Szene ist da: Das Licht geht an wie ein Dimmer.
+    // Die Szene ist da: Das Licht baut sich von innen nach außen auf (Stern, Balken, Strahlen).
     const lichtAuftritt = () => {
       if (!szene || vorbei) return;
-      const dauer = maus ? LICHT_DAUER : LICHT_DAUER_HANDY;
+      const dauer = stufen.zeiten[0] + stufen.zeiten[1] + stufen.zeiten[2];
       // Übergang ohne Sprung: Die Szene zeigt zuerst nur den Stern, genau so hell wie sein Bild
       // gerade ist (Deckkraft des Bildes, in die lineare Helligkeit der Szene umgerechnet).
       stufen.stern = Math.pow(sternAus(0.35) ?? 0.2, 2.2);
       held.dataset.licht = "live";
-      szene.zeigen(false, dauer, dimmer, (pegel) => {
+      szene.zeigen(false, dauer, undefined, (pegel) => {
         if (pegel >= FLUG_AB_PEGEL) fliegen();
       });
-      // Erst wenn das Licht ganz an ist, dreht es sich zur Maus (weich, in rund 0,8 s).
-      spaeter.push(gsap.delayedCall(dauer, () => szene?.mausFolgen(true)));
+      // Standen die Zeichen schon (die Szene kam erst danach), dreht sich das Licht nach seinem Auftritt zur Maus.
+      if (fertig) spaeter.push(gsap.delayedCall(dauer + 1, () => szene?.mausFolgen(true, MAUS_DREHEN)));
     };
     // Statt der Szene das ruhige Bild des Lichts: Es blendet ein, der Stern blendet darunter aus.
     const mitRuhigemBild = (sternDauer: number) => {
@@ -428,12 +487,13 @@ export function LichtName() {
     const lichtAnmachen = () => {
       if (lichtAn || fertig || vorbei) return;
       lichtAn = true;
+      probeAus?.();
       melden(INTRO_FERTIG, INTRO_FERTIG_KLASSE);
       melden(LADEN_FERTIG, LADEN_FERTIG_KLASSE);
       held.dataset.start = "licht";
       if (szene) return lichtAuftritt();
       // Die Szene kommt nicht (das Gerät kommt nicht mit): Es steht das ruhige Bild des Lichts.
-      // Lädt sie nur noch (spätestens nach 4 s geht es trotzdem los), schimmert der Stern weiter,
+      // Lädt sie nur noch (spätestens nach 6 s geht es trotzdem los), schimmert der Stern weiter,
       // und das Licht geht an, sobald sie da ist. In beiden Fällen fliegen die Zeichen schon.
       if (ohneSzene) mitRuhigemBild(0.9);
       spaeter.push(gsap.delayedCall(0.4, fliegen));
@@ -444,6 +504,7 @@ export function LichtName() {
       uebersprungenUm = performance.now();
       spaeter.forEach((t) => t.kill());
       lichtAn = true;
+      probeAus?.();
       if (szene) {
         sternAus(0.2);
         held.dataset.licht = "live";
@@ -536,8 +597,12 @@ export function LichtName() {
       }
       beimScrollen();
       // Alles fertig machen, während der Stern schimmert; zum Schluss die Probe.
-      const allesDa = Promise.allSettled([vermessen(), gemessen("licht", lichtLaden), gemessen("bilder", bilderLaden)]).then(() => gemessen("probe", probe));
-      // Frühestens 0,8 s, spätestens 4 s nach dem ersten Bild.
+      const allesDa = Promise.allSettled([vermessen(), gemessen("licht", lichtLaden), gemessen("bilder", bilderLaden)])
+        // Alles, was sich für das erste Scrollen angemeldet hat (die zweite Licht-Szene im
+        // Wörter-Feld, die Bilder der Abschnitte darunter). Höchstens 2,5 s.
+        .then(() => (vorbei ? undefined : gemessen("vorarbeit", () => hoechstens(vorarbeit.alle(), 2.5))))
+        .then(() => (vorbei ? undefined : gemessen("probe", probe)));
+      // Frühestens 3 s, spätestens 6 s nach dem ersten Bild.
       const seitErstemBild = () => (performance.now() - erstesBild) / 1000;
       spaeter.push(gsap.delayedCall(Math.max(0, WARTEN_MAX - seitErstemBild()), lichtAnmachen));
       // Lief die Startanimation bei diesem Laden schon, steht alles sofort.
@@ -555,6 +620,7 @@ export function LichtName() {
 
     return () => {
       vorbei = true;
+      probeAus?.();
       wenigBewegung.removeEventListener("change", umstellen);
       feinerZeiger.removeEventListener("change", umstellen);
       window.clearTimeout(warten);

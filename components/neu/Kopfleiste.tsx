@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { hero, marke, navigation } from "@/lib/inhalt-neu";
 import { richteGlimmrandEin } from "./glimmrand";
 import { Knopf } from "./Knoepfe";
 import { richteMagnetEin } from "./magnet";
+import { scrollZiel } from "./umgebung";
 import { richteVerwuerfelnEin } from "./verwuerfeln";
 
 gsap.registerPlugin(useGSAP);
@@ -358,11 +359,21 @@ export function Kopfleiste() {
 
 /**
  * „Anrufen“ in der Kopfleiste: ein Glas-Knopf mit Goldrand, der Hörer sitzt in einem kleinen
- * goldenen Lichtkreis. Wie bisher ein gewöhnlicher tel:-Link, keine neue Logik.
+ * goldenen Lichtkreis. Es bleibt ein gewöhnlicher tel:-Link: Am Handy ruft ein Tipp direkt an.
+ * Am Computer (Maus) scrollt ein Klick stattdessen weich nach unten zum Kontakt-Bereich
+ * („Sprechen wir über Ihr Projekt“), wenn die Seite einen hat; dort stehen Nummer und Formular.
  */
 function Anruf() {
+  const zumKontakt = (ev: MouseEvent<HTMLAnchorElement>) => {
+    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    const ziel = document.getElementById("kontakt");
+    if (!ziel) return;
+    ev.preventDefault();
+    scrollZiel.zu(ziel);
+  };
   return (
-    <a className="ag-ruf ag-glas ag-glimm" href={`tel:${marke.telefon}`} data-wuerfel data-glimm>
+    <a className="ag-ruf ag-glas ag-glimm" href={`tel:${marke.telefon}`} onClick={zumKontakt} data-wuerfel data-glimm>
       <span className="ag-ruf__kreis" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6.7 3.5h2.5l1.5 3.9-2 1.4a11.4 11.4 0 0 0 6.5 6.5l1.4-2 3.9 1.5v2.5a1.9 1.9 0 0 1-1.9 1.9A14.8 14.8 0 0 1 4.8 5.4a1.9 1.9 0 0 1 1.9-1.9z" />

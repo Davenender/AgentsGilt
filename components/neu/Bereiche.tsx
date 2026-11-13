@@ -206,9 +206,12 @@ function ZertifikatKarte({ kurs, i }: { kurs: (typeof ausbildung.kurse)[number];
   const z = kurs.certs[wer];
   return (
     <li className="ag-zert__karte" style={{ "--i": i } as CSSProperties}>
-      <div className="ag-zert__bild">
+      {/* Ein Klick auf das Bild öffnet dasselbe Zertifikat wie der Link darunter (auf der neuen
+          Seite zeigt die Maus hier die Glasblase „Ansehen“). Mit der Tastatur bleibt es bei dem
+          einen Halt auf „Zertifikat ansehen“; die Bildbeschreibung bleibt für Vorleseprogramme. */}
+      <a className="ag-zert__bild" href={z.pdf} target="_blank" rel="noopener noreferrer" data-zeiger="ansehen" tabIndex={-1}>
         <Image src={z.img} alt={`Zertifikat ${kurs.title} von ${z.name}`} width={792} height={612} sizes="(max-width: 599px) 92vw, (max-width: 1023px) 46vw, 320px" />
-      </div>
+      </a>
       <h3 className="ag-zert__titel">{kurs.title}</h3>
       <div className="ag-zert__wer" role="group" aria-label={`Zertifikat ${kurs.title} von`}>
         {kurs.certs.map((c, n) => (
@@ -247,12 +250,15 @@ export function Ausbildung({ mitte = false, titel }: { mitte?: boolean; titel?: 
 
 /* ───────────── Kontakt ───────────── */
 
-export function Kontakt({ mitte = false }: { mitte?: boolean }) {
+/** `titel` ersetzt die Überschrift (die neue Seite setzt sie mit dem Entschlüsselungs-Effekt). */
+export function Kontakt({ mitte = false, titel }: { mitte?: boolean; titel?: ReactNode }) {
   return (
     <div className={`ag-wrap ag-abschnitt ag-kontakt ${mitte ? "ag-kontakt--mitte" : ""}`}>
-      <Zeilen als="h2" className="ag-versal ag-titel">
-        {kontakt.vor} <em className="ag-gold">{kontakt.gold}</em>
-      </Zeilen>
+      {titel ?? (
+        <Zeilen als="h2" className="ag-versal ag-titel">
+          {kontakt.vor} <em className="ag-gold">{kontakt.gold}</em>
+        </Zeilen>
+      )}
       <p className="ag-text">{kontakt.text}</p>
       <div className="ag-kontakt__wege">
         <AnrufLeiste />

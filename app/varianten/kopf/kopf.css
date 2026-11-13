@@ -404,106 +404,78 @@
   }
 }
 
-/* ───────────── Scroll-Hinweis: Lichtstreifen am unteren Rand (seite/ScrollHinweis.tsx) ─────────────
-   Kein Text, kein Pfeil. Ein weicher goldener Lichtfleck (240 px breit, nach oben auslaufend,
-   60 px hoch, höchstens 25 % Deckkraft) gleitet in 2,4 s von links nach rechts; danach pulsiert
-   der ganze untere Rand einmal leicht. Alle 6 s, höchstens dreimal. */
+/* ───────────── Scroll-Hinweis: Lichtleiste am unteren Rand (seite/ScrollHinweis.tsx) ─────────────
+   Kein Text, kein Pfeil. Eine durchgehende, leuchtende Leiste über die ganze Breite: am Rand am
+   hellsten, nach oben weich auslaufend (gut 100 px), dazu ein feiner, hellerer Goldstreifen genau
+   an der Kante. Sie bewegt sich nicht seitlich, sie atmet nur leicht von unten nach oben
+   (3 s je Atemzug), höchstens dreimal, und blendet dann aus. */
 .ag-hinweis {
   position: absolute;
   /* Am unteren Rand des sichtbaren Bildes, nicht des Kopfbereichs (der in sehr niedrigen Fenstern höher ist). */
-  top: calc(100svh - 60px);
+  top: calc(100svh - 110px);
   right: 0;
   left: 0;
   z-index: 3;
-  height: 60px;
+  height: 110px;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
+  /* Beim ersten Scrollen ist sie sofort weg. */
   transition: opacity 0.2s linear;
 }
+/* Einblenden (0,9 s), drei Atemzüge (9 s), ausblenden (1,2 s). */
 .ag-hinweis[data-an] {
-  opacity: 1;
-  transition-duration: 0.6s;
+  animation: ag-hinweis-da 11.1s linear both;
 }
-.ag-hinweis__fleck {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 240px;
-  height: 60px;
-  background: radial-gradient(ellipse 50% 100% at 50% 100%, rgba(243, 190, 92, 0.25) 0%, rgba(240, 168, 58, 0.11) 42%, rgba(240, 168, 58, 0) 72%);
-  transform: translateX(-240px);
-}
-.ag-hinweis__rand {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(0deg, rgba(240, 168, 58, 0.13) 0%, rgba(240, 168, 58, 0.04) 45%, rgba(240, 168, 58, 0) 100%);
-  opacity: 0;
-}
-.ag-hinweis[data-an] .ag-hinweis__fleck {
-  animation: ag-hinweis-gleiten 6s linear 3 both;
-}
-.ag-hinweis[data-an] .ag-hinweis__rand {
-  animation: ag-hinweis-puls 6s linear 3 both;
-}
-/* 0–2,4 s gleiten (40 % der 6 s), dann Ruhe. */
-@keyframes ag-hinweis-gleiten {
+@keyframes ag-hinweis-da {
   0% {
-    transform: translateX(-240px);
-    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
-  }
-  40%,
-  100% {
-    transform: translateX(100vw);
-  }
-}
-/* 2,4–3,6 s: Der ganze untere Rand pulsiert einmal. */
-@keyframes ag-hinweis-puls {
-  0%,
-  40% {
     opacity: 0;
-    animation-timing-function: cubic-bezier(0.3, 0, 0.3, 1);
   }
-  48% {
+  8%,
+  89% {
     opacity: 1;
-    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
   }
-  60%,
   100% {
     opacity: 0;
   }
 }
-@media (max-width: 767px) {
-  /* Am Handy etwas schmaler. */
-  .ag-hinweis__fleck {
-    width: 160px;
-    transform: translateX(-160px);
+.ag-hinweis[data-an] .ag-leiste__schein {
+  animation: ag-leiste-atem 3s cubic-bezier(0.45, 0, 0.55, 1) 0.9s 3 both;
+}
+.ag-hinweis[data-an] .ag-leiste__kante {
+  animation: ag-leiste-kante 3s cubic-bezier(0.45, 0, 0.55, 1) 0.9s 3 both;
+}
+/* Ein Atemzug: Höhe und Helligkeit steigen von unten her an und sinken wieder. */
+@keyframes ag-leiste-atem {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: scaleY(0.7);
   }
-  .ag-hinweis[data-an] .ag-hinweis__fleck {
-    animation-name: ag-hinweis-gleiten-schmal;
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
   }
 }
-@keyframes ag-hinweis-gleiten-schmal {
-  0% {
-    transform: translateX(-160px);
-    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
-  }
-  40%,
+@keyframes ag-leiste-kante {
+  0%,
   100% {
-    transform: translateX(100vw);
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  /* Nur ein ruhiger, schwacher Schein, nichts gleitet. */
-  .ag-hinweis__fleck {
-    display: none;
-  }
-  .ag-hinweis[data-an] .ag-hinweis__rand {
-    opacity: 0.8;
+  /* Nur ein ruhiger, schwacher Schein: nichts atmet. */
+  .ag-hinweis[data-an] {
+    opacity: 0.55;
     animation: none;
+    transition-duration: 0.6s;
   }
-  .ag-hinweis {
-    transition-duration: 0.6s !important;
+  .ag-hinweis[data-an] .ag-leiste__schein,
+  .ag-hinweis[data-an] .ag-leiste__kante {
+    animation: none;
   }
 }
 

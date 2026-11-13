@@ -73,6 +73,8 @@ export type NameMasse = {
    * fliegen die Zeichen auseinander; so sind sie auch unterhalb des Kopfbereichs noch zu sehen.
    */
   ueberhang?: number;
+  /** Dauer des Startflugs in Sekunden (Kopfbereich 2,2; im Fuß kürzer). */
+  flugDauer?: number;
 };
 
 export type Zeichenname = {
@@ -87,6 +89,13 @@ export type Zeichenname = {
   welleMitte: () => void;
   /** Startflug: Die Zeichen fliegen von außen an ihren Platz. Danach wird „danach“ einmal aufgerufen. */
   starten: (danach?: () => void) => void;
+  /**
+   * Probe vor dem Start: Solange sie an ist, ist die Fläche fast unsichtbar; probeBild() zeichnet
+   * dann ein Bild wie mitten im Flug (so ist auch das Auseinanderfliegen beim ersten Scrollen
+   * vorbereitet). Beim Ausschalten wird die Fläche wieder geleert.
+   */
+  probe: (an: boolean) => void;
+  probeBild: () => void;
   /** Überspringen: Der Name steht sofort an seinem Platz (kein Flug, keine Welle danach). */
   sofort: () => void;
   /**
@@ -210,12 +219,15 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
 
   let breite = 0;
   let hoehe = 0;
-  // Höhe der Zeichenfläche. In Ruhe ist sie so hoch wie der Kopfbereich; nur solange gescrollt
-  // ist (die Zeichen fliegen auseinander), reicht sie um den Überhang darunter hinaus. So kosten
-  // Startflug, Maus und Welle in großen Fenstern nicht mehr als ohne den Überhang.
+  // Höhe der Zeichenfläche: der Kopfbereich plus der Überhang darunter (dorthin fliegen die Zeichen
+  // beim Scrollen). Sie wird einmal beim Aufbau angelegt, nicht erst beim ersten Scrollen: So
+  // ruckelt dort nichts.
   let flaecheH = 0;
-  let ueberhang = 0;
-  let weit = false;
+  let flugDauer = FLUG_DAUER;
+  // Probe vor dem Start (siehe probe()).
+  let probeAn = false;
+  let probeNr = 0;
+  let deckVorProbe = "";
   let dichte = 1;
   // Scrollen: Fortschritt 0 bis 1 und der Teil der Fläche, der gerade im Bild ist.
   let rollS = 0;
@@ -297,9 +309,8 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     hoehe = m.hoehe;
     dichte = Math.min(window.devicePixelRatio || 1, m.dichteMax);
     if (breite * hoehe * dichte * dichte > 7e6) dichte = 1;
-    ueberhang = Math.max(0, m.ueberhang ?? 0);
-    weit = rollS > 0 && ueberhang > 0;
-    flaecheH = hoehe + (weit ? ueberhang : 0);
+    flaecheH = hoehe + Math.max(0, m.ueberhang ?? 0);
+    flugDauer = m.flugDauer ?? FLUG_DAUER;
     leinwand.width = Math.round(breite * dichte);
     leinwand.height = Math.round(flaecheH * dichte);
     leinwand.style.height = `${flaecheH}px`;
@@ -654,16 +665,6 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     deckJetzt = 1;
   };
 
-  /** Die Zeichenfläche weit (mit Überhang) oder so hoch wie der Kopfbereich machen. Danach ist sie leer. */
-  const flaecheSetzen = (mitUeberhang: boolean) => {
-    if (weit === mitUeberhang || !ueberhang) return;
-    weit = mitUeberhang;
-    flaecheH = hoehe + (weit ? ueberhang : 0);
-    leinwand.height = Math.round(flaecheH * dichte);
-    leinwand.style.height = `${flaecheH}px`;
-    bewegtBild = true;
-  };
-
   /** Den Zwischenspeicher auf die Zeichenfläche legen. */
   const ruheZeigen = (deck: number) => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -710,7 +711,7 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     let gelandet = false;
     if (imFlug) {
       flugZeit += dt;
-      const fort = Math.min(1, flugZeit / FLUG_DAUER);
+      const fort = Math.min(1, flugZeit / flugDauer);
       // Restweg: am Anfang sehr schnell, am Ende weich landend.
       a = (1 - fort) * (1 - fort) * (1 - fort);
       if (fort >= 1) {
@@ -759,8 +760,6 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
     // der Zeiger hat sich bewegt oder Zeichen sind noch unterwegs. Stehen Zeichen neben ihrem Platz
     // (ruhender Zeiger), wird auch dann alles gezeichnet, wenn sich nur das Licht oder ein Zeichen ändert.
     const mausNah = maus.aktiv && maus.x > rand.x0 - MAUS_UMKREIS && maus.x < rand.x1 + MAUS_UMKREIS && maus.y > rand.y0 - MAUS_UMKREIS && maus.y < rand.y1 + MAUS_UMKREIS;
-    // Zurück am Seitenanfang: Die Fläche wird wieder so hoch wie der Kopfbereich.
-    if (weit && rollS <= 0) flaecheSetzen(false);
     const rechnen =
       imFlug || gelandet || hatteWellen || unruhe || rollNeu || (rollS > 0 && !allesWeg) || (mausNeu && (mausNah || verschoben)) || (verschoben && (lichtNeu || einzeln.length > 0));
     mausNeu = false;
@@ -958,6 +957,42 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       letzte = 0;
       wecken();
     },
+    probe: (an) => {
+      if (vorbei || still || !n) return;
+      if (an) {
+        if (zustand !== "verborgen" || probeAn) return;
+        probeAn = true;
+        // Fast unsichtbar (0,5 % Deckkraft: unter einer halben Stufe von 255), damit der Browser die Bilder wirklich zeichnet.
+        deckVorProbe = leinwand.style.opacity;
+        leinwand.style.opacity = "0.005";
+        return;
+      }
+      if (!probeAn) return;
+      probeAn = false;
+      tausch.fill(-1);
+      if (zustand === "verborgen") {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, leinwand.width, leinwand.height);
+      }
+      leinwand.style.opacity = deckVorProbe;
+    },
+    probeBild: () => {
+      if (vorbei || !probeAn || zustand !== "verborgen") return;
+      probeNr += 1;
+      ctx.setTransform(dichte, 0, 0, dichte, 0, 0);
+      ctx.clearRect(0, 0, breite, flaecheH);
+      deckJetzt = 1;
+      // Jedes Zeichen ein Stück vor seinem Platz, vergrößert und mit wechselnden Zeichen: wie mitten im Flug.
+      const f = 0.1 + 0.05 * (probeNr % 3);
+      for (let k = 0; k < n; k++) {
+        tausch[k] = (k + probeNr) % ZUFALL;
+        const x = hx[k] + sx[k] * f;
+        const y = hy[k] + sy[k] * f;
+        if (x < -40 || y < -40 || x > breite + 40 || y > flaecheH + 40) continue;
+        male(ctx, k, x, y, 1.4, 0.5, 0.5);
+      }
+      ctx.globalAlpha = 1;
+    },
     sofort: () => {
       if (zustand !== "verborgen" && zustand !== "flug") return;
       zustand = "da";
@@ -976,9 +1011,6 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       if (wert === rollS) return;
       rollS = wert;
       rollZuletzt = performance.now();
-      // Sobald gescrollt ist, reicht die Fläche unter den Kopfbereich hinaus (gezeichnet wird
-      // gleich im nächsten Bild, noch bevor der Browser das leere Feld zeigt).
-      if (wert > 0) flaecheSetzen(true);
       wecken();
     },
     sichtbar: (ja) => {
@@ -987,6 +1019,11 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
       wecken();
     },
     ende: () => {
+      // Lief gerade eine Probe, gehört die Deckkraft der Fläche wieder dem Stylesheet.
+      if (probeAn) {
+        probeAn = false;
+        leinwand.style.opacity = deckVorProbe;
+      }
       vorbei = true;
       cancelAnimationFrame(rahmen);
       window.clearTimeout(uhr);

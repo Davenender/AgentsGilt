@@ -259,7 +259,7 @@ function Karte({ l }: { l: Leistung }) {
 
   return (
     <li ref={ref} className="ag-lk ag-glimm" data-glimm data-art={art}>
-      <div className="ag-sz" aria-hidden="true" data-zeiger="ansehen">
+      <div className="ag-sz" aria-hidden="true">
         <Szene />
       </div>
       <div className="ag-lk__text">

@@ -1963,6 +1963,11 @@ html.ag-menue-offen .ag-chat {
   transform: translateY(-10px);
 }
 .ag-zert__bild {
+  display: block;
+  /* Der Platz steht fest, bevor das Bild geladen ist: Sonst wächst der Abschnitt nachträglich,
+     und Sprungziele darunter (Kontakt) landen zu hoch. */
+  justify-self: stretch;
+  aspect-ratio: 792 / 612;
   overflow: clip;
   border-radius: 12px;
   background: var(--elfenbein);

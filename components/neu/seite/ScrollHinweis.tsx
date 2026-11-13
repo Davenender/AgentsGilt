@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { START_FERTIG, START_FERTIG_KLASSE } from "../umgebung";
+import { Lichtleiste } from "./Lichtleiste";
 
 // Wer einmal gescrollt hat, sieht den Hinweis in dieser Sitzung nicht wieder.
 const MERKER = "ag-scroll-hinweis-weg";
@@ -9,11 +10,13 @@ const MERKER = "ag-scroll-hinweis-weg";
 const WARTEN = 4500;
 
 /**
- * Scroll-Hinweis nur aus Licht, ohne Text und ohne Pfeil: Am unteren Bildschirmrand gleitet ein
- * weicher goldener Lichtfleck von links nach rechts (2,4 s), danach pulsiert der ganze untere
- * Rand einmal leicht. Das wiederholt sich alle 6 s, höchstens dreimal (Stylesheet). Beim ersten
- * Scrollen, Wischen oder Tastendruck blendet er sofort aus und kommt in dieser Sitzung nicht wieder.
- * Bei „weniger Bewegung“ steht nur ein ruhiger, schwacher Schein.
+ * Scroll-Hinweis nur aus Licht, ohne Text und ohne Pfeil: Am unteren Bildschirmrand liegt eine
+ * durchgehende, leuchtende Leiste über die ganze Breite (Lichtleiste.tsx). Sie bewegt sich nicht
+ * seitlich; sie atmet nur ganz leicht von unten nach oben (Höhe und Helligkeit, 3 s je Atemzug),
+ * höchstens dreimal, und blendet dann wieder aus (Stylesheet). Sie erscheint 4,5 s nach der
+ * Startanimation, wenn man ruhig ganz oben steht. Beim ersten Scrollen, Wischen oder Tastendruck
+ * ist sie sofort weg und kommt in dieser Sitzung nicht wieder. Bei „weniger Bewegung“ steht nur
+ * ein ruhiger, schwacher Schein.
  */
 export function ScrollHinweis() {
   const ref = useRef<HTMLDivElement>(null);
@@ -77,8 +80,7 @@ export function ScrollHinweis() {
 
   return (
     <div ref={ref} className="ag-hinweis" aria-hidden="true">
-      <span className="ag-hinweis__rand" />
-      <span className="ag-hinweis__fleck" />
+      <Lichtleiste />
     </div>
   );
 }

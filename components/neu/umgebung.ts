@@ -43,3 +43,31 @@ export function zufall(saat: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/**
+ * Vorarbeit für die Startanimation: Alles, was beim ersten Scrollen gebraucht wird und Zeit kostet
+ * (die zweite Licht-Szene im Wörter-Feld), meldet sich hier an. Die Startanimation wartet darauf,
+ * solange der Stern im Dunkeln steht: So ruckelt später nichts.
+ */
+const arbeiten: Promise<unknown>[] = [];
+export const vorarbeit = {
+  melde: (arbeit: Promise<unknown>) => {
+    arbeiten.push(arbeit);
+  },
+  alle: () => Promise.allSettled(arbeiten),
+};
+
+/**
+ * Weiches Scrollen zu einem Ziel auf der Seite. Der Rahmen meldet hier sein weiches Scrollen
+ * (Lenis) an; ohne das scrollt der Browser selbst (bei „weniger Bewegung“ ohne Animation).
+ */
+let weichZu: ((ziel: HTMLElement) => void) | undefined;
+export const scrollZiel = {
+  melde: (wie: ((ziel: HTMLElement) => void) | undefined) => {
+    weichZu = wie;
+  },
+  zu: (ziel: HTMLElement) => {
+    if (weichZu) weichZu(ziel);
+    else ziel.scrollIntoView({ behavior: willWenigerBewegung() ? "auto" : "smooth", block: "start" });
+  },
+};

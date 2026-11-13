@@ -10,7 +10,7 @@ import { Kopfleiste } from "./Kopfleiste";
 import { ChatKnopf } from "./ChatKnopf";
 import { Ladebildschirm } from "./Ladebildschirm";
 import { Marke } from "./Marke";
-import { istVorschau, willWenigerBewegung } from "./umgebung";
+import { istVorschau, scrollZiel, willWenigerBewegung } from "./umgebung";
 
 /**
  * Weiches Scrollen mit Lenis, im Takt von GSAP, damit ScrollTrigger und Lenis
@@ -26,7 +26,10 @@ function WeichesScrollen() {
     const takt = (zeit: number) => lenis.raf(zeit * 1000);
     gsap.ticker.add(takt);
     gsap.ticker.lagSmoothing(0);
+    // „Anrufen“ in der Kopfleiste scrollt am Computer hierüber weich zum Kontakt.
+    scrollZiel.melde((ziel) => lenis.scrollTo(ziel));
     return () => {
+      scrollZiel.melde(undefined);
       gsap.ticker.remove(takt);
       gsap.ticker.lagSmoothing(500, 33);
       lenis.destroy();
@@ -65,9 +68,9 @@ function DaumenLeiste() {
   );
 }
 
-function Fusszeile({ zusatz }: { zusatz?: ReactNode }) {
+function Fusszeile({ schluss }: { schluss?: ReactNode }) {
   return (
-    <footer className="ag-fuss">
+    <footer className={`ag-fuss ${schluss ? "ag-fuss--schluss" : ""}`}>
       <div className="ag-wrap ag-fuss__oben">
         <div>
           <div className="ag-fuss__marke">
@@ -98,11 +101,12 @@ function Fusszeile({ zusatz }: { zusatz?: ReactNode }) {
           </li>
         </ul>
       </div>
-      {/* Stehender Riesen-Schriftzug (kein Laufband). */}
-      <div className="ag-wrap ag-fuss__wort">
-        {zusatz}
-        <Wortmarke />
-      </div>
+      {/* Stehender Riesen-Schriftzug (kein Laufband); auf der neuen Seite stattdessen ihr Schluss. */}
+      {schluss ?? (
+        <div className="ag-wrap ag-fuss__wort">
+          <Wortmarke />
+        </div>
+      )}
       <p className="ag-wrap ag-fuss__unten">
         © {new Date().getFullYear()} {marke.name}. {fuss.rechte}
       </p>
@@ -126,16 +130,17 @@ export function Wortmarke({ className }: { className?: string }) {
  *
  * `start="licht"`: Die Seite hat die neue Startanimation des Kopfbereichs (Stern im Dunkeln, dann
  * Licht, dann Zeichen; kopf/LichtName.tsx). Der alte Ladebildschirm mit den Balken entfällt dann.
- * `fussZusatz` steht in der Fußleiste hinter dem Riesenschriftzug (der Zeichen-Strahl).
+ * `fussSchluss` ersetzt in der Fußleiste den Riesenschriftzug (die neue Seite endet mit Stern,
+ * Namen aus Zeichen und Lichtleiste: seite/FussSchluss.tsx).
  */
-export function Rahmen({ children, klasse, start = "balken", fussZusatz }: { children: ReactNode; klasse?: string; start?: "balken" | "licht"; fussZusatz?: ReactNode }) {
+export function Rahmen({ children, klasse, start = "balken", fussSchluss }: { children: ReactNode; klasse?: string; start?: "balken" | "licht"; fussSchluss?: ReactNode }) {
   return (
     <>
       {start === "balken" && <Ladebildschirm />}
       <WeichesScrollen />
       <Kopfleiste />
       <main className={klasse}>{children}</main>
-      <Fusszeile zusatz={fussZusatz} />
+      <Fusszeile schluss={fussSchluss} />
       <DaumenLeiste />
       <ChatKnopf />
     </>

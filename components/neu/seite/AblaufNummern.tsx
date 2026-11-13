@@ -6,20 +6,87 @@ import { istVorschau } from "../umgebung";
 import { Entschluesselt } from "./Entschluesselt";
 import { erzeugeZeichenbild, type Zeichenbild } from "./zeichenbild";
 
+// So lange ist jeder Schritt an der Reihe (muss zur Dauer von ag-abn-fuellen im Stylesheet passen) …
+const SCHRITT_MS = 4000;
+// … und so lange bleibt ein angeklickter Schritt stehen, bevor der Lauf weitergeht.
+const PAUSE_NACH_KLICK_MS = 6000;
+
 /**
- * „So läuft es ab“ mit Zeichen-Nummern: Neben den drei Schritten steht die Nummer des gewählten
- * Schritts als großes Bild aus Schriftzeichen (zeichenbild.ts). Ein Klick auf einen Schritt
- * lässt die Zeichen zur neuen Nummer umfliegen. Ist das Feld zu 60 % im Bild, setzt sich die
- * Nummer aus Staub zusammen; scrollt sie nach oben aus dem Bild, zerfällt sie wieder. Unter der
- * Maus verwürfeln sich die Zeichen kurz.
+ * „So läuft es ab“ mit Zeichen-Nummern: Neben den drei Schritten steht die Nummer des aktiven
+ * Schritts als großes Bild aus Schriftzeichen (zeichenbild.ts).
  *
- * Alle drei Schritte sind immer zu lesen; gewählt wird nur, welche Nummer groß dasteht.
+ * Der Ablauf geht von selbst durch die Schritte, sobald er im Bild ist (wie auf der alten Seite):
+ * Jeder Schritt ist 4 s an der Reihe, nach Schritt 3 beginnt es wieder bei Schritt 1. Die
+ * Überschrift des aktiven Schritts füllt sich dabei von links nach rechts mit Gold, wie ein
+ * Ladebalken in den Buchstaben; die anderen bleiben gedämpft. Mit jedem Wechsel fliegen die
+ * Zeichen der großen Nummer zur neuen Nummer um.
+ *
+ * Ein Klick auf einen Schritt macht ihn aktiv und sofort ganz gefüllt, der Lauf pausiert (6 s).
+ * Danach läuft er mit dem nächsten Schritt weiter. Bei „weniger Bewegung“ sind alle Überschriften
+ * gefüllt, und es läuft nichts.
+ *
+ * Ist das Zeichen-Feld zu 60 % im Bild, setzt sich die Nummer aus Staub zusammen; scrollt sie
+ * nach oben aus dem Bild, zerfällt sie wieder. Unter der Maus verwürfeln sich die Zeichen kurz.
+ * Alle drei Schritte sind immer zu lesen.
  */
 export function AblaufNummern() {
   const leinwand = useRef<HTMLCanvasElement>(null);
+  const innen = useRef<HTMLDivElement>(null);
   const bild = useRef<Zeichenbild | null>(null);
   const zustand = useRef({ da: false, gewaehlt: 0 });
   const [gewaehlt, setGewaehlt] = useState(0);
+  // Zählt jeden Wechsel und jedes Wiederkommen ins Bild: Damit beginnt der Ladebalken von vorn.
+  const [runde, setRunde] = useState(0);
+  const [geklickt, setGeklickt] = useState(false);
+  const [imBild, setImBild] = useState(false);
+  // „Weniger Bewegung“ oder Vorschau: alles gefüllt, nichts läuft.
+  const [still, setStill] = useState(false);
+
+  // Läuft überhaupt etwas, und ist der Ablauf im Bild?
+  useEffect(() => {
+    const el = innen.current;
+    if (!el) return;
+    const ruhig = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const stelle = () => setStill(ruhig.matches || istVorschau());
+    stelle();
+    ruhig.addEventListener("change", stelle);
+    const waechter = new IntersectionObserver(
+      (eintraege) => {
+        const da = eintraege[eintraege.length - 1].intersectionRatio >= 0.35;
+        setImBild((vorher) => {
+          // Wieder im Bild: Der aktive Schritt beginnt von vorn.
+          if (da && !vorher) setRunde((r) => r + 1);
+          return da;
+        });
+      },
+      { threshold: [0, 0.35] },
+    );
+    waechter.observe(el);
+    return () => {
+      ruhig.removeEventListener("change", stelle);
+      waechter.disconnect();
+    };
+  }, []);
+
+  // Der Lauf: nach 4 s zum nächsten Schritt (nach einem Klick erst nach 6 s).
+  useEffect(() => {
+    if (still || !imBild) return;
+    const uhr = window.setTimeout(
+      () => {
+        setGeklickt(false);
+        setGewaehlt((g) => (g + 1) % ablauf.schritte.length);
+        setRunde((r) => r + 1);
+      },
+      geklickt ? PAUSE_NACH_KLICK_MS : SCHRITT_MS,
+    );
+    return () => window.clearTimeout(uhr);
+  }, [still, imBild, geklickt, runde]);
+
+  // Die große Nummer fliegt zur Nummer des aktiven Schritts um.
+  useEffect(() => {
+    zustand.current.gewaehlt = gewaehlt;
+    if (zustand.current.da) bild.current?.zeige(gewaehlt);
+  }, [gewaehlt]);
 
   useEffect(() => {
     const flaeche = leinwand.current;
@@ -94,12 +161,14 @@ export function AblaufNummern() {
       b.ende();
       bild.current = null;
     };
-  }, []);
+    // „still“ wechselt, wenn der Besucher „weniger Bewegung“ umstellt: Dann richtet sich das Zeichen-Bild neu ein.
+  }, [still]);
 
+  // Klick: Dieser Schritt ist aktiv und sofort ganz gefüllt, der Lauf pausiert.
   const waehle = (nr: number) => {
-    zustand.current.gewaehlt = nr;
     setGewaehlt(nr);
-    if (zustand.current.da) bild.current?.zeige(nr);
+    setGeklickt(true);
+    setRunde((r) => r + 1);
   };
 
   return (
@@ -109,17 +178,20 @@ export function AblaufNummern() {
           {ablauf.vor} <em className="ag-gold ag-leuchtet">{ablauf.gold}</em>
         </Entschluesselt>
       </header>
-      <div className="ag-abn__innen">
+      <div ref={innen} className="ag-abn__innen">
         <div className="ag-abn__bild" aria-hidden="true">
           <canvas ref={leinwand} className="ag-abn__zeichen" />
           <span className="ag-mono ag-abn__von">/ {String(ablauf.schritte.length).padStart(2, "0")}</span>
         </div>
         <ol className="ag-abn__liste">
           {ablauf.schritte.map((s, i) => (
-            <li key={s.nr} data-gewaehlt={i === gewaehlt}>
+            <li key={s.nr} data-gewaehlt={i === gewaehlt} data-voll={still || (i === gewaehlt && (geklickt || !imBild))}>
               <button type="button" aria-pressed={i === gewaehlt} onClick={() => waehle(i)}>
                 <span className="ag-mono">{s.nr}</span>
-                <span className="ag-versal">{s.titel}</span>
+                {/* Der Schlüssel wechselt mit jeder Runde: So beginnt der Ladebalken von vorn. */}
+                <span key={i === gewaehlt ? `an-${runde}` : "aus"} className="ag-versal ag-abn__titel">
+                  {s.titel}
+                </span>
               </button>
               <p>{s.text}</p>
               {i === ablauf.schritte.length - 1 && <span className="ag-mono ag-abn__ziel">{ablauf.ziel}</span>}

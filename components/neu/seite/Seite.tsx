@@ -1,11 +1,11 @@
-import { ausbildung } from "@/lib/inhalt-neu";
+import { ausbildung, kontakt } from "@/lib/inhalt-neu";
 import { Ausbildung, Kontakt } from "../Bereiche";
 import { LichtName } from "../kopf/LichtName";
 import { Rahmen } from "../Rahmen";
 import { AblaufNummern } from "./AblaufNummern";
 import { Aussage } from "./Aussage";
 import { Entschluesselt } from "./Entschluesselt";
-import { FussStrahl } from "./FussStrahl";
+import { FussSchluss } from "./FussSchluss";
 import { Leistungen } from "./Leistungen";
 import { ScrollHinweis } from "./ScrollHinweis";
 import { Uebergang } from "./Uebergang";
@@ -29,14 +29,15 @@ function Kopf() {
 }
 
 /**
- * Die neue Seite: Kopfbereich mit Licht und Namen, dann die erste Aussage, der Lichtstrahl als
- * Übergang, die Leistungen mit ihren kleinen Szenen, der Ablauf mit Zeichen-Nummern, „Warum wir“
- * mit dem Versprechen, die Ausbildung, (Kundenstimmen, solange aus) und der Kontakt.
+ * Die neue Seite: Kopfbereich mit Licht und Namen, dann die erste Aussage, das Wörter-Feld mit
+ * dem Stern, die Leistungen mit ihren kleinen Szenen, der Ablauf mit Zeichen-Nummern, „Warum wir“
+ * mit dem Versprechen, die Ausbildung, (Kundenstimmen, solange aus) und der Kontakt. Die Fußleiste
+ * endet, wie die Seite beginnt: Stern im Dunkeln, der Name aus Zeichen, eine Lichtleiste.
  * Alle Anker bleiben: #top #leistungen #ablauf #warum #ausbildung #kontakt.
  */
 export function Seite() {
   return (
-    <Rahmen start="licht" klasse="ag-seite" fussZusatz={<FussStrahl />}>
+    <Rahmen start="licht" klasse="ag-seite" fussSchluss={<FussSchluss />}>
       <Zeiger />
       <Kopf />
       <Aussage />
@@ -61,7 +62,14 @@ export function Seite() {
       </section>
       <Stimmen />
       <section id="kontakt">
-        <Kontakt />
+        {/* Der Kontakt-Bereich bleibt, wie er ist; nur seine Überschrift entschlüsselt sich wie die anderen. */}
+        <Kontakt
+          titel={
+            <Entschluesselt als="h2" className="ag-versal ag-titel">
+              {kontakt.vor} <em className="ag-gold ag-leuchtet">{kontakt.gold}</em>
+            </Entschluesselt>
+          }
+        />
       </section>
     </Rahmen>
   );

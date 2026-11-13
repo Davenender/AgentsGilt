@@ -10,7 +10,8 @@ const KLASSE = "ag-maus-an";
  * Mauszeiger der neuen Seite (nur bei echter Maus, nicht bei „weniger Bewegung“):
  *   - Normal: ein kleiner Punkt, dem ein dezenter goldener Schein folgt.
  *   - Über Links und Knöpfen: Der Punkt wird zu einem feinen Ring.
- *   - Über Karten und Bildern (`data-zeiger="ansehen"`): eine kleine Glasblase mit „Ansehen“.
+ *   - Über einem Zertifikat (`data-zeiger="ansehen"`, nur dort, wo ein Klick etwas öffnet): eine
+ *     kleine Glasblase mit „Ansehen“.
  *     Sie sitzt genau auf der Maus (ohne Nachziehen), wächst federnd und wird beim Klicken
  *     kurz kleiner. Echter Glas-Effekt: durchsichtig, mit leichter Linsen-Verzerrung über einen
  *     SVG-Filter (wo der Browser das kann), heller Lichtkante oben und feinem Goldschimmer.
@@ -59,8 +60,9 @@ export function Zeiger() {
       // Außerhalb der neuen Seite (das Chat-Fenster) und in Eingabefeldern: der gewöhnliche Zeiger.
       if (!ziel?.closest(".ag-neu")) return "fremd";
       if (ziel.closest("input, textarea, select, [contenteditable='true']")) return "text";
-      if (ziel.closest("a, button, [role='button'], label, summary")) return "link";
+      // Die Glasblase gilt nur, wo man etwas öffnen kann (die Zertifikate): Sie geht dem Ring vor.
       if (ziel.closest("[data-zeiger='ansehen']")) return "ansehen";
+      if (ziel.closest("a, button, [role='button'], label, summary")) return "link";
       return "punkt";
     };
     const bewegt = (ev: PointerEvent) => {
