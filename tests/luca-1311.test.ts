@@ -1,0 +1,71 @@
+// Davids Ärger 13.11.: Luca redete über die Mailbox-Ansage, sprach dort „als David“ und rief wegen derselben Sache neunmal an.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { briefAus, briefText, gespraechBrief, istMailbox, LUCA_WERKZEUGE } from "../lib/luca-logik.ts";
+
+const MAILBOX_1 =
+  "User: Dein Anruf\nAI: Hey Chef, Luca\nUser: wurde an\nAI: hier!\nUser: Voicemail\nAI: Du wolltest erinnert\nUser: weitergeleitet\nAI: werden:";
+const MAILBOX_2 =
+  "User: Guten Tag, Sie sind verbunden mit der Vodafone Mailbox von Null, Eins, Fünf. Bitte sprechen Sie Ihre Nachricht nach dem Tonsignal\nAI: Hey Chef, Luca hier!";
+const DAVID = "AI: Hey Chef, Luca hier!\nUser: Ja\nAI: Du wolltest erinnert werden: Marc eine Mail.\nUser: Mach ich später\nAI: Okay.";
+
+test("Mailbox wird an der Ansage erkannt, ein echtes Gespräch nicht", () => {
+  assert.equal(istMailbox(MAILBOX_1), true);
+  assert.equal(istMailbox(MAILBOX_2), true);
+  assert.equal(istMailbox(DAVID), false);
+  // Sagt David später „sprich mir auf die Mailbox“, ist das keine Ansage
+  assert.equal(istMailbox(`${DAVID}\nUser: ${"bla ".repeat(80)} sprich mir auf die Mailbox`), false);
+  assert.equal(istMailbox(""), false);
+});
+
+test("Nach jedem Gespräch geht ein Brief an die Zentrale: Dauer, Richtung, Mailbox", () => {
+  const b = gespraechBrief({ call: { id: "c1", type: "outboundPhoneCall", startedAt: "2026-11-13T11:04:40Z" }, durationSeconds: 25, artifact: { transcript: MAILBOX_1 } }, "2026-11-13T11:05:05Z");
+  assert.deepEqual(b, { typ: "gespraech", start: "2026-11-13T11:04:40Z", sekunden: 25, mailbox: true, richtung: "raus", zeit: "2026-11-13T11:05:05Z", anruf: "c1" });
+  const rein = gespraechBrief({ call: { id: "c2", type: "inboundPhoneCall" }, durationSeconds: 61.4, transcript: DAVID }, "2026-11-13T11:20:00Z");
+  assert.deepEqual(rein, { typ: "gespraech", start: "2026-11-13T11:18:58.600Z", sekunden: 61, mailbox: false, richtung: "rein", zeit: "2026-11-13T11:20:00Z", anruf: "c2" });
+});
+
+test("Rückruf mit Uhrzeit und Stichwort (statt selbst gerechneter Minuten)", () => {
+  assert.deepEqual(briefAus("rueckruf_planen", { uhrzeit: "15:40", text: "Wegen Marc klären", thema: "Marc" }, "s"), { typ: "rueckruf", uhrzeit: "15:40", text: "Wegen Marc klären", thema: "Marc" });
+  assert.equal(briefAus("rueckruf_planen", { uhrzeit: "25:99", text: "x" }, "s"), null);
+  // wie bisher
+  assert.deepEqual(briefAus("rueckruf_planen", { minuten: "30", text: "Plan in Ruhe besprechen" }, "s"), { typ: "rueckruf", minuten: 30, text: "Plan in Ruhe besprechen" });
+});
+
+test("Erinnerung nach Schulschluss mit Stichwort", () => {
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "Schreib Marc nochmal eine Mail", ort: "Schule", ereignis: "abfahrt", nach_schulschluss: true, warten: 10, thema: "Marc Mail" }, "s"), {
+    typ: "erinnerung",
+    text: "Schreib Marc nochmal eine Mail",
+    ort: "Schule",
+    ereignis: "abfahrt",
+    warten: 10,
+    nachSchule: true,
+    thema: "Marc Mail",
+  });
+});
+
+test("„Erledigt“ und „Lösch Nummer 2“ am Telefon", () => {
+  assert.deepEqual(briefAus("erinnerung_erledigt", { thema: "Marc Mail" }, "s"), { typ: "erledigt", thema: "Marc Mail" });
+  assert.deepEqual(briefAus("erinnerung_erledigt", { thema: "Marc Mail", spaeter_uhrzeit: "19:30", text: "Schreib Marc" }, "s"), { typ: "erledigt", thema: "Marc Mail", uhrzeit: "19:30", text: "Schreib Marc" });
+  assert.deepEqual(briefAus("erinnerung_erledigt", { thema: "Marc", spaeter_minuten: 45 }, "s"), { typ: "erledigt", thema: "Marc", minuten: 45 });
+  assert.equal(briefAus("erinnerung_erledigt", {}, "s"), null);
+  assert.deepEqual(briefAus("erinnerung_loeschen", { nr: "2" }, "s"), { typ: "erinnerung_weg", nr: 2 });
+  assert.equal(briefAus("erinnerung_loeschen", { nr: 0 }, "s"), null);
+  assert.match(briefText({ typ: "erledigt", thema: "Marc", zeit: "z" }), /Erledigt: Marc/);
+});
+
+test("Die neuen Werkzeuge sind da und Rückruf braucht keine Minuten mehr", () => {
+  const namen = LUCA_WERKZEUGE.map((w) => w.function.name);
+  for (const n of ["erinnerung_erledigt", "erinnerung_loeschen", "rueckruf_planen", "erinnerung_planen"]) assert.ok(namen.includes(n), n);
+  const rr = LUCA_WERKZEUGE.find((w) => w.function.name === "rueckruf_planen")!;
+  assert.deepEqual([...rr.function.parameters.required], ["text"]);
+});
+
+test("Der Briefkasten lässt die neuen Briefe durch (sonst kämen sie nie in der Zentrale an)", async () => {
+  const { briefLesen } = await import("../lib/luca-logik.ts");
+  for (const b of [
+    { typ: "gespraech", start: "2026-11-13T11:00:00Z", sekunden: 60, mailbox: false, richtung: "rein", zeit: "z" },
+    { typ: "erledigt", thema: "Marc", zeit: "z" },
+    { typ: "erinnerung_weg", nr: 2, zeit: "z" },
+  ] as const) assert.ok(briefLesen(briefText(b)), b.typ);
+});

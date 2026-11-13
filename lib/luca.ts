@@ -29,6 +29,7 @@ import {
   stimmeTelefon,
   LAGE_MARKE,
   MAILBOX,
+  istMailbox,
   kundenText,
   type KundeFuerLuca,
   assistentUeberblick,
@@ -431,10 +432,21 @@ export async function setzePrompts(speaker: string, reasoner: string) {
   const a = await vapi<VapiAssistent>(`/assistant/${id}`);
   const m = a.model as (VapiAssistent["model"] & { speaker?: Record<string, unknown>; reasoner?: Record<string, unknown> }) | undefined;
   if (!m?.speaker || !m.reasoner) throw new Error("Luca läuft nicht auf GPT Live");
-  if (!speaker.includes("{{lage}}") || !reasoner.includes("{{lage}}")) throw new Error("In beiden Prompts muss {{lage}} stehen");
+  // Seit Fassung 6 heißt das Wissen {{wissen}} (Schule, Termine, Ort eigene Variablen); ältere Fassungen nutzen {{lage}}
+  const wissen = (p: string) => p.includes("{{lage}}") || p.includes("{{wissen}}");
+  if (!wissen(speaker) || !wissen(reasoner)) throw new Error("In beiden Prompts muss {{wissen}} oder {{lage}} stehen");
   const model = { ...m, speaker: { ...m.speaker, instructions: speaker }, reasoner: { ...m.reasoner, instructions: reasoner } };
   const neu = await vapi<VapiAssistent>(`/assistant/${id}`, { method: "PATCH", body: JSON.stringify({ model }) });
   return assistentUeberblick(neu as Parameters<typeof assistentUeberblick>[0]);
+}
+
+/** Die Prompts, die gerade bei Vapi stehen (zum Sichern vor dem Ersetzen). */
+export async function lesePrompts(): Promise<{ speaker: string; reasoner: string }> {
+  const id = lucaAssistent();
+  if (!id) throw new Error("LUCA_ASSISTANT fehlt");
+  const a = await vapi<VapiAssistent>(`/assistant/${id}`);
+  const m = a.model as { speaker?: { instructions?: string }; reasoner?: { instructions?: string } } | undefined;
+  return { speaker: m?.speaker?.instructions ?? "", reasoner: m?.reasoner?.instructions ?? "" };
 }
 
 /** Für die Prüfung von der Zentrale aus: Was ist bei Luca gerade eingestellt? */
@@ -512,7 +524,10 @@ export async function assistentFuerEingang() {
 }
 
 /** Luca ruft David an – nur Davids Nummer, nie 2–6 Uhr (keine Grenze pro Tag). */
-export async function rufeDavidAn(grund: string, test: boolean, info?: string): Promise<{ ok: true; id?: string } | { ok: false; grund: string }> {
+/** Fester Satz für Davids Mailbox, wenn die Zentrale keinen mitschickt (13.11.: Luca sprach dort „als David“). */
+export const MAILBOX_SATZ = "Hey Chef, Luca hier. Ruf mich einfach zurück, wenn du kurz Zeit hast. Bis später!";
+
+export async function rufeDavidAn(grund: string, test: boolean, info?: string, mailbox?: string): Promise<{ ok: true; id?: string } | { ok: false; grund: string }> {
   if (!lucaAn()) return { ok: false, grund: "Luca am Telefon ist noch nicht eingerichtet." };
   if (!process.env.VAPI_API_KEY?.trim()) return { ok: false, grund: "VAPI_API_KEY fehlt." };
   const kanal = await lucaKanal();
@@ -531,10 +546,12 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
         customer: { number: lucaNummer() },
         assistantOverrides: {
           firstMessage: ersterSatzAusgehend(grund),
-          variableValues: variablen(lage, grund, info, notiz, gedaechtnisAus(frueher), kunden, standort),
+          // 13.11.: Erst zuhören, dann reden – sonst spricht Luca über die Mailbox-Ansage. David meldet sich mit „Ja?“, dann legt Luca los.
+          firstMessageMode: "assistant-waits-for-user",
+          variableValues: { ...variablen(lage, grund, info, notiz, gedaechtnisAus(frueher), kunden, standort), mailbox: (mailbox ?? MAILBOX_SATZ).slice(0, 400) },
           metadata: { luca: true, test, grund: grund.slice(0, 200) },
           ...(stimme ? { voice: stimme } : {}),
-          ...(mitMailbox ? MAILBOX : {}),
+          ...(mitMailbox ? { ...MAILBOX, voicemailMessage: (mailbox ?? MAILBOX_SATZ).slice(0, 400) } : {}),
         },
       }),
     });
@@ -561,12 +578,14 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
 }
 
 /** Wie ist der Anruf ausgegangen? Die Zentrale hakt eine Erinnerung erst ab, wenn David abgenommen hat. Nur Lucas eigene Anrufe. */
-export async function anrufStand(id: string): Promise<{ status?: string; endedReason?: string; sekunden?: number } | null> {
+export async function anrufStand(id: string): Promise<{ status?: string; endedReason?: string; sekunden?: number; mailbox?: boolean } | null> {
   if (!/^[0-9a-f-]{20,60}$/i.test(id)) return null;
-  const c = await vapi<{ status?: string; endedReason?: string; assistantId?: string; startedAt?: string; endedAt?: string }>(`/call/${id}`);
+  const c = await vapi<{ status?: string; endedReason?: string; assistantId?: string; startedAt?: string; endedAt?: string; artifact?: { transcript?: string }; transcript?: string }>(`/call/${id}`);
   if (c.assistantId !== lucaAssistent()) return null;
   const sekunden = c.startedAt && c.endedAt ? Math.round((Date.parse(c.endedAt) - Date.parse(c.startedAt)) / 1000) : undefined;
-  return { status: c.status, endedReason: c.endedReason, ...(sekunden !== undefined ? { sekunden } : {}) };
+  // 13.11.: War nur die Mailbox dran? (an der Ansage in der Mitschrift)
+  const mailbox = c.status === "ended" && istMailbox(c.artifact?.transcript ?? c.transcript ?? "");
+  return { status: c.status, endedReason: c.endedReason, ...(sekunden !== undefined ? { sekunden } : {}), ...(mailbox ? { mailbox: true } : {}) };
 }
 
 type VapiAssistent = { id: string; name?: string; model?: Record<string, unknown>; voice?: Record<string, unknown>; transcriber?: Record<string, unknown> };

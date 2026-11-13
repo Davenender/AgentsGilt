@@ -1,9 +1,9 @@
 import { after, NextResponse } from "next/server";
-import { briefAus } from "@/lib/luca-logik";
+import { briefAus, gespraechBrief } from "@/lib/luca-logik";
 import { kostenStand } from "@/lib/kosten";
 import { lucaLive } from "@/lib/luca-live";
 import { ortsname } from "@/lib/luca-unterwegs";
-import { setzePrompts } from "@/lib/luca";
+import { lesePrompts, setzePrompts } from "@/lib/luca";
 import { owntracksKonfig, owntracksLink, standortText } from "@/lib/standort-logik";
 import {
   assistentFuerEingang,
@@ -56,7 +56,7 @@ export const maxDuration = 30;
 type ToolCall = { id?: string; name?: string; function?: { name?: string; arguments?: unknown }; arguments?: unknown };
 type VapiNachricht = {
   type?: string;
-  call?: { id?: string; assistantId?: string | null; assistantOverrides?: { metadata?: Record<string, unknown> } };
+  call?: { id?: string; type?: string; startedAt?: string; assistantId?: string | null; assistantOverrides?: { metadata?: Record<string, unknown> } };
   analysis?: { summary?: string };
   artifact?: { transcript?: string };
   transcript?: string;
@@ -89,6 +89,8 @@ const ANTWORT: Record<string, string> = {
   ruhe: "Ist bei der Zentrale. Sie sagt dir gleich im Gespräch, was gilt (oder ob sie den Ort nicht gefunden hat). Bis dahin sag David kurz, dass du es notierst.",
   lerncheck: "Ist gemerkt.",
   notiz: "Ist notiert, liegt in der Zentrale im Eingang.",
+  erledigt: "Ist durch: Dazu ruft Luca nicht mehr an. Hat David eine neue Zeit genannt, kommt genau ein Anruf zu dieser Zeit. Sag es ihm in einem Satz.",
+  erinnerung_weg: "Ist an die Zentrale raus. Kam die Nummer nicht hin, sagt sie es dir gleich im Gespräch.",
 };
 
 const WERKZEUG_FRIST_MS = 15_000;
@@ -159,6 +161,8 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
     if (istLucaGespraech(msg?.call)) {
       after(() => setzeGespraech(false).then(() => undefined));
       const grund = msg?.call?.assistantOverrides?.metadata?.grund;
+      // 13.11.: Die Zentrale erfährt, dass David mit Luca gesprochen hat (oder nur die Mailbox dran war): kein zweiter Anruf wegen derselben Sache
+      await posteBrief(gespraechBrief(msg ?? {}, new Date().toISOString())).catch((err) => console.error("[luca] Gesprächs-Brief:", err));
       await posteGespraech({
         minuten: Math.max(1, Math.round((msg?.durationSeconds ?? 0) / 60)),
         grund: typeof grund === "string" ? grund : undefined,
@@ -226,7 +230,8 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       const grund = typeof body.grund === "string" ? body.grund.trim().slice(0, 1200) : "";
       if (!grund) return NextResponse.json({ error: "grund fehlt" }, { status: 400 });
       const info = typeof body.info === "string" ? body.info.trim().slice(0, 3500) : undefined;
-      const r = await rufeDavidAn(grund, body.test === true, info || undefined);
+      const mailbox = typeof body.mailbox === "string" ? body.mailbox.replace(/\s+/g, " ").trim().slice(0, 400) : "";
+      const r = await rufeDavidAn(grund, body.test === true, info || undefined, mailbox || undefined);
       return NextResponse.json(r, { status: r.ok ? 200 : 409 });
     }
     if (aktion === "einrichten") return NextResponse.json(await einrichten());
@@ -237,6 +242,7 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       if (!anruf || !text) return NextResponse.json({ error: "anruf oder text fehlt" }, { status: 400 });
       return NextResponse.json(await sagImGespraech(anruf, text));
     }
+    if (aktion === "prompt" && req.method === "GET") return NextResponse.json(await lesePrompts());
     if (aktion === "prompt") {
       if (typeof body.speaker !== "string" || typeof body.reasoner !== "string") return NextResponse.json({ error: "speaker und reasoner fehlen" }, { status: 400 });
       return NextResponse.json(await setzePrompts(body.speaker.slice(0, 20_000), body.reasoner.slice(0, 20_000)));
