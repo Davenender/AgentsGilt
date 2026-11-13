@@ -6,8 +6,10 @@ import { istVorschau } from "../umgebung";
 import { Entschluesselt } from "./Entschluesselt";
 import { erzeugeZeichenbild, type Zeichenbild } from "./zeichenbild";
 
-// So lange ist jeder Schritt an der Reihe (muss zur Dauer von ag-abn-fuellen im Stylesheet passen) …
-const SCHRITT_MS = 4000;
+// So lange füllt sich die Überschrift eines Schritts mit Gold (dieselbe Dauer hat ag-abn-fuellen im Stylesheet) …
+const FUELLEN_MS = 6000;
+// … so lange bleibt sie danach ganz voll stehen, bevor der nächste Schritt kommt …
+const VOLL_MS = 500;
 // … und so lange bleibt ein angeklickter Schritt stehen, bevor der Lauf weitergeht.
 const PAUSE_NACH_KLICK_MS = 6000;
 
@@ -16,10 +18,11 @@ const PAUSE_NACH_KLICK_MS = 6000;
  * Schritts als großes Bild aus Schriftzeichen (zeichenbild.ts).
  *
  * Der Ablauf geht von selbst durch die Schritte, sobald er im Bild ist (wie auf der alten Seite):
- * Jeder Schritt ist 4 s an der Reihe, nach Schritt 3 beginnt es wieder bei Schritt 1. Die
- * Überschrift des aktiven Schritts füllt sich dabei von links nach rechts mit Gold, wie ein
- * Ladebalken in den Buchstaben; die anderen bleiben gedämpft. Mit jedem Wechsel fliegen die
- * Zeichen der großen Nummer zur neuen Nummer um.
+ * Die Überschrift des aktiven Schritts füllt sich in 6 s von links nach rechts mit Gold, wie ein
+ * Ladebalken in den Buchstaben, bis zum letzten Buchstaben. Dann bleibt sie 0,5 s ganz voll
+ * stehen, erst danach kommt der nächste Schritt; nach Schritt 3 beginnt es wieder bei Schritt 1.
+ * Die anderen Überschriften bleiben gedämpft. Mit jedem Wechsel fliegen die Zeichen der großen
+ * Nummer zur neuen Nummer um.
  *
  * Ein Klick auf einen Schritt macht ihn aktiv und sofort ganz gefüllt, der Lauf pausiert (6 s).
  * Danach läuft er mit dem nächsten Schritt weiter. Bei „weniger Bewegung“ sind alle Überschriften
@@ -68,7 +71,7 @@ export function AblaufNummern() {
     };
   }, []);
 
-  // Der Lauf: nach 4 s zum nächsten Schritt (nach einem Klick erst nach 6 s).
+  // Der Lauf: 6 s füllen, 0,5 s voll stehen, dann der nächste Schritt (nach einem Klick nach 6 s).
   useEffect(() => {
     if (still || !imBild) return;
     const uhr = window.setTimeout(
@@ -77,7 +80,7 @@ export function AblaufNummern() {
         setGewaehlt((g) => (g + 1) % ablauf.schritte.length);
         setRunde((r) => r + 1);
       },
-      geklickt ? PAUSE_NACH_KLICK_MS : SCHRITT_MS,
+      geklickt ? PAUSE_NACH_KLICK_MS : FUELLEN_MS + VOLL_MS,
     );
     return () => window.clearTimeout(uhr);
   }, [still, imBild, geklickt, runde]);

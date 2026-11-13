@@ -32,6 +32,13 @@ export const LADEN_FERTIG_KLASSE = "ag-laden-fertig";
 export const START_FERTIG = "ag:start-fertig";
 export const START_FERTIG_KLASSE = "ag-start-fertig";
 
+/**
+ * „Start frei“: Die Startanimation ist ganz vorbei (Name gelandet, Welle durch) oder es gab keine.
+ * Ab jetzt kann man scrollen.
+ */
+export const START_FREI = "ag:start-frei";
+export const START_FREI_KLASSE = "ag-start-frei";
+
 /** Gleichbleibende Zufallszahlen, damit Server und Browser dasselbe zeichnen. */
 export function zufall(saat: number) {
   let a = saat >>> 0;
@@ -45,19 +52,6 @@ export function zufall(saat: number) {
 }
 
 /**
- * Vorarbeit für die Startanimation: Alles, was beim ersten Scrollen gebraucht wird und Zeit kostet
- * (die zweite Licht-Szene im Wörter-Feld), meldet sich hier an. Die Startanimation wartet darauf,
- * solange der Stern im Dunkeln steht: So ruckelt später nichts.
- */
-const arbeiten: Promise<unknown>[] = [];
-export const vorarbeit = {
-  melde: (arbeit: Promise<unknown>) => {
-    arbeiten.push(arbeit);
-  },
-  alle: () => Promise.allSettled(arbeiten),
-};
-
-/**
  * Weiches Scrollen zu einem Ziel auf der Seite. Der Rahmen meldet hier sein weiches Scrollen
  * (Lenis) an; ohne das scrollt der Browser selbst (bei „weniger Bewegung“ ohne Animation).
  */
@@ -69,5 +63,37 @@ export const scrollZiel = {
   zu: (ziel: HTMLElement) => {
     if (weichZu) weichZu(ziel);
     else ziel.scrollIntoView({ behavior: willWenigerBewegung() ? "auto" : "smooth", block: "start" });
+  },
+};
+
+/**
+ * Scroll-Sperre: Während der Startanimation steht die Seite oben (kein Mausrad, kein Wischen, keine
+ * Tasten, kein Scrollbalken). Das Stylesheet sperrt das gewöhnliche Scrollen über die Klasse am
+ * <html>; das weiche Scrollen (Lenis) meldet sich hier an und hält so lange an.
+ *
+ * „Fest“ heißt: Die Seite ist dazu nur so hoch wie das Bild, es gibt gar nichts, wohin sie scrollen
+ * könnte (auch nicht durch die Tab-Taste oder ein Skript). Das gilt erst, wenn der Browser keine
+ * frühere Lage mehr wiederherstellen muss (siehe kopf/LichtName.tsx).
+ */
+const SPERRE_KLASSE = "ag-scroll-gesperrt";
+const FEST_KLASSE = "ag-scroll-fest";
+let gesperrt = false;
+let beiSperre: ((an: boolean) => void) | undefined;
+export const scrollSperre = {
+  melde: (wie: ((an: boolean) => void) | undefined) => {
+    beiSperre = wie;
+    wie?.(gesperrt);
+  },
+  setze: (an: boolean, fest = false) => {
+    gesperrt = an;
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle(SPERRE_KLASSE, an);
+      document.documentElement.classList.toggle(FEST_KLASSE, an && fest);
+    }
+    beiSperre?.(an);
+  },
+  /** Die laufende Sperre fest machen (die Seite ist dann nur so hoch wie das Bild). */
+  fest: () => {
+    if (gesperrt && typeof document !== "undefined") document.documentElement.classList.add(FEST_KLASSE);
   },
 };

@@ -1,0 +1,344 @@
+/* ───────────── Der leichte Stern (Leuchtstern.tsx) ─────────────
+   Der Stern des Logos als Licht, ohne Licht-Szene: Bilder, die von der eigenen Szene aufgenommen
+   sind (der Stern selbst und vier Muster der langen Strahlen), dazu eine Korn-Kachel. Bewegt wird
+   nur mit Drehen, Größe und Deckkraft. Der Platz des Sterns ist das umgebende Element (so groß wie
+   das Logo im Kopfbereich): Der Stern füllt die Hälfte, die Strahlen reichen bis zum Doppelten. */
+.ag-stern {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+/* Das Feld: doppelt so groß wie der Platz, schwarz. Es wird aufgehellt über den Grund gemischt
+   (Schwarz verändert nichts) und läuft rund aus: keine Kante, kein Viereck. */
+.ag-stern__feld {
+  position: absolute;
+  inset: -50%;
+  display: block;
+  overflow: hidden;
+  background: #000;
+  isolation: isolate;
+  mix-blend-mode: screen;
+  -webkit-mask-image: radial-gradient(closest-side, #000 88%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 88%, transparent 100%);
+}
+.ag-stern__dreh,
+.ag-stern__auf,
+.ag-stern__strahlen {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+/* Die Animationen heißen ag-leuchtstern-…: Der Stern im Dunkeln am Start (kopf.css) hat eigene
+   mit ähnlichen Namen, und gleiche Namen überschreiben einander.
+   Der ganze Stern dreht sich ganz leicht hin und her (± 5°, eine Runde in 14 s). */
+.ag-stern__dreh {
+  animation: ag-leuchtstern-dreh 7s cubic-bezier(0.37, 0, 0.63, 1) infinite alternate;
+}
+@keyframes ag-leuchtstern-dreh {
+  from {
+    rotate: -5.2deg;
+  }
+  to {
+    rotate: 5.2deg;
+  }
+}
+/* Die langen Strahlen: Sie wiegen sich etwas anders als der Stern und atmen. */
+.ag-stern__strahlen {
+  animation:
+    ag-leuchtstern-wiegen 11s cubic-bezier(0.37, 0, 0.63, 1) infinite alternate,
+    ag-leuchtstern-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes ag-leuchtstern-wiegen {
+  from {
+    rotate: 2.2deg;
+  }
+  to {
+    rotate: -2.2deg;
+  }
+}
+@keyframes ag-leuchtstern-atmen {
+  from {
+    opacity: 1;
+    scale: 1.03;
+  }
+  to {
+    opacity: 0.8;
+    scale: 0.97;
+  }
+}
+/* Die Strahlen schimmern: Vier Muster liegen übereinander und blenden reihum ineinander
+   (1 → 2 → 3 → 4 → 1, je 6 s). Das unterste steht immer; ein verdecktes blendet unbemerkt aus. */
+.ag-stern__strahl {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+}
+.ag-stern__strahl:nth-child(2) {
+  animation: ag-leuchtstern-schimmer-2 24s linear infinite;
+}
+.ag-stern__strahl:nth-child(3) {
+  animation: ag-leuchtstern-schimmer-3 24s linear infinite;
+}
+.ag-stern__strahl:nth-child(4) {
+  animation: ag-leuchtstern-schimmer-4 24s linear infinite;
+}
+@keyframes ag-leuchtstern-schimmer-2 {
+  0% {
+    opacity: 0;
+  }
+  25%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes ag-leuchtstern-schimmer-3 {
+  0%,
+  25% {
+    opacity: 0;
+  }
+  50%,
+  75% {
+    opacity: 1;
+  }
+  75.01%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes ag-leuchtstern-schimmer-4 {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* Der Stern selbst: aufgehellt über die Strahlen gemischt (zusammen ergibt das genau das Bild der
+   Licht-Szene). Sein Bild ist zwei Drittel des Platzes groß. */
+.ag-stern__mitte {
+  position: absolute;
+  inset: 33.3333%;
+  display: block;
+  mix-blend-mode: screen;
+}
+.ag-stern__kern {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  animation: ag-leuchtstern-kern-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes ag-leuchtstern-kern-atmen {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.9;
+  }
+}
+/* Das Korn: eine Kachel aus Zufallswerten in den Bildpunkten des Bildschirms, „farbig abgewedelt“
+   gemischt wie das Filmkorn der Licht-Szene (nur im Licht sichtbar, Schwarz bleibt schwarz). Die
+   Deckkraft ist außen 0,2 hoch 1/2,2 (die Szene rechnet linear mit 0,2, der Browser in sRGB) und
+   nimmt zur hellen Mitte hin ab: So ist das Korn überall so stark wie in der Szene (mit ihr
+   abgeglichen, siehe Leuchtstern.tsx). */
+.ag-stern__korn {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  opacity: 0.481;
+  mix-blend-mode: color-dodge;
+  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.45) 5%, rgba(0, 0, 0, 0.7) 16%, rgba(0, 0, 0, 0.86) 30%, #000 54%);
+  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.45) 5%, rgba(0, 0, 0, 0.7) 16%, rgba(0, 0, 0, 0.86) 30%, #000 54%);
+}
+/* Das Korn tanzt: Die Kachel springt 60-mal je Sekunde an eine andere Stelle. Zwei Sprungfolgen
+   liegen ineinander (24 und 23 Schritte): Erst nach 552 Bildern, gut 9 s, wiederholt sich die
+   Stelle. Es blinkt also kein Punkt im Takt. */
+.ag-stern__kachel {
+  position: absolute;
+  inset: -40px;
+  display: block;
+  animation: ag-leuchtstern-korn-a 0.4s step-end infinite;
+  will-change: transform;
+}
+.ag-stern__kachel::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  background-image: var(--korn-bild, none);
+  background-size: var(--korn-mass, 256px) var(--korn-mass, 256px);
+  image-rendering: pixelated;
+  animation: ag-leuchtstern-korn-b 0.38333s step-end infinite;
+  will-change: transform;
+}
+@keyframes ag-leuchtstern-korn-a {
+  0% {
+    translate: 0px 0px;
+  }
+  4.17% {
+    translate: -3px -22px;
+  }
+  8.33% {
+    translate: -23px 29px;
+  }
+  12.5% {
+    translate: 20px 21px;
+  }
+  16.67% {
+    translate: 22px -37px;
+  }
+  20.83% {
+    translate: -26px 35px;
+  }
+  25% {
+    translate: 26px 10px;
+  }
+  29.17% {
+    translate: -24px 37px;
+  }
+  33.33% {
+    translate: 16px 37px;
+  }
+  37.5% {
+    translate: 27px -37px;
+  }
+  41.67% {
+    translate: 16px 37px;
+  }
+  45.83% {
+    translate: 4px -35px;
+  }
+  50% {
+    translate: 10px 23px;
+  }
+  54.17% {
+    translate: 27px -16px;
+  }
+  58.33% {
+    translate: 17px -38px;
+  }
+  62.5% {
+    translate: -5px 31px;
+  }
+  66.67% {
+    translate: -34px 7px;
+  }
+  70.83% {
+    translate: -3px 4px;
+  }
+  75% {
+    translate: 18px -20px;
+  }
+  79.17% {
+    translate: -14px -23px;
+  }
+  83.33% {
+    translate: 15px -31px;
+  }
+  87.5% {
+    translate: -1px 26px;
+  }
+  91.67% {
+    translate: 35px 37px;
+  }
+  95.83% {
+    translate: -10px 10px;
+  }
+}
+@keyframes ag-leuchtstern-korn-b {
+  0% {
+    translate: 0px 0px;
+  }
+  4.35% {
+    translate: -37px -7px;
+  }
+  8.7% {
+    translate: -21px 23px;
+  }
+  13.04% {
+    translate: -32px -25px;
+  }
+  17.39% {
+    translate: 35px -23px;
+  }
+  21.74% {
+    translate: -12px 4px;
+  }
+  26.09% {
+    translate: -10px -34px;
+  }
+  30.43% {
+    translate: 6px 10px;
+  }
+  34.78% {
+    translate: 22px -23px;
+  }
+  39.13% {
+    translate: -3px -12px;
+  }
+  43.48% {
+    translate: 34px 22px;
+  }
+  47.83% {
+    translate: 4px -23px;
+  }
+  52.17% {
+    translate: 26px 37px;
+  }
+  56.52% {
+    translate: 1px 25px;
+  }
+  60.87% {
+    translate: -22px 7px;
+  }
+  65.22% {
+    translate: 32px -12px;
+  }
+  69.57% {
+    translate: 11px 23px;
+  }
+  73.91% {
+    translate: 33px -13px;
+  }
+  78.26% {
+    translate: 35px 24px;
+  }
+  82.61% {
+    translate: 19px -36px;
+  }
+  86.96% {
+    translate: -15px 28px;
+  }
+  91.3% {
+    translate: -34px 9px;
+  }
+  95.65% {
+    translate: 25px 24px;
+  }
+}
+/* Nicht im Bild: Alles ruht. */
+.ag-stern[data-ruht] *,
+.ag-stern[data-ruht] *::before {
+  animation-play-state: paused !important;
+}
+
+/* „Weniger Bewegung“: Der Stern steht still (mit Korn). */
+@media (prefers-reduced-motion: reduce) {
+  .ag-stern *,
+  .ag-stern *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}

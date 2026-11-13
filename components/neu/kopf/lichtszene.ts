@@ -22,6 +22,20 @@
 // Zu sehen ist deshalb kein Gegenstand, keine Kante und keine Fläche: nur
 // feines, körniges, gedimmtes goldenes Licht in der Form unseres Logos. Kein
 // Weiß, der Grund bleibt schwarz.
+//
+// Takt und Wache (seit 13.11.2026):
+//   - Das Licht wird höchstens 60-mal je Sekunde neu gezeichnet, gleichmäßig auf den Takt des
+//     Bildschirms verteilt (bei 165 Hz jedes dritte Bild = 55-mal, bei 120 Hz jedes zweite). Zeichen
+//     und Maus dürfen schneller laufen; das Licht braucht das nicht.
+//   - Die Wache misst die echte Arbeitszeit der Grafikkarte je Licht-Bild (Zeitmessung des Browsers),
+//     nicht den Abstand zweier Bilder: Der ist bei 165 Hz ohnehin kurz und bei gedrosseltem Fenster
+//     (verdeckt, im Hintergrund, Stromsparen) lang, ohne dass das Gerät überlastet wäre. Wo es die
+//     Zeitmessung nicht gibt, zählt nur nachgewiesener Rückstau: wie lange die Grafikkarte nach
+//     einem Licht-Bild nachweislich noch beschäftigt war (alle paar Millisekunden nachgesehen).
+//   - Wird es knapp, wird das Licht in Sparstufen billiger (kleinere Zwischenbilder, weniger Proben,
+//     zuletzt halber Takt). Die Zeichenfläche und das Korn bleiben immer in voller Auflösung. Am
+//     Computer gibt es nie ein Standbild; das ruhige Bild ist nur die letzte Rettung für sehr
+//     schwache Handys.
 import * as THREE from "three";
 import { BlendFunction, EffectComposer, EffectPass, GodRaysEffect, KernelSize, NoiseEffect, RenderPass } from "postprocessing";
 import { gsap } from "@/lib/gsap";
@@ -61,8 +75,9 @@ export type LichtSzene = {
    */
   probe: (an: boolean) => void;
   /**
-   * Probebild: zeichnet einmal das volle Licht mit allen Teilen. Gibt false zurück (und zeichnet
-   * nicht), wenn die Grafikkarte mit den vorigen Probebildern nicht nachkommt.
+   * Probebild, in jedem Bild des Bildschirms zu rufen: zeichnet das volle Licht mit allen Teilen,
+   * aber nur in seinem Takt (höchstens 60-mal je Sekunde, wie später im Betrieb). Gibt false
+   * zurück, wenn die Grafikkarte mit den vorigen Probebildern nicht nachkommt.
    */
   probeBild: () => boolean;
   /**
@@ -79,13 +94,6 @@ export type LichtSzene = {
    * ausgefahren sind (0 bis 1) und seine Drehung (Bogenmaß).
    */
   sternForm: (mass: number, strahlen: number, dreh: number) => void;
-  /**
-   * Schonen: Solange die Zeichen des Namens als Ganzes unterwegs sind (Startflug, Welle, Scrollen),
-   * tritt das Licht kürzer, aber nur, wenn das Gerät sonst nicht im Takt des Bildschirms bliebe:
-   * Dann wird es in jedem zweiten Bild neu gezeichnet statt in jedem. Das Bild selbst ändert sich
-   * dadurch nicht. Danach (false) läuft alles wie immer.
-   */
-  schonen: (ja: boolean) => void;
   ende: () => void;
 };
 
@@ -109,15 +117,31 @@ export type LichtWahl = {
     zeiten: [stern: number, balken: number, strahlen: number];
   };
   /**
-   * Wörter-Feld: Die Wand hat nur den Stern als Öffnung (keine Balken). Er lässt sich aus einem
-   * Lichtpunkt wachsen lassen und drehen (sternForm()), leuchtet satter und im Kern heller und
-   * atmet deutlicher.
+   * Nur der Stern: Die Wand hat nur den Stern als Öffnung (keine Balken), das Gold ist satter, der
+   * Kern heller. Auf der Seite läuft diese Szene nicht mehr (dort steht der leichte Stern,
+   * seite/Leuchtstern.tsx); sie dient auf der Testseite dazu, dessen Ebenen aufzunehmen.
    */
   nurStern?: boolean;
+  /**
+   * Aufnahme für die Bilder des leichten Sterns (nur Testseite, mit `nurStern`): „kern“ zeigt den
+   * Stern ohne die langen Strahlen, „ganz“ den Stern mit ihnen. Die Zeit steht fest (sie bestimmt
+   * das Muster der Speichen), nichts atmet oder wiegt sich. Das Korn ist aus, außer mit `korn`
+   * (zum Vergleich mit dem leichten Stern).
+   */
+  aufnahme?: { teil: "kern" | "ganz"; zeit: number; korn?: boolean };
   /** Wird nach jedem Bild gerufen, in dem sich das Licht bewegt hat. */
   beiBild?: (lage: LichtLage) => void;
-  /** Wird einmal gerufen, wenn das Gerät nicht flüssig mitkommt oder die Grafik ausfällt: Dann gehört das ruhige Bild hin. */
-  beiAusfall?: () => void;
+  /**
+   * Letzte Rettung für sehr schwache Handys: Kommt die Grafikkarte auch in der sparsamsten Stufe
+   * nicht mit, darf die Szene aufgeben (beiAusfall mit „last“; die Seite zeigt dann das ruhige
+   * Bild). Am Computer nie: Dort wird das Licht nur billiger, bleibt aber lebendig.
+   */
+  letzteRettung?: boolean;
+  /**
+   * Wird einmal gerufen, wenn die Szene nicht weiterzeichnen kann: „verlust“ = die Grafik ist
+   * ausgefallen (WebGL-Kontext verloren), „last“ = letzte Rettung (siehe oben).
+   */
+  beiAusfall?: (grund: "last" | "verlust") => void;
 };
 
 // Maße der Szene (wie beim Vorbild): Die Kamera steht 14 vor der Wand; bei einem Logo von rund
@@ -145,6 +169,31 @@ const STRAHL_BELICHTUNG = 0.21;
 // Bildpunkte wie bei einem Fenster von 1440 × 900 in halber Auflösung: In großen Fenstern und bei
 // doppelter Pixeldichte kostet das Licht dann nicht mehr als dort.
 const STRAHL_PUNKTE = 330000;
+// Das Licht in den Öffnungen (zweiter Durchgang): Proben, Abklingen und Gewicht bei voller Güte.
+const DIREKT_PROBEN = 30;
+// Sparstufen: Wird es für die Grafikkarte knapp, rechnet das Licht billiger. Die Zeichenfläche und
+// das Korn bleiben dabei immer in voller Auflösung; gespart wird nur an dem, was ohnehin weich ist.
+//   punkte   höchste Zahl der Bildpunkte im Zwischenbild der langen Strahlen
+//   proben   Anteil der Proben je Bildpunkt (Abklingen und Gewicht werden umgerechnet: gleiches Bild)
+//   direkt   Proben des zweiten Durchgangs (Licht in den Öffnungen)
+//   klein    Größe seines Zwischenbilds gegenüber der vollen Güte
+//   halb     nur jedes zweite Licht-Bild (27 bis 30 je Sekunde)
+// Die ersten beiden Stufen verkleinern nur die Zwischenbilder: Das kostet beim Umschalten nichts
+// (kein neues Shader-Programm, kein Stocken). Erst die dritte nimmt Proben weg.
+const SPARSTUFEN = [
+  { punkte: STRAHL_PUNKTE, proben: 1, direkt: DIREKT_PROBEN, klein: 1, halb: false },
+  { punkte: 250000, proben: 1, direkt: DIREKT_PROBEN, klein: 0.9, halb: false },
+  { punkte: 190000, proben: 1, direkt: DIREKT_PROBEN, klein: 0.8, halb: false },
+  { punkte: 190000, proben: 0.6, direkt: 20, klein: 0.8, halb: false },
+  { punkte: 190000, proben: 0.6, direkt: 20, klein: 0.8, halb: true },
+];
+// Die Wache greift ein, wenn ein Licht-Bild die Grafikkarte im Mittel länger beschäftigt als diesen
+// Anteil der Zeit bis zum nächsten Licht-Bild (60 Messungen je Fenster, zwei Fenster in Folge).
+// Die ersten beiden Stufen (kleinere Zwischenbilder) sieht man nicht: Sie kommen früh. Weniger
+// Proben, den halben Takt und die letzte Rettung gibt es erst, wenn die Grafikkarte ein Licht-Bild
+// nicht einmal mehr in der Zeit bis zum nächsten schafft.
+const WACHE_ANTEIL = 0.72;
+const WACHE_ANTEIL_SPAET = 1;
 
 const FLAECHE = `
 varying vec2 vLage;
@@ -173,9 +222,8 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     leinwand.remove();
     throw fehler;
   }
-  // Pixeldichte der Zeichenfläche: höchstens 2-fach (ruckelt das Gerät, sinkt diese Grenze).
-  let grenze = 2;
-  let dichte = Math.min(window.devicePixelRatio || 1, grenze);
+  // Pixeldichte der Zeichenfläche: höchstens 2-fach. Sie sinkt nie (das Korn bleibt in voller Auflösung).
+  let dichte = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(dichte);
 
   const szene = new THREE.Scene();
@@ -417,17 +465,25 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   let breite = 1;
   let hoehe = 1;
   let neu = true;
+  // Sparstufe (0 = volle Güte). Sie steigt nur, wenn die Wache es verlangt, und sinkt nicht wieder.
+  let stufe = 0;
   const vermessen = () => {
     const r = halter.getBoundingClientRect();
     const a = anker.getBoundingClientRect();
     breite = Math.max(1, r.width);
     hoehe = Math.max(1, r.height);
-    dichte = Math.min(window.devicePixelRatio || 1, grenze);
+    dichte = Math.min(window.devicePixelRatio || 1, 2);
     renderer.setPixelRatio(dichte);
     renderer.setSize(breite, hoehe, false);
+    const spar = SPARSTUFEN[stufe];
     // Zwischenbild der langen Strahlen: halbe Auflösung, in großen Fenstern weniger (siehe STRAHL_PUNKTE).
-    const anteil = Math.min(0.5, Math.sqrt(STRAHL_PUNKTE / (breite * hoehe * dichte * dichte)));
+    const anteil = Math.min(0.5, Math.sqrt(spar.punkte / (breite * hoehe * dichte * dichte)));
     if (Math.abs(strahlen.resolution.scale - anteil) > 0.001) strahlen.resolution.scale = anteil;
+    // Zwischenbild der Öffnungen (und der Vorstufe): halbe Auflösung des Fensters, auch bei doppelter
+    // Pixeldichte. Balken und Stern sind damit überall so scharf wie auf einem gewöhnlichen
+    // Bildschirm; in voller Dichte gerechnet kostete allein dieser Teil dort die Hälfte der Arbeit.
+    const anteilDirekt = (0.5 / Math.max(1, dichte)) * spar.klein;
+    if (Math.abs(direkt.resolution.scale - anteilDirekt) > 0.001) direkt.resolution.scale = anteilDirekt;
     composer.setSize(breite, hoehe);
     // Die Lichtquelle jedes Effekts wird nur so fein gezeichnet wie sein Zwischenbild: Sie wird ohnehin
     // gleich weichgezeichnet und verkleinert (die Bibliothek nähme dafür die volle Auflösung).
@@ -496,91 +552,241 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   let sichtbar = true;
   let vorbei = false;
   let gezeigt = false;
-  let bildNr = 0;
-  // Schonen: Solange die Zeichen des Namens fliegen oder eine Welle läuft, tritt das Licht kürzer,
-  // aber nur, wenn das Gerät sonst nicht mitkäme: Schafft es jedes Bild im Takt des Bildschirms,
-  // wird auch das Licht in jedem Bild gezeichnet, sonst in jedem zweiten.
-  let schonend = false;
-  let lichtImVorigenBild = false;
-  // Kürzester Abstand zweier Bilder in letzter Zeit: der Takt des Bildschirms.
+  // Der Takt des Bildschirms (Sekunden): der kürzeste Abstand zweier Bilder. Er lässt nur sehr
+  // langsam nach (ein Fenster kann auf einen langsameren Bildschirm wandern), damit eine gerade
+  // langsame Seite nicht als langsamer Bildschirm gilt.
   let takt = 1 / 60;
+  const taktMessen = (echt: number) => {
+    if (echt > 0.003) takt = Math.min(echt, takt * 1.0005);
+  };
+  // Gleich nach dem Anlegen ein paar Bilder lang messen (dann ist die Seite noch ruhig).
+  {
+    let vorher = 0;
+    let uebrig = 24;
+    const messe = (jetzt: number) => {
+      if (vorbei) return;
+      if (vorher) taktMessen((jetzt - vorher) / 1000);
+      vorher = jetzt;
+      uebrig -= 1;
+      if (uebrig > 0) requestAnimationFrame(messe);
+    };
+    requestAnimationFrame(messe);
+  }
+  // Wann zuletzt ein Licht-Bild gezeichnet wurde (Millisekunden) und in welcher Lage.
+  let lichtZuletzt = 0;
+  const gemalt = { x: 0, y: 0 };
   // Wie schnell das Licht der Maus nachgeführt wird (je Sekunde).
   const FOLGE_TEMPO = 3.2;
   // Wörter-Feld: wie weit die Strahlen des Sterns ausgefahren sind (0 bis 1).
   let sternStrahlen = wahl.nurStern ? 0 : 1;
-  // Messung, ob das Gerät flüssig mitkommt.
-  let gezeichnet = false; // Hat das vorige Bild gezeichnet?
-  let warm = 0;
-  let dauerSumme = 0;
-  let dauerZahl = 0;
-  let geprueft = false; // Gab es schon ein flüssiges Messfenster?
-  let schlecht = 0; // ruckelnde Messfenster in Folge
   let gemeldet = false;
 
-  // Das Gerät kommt nicht mit oder die Grafik ist weg: einmal melden (die Seite zeigt dann das ruhige Bild).
-  const ausfall = () => {
+  // Die Szene kann nicht weiterzeichnen: einmal melden (die Seite entscheidet, was dann gilt).
+  const ausfall = (grund: "last" | "verlust") => {
     if (vorbei || gemeldet) return;
     gemeldet = true;
-    wahl.beiAusfall?.();
+    wahl.beiAusfall?.(grund);
   };
-  leinwand.addEventListener("webglcontextlost", ausfall);
+  const verlust = () => ausfall("verlust");
+  leinwand.addEventListener("webglcontextlost", verlust);
+
+  // ── Takt des Lichts: höchstens 60 Licht-Bilder je Sekunde, gleichmäßig verteilt.
+  /** Jedes wievielte Bild des Bildschirms ein Licht-Bild bekommt (165 Hz: 3, 120 Hz: 2, 60 Hz: 1). */
+  const lichtJedes = () => Math.max(1, Math.ceil((1 / 60 - 0.0006) / takt)) * (SPARSTUFEN[stufe].halb ? 2 : 1);
+  /** Ist das nächste Licht-Bild fällig, wenn nur jedes n-te Bild eines bekommt? */
+  const faellig = (jetzt: number, n: number) => jetzt - lichtZuletzt >= (n - 0.5) * takt * 1000;
+
+  // ── Wache: Wie lange beschäftigt ein Licht-Bild die Grafikkarte wirklich?
+  const gl2 = renderer.getContext() as WebGL2RenderingContext;
+  type ZeitErw = { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number };
+  let zeitErw: ZeitErw | null = null;
+  try {
+    zeitErw = gl2.getExtension("EXT_disjoint_timer_query_webgl2") as ZeitErw | null;
+  } catch {
+    zeitErw = null;
+  }
+  // Laufende Zeitmessungen (Abfragen). Wo es die nicht gibt: eine Marke im Befehlsstrom, mit ihrer
+  // Startzeit und dem Zeitpunkt, zu dem sie zuletzt nachweislich noch offen war.
+  const abfragen: WebGLQuery[] = [];
+  let zaun: { marke: WebGLSync; ab: number; offenBis: number } | null = null;
+  let zaunUhr = 0;
+  let abfrageLaeuft: WebGLQuery | null = null;
+  let arbeitSumme = 0;
+  let arbeitZahl = 0;
+  let knapp = 0;
+  // Nach einem Stufenwechsel zählen die nächsten Messungen nicht (die Grafikkarte richtet sich neu ein).
+  let schonfrist = 0;
+
+  const messBeginn = () => {
+    if (!zeitErw || abfrageLaeuft || abfragen.length > 4) return;
+    try {
+      const q = gl2.createQuery();
+      if (!q) return;
+      gl2.beginQuery(zeitErw.TIME_ELAPSED_EXT, q);
+      abfrageLaeuft = q;
+    } catch {
+      zeitErw = null;
+    }
+  };
+  const zaunWeg = () => {
+    window.clearTimeout(zaunUhr);
+    zaunUhr = 0;
+    if (!zaun) return;
+    try {
+      gl2.deleteSync(zaun.marke);
+    } catch {
+      /* dann räumt der Browser sie mit der Fläche ab */
+    }
+    zaun = null;
+  };
+  // Ersatz ohne Zeitmessung: Alle paar Millisekunden nachsehen, ob die Grafikkarte die Marke hinter
+  // dem Licht-Bild schon erreicht hat. Gezählt wird nur nachgewiesener Rückstau: die Zeit bis zu
+  // dem Augenblick, in dem die Marke zuletzt noch offen war (war sie schon beim ersten Nachsehen
+  // erledigt: 0). Kommt das Nachsehen selbst zu spät (Skript blockiert, Fenster gedrosselt), wird
+  // dadurch höchstens zu wenig gezählt, nie zu viel.
+  const zaunSchauen = () => {
+    zaunUhr = 0;
+    if (!zaun || vorbei) return;
+    const jetzt = performance.now();
+    let erledigt = true;
+    try {
+      erledigt = gl2.getSyncParameter(zaun.marke, gl2.SYNC_STATUS) === gl2.SIGNALED;
+    } catch {
+      // Die Grafik ist weg: Diese Messung sagt nichts.
+      return zaunWeg();
+    }
+    if (!erledigt && jetzt - zaun.ab < 400) {
+      zaun.offenBis = jetzt;
+      zaunUhr = window.setTimeout(zaunSchauen, 3);
+      return;
+    }
+    const dauer = erledigt ? (zaun.offenBis ? zaun.offenBis - zaun.ab : 0) : jetzt - zaun.ab;
+    zaunWeg();
+    arbeit(dauer);
+  };
+  const messEnde = () => {
+    try {
+      if (zeitErw && abfrageLaeuft) {
+        gl2.endQuery(zeitErw.TIME_ELAPSED_EXT);
+        abfragen.push(abfrageLaeuft);
+        abfrageLaeuft = null;
+      } else if (!zeitErw && !zaun) {
+        const marke = gl2.fenceSync(gl2.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        gl2.flush();
+        if (marke) {
+          zaun = { marke, ab: performance.now(), offenBis: 0 };
+          zaunUhr = window.setTimeout(zaunSchauen, 3);
+        }
+      }
+    } catch {
+      /* ohne Messung weiter */
+    }
+  };
+  /** Fertige Zeitmessungen der Grafikkarte abholen. */
+  const messLesen = () => {
+    if (!zeitErw) return;
+    try {
+      while (abfragen.length && gl2.getQueryParameter(abfragen[0], gl2.QUERY_RESULT_AVAILABLE)) {
+        const q = abfragen.shift()!;
+        const gestoert = gl2.getParameter(zeitErw.GPU_DISJOINT_EXT);
+        const ms = gl2.getQueryParameter(q, gl2.QUERY_RESULT) / 1e6;
+        gl2.deleteQuery(q);
+        if (!gestoert) arbeit(ms);
+      }
+    } catch {
+      /* ohne Messung weiter */
+    }
+  };
+  const messWeg = () => {
+    try {
+      if (zeitErw && abfrageLaeuft) gl2.endQuery(zeitErw.TIME_ELAPSED_EXT);
+      for (const q of abfragen) gl2.deleteQuery(q);
+      if (abfrageLaeuft) gl2.deleteQuery(abfrageLaeuft);
+    } catch {
+      /* dann räumt der Browser sie mit der Fläche ab */
+    }
+    abfrageLaeuft = null;
+    abfragen.length = 0;
+    zaunWeg();
+  };
+
+  /** Eine Sparstufe einstellen: Proben und Größe der Zwischenbilder (die Zeichenfläche bleibt, wie sie ist). */
+  const stelleStufe = (nummer: number, mittel = 0) => {
+    stufe = Math.max(0, Math.min(SPARSTUFEN.length - 1, nummer));
+    const spar = SPARSTUFEN[stufe];
+    // Weniger Proben heißt längere Schritte: Abklingen und Gewicht werden umgerechnet, das Bild bleibt gleich.
+    const proben = Math.max(24, Math.round(wahl.proben * spar.proben));
+    if (strahlen.godRaysMaterial.samples !== proben) {
+      strahlen.godRaysMaterial.samples = proben;
+      strahlen.godRaysMaterial.decay = Math.pow(0.94, 80 / proben);
+      strahlen.godRaysMaterial.weight = (0.2 * 80) / proben;
+    }
+    if (direkt.godRaysMaterial.samples !== spar.direkt) {
+      direkt.godRaysMaterial.samples = spar.direkt;
+      direkt.godRaysMaterial.decay = Math.pow(0.82, DIREKT_PROBEN / spar.direkt);
+      direkt.godRaysMaterial.weight = (0.3 * DIREKT_PROBEN) / spar.direkt;
+    }
+    vermessen();
+    kaesten.clear();
+    schonfrist = 30;
+    arbeitSumme = 0;
+    arbeitZahl = 0;
+    knapp = 0;
+    try {
+      // Nachzulesen über performance.getEntriesByName("ag-licht:stufe").
+      performance.mark("ag-licht:stufe", { detail: { stufe, mittel: Math.round(mittel * 10) / 10, abstand: Math.round(lichtJedes() * takt * 10000) / 10 } });
+    } catch {
+      /* ohne Vermerk */
+    }
+  };
+
+  /** Eine Messung der Arbeitszeit (Millisekunden) geht in die Wache ein. */
+  const arbeit = (ms: number) => {
+    // Messhaken für die Prüfskripte (im Betrieb gibt es das Feld nicht).
+    (window as unknown as { __agLichtMessen?: number[][] }).__agLichtMessen?.push([performance.now(), ms, stufe]);
+    // Erst nach dem Auftritt, nicht im verdeckten Fenster und nicht direkt nach einem Stufenwechsel.
+    if (zustand.auftritt < 1 || document.hidden) return;
+    if (schonfrist > 0) {
+      schonfrist -= 1;
+      return;
+    }
+    arbeitSumme += ms;
+    arbeitZahl += 1;
+    if (arbeitZahl < 60) return;
+    const mittel = arbeitSumme / arbeitZahl;
+    arbeitSumme = 0;
+    arbeitZahl = 0;
+    // Zeit bis zum nächsten Licht-Bild (Millisekunden).
+    const abstand = lichtJedes() * takt * 1000;
+    if (mittel <= abstand * (stufe < 2 ? WACHE_ANTEIL : WACHE_ANTEIL_SPAET)) {
+      knapp = 0;
+      return;
+    }
+    knapp += 1;
+    if (knapp < 2) return;
+    // Zwei Fenster in Folge zu knapp: eine Sparstufe weiter. Das Licht bleibt dabei lebendig.
+    if (stufe < SPARSTUFEN.length - 1) stelleStufe(stufe + 1, mittel);
+    // Schon in der sparsamsten Stufe: Am Computer bleibt es dabei. Nur sehr schwache Handys geben auf.
+    else if (wahl.letzteRettung) ausfall("last");
+    else knapp = 0;
+  };
 
   const bild = (jetzt: number) => {
     rahmen = 0;
     if (vorbei) return;
     const echt = letzte ? (jetzt - letzte) / 1000 : 0.016;
     const dt = Math.min(0.05, echt);
-    const warGezeichnet = gezeichnet && letzte > 0;
     letzte = jetzt;
-    gezeichnet = false;
     zeit += dt;
-    bildNr += 1;
 
-    // Kommt das Gerät mit? Gemessen wird nur, wie lange es nach einem gezeichneten Bild bis zum
-    // nächsten dauert (absichtlich ausgelassene Bilder schönen die Messung nicht), und erst nach
-    // dem Auftritt (das Laden der Seite zählt nicht als Ruckeln). Je Fenster 30 Bilder.
-    if (warGezeichnet && zustand.auftritt >= 1) {
-      warm += 1;
-      if (warm > 10) {
-        dauerSumme += echt;
-        dauerZahl += 1;
-      }
-    }
-    if (dauerZahl >= 30) {
-      if (dauerSumme / dauerZahl > 0.03) {
-        // Im Schnitt über 30 ms je Bild: erst gröber rechnen; ruckelt es auch dann noch
-        // (und mindestens zwei Fenster in Folge), wird es gemeldet.
-        schlecht += 1;
-        warm = 0;
-        if (dichte > 1.25) {
-          grenze = 1.25;
-          vermessen();
-        } else if (dichte > 1) {
-          grenze = 1;
-          vermessen();
-        } else if (schlecht >= 2) {
-          ausfall();
-          if (vorbei) return;
-        }
-      } else {
-        schlecht = 0;
-        geprueft = true;
-      }
-      dauerSumme = 0;
-      dauerZahl = 0;
-    }
-
-    // Takt des Bildschirms: der kürzeste Abstand der letzten Bilder (lässt langsam wieder nach).
-    if (echt > 0.003) takt = Math.min(echt, takt * 1.02);
-    // Kommt das Gerät gerade im Takt mit? (Das vorige Bild kam ohne Verzug.)
-    const imTakt = echt <= takt * 1.3;
+    taktMessen(echt);
+    messLesen();
+    if (vorbei) return;
 
     // Vor dem Auftritt ist vom Licht nichts zu sehen: einmal den dunklen Grund zeichnen, dann
     // warten (zeigen() weckt wieder).
     if (!gezeigt && !neu) return;
 
-    const vorX = ist.x;
-    const vorY = ist.y;
     if (dreh) {
       // Erstes Hindrehen: weich anfahren und weich ankommen, dorthin, wo die Maus gerade ist.
       dreh.zeit += dt;
@@ -594,20 +800,23 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
       ist.x += (ziel.x - ist.x) * zug;
       ist.y += (ziel.y - ist.y) * zug;
     }
-    // „Bewegt“ heißt: Die Zeichen müssen davon erfahren (Maus, Auftritt bis zum letzten Wert, neue Maße).
+    // „Bewegt“ heißt: Seit dem letzten Licht-Bild hat sich etwas getan, von dem auch die Zeichen
+    // erfahren müssen (Maus, Auftritt bis zum letzten Wert, neue Maße).
     // Helligkeit, die die Zeichen erfahren: die Lichtstärke, beim Aufleuchten kurz etwas mehr.
     const hell = staerke(zustand.auftritt) * (1 + zustand.blitz);
-    const bewegt = Math.abs(ist.x - vorX) + Math.abs(ist.y - vorY) > 0.0005 || lage.hell !== hell || neu;
+    const bewegt = Math.abs(ist.x - gemalt.x) + Math.abs(ist.y - gemalt.y) > 0.0005 || lage.hell !== hell || neu;
 
-    // In Ruhe genügt jedes zweite Bild (Atmen, Filmkorn und das langsame Wiegen am Handy).
-    // Solange nicht feststeht, dass das Gerät flüssig mitkommt, wird jedes Bild gezeichnet.
-    // Beim Schonen (die Zeichen fliegen): jedes Bild, wenn das Gerät im Takt bleibt, sonst jedes zweite.
-    const jetztZeichnen = schonend && !neu ? imTakt || !lichtImVorigenBild : bewegt || !geprueft || schlecht > 0 || bildNr % 2 === 0;
-    lichtImVorigenBild = jetztZeichnen;
-    if (jetztZeichnen) {
-      zeichne(dt);
-      gezeichnet = true;
-
+    // Höchstens 60 Licht-Bilder je Sekunde. In Ruhe (nur Atmen, Korn und das langsame Wiegen am
+    // Handy) genügt wie bisher jedes zweite Bild des Bildschirms, wenn der nicht schneller ist.
+    const jedes = lichtJedes();
+    if (neu || faellig(jetzt, bewegt ? jedes : Math.max(jedes, 2))) {
+      const zeitSeit = lichtZuletzt ? Math.min(0.1, (jetzt - lichtZuletzt) / 1000) : dt;
+      lichtZuletzt = jetzt;
+      messBeginn();
+      zeichne(zeitSeit);
+      messEnde();
+      gemalt.x = ist.x;
+      gemalt.y = ist.y;
       lage.hell = hell;
       if (bewegt) wahl.beiBild?.(lage);
       neu = false;
@@ -720,9 +929,20 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     } else {
       uHell.value = zustand.auftritt * atem * (1 + zustand.blitz);
     }
+    if (wahl.aufnahme) {
+      // Aufnahme für den leichten Stern: feste Zeit, volle Größe, mit oder ohne lange Strahlen, kein Korn.
+      uZeit.value = wahl.aufnahme.zeit;
+      uHell.value = 1;
+      uMass.value = 1;
+      uDreh.value = 0;
+      strahlen.godRaysMaterial.exposure = wahl.aufnahme.teil === "kern" ? 0 : STRAHL_BELICHTUNG * 1.5;
+      strahlen.godRaysMaterial.density = STRAHL_DICHTE;
+      direkt.godRaysMaterial.exposure = DIREKT_BELICHTUNG;
+      korn.blendMode.opacity.value = wahl.aufnahme.korn ? 0.2 : 0;
+    }
     // Ohne Maus wiegt sich die Wand ganz leicht von selbst.
-    const kx = ist.x + Math.sin(zeit * 0.31) * (wahl.maus ? 0.03 : 0.05);
-    const ky = ist.y + Math.sin(zeit * 0.23 + 1.3) * (wahl.maus ? 0.02 : 0.035);
+    const kx = wahl.aufnahme ? 0 : ist.x + Math.sin(zeit * 0.31) * (wahl.maus ? 0.03 : 0.05);
+    const ky = wahl.aufnahme ? 0 : ist.y + Math.sin(zeit * 0.23 + 1.3) * (wahl.maus ? 0.02 : 0.035);
     stelleEin(kx, ky);
     begrenze(strahlen, scheibe);
     begrenze(direkt, direktScheibe);
@@ -766,6 +986,7 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   const einPunkt = new Uint8Array(4);
   // Marken im Befehlsstrom der Grafikkarte, eine je Probebild: Sie zeigen, wie weit sie zurückliegt.
   const marken: WebGLSync[] = [];
+  let probeZuletzt = 0;
   const markenWeg = () => {
     try {
       const gl = renderer.getContext() as WebGL2RenderingContext;
@@ -797,12 +1018,14 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   beobachter.observe(halter);
   beobachter.observe(anker);
   const pause = () => {
-    // Nach einer Pause die Messung neu beginnen: Sie soll nicht als Ruckeln zählen.
+    // Nach einer Pause beginnen Uhr und Messfenster neu.
     letzte = 0;
-    gezeichnet = false;
-    warm = 0;
-    dauerSumme = 0;
-    dauerZahl = 0;
+    lichtZuletzt = 0;
+    arbeitSumme = 0;
+    arbeitZahl = 0;
+    knapp = 0;
+    // Eine offene Marke der Ersatzmessung sagt nach einer Pause nichts mehr: weg damit.
+    zaunWeg();
     wecken();
   };
   const waechter = new IntersectionObserver((eintraege) => {
@@ -823,6 +1046,7 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
       leinwand.style.opacity = "";
       leinwand.style.transition = "";
       markenWeg();
+      lichtZuletzt = 0;
       beiPegel = melden;
       gsap.killTweensOf(zustand, "auftritt");
       // In Stufen läuft der Pegel gleichmäßig; die Stufen selbst sind weich (stufenWerte).
@@ -875,6 +1099,13 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     },
     probeBild: () => {
       if (gezeigt || vorbei) return true;
+      const jetzt = performance.now();
+      // Den Takt des Bildschirms auch hier mitschreiben (die Bildschleife ruht vor dem Auftritt).
+      if (probeZuletzt) taktMessen((jetzt - probeZuletzt) / 1000);
+      probeZuletzt = jetzt;
+      // Auch die Probe zeichnet das Licht in seinem Takt (höchstens 60-mal je Sekunde), wie später im Betrieb.
+      if (!faellig(jetzt, lichtJedes())) return true;
+      lichtZuletzt = jetzt;
       const gl = renderer.getContext() as WebGL2RenderingContext;
       try {
         // Marken abräumen, bei denen die Grafikkarte schon angekommen ist.
@@ -930,11 +1161,6 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
         .to(zustand, { blitz: 0.28, duration: 0.22, ease: "power2.out", onUpdate: wecken })
         .to(zustand, { blitz: 0, duration: 0.9, ease: "power2.inOut", onUpdate: wecken });
     },
-    schonen: (ja) => {
-      schonend = ja;
-      lichtImVorigenBild = false;
-      wecken();
-    },
     ende: () => {
       vorbei = true;
       cancelAnimationFrame(rahmen);
@@ -942,7 +1168,8 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
       beobachter.disconnect();
       waechter.disconnect();
       document.removeEventListener("visibilitychange", pause);
-      leinwand.removeEventListener("webglcontextlost", ausfall);
+      leinwand.removeEventListener("webglcontextlost", verlust);
+      messWeg();
       window.removeEventListener("pointermove", zeiger);
       document.documentElement.removeEventListener("pointerleave", zeigerWeg);
       strahlen.dispose();

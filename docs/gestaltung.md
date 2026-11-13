@@ -320,6 +320,8 @@ Code: `components/neu/seite/Zeiger.tsx`, Stile in `seite.css`. Nur bei echter Ma
 
 ## 4j. Feinschliff vom 13.11.2026: Start ohne Ruckeln, Lichtleiste, Geister-Wörter, Überschriften, Ablauf, Fuß
 
+**Durch 4k ersetzt (zweite Runde vom 13.11.2026):** die Ruckel-Wache und das ruhige Bild am Computer, die Dauer des Sterns (jetzt 1,5 s) und das Überspringen, der Zeitpunkt der Lichtleiste, die erste Aussage (sie tippt sich), der Stern im Wörter-Feld und im Fuß (leichter Stern statt zweiter Licht-Szene) und der Takt des Ablaufs (6 s). Die Messwerte hier unten galten für nachgestellte Fenster; wie bei David gemessen wird in 4k.
+
 Davids Rückmeldung zum Stand cca6960: Fast alles bleibt genau so (die Startanimation an sich, der goldene Punkt als Mauszeiger, das Auseinanderfliegen, die Leistungs-Szenen, die Ablauf-Nummern, das Band). Geändert ist nur, was hier steht. Vorbilder für die Wirkung bleiben ksenpanchenko.com und madebyigor.com; alles ist selbst umgesetzt.
 
 ### 0 · Fehler
@@ -330,7 +332,7 @@ Davids Rückmeldung zum Stand cca6960: Fast alles bleibt genau so (die Startanim
 - **Das Licht ist viel billiger geworden, bei gleichem Bild.** (a) Das Zwischenbild der langen Strahlen hat höchstens 330 000 Bildpunkte (so viele wie bei 1440 × 900 in halber Auflösung); die Strahlen sind von sich aus weich. (b) Die Lichtquelle jedes Effekts wird nur so fein gezeichnet wie sein Zwischenbild (die Bibliothek nähme die volle Auflösung). (c) Die unsichtbare Vorstufe (schwarze Wand und ihre Tiefe) wird in halber Auflösung gerechnet; das fertige Bild mit Strahlen, Licht in den Öffnungen und Korn entsteht weiter in voller Auflösung. (d) Strahlen und Licht in den Öffnungen werden nur dort gerechnet, wo überhaupt Licht hinkommen kann (Ausschnitt), und die Wand rechnet außerhalb des Logos nichts mehr. Ein volles Licht-Bild kostet die Grafikkarte jetzt rund 2,4 ms bei 1440 × 900 und rund 5,5 ms bei 2560 × 1440 (Apple M1). Vorher und nachher Seite an Seite verglichen: Balken, Stern, Strahlen und Korn sehen gleich aus.
 - **Kein festes Schonen mehr.** Das Licht wird in jedem Bild neu gezeichnet. Nur wenn das Gerät den Takt des Bildschirms nicht hält, während die Zeichen fliegen, zeichnet es das Licht in jedem zweiten Bild.
 - **Aufwärmen mit der echten Szene:** Shader übersetzen (`renderer.compile`), dann die Szene fünf Bilder lang in voller Größe mit allen Teilen (Balken, Strahlen, Schein, Nachbearbeitung) unsichtbar zeichnen, dann warten, bis die Grafikkarte wirklich fertig ist (einen Bildpunkt zurücklesen; `gl.finish()` wartet in Chrome nicht).
-- **Probe unter echter Last:** In jedem Bild werden das volle Licht und die Zeichen wie mitten im Flug gezeichnet. Beide Flächen stehen dabei im Bild, sind aber nicht zu sehen (das Licht ist 0,015 % belichtet, die Zeichen haben 0,5 % Deckkraft; beides bleibt unter einer halben Helligkeitsstufe). So bringt der Browser die Bilder wirklich auf den Bildschirm, und ihr Abstand ist die echte Bildzeit. **Weiter geht es erst, wenn 30 Bilder hintereinander unter 17 ms lagen** (im Code 17,5 ms: eine halbe Millisekunde Luft, weil manche Browser die Zeiten auf ganze Millisekunden runden und ein Bild bei 60 Hz 16,7 ms dauert). Danach laufen die Probebilder weiter, bis das Licht angeht: Die Grafikkarte bleibt bis zum Start auf Touren. **Besteht die Probe nicht, bleibt der Stern länger stehen, höchstens 6 s nach dem ersten Bild; dann geht das Licht trotzdem an** (so steht es im Auftrag: „bleibt er länger, höchstens 6 s“). Kommt das Gerät danach wirklich nicht mit (im Mittel über 30 ms je Bild, auch nach gröberem Rechnen), greift wie bisher das ruhige Bild. **Offen, David entscheidet:** Die zweite KI (Codex) liest den Auftrag strenger: Ohne bestandene Probe dürfe das Licht gar nicht starten; nach 6 s solle dann das ruhige Bild stehen. Gebaut ist die erste Lesart, weil sonst ein Gerät mit 18–20 ms je Bild das Licht ganz verlöre. Die andere Lesart wäre eine Änderung von wenigen Zeilen in `LichtName.tsx`. Die Messung steht in `performance.getEntriesByName("ag-start:probe-bilder")`.
+- **Probe unter echter Last:** In jedem Bild werden das volle Licht und die Zeichen wie mitten im Flug gezeichnet. Beide Flächen stehen dabei im Bild, sind aber nicht zu sehen (das Licht ist 0,015 % belichtet, die Zeichen haben 0,5 % Deckkraft; beides bleibt unter einer halben Helligkeitsstufe). So bringt der Browser die Bilder wirklich auf den Bildschirm, und ihr Abstand ist die echte Bildzeit. **Weiter geht es erst, wenn 30 Bilder hintereinander unter 17 ms lagen** (im Code 17,5 ms: eine halbe Millisekunde Luft, weil manche Browser die Zeiten auf ganze Millisekunden runden und ein Bild bei 60 Hz 16,7 ms dauert). Danach laufen die Probebilder weiter, bis das Licht angeht: Die Grafikkarte bleibt bis zum Start auf Touren. **Besteht die Probe nicht, bleibt der Stern länger stehen, höchstens 6 s nach dem ersten Bild; dann geht das Licht trotzdem an** (so steht es im Auftrag: „bleibt er länger, höchstens 6 s“). Kommt das Gerät danach wirklich nicht mit (im Mittel über 30 ms je Bild, auch nach gröberem Rechnen), greift wie bisher das ruhige Bild. **Entschieden von David am 13.11.2026 (siehe 4k):** Nach der Höchstzeit geht das Licht an; am Computer gibt es danach nie ein ruhiges Bild, nur Sparstufen. Die Frage war: Die zweite KI (Codex) liest den Auftrag strenger: Ohne bestandene Probe dürfe das Licht gar nicht starten; nach 6 s solle dann das ruhige Bild stehen. Gebaut ist die erste Lesart, weil sonst ein Gerät mit 18–20 ms je Bild das Licht ganz verlöre. Die andere Lesart wäre eine Änderung von wenigen Zeilen in `LichtName.tsx`. Die Messung steht in `performance.getEntriesByName("ag-start:probe-bilder")`.
 - **Erstes Scrollen:** Die Probebilder der Zeichen bereiten auch das Auseinanderfliegen vor (die Zeichenfläche reicht von Anfang an unter den Kopfbereich). Die zweite Licht-Szene (Wörter-Feld) wird schon angelegt und aufgewärmt, während oben der Stern steht; sie meldet sich dafür als „Vorarbeit“ an (`vorarbeit` in `umgebung.ts`), die Startanimation wartet darauf (höchstens 2,5 s).
 
 **Gemessen am 13.11.2026** (Apple M1, sichtbares Chrome ohne Bildaufnahme, je drei Läufe, jeder in einem frischen Browser; „vorher“ ist der Stand cca6960). Abstand zweier Bilder, in denen das Licht neu gezeichnet wurde, in den ersten 3 s nach dem Licht-Start:
@@ -418,6 +420,105 @@ Weg bei den Leistungs-Szenen (dort bleibt der goldene Punkt). Neu nur über den 
 ### 10 · Nicht angefasst
 Der Kontakt-Bereich bleibt, wie er ist (nur seine Überschrift entschlüsselt sich wie die anderen). Chat-Fenster, Formular, Anruf-Links und Rechtliches sind unverändert.
 
+## 4k. Zweite Runde vom 13.11.2026: Licht friert nie ein, Korn wie früher, Sterne lebendig, Überschrift tippt sich
+
+Davids Rückmeldung zu 6d45187: Die Startanimation, die Geister-Wörter, das Verbuggen der Überschriften, „Großer Anspruch“ und die Zertifikate mit Glasblase bleiben. Auf seinem Bildschirm (MacBook Pro M1, außen ein OMEN 32q mit 2560 × 1440 bei 165 Hz, Pixeldichte 1; manchmal der eingebaute Bildschirm mit Pixeldichte 2) gab es vier Probleme: Das Licht wurde nach ein paar Sekunden zum Standbild, das Korn war unsauber, der Stern im Wörter-Feld war ein Standbild mit sichtbarem Viereck, der Stern im Fuß bewegte sich nicht.
+
+### 0 · Ursache
+- **Die Ruckel-Wache maß das Falsche.** Sie sah auf den Abstand zwischen zwei Bildern: im Mittel über 30 ms, zweimal in Folge → erst gröber rechnen (kleinere Zeichenfläche, daher gröberes Korn), dann das ruhige Bild, und das blieb für den ganzen Besuch. Der Abstand zwischen zwei Bildern sagt aber nichts über die Grafikkarte. Er wird auch lang, wenn der Browser die Bilder selbst drosselt (verdecktes Fenster, gesperrter oder schlafender Bildschirm: 1 bis 5 Bilder je Sekunde) oder wenn andere Programme den Rechner belegen. In Davids echtem Chrome nachgewiesen: In einem gedrosselten Fenster schaltete die alte Fassung nach 41,6 s auf das Standbild, ganz ohne Last. Bei doppelter Pixeldichte wurde die Zeichenfläche unter Last von 2994 × 1964 auf 1871 × 1227 (nach 4 bis 17 s) und 1497 × 982 (nach 31 s) verkleinert.
+- **Davids Vermutung** zur Wache (erst `grenze`, dann `beiAusfall`) stimmt. Die Vermutung „gemessen wurde mit 60 Bildern je Sekunde“ stimmt nicht ganz: Gemessen wurde mit rund 160, aber in nachgestellten, verkleinert dargestellten Fenstern. Die sind viel billiger als ein echtes großes Fenster und zeigen das Problem nicht.
+- **Das unsaubere Korn** war nicht das lebende Korn, sondern die gröbere Zeichenfläche und danach das hochgezogene Standbild. Am lebenden Licht ist das Korn so fein wie in 69a8a58 (Abschnitt 2).
+- **Wörter-Feld und Fuß:** Im Wörter-Feld lief eine zweite Licht-Szene mit derselben Wache; ihr ruhiges Bild hat Kanten, das war das Viereck. Im Fuß stand von Anfang an nur ein Bild, das die Deckkraft wechselte.
+
+### 1 · Das Licht friert am Computer nie ein
+`kopf/lichtszene.ts`, `kopf/LichtName.tsx`.
+- **Kein Standbild am Computer.** Die Wache kann dort nur Sparstufen einstellen. Das ruhige Bild gibt es nur noch bei „weniger Bewegung“, wenn die Szene gar nicht zeichnen kann, und als letzte Rettung auf Geräten ohne feine Maus (Handy), wenn auch die sparsamste Stufe nicht reicht (`letzteRettung`). Geht der Grafikkarte der Zusammenhang verloren, baut sich die Szene einmal neu auf.
+- **Höchstens 60 Licht-Bilder je Sekunde,** gleichmäßig auf den Takt des Bildschirms verteilt: bei 165 Hz jedes dritte Bild (55 je Sekunde), bei 120 Hz jedes zweite, bei 60 Hz jedes. Die Zeichen und die Maus laufen weiter im vollen Takt. Steht das Licht still (nichts bewegt sich), reicht auch an einem Bildschirm mit 60 Hz jedes zweite Bild.
+- **Die Wache misst die echte Arbeitszeit der Grafikkarte** je Licht-Bild (Zeitmessung der Grafikkarte, `EXT_disjoint_timer_query_webgl2`). Wo es die nicht gibt (etwa Safari), zählt nur nachgewiesener Rückstau: Alle paar Millisekunden wird nachgesehen, ob die Grafikkarte mit dem Licht-Bild fertig ist; gezählt wird die Zeit bis zu dem Augenblick, in dem sie zuletzt nachweislich noch beschäftigt war. Kommt das Nachsehen zu spät (Skript blockiert, Fenster gedrosselt), wird höchstens zu wenig gezählt, nie zu viel. Sie mittelt 60 Messungen und greift ein, wenn das Mittel zweimal in Folge über 72 % der Zeit bis zum nächsten Licht-Bild liegt. Im verdeckten Fenster misst sie nicht.
+- **Sparstufen** (`SPARSTUFEN`), jede bleibt lebendig und folgt der Maus:
+
+| Stufe | Zwischenbild der langen Strahlen | Licht in den Öffnungen | Proben | Takt |
+|---|---|---|---|---|
+| 0 (volle Güte) | höchstens 330 000 Bildpunkte | volle Größe | 80 / 30 | bis 60 je Sekunde |
+| 1 | 250 000 | 90 % | wie 0 | wie 0 |
+| 2 | 190 000 | 80 % | wie 0 | wie 0 |
+| 3 | 190 000 | 80 % | 60 % / 20 | wie 0 |
+| 4 | wie 3 | wie 3 | wie 3 | jedes zweite Licht-Bild (27 bis 30 je Sekunde) |
+
+  Die Stufen 1 und 2 verkleinern nur Zwischenbilder, die ohnehin weich sind: Das Umschalten stockt nicht (kein neues Shader-Programm) und ist nicht zu sehen. Die Stufen 3 und 4 kommen erst, wenn die Grafikkarte ein Licht-Bild nicht einmal mehr in der Zeit bis zum nächsten schafft.
+- **Das Korn und die Zeichenfläche bleiben immer in voller Auflösung** (Pixeldichte bis 2) und ändern sich nie mit der Sparstufe.
+- **Billiger bei doppelter Pixeldichte:** Das Licht in den Öffnungen (zweiter Durchgang) rechnet in halber Fensterauflösung, auch bei Pixeldichte 2. Vorher kostete es dort 5,2 von 11 ms je Licht-Bild.
+- **Nur eine schwere Licht-Szene:** Die zweite Szene im Wörter-Feld gibt es nicht mehr (Abschnitt 3). Die Szene im Kopfbereich rechnet nur, solange er im Bild ist.
+- **Davids Entscheidung zur offenen Frage aus 4j:** Nach der Höchstzeit (6 s) geht das Licht an, auch wenn die Probe nicht bestanden ist. Am Computer gibt es danach nie ein ruhiges Bild, nur Sparstufen. **Grenzfall, offen (zweite KI sieht es strenger):** Ist die Licht-Szene nach 6 s noch gar nicht geladen (sehr langsames Netz), gibt es noch kein Licht, das angehen könnte. Dann schimmert der Stern weiter, die Zeichen fliegen schon ein, und das Licht baut sich auf, sobald die Szene da ist; scheitert das Laden, steht das ruhige Bild.
+
+### 2 · Korn 1:1 wie früher
+Das Licht in Ruhe, 69a8a58 gegen neu, im selben Fenster aufgenommen (Ausschnitt 400 × 400 px um den Stern):
+
+| Fenster | Kornstärke 69a8a58 → neu | Zusammenhang benachbarter Punkte | Wechsel von Bild zu Bild |
+|---|---|---|---|
+| OMEN, Pixeldichte 1 | 13,88 → 13,87 | 0,009 → −0,003 | 19,6 → 19,7 |
+| 1512 × 982, Pixeldichte 2 | 13,06 → 13,12 | 0,003 → −0,001 | 18,5 → 18,6 |
+
+Kornstärke = Streuung der Helligkeit gegenüber dem weichgezeichneten Bild. Ein Zusammenhang nahe 0 heißt: Jeder Bildpunkt hat sein eigenes Korn, es ist gleich fein. Das Korn ist also gleich fein, gleich dicht und gleich lebendig.
+
+### 3 · Der leichte Stern im Wörter-Feld und im Fuß
+`seite/Leuchtstern.tsx`, `seite/leuchtstern.css`, Bilder in `public/stern/`.
+- **Keine Licht-Szene.** Fünf Bilder, von der eigenen Szene aufgenommen (Testseite `/varianten/licht-test?ebene=kern` und `?ebene=ganz&zeit=…`): der Stern selbst (`kern.webp`, 640 px) und vier Muster der langen Strahlen (`strahlen-1…4.webp`, 960 px; zusammen rund 38 kB). Die Strahlen-Bilder sind so gerechnet, dass „aufgehellt gemischt“ über dem Stern genau wieder die volle Aufnahme ergibt.
+- **Er bewegt sich immer,** nur mit Drehen, Größe und Deckkraft (das rechnet die Grafikkarte nebenbei): Er dreht sich leicht hin und her (± 5°, eine Runde in 14 s), die Strahlen wiegen sich etwas anders (± 2°) und atmen (6,5 s), die vier Strahlen-Muster blenden reihum ineinander (je 6 s): Die Strahlen schimmern.
+- **Feines Korn tanzt:** eine Kachel aus Zufallswerten in den Bildpunkten des Bildschirms (256 × 256, einmal je Seitenaufruf erzeugt), „farbig abgewedelt“ gemischt wie das Filmkorn der Szene: Es ist nur im Licht zu sehen, Schwarz bleibt schwarz. Sie springt 60-mal je Sekunde an eine andere Stelle; zwei Sprungfolgen liegen ineinander, erst nach gut 9 s wiederholt sich eine Stelle. Die Szene rechnet linear, der Browser in sRGB: Die Werte der Kachel sind umgerechnet (1 − sRGB(u)), die Deckkraft ist 0,2 hoch 1/2,2 und nimmt zur hellen Mitte hin ab.
+- **Mit der echten Szene abgeglichen** (Testseite, gleiche Größe, schwarzer Grund; `?ebene=ganz&korn=1` gegen `?ebene=leicht`): Helligkeit in Ringen um den Stern auf rund 3 % gleich; Kornstärke in der Mitte 4,9 gegen 5,1, im Strahl 15,2 gegen 15,4 und 13,6 gegen 13,6; bei Pixeldichte 2 ebenso.
+- **Kein Viereck:** Die Bilder sind am Rand ganz schwarz, das Feld wird aufgehellt über den Grund gemischt (Schwarz verändert nichts) und läuft rund aus. Dafür steht der Platz des Sterns ohne Verschieben mittig (ein verschobenes Element wäre eine eigene Ebene, und der Stern stünde auf einer schwarzen Scheibe).
+- **Auftritt im Wörter-Feld** bleibt: Aus einem Lichtpunkt wächst der Stern (0,25 s Punkt, dann 1 s mit leichtem Überschwingen), ab 0,75 s fächern die Strahlen auf (1,5 s), ab 1 s kommen die Wörter. Einmal je Seitenaufruf. Der Schein dahinter bleibt.
+- **Im Fuß** steht derselbe Stern (Platz bis 190 px), ohne Auftritt.
+- Nicht im Bild, ruht alles. Bei „weniger Bewegung“ steht der Stern still (mit Korn). Ohne Skript steht er ohne Korn da.
+- **Kosten:** Mit dem Stern im Bild läuft die Seite mit 126 bis 165 Bildern je Sekunde (ohne ihn 142 bis 165).
+
+### 4 · Erste Aussage: Die Überschrift tippt sich
+`seite/Aussage.tsx`, `seite/Entschluesselt.tsx` (`leeren`, `tippen`, `wandeln`). `LeuchtText.tsx` entfällt.
+- **Vorher** ist der Platz leer; die Zeilen sind frei gehalten (der echte Text steht unsichtbar im Dokument), nichts springt.
+- **Tippen:** Beim Hinscrollen (Oberkante bei 84 % der Bildhöhe) erscheint Platz für Platz ein Zufallszeichen, alle 45 ms der nächste. Jeder flackert rund 250 ms und rastet als richtiger Buchstabe ein. Vorn läuft eine verbuggte Kante durch den Satz, dahinter steht schon das fertige Wort.
+- **Erst „Tagen“:** Getippt wird „Wir bauen in Tagen, wofür Agenturen Wochen brauchen.“ (45 Plätze, rund 2,2 s). 0,55 s später zerfällt „Tagen“ in Zufallszeichen und rastet nach 0,6 s als „Stunden“ ein (0,45 s), das golden aufleuchtet; das Sternchen kommt mit.
+- **Kein Verbuggen unter der Maus** bei dieser Überschrift. Bei den anderen bleibt es.
+- **Der Text darunter** ist bis dahin unsichtbar. Direkt nachdem „Stunden“ eingerastet ist, steht der ganze Absatz auf einmal als Zufallszeichen da und rastet in 0,8 s von links nach rechts ein (nach dem Ort im Text, alle Zeilen zugleich). Danach blendet die Fußnote ein.
+- **Alles nur einmal je Seitenaufruf.** Ohne Skript, bei „weniger Bewegung“ und in der Vorschau steht alles sofort da. Ändert sich mitten im Tippen die Größe der Überschrift (Fenster schmaler, Handy gedreht), steht der Text sofort fertig da, statt Zeichen an falschen Stellen zu zeigen; das gilt für alle Überschriften.
+
+### 5 · Start: Stern 1,5 s, kein Scrollen, kein Überspringen
+- **Der Stern steht mindestens 1,5 s** (statt 3 s), höchstens 6 s (`WARTEN_MIN`).
+- **Während der ganzen Startanimation steht die Seite oben:** kein Mausrad, kein Wischen, keine Scroll-Tasten, kein Scrollbalken, kein Sprung zu einem Ziel auf der Seite. Die Sperre gilt vom ersten Bild an (eine Regel im Stylesheet, noch bevor das Skript läuft; `welt.css`), das Skript übernimmt sie und hält dazu das weiche Scrollen an (`scrollSperre` in `umgebung.ts`). Ist die Sperre fest (Klasse `ag-scroll-fest`), ist die Seite nur so hoch wie das Bild und schneidet alles darunter ab: Es gibt dann nichts, wohin sie scrollen könnte, und kein Abschnitt weiter unten löst seinen Auftritt aus. Bei einem frischen Aufruf ist sie sofort fest; nach Neuladen oder Zurück erst 0,3 s nach dem Laden, damit der Browser die frühere Lage noch herstellen kann (in dieser kurzen Zeit tut die Tab-Taste nichts). **Überspringen gibt es nicht mehr** (kein Klick, keine Taste).
+- **Frei** ist das Scrollen, sobald der Name gelandet und die Welle durch ist (1,55 s nach der Landung; Ereignis `ag:start-frei`). Sicherheitsnetz: Käme das Skript nie, gibt das Stylesheet nach 14 s frei.
+- Stellt der Browser die Seite selbst woanders hin, steht alles sofort: bei einem Ziel in der Adresse (`#kontakt`; der Browser springt oft erst nach dem Skript, deshalb wird das Ziel beim Einrichten erkannt) und nach Neuladen oder Zurück mit wiederhergestellter Lage.
+- **Tastatur:** Die Tab-Taste kann die Seite während der festen Sperre nicht bewegen (sie ist nur so hoch wie das Bild). Der Fokus darf wandern; steht er bei der Freigabe auf einem Feld weiter unten, kommt es dann ins Bild. Der Inhalt bleibt die ganze Zeit im Dokument, Vorleseprogramme erreichen ihn. Hat ein Fokus-Sprung die Seite schon bewegt, bevor das Skript lief (frischer Aufruf ohne Ziel in der Adresse), geht es zurück nach oben, und der Start läuft normal.
+- **„Weniger Bewegung“** bleibt wie bisher: ruhiges Einblenden, keine Sperre.
+
+### 6 · Lichtleiste unten: zeigt sich zuverlässig
+`seite/ScrollHinweis.tsx`.
+- **Warum sie bei David nie kam:** Sie merkte sich das erste Scrollen für die ganze Sitzung des Tabs (auch über Neuladen hinweg). Dazu verschwand sie schon bei einem Dreh am Mausrad oder einem Tastendruck während des Starts, und sie wartete 4,5 s.
+- **Neu:** Sie erscheint bei jedem Seitenaufruf 2 s nach der Landung des Namens, wenn man dann noch ganz oben ist. Nur echtes Scrollen nimmt sie weg (sofort, für diesen Aufruf). Sonst wie bisher: Sie atmet höchstens dreimal und blendet aus.
+
+### 7 · Ablauf: langsamer und ganz voll
+`seite/AblaufNummern.tsx`. Der Gold-Balken in der Überschrift läuft 6 s je Schritt, bis zum letzten Buchstaben. Dann bleibt er 0,5 s ganz voll stehen, erst danach kommt der nächste Schritt. Nach einem Klick pausiert der Lauf weiter 6 s.
+
+### 8 · Wie bei David gemessen
+- **So wird gemessen:** echtes, sichtbares Chrome auf dem OMEN, keine nachgestellte Größe; 60 s, die Maus fährt die ganze Zeit in weiten Bögen. Mitgeschrieben werden die Bilder der Seite, die Licht-Bilder, die Arbeitszeit der Grafikkarte je Licht-Bild, die Sparstufe und die Größe der Zeichenfläche. Der eingebaute Bildschirm spiegelt den OMEN und lässt sich nicht einzeln ansteuern; Pixeldichte 2 ist deshalb in einem Fenster von 1512 × 982 nachgestellt (strenger als der echte Bildschirm, weil dort 165 statt 60 Hz anliegen).
+- **Zwei Einschränkungen der Messung:** Während der Schlussmessung war Davids Bildschirm gesperrt, echtes Vollbild ließ sich nicht schalten; gemessen ist im größtmöglichen Fenster (2560 × 1238 sichtbar). Und eine andere Arbeit auf dem Rechner belegte die ganze Zeit den Prozessor (im Mittel 2 bis 4,6 Kerne, in der Spitze fast 7). Vorher und nachher sind direkt hintereinander unter derselben Last gemessen.
+
+| Fassung, Fenster | Stand | Bilder der Seite je s | Licht-Bilder je s | Grafikkarte je Licht-Bild | längstes Bild | Zeichenfläche am Ende | Sparstufe |
+|---|---|---|---|---|---|---|---|
+| Build, OMEN 2560 × 1238 | 6d45187 | 98 | 96 | 7,3 ms | 55 ms | 2545 × 1238 | (keine) |
+| Build, OMEN 2560 × 1238 | neu | 125 | 49 | 7,8 ms | 61 ms | 2545 × 1238 | 0 |
+| Build, 1512 × 982, Pixeldichte 2 | 6d45187 | 83 | 81 | 12,2 ms | 91 ms | 2994 × 1964 | (keine) |
+| Build, 1512 × 982, Pixeldichte 2 | neu | 123 | 49 | 5,8 ms | 86 ms | 2994 × 1964 | 0 |
+| Dev-Server, OMEN 2560 × 1238 | neu | 132 | 50 | 6,6 ms | 47 ms | 2545 × 1238 | 0 |
+| Dev-Server, 1512 × 982, Pixeldichte 2 | neu | 118 | 48 | 5,9 ms | 79 ms | 2994 × 1964 | 0 |
+
+- **Früher am selben Tag** (Bildschirm offen, echtes Vollbild 2560 × 1352): alter Stand 92 Bilder der Seite und 90 Licht-Bilder je Sekunde, 7,7 ms; neuer Stand 110 und 48, 8,7 ms, Sparstufe 0, Zeichenfläche unverändert, kein Standbild.
+- **Der alte Stand unter ungünstigen Bedingungen** (Pixeldichte 2, Dev-Server und Build, morgens): 45 bis 48 Bilder je Sekunde, Grafikkarte 16 bis 18 ms je Licht-Bild, die Zeichenfläche wurde auf 1871 × 1227 und 1497 × 982 verkleinert. Der neue Stand ging in einem ähnlich schlechten Lauf (45 Bilder je Sekunde) auf Sparstufe 2, behielt aber die volle Zeichenfläche und blieb lebendig.
+- **Gedrosselte Bilder** (rund 3 je Sekunde, 60 s lang, wie in einem verdeckten Fenster): Das Licht bleibt an, keine Sparstufe, danach wieder 166 Bilder je Sekunde. In Davids echtem Chrome (Fenster 2367 × 1215): 107 s lang 165 Bilder je Sekunde, Sparstufe 0.
+- **Start an der fertigen Fassung:** Mausrad, Leertaste, Bild ab, Ende, Pfeil ab, Klick, Escape, Eingabe, Wischen und ein Klick auf ein Sprungziel bewegen die Seite während des Starts nicht und überspringen nichts. Die Lichtleiste erscheint 2,0 s nach der Landung.
+
+### 9 · Nicht angefasst
+Alles andere bleibt genau so. Kontakt-Bereich und Chat-Fenster kommen später. Nichts wurde echt abgesendet.
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
@@ -466,3 +567,4 @@ Der Kontakt-Bereich bleibt, wie er ist (nur seine Überschrift entschlüsselt si
 22. **Rest der Seite (12.11.2026):** Zeichen fliegen beim Scrollen auseinander; erste Aussage mit Entschlüsselungs-Effekt; Lichtstrahl als Übergang; Leistungen als Karten mit kleinen Szenen und Zeichen-Nummern; Ablauf mit großen Zeichen-Nummern; „Unser Versprechen“ mit schrägen Karten und Band; Kundenstimmen gebaut, aber aus; Zeichen-Strahl im Fuß (4h). Damit ist Entscheidung 1 („Kundenstimmen ganz weglassen“) so geändert: gebaut, aber ausgeschaltet. Die Zufallszeichen in JetBrains Mono auch bei „Anrufen“ und in der Sprechblase bleiben (Davids Entscheidung).
 23. **Mauszeiger (12.11.2026):** Punkt mit Schein, Ring über Links, Glasblase „Ansehen“ über Karten und Bildern (4i).
 24. **Feinschliff (13.11.2026, Abschnitt 4j):** Start ohne Ruckeln (das Licht wird in jedem Bild neu gezeichnet und ist dafür viel billiger geworden; Probe: 30 Bilder hintereinander unter 17 ms); Stern mindestens 3 s, Licht von innen nach außen, Zeichen bei 60 %, Licht dreht sich nach 1 s Pause langsam zur Maus. Lichtleiste statt Lichtfleck. Erste Aussage mit „Tagen“ → „Stunden“ und zeilenweise aufleuchtendem Text. Wörter-Feld mit lebendigem Stern und sechs Geister-Wörtern. Alle Überschriften entschlüsseln sich einmal je Seitenaufruf. Glasblase nur über den Zertifikaten. Ablauf läuft von selbst. „Anrufen“ scrollt am Computer zum Kontakt. Fuß mit Stern, Namen aus Zeichen und Lichtleiste.
+25. **Zweite Runde (13.11.2026, Abschnitt 4k):** Das Licht friert am Computer nie ein: höchstens 60 Licht-Bilder je Sekunde, die Wache misst die Arbeitszeit der Grafikkarte und stellt nur Sparstufen ein; das Korn bleibt immer in voller Auflösung. **Davids Entscheidung zur offenen Frage aus 4j:** Nach der Höchstzeit geht das Licht an; ein ruhiges Bild gibt es nur noch als letzte Rettung für sehr schwache Handys. Im Wörter-Feld und im Fuß steht der leichte Stern (Bilder der eigenen Szene, bewegt mit Drehen, Größe und Deckkraft, tanzendes Korn) statt einer zweiten Licht-Szene. Die erste Aussage tippt sich Buchstabe für Buchstabe (erst „Tagen“, dann „Stunden“), der Absatz verwandelt sich danach auf einmal. Der Stern am Start steht 1,5 s; während der Startanimation kann man nicht scrollen und nichts überspringen. Die Lichtleiste kommt 2 s nach der Landung des Namens, bei jedem Seitenaufruf. Der Ablauf-Balken läuft 6 s und bleibt 0,5 s voll stehen.

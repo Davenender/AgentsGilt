@@ -10,7 +10,7 @@ import { Kopfleiste } from "./Kopfleiste";
 import { ChatKnopf } from "./ChatKnopf";
 import { Ladebildschirm } from "./Ladebildschirm";
 import { Marke } from "./Marke";
-import { istVorschau, scrollZiel, willWenigerBewegung } from "./umgebung";
+import { istVorschau, scrollSperre, scrollZiel, willWenigerBewegung } from "./umgebung";
 
 /**
  * Weiches Scrollen mit Lenis, im Takt von GSAP, damit ScrollTrigger und Lenis
@@ -28,7 +28,25 @@ function WeichesScrollen() {
     gsap.ticker.lagSmoothing(0);
     // „Anrufen“ in der Kopfleiste scrollt am Computer hierüber weich zum Kontakt.
     scrollZiel.melde((ziel) => lenis.scrollTo(ziel));
+    // Während der Startanimation steht die Seite oben: Solange hält auch das weiche Scrollen an.
+    // Die Seite ist in dieser Zeit nur so hoch wie das Bild (Stylesheet); nach der Freigabe messen
+    // Lenis und ScrollTrigger deshalb neu.
+    // Nur nach einer echten Sperre (dann steht die Seite ganz oben): Beim Neumessen fährt
+    // ScrollTrigger die Seite kurz auf 0 und zurück, das darf eine wiederhergestellte Lage nicht stören.
+    let warGesperrt = false;
+    scrollSperre.melde((an) => {
+      if (an) {
+        warGesperrt = true;
+        return lenis.stop();
+      }
+      if (!warGesperrt) return;
+      warGesperrt = false;
+      lenis.resize();
+      lenis.start();
+      ScrollTrigger.refresh();
+    });
     return () => {
+      scrollSperre.melde(undefined);
       scrollZiel.melde(undefined);
       gsap.ticker.remove(takt);
       gsap.ticker.lagSmoothing(500, 33);

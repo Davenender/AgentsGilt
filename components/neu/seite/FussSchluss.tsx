@@ -1,14 +1,13 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef } from "react";
-import sternBild from "@/public/kopf/licht-stern.webp";
 import { marke } from "@/lib/inhalt-neu";
 import { Wortmarke } from "../Rahmen";
 import { istVorschau } from "../umgebung";
 import type { LichtLage } from "../kopf/lichtszene";
 import { erzeugeZeichenname } from "../kopf/zeichenname";
 import { useBewegungsWechsel } from "./einstellung";
+import { Leuchtstern } from "./Leuchtstern";
 import { Lichtleiste } from "./Lichtleiste";
 
 // Die Zeichen fliegen hier kürzer ein als am Start (dort 2,2 s).
@@ -18,8 +17,9 @@ const FLUG_DAUER = 1.5;
 const FUSS_OBEN = "ag-fuss-oben";
 
 /**
- * Der Schluss der Seite: Sie endet, wie sie beginnt. Im Dunkeln steht wieder der Stern des Logos,
- * schwach leuchtend und langsam atmend wie am Start. Darunter „AGENTS GILT“ aus denselben Zeichen
+ * Der Schluss der Seite: Sie endet, wie sie beginnt. Im Dunkeln steht wieder der Stern des Logos
+ * als Licht: der leichte Stern (Leuchtstern.tsx), der atmet, sich leicht dreht, dessen Strahlen
+ * schimmern und über dem feines Korn tanzt. Darunter „AGENTS GILT“ aus denselben Zeichen
  * wie der Name oben (dieselbe Technik, dasselbe Raster: kopf/zeichenname.ts). Kommt man unten an,
  * fliegen die Zeichen vom Rand herein und setzen sich zusammen (1,5 s, einmal je Seitenaufruf).
  * Danach weichen sie der Maus aus, und ein Klick auf den Namen schickt eine Welle hindurch.
@@ -203,9 +203,9 @@ export function FussSchluss() {
   return (
     <div ref={wurzel} className="ag-schluss">
       <div className="ag-schluss__mitte">
-        {/* Der Stern im Dunkeln: dasselbe Bild wie am Start, schwach leuchtend und langsam atmend. */}
+        {/* Der Stern im Dunkeln: lebendig wie das Logo im Licht, ohne Licht-Szene. */}
         <span className="ag-schluss__loch" aria-hidden="true">
-          <Image className="ag-schluss__stern" src={sternBild} alt="" sizes="(max-width: 767px) 53vw, min(26vw, 450px)" loading="lazy" />
+          <Leuchtstern />
         </span>
         {/* Der gewöhnliche Schriftzug hält den Platz frei und nennt den Namen; zu sehen ist er nur ohne Skript. */}
         <Wortmarke />

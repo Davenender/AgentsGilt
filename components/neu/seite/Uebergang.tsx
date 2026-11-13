@@ -1,13 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, type CSSProperties } from "react";
-import { gsap } from "@/lib/gsap";
-import sternBild from "@/public/kopf/licht-stern.webp";
 import { worte } from "@/lib/inhalt-neu";
-import { istVorschau, vorarbeit } from "../umgebung";
-import type { LichtSzene } from "../kopf/lichtszene";
+import { istVorschau } from "../umgebung";
 import { useBewegungsWechsel } from "./einstellung";
+import { Leuchtstern } from "./Leuchtstern";
 
 const ZEICHEN = ["#", "+", "=", "-", ":", ".", "*", "/", "%", "·"];
 // Schubs: Umkreis um das Wort, in dem die Maus es mitnimmt, und der Anteil ihrer Geschwindigkeit.
@@ -40,10 +37,12 @@ type Wort = {
 /**
  * Wörter-Feld mit dem Stern (Übergang zu den Leistungen).
  *
- * Der Stern in der Mitte ist dasselbe Licht wie das Logo im Kopfbereich (Wand mit Öffnung, Licht
- * dahinter; lichtszene.ts mit `nurStern`), satter und mit hellem Kern. Beim Hinscrollen tritt er
- * auf: Er wächst aus einem Lichtpunkt, die Strahlen fächern auf, die Wörter schweben aus der
- * Tiefe herein. Danach lebt er: Er atmet und dreht sich ganz leicht.
+ * Der Stern in der Mitte sieht aus wie das Logo im Licht des Kopfbereichs, ist aber keine zweite
+ * Licht-Szene: Es ist der leichte Stern (Leuchtstern.tsx; Bilder der eigenen Szene, bewegt mit
+ * Drehen, Größe und Deckkraft, dazu tanzendes Korn). Beim Hinscrollen tritt er auf: Er wächst aus
+ * einem Lichtpunkt, die Strahlen fächern auf, die Wörter schweben aus der Tiefe herein
+ * (Stylesheet, ausgelöst durch data-da). Danach lebt er: Er atmet, dreht sich ganz leicht, die
+ * Strahlen schimmern. Er ist nie ein Standbild und hat keine Kante.
  *
  * Die Wörter sind Geister in der Schwerelosigkeit: Die Maus geht durch sie hindurch. Fährt sie
  * durch ein Wort, bekommt es einen sanften Schubs in ihre Bewegungsrichtung (nach Geschwindigkeit
@@ -51,107 +50,41 @@ type Wort = {
  * gut 150 px), wird weich gebremst und dreht sich leicht (höchstens 6°); die
  * Buchstaben nahe der Maus werden kurz zu Zufallszeichen. Am Rand des Feldes prallen die Wörter
  * weich ab; 8 s nach dem letzten Schubs treiben sie an ihren Platz zurück. Am Handy treiben sie
- * ganz langsam von selbst und reagieren auf Antippen. Bei „weniger Bewegung“ steht alles still
- * (statt der Szene das ruhige Bild des Sterns).
- *
- * Die Szene wird schon angelegt und aufgewärmt, während oben der Stern im Dunkeln steht
- * (Vorarbeit der Startanimation): Beim Hinscrollen ruckelt nichts. Sie rechnet nur im Bild.
+ * ganz langsam von selbst und reagieren auf Antippen. Bei „weniger Bewegung“ steht alles still.
  */
 export function Uebergang() {
   const wurzel = useRef<HTMLElement>(null);
-  const halter = useRef<HTMLDivElement>(null);
-  const platz = useRef<HTMLSpanElement>(null);
   // Stellt der Besucher „weniger Bewegung“ um, richtet sich alles neu ein. Der Auftritt kommt nur
   // einmal je Seitenaufruf: War er schon da, steht danach alles sofort.
   const wechsel = useBewegungsWechsel();
   const aufgetreten = useRef(false);
 
-  // ── Der Stern.
+  // ── Der Auftritt des Sterns und der Wörter (einmal je Seitenaufruf).
   useEffect(() => {
     const el = wurzel.current;
-    const buehne = halter.current;
-    const anker = platz.current;
-    if (!el || !buehne || !anker) return;
+    if (!el) return;
     const still = istVorschau() || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let szene: LichtSzene | undefined;
-    let vorbei = false;
-    // War der Auftritt bei diesem Seitenaufruf schon da, steht alles sofort.
-    let da = aufgetreten.current;
-    let imBild = false;
-    // Größe des Sterns, Weite der Strahlen: Das fährt der Auftritt hoch.
-    const form = { mass: 0, strahlen: 0 };
-    if (da) el.dataset.da = "1";
-    let auftritt: gsap.core.Timeline | undefined;
-    const stattBild = () => {
-      szene?.ende();
-      szene = undefined;
-      if (!vorbei) el.dataset.still = "1";
-    };
-    // Lebendig: Der Stern dreht sich ganz leicht hin und her (± 5°, eine Runde in 14 s).
-    const takt = (zeit: number) => {
-      if (!szene || !imBild || !da) return;
-      szene.sternForm(form.mass, form.strahlen, 0.09 * Math.sin(zeit * 0.45));
-    };
-    const tritAuf = () => {
-      if (da || vorbei) return;
-      da = true;
+    if (still || aufgetreten.current) {
+      // Ohne Bewegung, oder der Auftritt war schon da: Alles steht sofort.
       aufgetreten.current = true;
-      el.dataset.da = "1";
-      if (!szene) return;
-      // Aus einem Lichtpunkt wächst der Stern (leichtes Überschwingen), dann fächern die Strahlen auf.
-      auftritt = gsap
-        .timeline()
-        .to(form, { mass: 0.07, duration: 0.25, ease: "power2.out" })
-        .to(form, { mass: 1, duration: 1, ease: "back.out(1.5)" }, 0.3)
-        .to(form, { strahlen: 1, duration: 1.5, ease: "power2.out" }, 0.75);
-    };
-    if (still) {
-      aufgetreten.current = true;
-      el.dataset.still = "1";
-      el.dataset.da = "1";
-    } else {
-      // Gleich anlegen und aufwärmen (als Vorarbeit der Startanimation angemeldet).
-      vorarbeit.melde(
-        import("../kopf/lichtszene")
-          .then(async ({ starteLichtSzene }) => {
-            if (vorbei) return;
-            // Schwarze Wand wie im Kopfbereich (nur auf Schwarz bleibt das Korn unsichtbar); die
-            // Fläche läuft oben und unten weich in den Grund der Seite aus (Stylesheet).
-            const neu = starteLichtSzene(buehne, anker, { proben: 60, wand: 0x000000, maus: false, nurStern: true, beiAusfall: stattBild });
-            await neu.aufwaermen();
-            if (vorbei) return neu.ende();
-            szene = neu;
-            szene.sternForm(0, 0, 0);
-            szene.pegel(1);
-            el.dataset.licht = "live";
-            if (da) {
-              // Der Abschnitt war schon im Bild (Laden mitten auf der Seite): Der Stern steht gleich da.
-              form.mass = 1;
-              form.strahlen = 1;
-            }
-          })
-          .catch(stattBild),
-      );
-      gsap.ticker.add(takt);
+      el.dataset.da = "steht";
+      return () => {
+        delete el.dataset.da;
+      };
     }
-    // Auftritt, sobald der Abschnitt zu gut einem Drittel im Bild ist (einmal je Seitenaufruf).
+    // Sobald der Abschnitt zu gut einem Drittel im Bild ist.
     const waechter = new IntersectionObserver(
       (eintraege) => {
-        const e = eintraege[eintraege.length - 1];
-        imBild = e.isIntersecting;
-        if (e.intersectionRatio >= 0.35) tritAuf();
+        if (eintraege[eintraege.length - 1].intersectionRatio < 0.35) return;
+        aufgetreten.current = true;
+        el.dataset.da = "1";
+        waechter.disconnect();
       },
       { threshold: [0, 0.35] },
     );
     waechter.observe(el);
     return () => {
-      vorbei = true;
       waechter.disconnect();
-      gsap.ticker.remove(takt);
-      auftritt?.kill();
-      szene?.ende();
-      delete el.dataset.licht;
-      delete el.dataset.still;
       delete el.dataset.da;
     };
   }, [wechsel]);
@@ -419,11 +352,10 @@ export function Uebergang() {
 
   return (
     <section ref={wurzel} className="ag-ueber" aria-label="Wofür wir stehen">
-      <div ref={halter} className="ag-ueber__licht" aria-hidden="true">
+      <div className="ag-ueber__licht" aria-hidden="true">
         <span className="ag-ueber__schein" />
-        <span ref={platz} className="ag-ueber__platz">
-          {/* Ruhiges Bild des Sterns: nur bei „weniger Bewegung“ oder wenn die Szene nicht zeichnen kann. */}
-          <Image className="ag-ueber__standbild" src={sternBild} alt="" sizes="(max-width: 767px) 60vw, 30vw" loading="lazy" />
+        <span className="ag-ueber__platz">
+          <Leuchtstern />
         </span>
       </div>
       <ul className="ag-wf">

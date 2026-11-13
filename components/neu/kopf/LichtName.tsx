@@ -8,7 +8,18 @@ import lichtBild from "@/public/kopf/licht-logo.jpg";
 import sternBild from "@/public/kopf/licht-stern.webp";
 import { marke } from "@/lib/inhalt-neu";
 import { Wortmarke } from "../Rahmen";
-import { INTRO_FERTIG, INTRO_FERTIG_KLASSE, LADEN_FERTIG, LADEN_FERTIG_KLASSE, START_FERTIG, START_FERTIG_KLASSE, istVorschau, vorarbeit } from "../umgebung";
+import {
+  INTRO_FERTIG,
+  INTRO_FERTIG_KLASSE,
+  LADEN_FERTIG,
+  LADEN_FERTIG_KLASSE,
+  START_FERTIG,
+  START_FERTIG_KLASSE,
+  START_FREI,
+  START_FREI_KLASSE,
+  istVorschau,
+  scrollSperre,
+} from "../umgebung";
 import type { LichtLage, LichtSzene } from "./lichtszene";
 import { erzeugeZeichenname } from "./zeichenname";
 
@@ -22,12 +33,11 @@ import { erzeugeZeichenname } from "./zeichenname";
  *      des Logos (ein vorgerendertes Bild, genau an der Stelle des späteren
  *      Sterns). Währenddessen wird alles fertig gemacht: Schriften, Raster und
  *      Vorrat der Zeichen, die Licht-Szene (Shader übersetzt, die echte Szene
- *      in voller Größe unsichtbar vorgezeichnet), die Bilder der ersten
- *      Abschnitte und alles, was sich für das erste Scrollen angemeldet hat
- *      (die zweite Licht-Szene im Wörter-Feld). Zum Schluss die Probe unter
- *      echter Last: 30 Bilder hintereinander unter 17 ms.
- *   2. Weiter geht es, wenn alles fertig ist: frühestens 3 s, spätestens 6 s
- *      nach dem ersten Bild.
+ *      in voller Größe unsichtbar vorgezeichnet) und die Bilder der ersten
+ *      Abschnitte. Zum Schluss die Probe unter echter Last: 30 Bilder
+ *      hintereinander unter 17 ms.
+ *   2. Weiter geht es, wenn alles fertig ist: frühestens 1,5 s, spätestens 6 s
+ *      nach dem ersten Bild. Nach der Höchstzeit geht das Licht in jedem Fall an.
  *   3. Das Licht baut sich von innen nach außen auf, jeder Schritt weich in
  *      den nächsten: Der Stern wird heller (0,7 s; er geht ohne Sprung vom
  *      Bild in die Szene über), dann kommen die vier Balken (0,6 s), dann
@@ -38,17 +48,20 @@ import { erzeugeZeichenname } from "./zeichenname";
  *      Chat-Knopf (Stylesheet, über data-start am Kopfbereich).
  * Solange das läuft, steht das Licht ruhig in der Mitte. Wenn alles steht
  * (Zeichen gelandet, Welle vorbei), wartet es 1 s und dreht sich dann langsam
- * zur Maus (1,5 s). Klick, Taste oder Scrollen überspringen: Dann steht alles
- * sofort. Bei „weniger Bewegung“ blendet alles ruhig ein.
+ * zur Maus (1,5 s). Während der ganzen Startanimation steht die Seite oben:
+ * Man kann nicht scrollen und nichts überspringen, bis der Name gelandet und
+ * die Welle durch ist. Bei „weniger Bewegung“ blendet alles ruhig ein.
  *
  * Danach: Die Zeichen weichen dem Zeiger aus, ein Klick auf den Namen schickt
  * eine Welle hindurch. Beim Runterscrollen fliegen die Zeichen auf den Bahnen
  * des Startflugs wieder auseinander, das Licht wird schwächer; zurück am
  * Seitenanfang leuchtet es kurz etwas heller auf.
  *
- * Am Handy läuft dieselbe Szene mit 60 Proben, solange es flüssig bleibt;
- * ruckelt es, steht ein ruhiges Bild des Lichts. Gerechnet wird nur, solange
- * der Kopfbereich zu sehen ist. Der gewöhnliche Schriftzug ist unsichtbar und
+ * Am Computer wird das Licht nie zum Standbild: Wird es knapp, rechnet die
+ * Szene billiger (Sparstufen in lichtszene.ts), lebt aber weiter und folgt der
+ * Maus. Am Handy läuft dieselbe Szene mit 60 Proben; nur dort steht als letzte
+ * Rettung ein ruhiges Bild des Lichts, wenn es trotz aller Sparstufen ruckelt.
+ * Gerechnet wird nur, solange der Kopfbereich zu sehen ist. Der gewöhnliche Schriftzug ist unsichtbar und
  * nur für Vorleseprogramme da; ohne Skript steht er als Grafik da.
  */
 // Die Licht-Szene (three.js) wird schon geholt, während die Seite noch startet, nicht erst, wenn der
@@ -64,7 +77,7 @@ const szeneVorab =
 let geraetRuckelt = false;
 
 // Der Stern steht jedes Mal mindestens so lange im Dunkeln (Sekunden seit dem ersten Bild) …
-const WARTEN_MIN = 3;
+const WARTEN_MIN = 1.5;
 // … und höchstens so lange: Dann geht es los, auch wenn noch nicht alles fertig ist.
 const WARTEN_MAX = 6;
 // Aufbau des Lichts von innen nach außen (Sekunden): Der Stern wird heller, dann kommen die vier
@@ -77,11 +90,14 @@ const FLUG_AB_PEGEL = 0.6;
 const LEISTE_NACH = 1.1;
 // Wenn alles steht (Zeichen gelandet, Welle vorbei: 0,25 s Pause + 1,3 s Welle), wartet das Licht
 // noch 1 s. Dann dreht es sich langsam zur Maus (1,5 s) und folgt ihr danach wie immer.
-const MAUS_NACH = 0.25 + 1.3 + 1;
+const WELLE_ENDE = 0.25 + 1.3;
+const MAUS_NACH = WELLE_ENDE + 1;
 const MAUS_DREHEN = 1.5;
 // Probe vor dem Start: so viele Bilder hintereinander müssen schneller sein als diese Zeit
 // (17 ms, mit einer halben Millisekunde Luft für Browser, die Zeiten runden).
 const PROBE_BILDER = 30;
+// Diese Tasten scrollen die Seite; während der Startanimation tun sie nichts.
+const SCROLL_TASTEN = [" ", "PageDown", "PageUp", "End", "Home", "ArrowDown", "ArrowUp"];
 const PROBE_MS = 17.5;
 
 export function LichtName() {
@@ -112,7 +128,7 @@ export function LichtName() {
     const maus = feinerZeiger.matches && !still;
     // Meldungen an den Rest der Seite. Sie gehören zu genau diesem Start: Eine Freigabe von einem
     // früheren Besuch der Seite gilt nicht.
-    const KLASSEN = [INTRO_FERTIG_KLASSE, LADEN_FERTIG_KLASSE, START_FERTIG_KLASSE];
+    const KLASSEN = [INTRO_FERTIG_KLASSE, LADEN_FERTIG_KLASSE, START_FERTIG_KLASSE, START_FREI_KLASSE];
     wurzel.classList.remove(...KLASSEN);
     const melden = (ereignis: string, klasse: string) => {
       wurzel.classList.add(klasse);
@@ -133,6 +149,7 @@ export function LichtName() {
       held.dataset.start = "fertig";
       held.dataset.licht = "bild";
       allesGemeldet();
+      melden(START_FREI, START_FREI_KLASSE);
       return () => {
         delete held.dataset.ln;
         delete held.dataset.licht;
@@ -154,20 +171,65 @@ export function LichtName() {
     let fertig = false;
     let sofortNachBau = false;
     let uebersprungenUm = 0;
-    // Solange die Zeichen als Ganzes unterwegs sind (Startflug, Welle, Scrollen), darf das Licht
-    // kürzertreten: Hält das Gerät den Takt des Bildschirms nicht, wird es nur in jedem zweiten Bild
-    // neu gezeichnet (sonst in jedem). Am Bild des Lichts ändert das nichts.
     const spaeter: gsap.core.Tween[] = [];
-    let schont = false;
-    let schonEnde: gsap.core.Tween | undefined;
-    const schonen = (ja: boolean) => {
-      schont = ja;
-      szene?.schonen(ja);
+    // Scrollen ist frei, sobald die Startanimation ganz vorbei ist (Name gelandet, Welle durch).
+    let frei = false;
+    // Solange gesperrt ist, tun Mausrad, Wischen und die Scroll-Tasten nichts (das Stylesheet sperrt
+    // dazu das gewöhnliche Scrollen samt Scrollbalken, das weiche Scrollen hält an).
+    const haltAn = (ev: Event) => {
+      if (!frei && ev.cancelable) ev.preventDefault();
     };
-    const schoneFuer = (sekunden: number) => {
-      schonEnde?.kill();
-      schonen(true);
-      schonEnde = gsap.delayedCall(sekunden, () => schonen(false));
+    const haltTaste = (ev: KeyboardEvent) => {
+      if (frei) return;
+      // Nach Neuladen oder Zurück ist die Sperre anfangs noch nicht fest (der Browser darf die
+      // frühere Lage noch herstellen). In dieser kurzen Zeit tut auch die Tab-Taste nichts: Ein
+      // Fokus-Sprung würde die Seite sonst scrollen, und das gälte als wiederhergestellte Lage.
+      if (ev.key === "Tab" && gesperrt && !fest) return ev.preventDefault();
+      if (!SCROLL_TASTEN.includes(ev.key)) return;
+      if ((ev.target as Element | null)?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+      ev.preventDefault();
+    };
+    // Auch ein Klick auf ein Sprungziel der Seite („#kontakt“) bewegt sie solange nicht.
+    const haltSprung = (ev: MouseEvent) => {
+      if (frei) return;
+      const ziel = (ev.target as Element | null)?.closest?.("a[href]");
+      if (ziel?.getAttribute("href")?.includes("#")) ev.preventDefault();
+    };
+    let gesperrt = false;
+    // Fest: Die Seite ist nur so hoch wie das Bild und kann gar nicht scrollen.
+    let fest = false;
+    // Nach Neuladen oder Zurück: Die Sperre wird erst fest, wenn die Seite geladen ist (siehe unten).
+    let beiGeladen: (() => void) | undefined;
+    const sperren = (gleichFest: boolean) => {
+      gesperrt = true;
+      fest = gleichFest;
+      scrollSperre.setze(true, gleichFest);
+      window.addEventListener("wheel", haltAn, { passive: false });
+      window.addEventListener("touchmove", haltAn, { passive: false });
+      window.addEventListener("keydown", haltTaste);
+      window.addEventListener("click", haltSprung, true);
+    };
+    const entsperren = () => {
+      scrollSperre.setze(false);
+      window.removeEventListener("wheel", haltAn);
+      window.removeEventListener("touchmove", haltAn);
+      window.removeEventListener("keydown", haltTaste);
+      window.removeEventListener("click", haltSprung, true);
+      if (beiGeladen) window.removeEventListener("load", beiGeladen);
+    };
+    const freigeben = () => {
+      if (frei || vorbei) return;
+      const warGesperrt = gesperrt;
+      frei = true;
+      entsperren();
+      melden(START_FREI, START_FREI_KLASSE);
+      // Ist der Tastatur-Fokus während der Sperre zu einem Feld weiter unten gesprungen (die Seite
+      // selbst konnte nicht mit), kommt es jetzt ins Bild.
+      const ziel = document.activeElement;
+      if (warGesperrt && ziel instanceof HTMLElement && ziel !== document.body) {
+        const r = ziel.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight) ziel.scrollIntoView({ block: "center" });
+      }
     };
 
     // ── Messung: Wie lange dauert jede Ladephase? Nachzulesen über performance.getEntriesByType("measure").
@@ -293,7 +355,11 @@ export function LichtName() {
     // Der Stern beginnt in der Szene so schwach, wie sein Bild gerade ist (wird beim Übergang gesetzt).
     const stufen = { stern: 0.05, zeiten: maus ? LICHT_STUFEN : LICHT_STUFEN_HANDY };
     // Kommt die Szene gar nicht (kein WebGL, Laden gescheitert, Gerät ruckelt)? Dann gehört das ruhige Bild hin.
-    let ohneSzene = still || geraetRuckelt;
+    let ohneSzene = still || (geraetRuckelt && !maus);
+    let neuAufbau = 0;
+    // Zählt jeden Versuch, die Szene anzulegen: Fällt die Grafik aus, während eine Szene noch
+    // aufwärmt, ist dieser Versuch hinfällig (die Szene darf danach nicht mehr eingesetzt werden).
+    let lichtVersuch = 0;
     const lichtLaden = async () => {
       if (ohneSzene) return;
       try {
@@ -312,7 +378,9 @@ export function LichtName() {
       if (!geholt) throw new Error("Licht-Szene nicht geladen");
       const { starteLichtSzene } = geholt;
       const anlegenAb = performance.now();
-      const neu = starteLichtSzene(el, loch, {
+      lichtVersuch += 1;
+      const versuch = lichtVersuch;
+      const neu: LichtSzene = starteLichtSzene(el, loch, {
         // Am Computer 80 Proben je Bildpunkt, am Handy 60.
         proben: maus ? 80 : 60,
         // Rein schwarz: Kopfbereich, Wand und Grund der Szene haben denselben Ton.
@@ -322,8 +390,21 @@ export function LichtName() {
         // Die Zeichen erfahren, wie hell das Licht gerade ist. Am Computer wandert ihr Schimmer
         // außerdem mit dem Lichtkegel; am Handy steht er ruhig (das Licht wiegt sich nur leicht).
         beiBild: (lage) => feld.licht(maus ? lage : { ...lage, kippX: 0, kippY: 0 }),
-        beiAusfall: () => {
-          geraetRuckelt = true;
+        // Nur sehr schwache Handys dürfen auf das ruhige Bild ausweichen; am Computer spart die Szene nur.
+        letzteRettung: !maus,
+        beiAusfall: (grund) => {
+          if (vorbei) return;
+          // Die Grafik ist ausgefallen: einmal frisch aufbauen. Gelingt auch das nicht, steht das ruhige Bild.
+          if (grund === "verlust" && neuAufbau < 1) {
+            neuAufbau += 1;
+            // Die ausgefallene Szene abbauen, auch wenn sie noch aufwärmt und noch nicht eingesetzt ist.
+            lichtVersuch += 1;
+            neu.ende();
+            if (szene === neu) szene = undefined;
+            uhren.push(window.setTimeout(() => void lichtLaden(), 400));
+            return;
+          }
+          if (grund === "last") geraetRuckelt = true;
           stattBild();
         },
       });
@@ -333,11 +414,18 @@ export function LichtName() {
       } catch {
         /* ohne Messung */
       }
-      // Abgebaut, oder die Szene ist schon beim Aufwärmen ausgefallen: wieder wegräumen.
+      // Die Grafik ist beim Aufwärmen ausgefallen: Diese Szene ist schon abgebaut, ein neuer Versuch läuft.
+      if (versuch !== lichtVersuch) return;
+      // Abgebaut, oder das ruhige Bild gilt inzwischen: wieder wegräumen.
       if (vorbei || ohneSzene) return neu.ende();
       szene = neu;
-      szene.schonen(schont);
       if (!lichtAn) return;
+      // Neu aufgebaut, nachdem alles schon stand (die Grafik war ausgefallen): Das Licht ist sofort wieder da.
+      if (fertig && held.dataset.licht === "live") {
+        szene.zeigen(true);
+        szene.mausFolgen(true);
+        return;
+      }
       // Der Start läuft schon (die Szene kam zu spät): Das Licht kommt jetzt nach.
       if (held.dataset.licht !== "bild") {
         // Bis jetzt schimmert noch der Stern: Das Licht baut sich ganz normal auf.
@@ -445,14 +533,13 @@ export function LichtName() {
     const fliegen = () => {
       if (fliegt || fertig || vorbei) return;
       fliegt = true;
-      schonen(true);
       // 250 ms nach dem Ende des Flugs läuft einmal von selbst eine Welle aus der Mitte des Namens:
       // der Hinweis, dass man klicken kann. (War der Kopfbereich beim Start nicht zu sehen, fliegen
       // die Zeichen erst ein, wenn er ins Bild kommt.)
       feld.starten(() => {
-        // Bis diese Welle durch ist (0,25 s Pause + 1,3 s), bleibt das Licht geschont.
-        schoneFuer(1.6);
         spaeter.push(gsap.delayedCall(0.25, feld.welleMitte));
+        // Ist die Welle durch (0,25 s Pause + 1,3 s), ist die Startanimation vorbei: Scrollen ist frei.
+        spaeter.push(gsap.delayedCall(WELLE_ENDE, freigeben));
         // Wenn alles steht, wartet das Licht 1 s und dreht sich dann langsam zur Maus.
         spaeter.push(gsap.delayedCall(MAUS_NACH, () => szene?.mausFolgen(true, MAUS_DREHEN)));
         stehen();
@@ -492,13 +579,17 @@ export function LichtName() {
       melden(LADEN_FERTIG, LADEN_FERTIG_KLASSE);
       held.dataset.start = "licht";
       if (szene) return lichtAuftritt();
-      // Die Szene kommt nicht (das Gerät kommt nicht mit): Es steht das ruhige Bild des Lichts.
-      // Lädt sie nur noch (spätestens nach 6 s geht es trotzdem los), schimmert der Stern weiter,
-      // und das Licht geht an, sobald sie da ist. In beiden Fällen fliegen die Zeichen schon.
+      // Die Szene kommt nicht (kein WebGL, „weniger Bewegung“ …): Es steht das ruhige Bild des Lichts.
+      // Ist sie nach der Höchstzeit noch gar nicht geladen (sehr langsames Netz), gibt es noch kein
+      // Licht, das angehen könnte: Der Stern schimmert weiter, die Zeichen fliegen schon, und das
+      // Licht baut sich auf, sobald die Szene da ist (lichtHolen). Scheitert das Laden, steht das
+      // ruhige Bild.
       if (ohneSzene) mitRuhigemBild(0.9);
       spaeter.push(gsap.delayedCall(0.4, fliegen));
     };
-    // Überspringen (Klick, Taste, Scrollen): Alles steht sofort.
+    // Alles steht sofort, ohne Startanimation. Der Besucher kann das nicht auslösen (kein
+    // Überspringen per Klick, Taste oder Scrollen); es gilt nur, wenn die Seite schon weiter unten
+    // steht (Sprungziel in der Adresse, wiederhergestellte Lage) oder neu eingerichtet wird.
     const ueberspringen = () => {
       if (fertig || vorbei) return;
       uebersprungenUm = performance.now();
@@ -513,8 +604,8 @@ export function LichtName() {
       } else mitRuhigemBild(0.4);
       if (gebaut) feld.sofort();
       else sofortNachBau = true;
-      schonen(false);
       stehen();
+      freigeben();
     };
 
     // Klick oder Tippen auf den Namen (plus 40 px Rand, nicht auf Knöpfe und Links, nicht im Startflug): eine Welle.
@@ -525,8 +616,6 @@ export function LichtName() {
       const e = el.getBoundingClientRect();
       const ausgeloest = feld.welle(ev.clientX - e.left, ev.clientY - e.top);
       if (!ausgeloest) return;
-      // Solange die Welle läuft (1,3 s), wird das Licht geschont.
-      schoneFuer(1.35);
       // Am Handy dazu eine kurze Vibration (wo das Gerät es kann).
       if (!maus) navigator.vibrate?.(6);
     };
@@ -545,8 +634,14 @@ export function LichtName() {
     const beimScrollen = () => {
       const y = window.scrollY;
       const hoch = window.innerHeight;
-      // Wer während der Startanimation scrollt, will weiter: Dann steht alles sofort.
-      if (y > 24 && !fertig && !still) ueberspringen();
+      // Steht die Seite während des Starts weiter unten, hat der Browser eine frühere Lage
+      // wiederhergestellt (Neuladen, Zurück): Dann steht alles sofort. Der Besucher selbst kann das
+      // nicht auslösen: Ist die Sperre fest, kann die Seite gar nicht scrollen (sie ist dann nur so
+      // hoch wie das Bild), auch nicht mit der Tab-Taste.
+      if (y > 24 && !frei && !still) {
+        ueberspringen();
+        freigeben();
+      }
       // Scroll-Fortschritt: scrollY ÷ (0,9 × Bildschirmhöhe), begrenzt auf 0 bis 1.
       const s = Math.max(0, Math.min(1, y / (0.9 * hoch)));
       if (gebaut) feld.rollen(s, Math.max(0, y - obenImDokument), hoch);
@@ -555,7 +650,6 @@ export function LichtName() {
       // Das Licht tritt zurück (bis auf 14 %), je weiter man scrollt.
       const zurueck = Math.max(0, Math.min(1, (s - 0.12) / 0.8));
       held.style.setProperty("--licht-deck", (1 - 0.86 * zurueck).toFixed(3));
-      if (s > 0 && s < 1 && !still) schoneFuer(0.3);
       if (s >= 0.6) warWeg = true;
       else if (s <= 0.01 && warWeg) {
         warWeg = false;
@@ -578,35 +672,73 @@ export function LichtName() {
     waechter.observe(leinwand);
     window.addEventListener("scroll", beimScrollen, { passive: true });
 
-    const taste = (ev: KeyboardEvent) => {
-      if (!ev.metaKey && !ev.ctrlKey && !ev.altKey) ueberspringen();
-    };
     if (still) {
       // „Weniger Bewegung“: Es steht das ruhige Bild, der Name blendet ein, alles ist sofort da.
       held.dataset.licht = "bild";
       lichtAn = true;
       stehen();
+      freigeben();
     } else {
       held.dataset.start = "warten";
       held.addEventListener("click", klick);
-      window.addEventListener("pointerdown", ueberspringen);
-      window.addEventListener("keydown", taste);
+      // Während der ganzen Startanimation steht die Seite oben: kein Scrollen, kein Überspringen.
+      // Nur wenn der Browser die Seite selbst woanders hinstellt, steht alles sofort:
+      //  - Ziel in der Adresse (#kontakt): Der Browser springt dorthin, oft erst nach diesem Skript.
+      //  - Neuladen oder Zurück: Er stellt die frühere Lage wieder her (meist schon vor dem Skript).
+      const aufruf = (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.type;
+      const wiederherstellung = aufruf === "reload" || aufruf === "back_forward";
+      const sprungziel = (() => {
+        let ziel: HTMLElement | null = null;
+        try {
+          ziel = document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+        } catch {
+          /* kein gültiges Ziel */
+        }
+        // Ein Ziel ganz oben (#top) ist kein Sprung.
+        return !!ziel && ziel.getBoundingClientRect().top + window.scrollY > 24;
+      })();
+      if (!startGelaufen.current && !sprungziel) {
+        // Steht die Seite schon weiter unten, obwohl der Browser nichts herzustellen hatte (frischer
+        // Aufruf), hat ein Fokus-Sprung sie bewegt, bevor das Skript lief (Tab-Taste): zurück nach
+        // oben, der Start läuft ganz normal.
+        if (window.scrollY > 24 && !wiederherstellung) window.scrollTo({ top: 0, behavior: "instant" });
+        if (window.scrollY <= 24) {
+          // Frischer Aufruf: sofort fest (nichts kann die Seite bewegen). Nach Neuladen oder Zurück
+          // erst, wenn die Seite geladen ist und noch oben steht: Bis dahin darf der Browser die
+          // frühere Lage noch herstellen (beimScrollen lässt dann alles sofort stehen).
+          sperren(!wiederherstellung);
+          if (wiederherstellung) {
+            beiGeladen = () =>
+              uhren.push(
+                window.setTimeout(() => {
+                  if (frei || vorbei || window.scrollY > 24) return;
+                  fest = true;
+                  scrollSperre.fest();
+                }, 300),
+              );
+            if (document.readyState === "complete") beiGeladen();
+            else window.addEventListener("load", beiGeladen, { once: true });
+          }
+          // Sicherheitsnetz: Spätestens nach 14 s ist das Scrollen frei, was auch immer geschieht.
+          uhren.push(window.setTimeout(freigeben, 14000));
+        }
+      }
       if (maus) {
         window.addEventListener("pointermove", zeigerBewegt, { passive: true });
         wurzel.addEventListener("pointerleave", zeigerWeg);
       }
       beimScrollen();
       // Alles fertig machen, während der Stern schimmert; zum Schluss die Probe.
-      const allesDa = Promise.allSettled([vermessen(), gemessen("licht", lichtLaden), gemessen("bilder", bilderLaden)])
-        // Alles, was sich für das erste Scrollen angemeldet hat (die zweite Licht-Szene im
-        // Wörter-Feld, die Bilder der Abschnitte darunter). Höchstens 2,5 s.
-        .then(() => (vorbei ? undefined : gemessen("vorarbeit", () => hoechstens(vorarbeit.alle(), 2.5))))
-        .then(() => (vorbei ? undefined : gemessen("probe", probe)));
-      // Frühestens 3 s, spätestens 6 s nach dem ersten Bild.
+      const allesDa = Promise.allSettled([vermessen(), gemessen("licht", lichtLaden), gemessen("bilder", bilderLaden)]).then(() => (vorbei ? undefined : gemessen("probe", probe)));
+      // Frühestens 1,5 s, spätestens 6 s nach dem ersten Bild.
       const seitErstemBild = () => (performance.now() - erstesBild) / 1000;
       spaeter.push(gsap.delayedCall(Math.max(0, WARTEN_MAX - seitErstemBild()), lichtAnmachen));
-      // Lief die Startanimation bei diesem Laden schon, steht alles sofort.
-      if (startGelaufen.current) ueberspringen();
+      // Lief die Startanimation bei diesem Laden schon, oder springt der Browser gleich zu einem
+      // Ziel weiter unten, steht alles sofort.
+      if (startGelaufen.current || sprungziel) {
+        ueberspringen();
+        freigeben();
+      }
       allesDa.then(() => {
         if (vorbei) return;
         try {
@@ -628,13 +760,11 @@ export function LichtName() {
       waechter.disconnect();
       window.removeEventListener("scroll", beimScrollen);
       held.removeEventListener("click", klick);
-      window.removeEventListener("pointerdown", ueberspringen);
-      window.removeEventListener("keydown", taste);
       window.removeEventListener("pointermove", zeigerBewegt);
       wurzel.removeEventListener("pointerleave", zeigerWeg);
       spaeter.forEach((t) => t.kill());
       uhren.forEach((u) => window.clearTimeout(u));
-      schonEnde?.kill();
+      entsperren();
       if (stern) {
         gsap.killTweensOf(stern);
         gsap.set(stern, { clearProps: "opacity,animation" });

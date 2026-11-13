@@ -86,28 +86,26 @@
   align-items: center;
   margin-top: clamp(30px, 5vh, 52px);
 }
-/* Text, der Zeile für Zeile aufleuchtet (LeuchtText.tsx). Ohne Skript steht er hell da. */
-.ag-lt__text {
+/* Der Absatz verwandelt sich nach der Überschrift aus Zufallszeichen in den echten Text
+   (Aussage.tsx); danach blendet die Fußnote ein. Ohne Skript steht alles da. */
+.ag-aussage__absatz {
   max-width: 47rem;
   font-size: clamp(1.12rem, 1.55vw, 1.42rem);
   line-height: 1.55;
   color: var(--elfenbein);
   text-wrap: balance;
 }
-.ag-lt[data-an] .ag-lt__text span {
-  opacity: 0.25;
-}
-.ag-lt .ag-fussnote {
+.ag-aussage__fussnote {
   margin-top: 30px;
 }
-.ag-lt[data-an] .ag-lt__fussnote {
+.ag-aussage[data-an] .ag-aussage__fussnote {
   opacity: 0;
   translate: 0 8px;
   transition:
     opacity 0.9s var(--weich),
     translate 0.9s var(--weich);
 }
-.ag-lt[data-an][data-hell] .ag-lt__fussnote {
+.ag-aussage[data-an][data-hell] .ag-aussage__fussnote {
   opacity: 1;
   translate: 0 0;
 }
@@ -134,42 +132,30 @@
 }
 
 /* ───────────── Wörter-Feld mit dem Stern ─────────────
-   Schwarzes Feld: in der Mitte der Stern des Logos als Licht (dieselbe Szene wie im Kopfbereich,
-   nur der Stern), darum sechs Wörter, die wie Geister in der Schwerelosigkeit treiben (Uebergang.tsx). */
+   Schwarzes Feld: in der Mitte der leichte Stern, darum sechs Wörter, die wie Geister in der
+   Schwerelosigkeit treiben (Uebergang.tsx). */
 .ag-ueber {
   position: relative;
   height: clamp(580px, 94vh, 900px);
   overflow: clip;
+  /* Der Stern wird aufgehellt über diesen Grund gemischt. */
+  isolation: isolate;
   /* Oben und unten läuft das Schwarz weich in den Grund der Seite aus. */
   background: linear-gradient(180deg, var(--nacht) 0%, #000 15%, #000 85%, var(--nacht) 100%);
 }
 .ag-ueber__licht {
   position: absolute;
   inset: 0;
-  /* Die Szene steht auf Schwarz; oben und unten läuft sie weich in den Grund der Seite aus. */
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 15%, #000 85%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 15%, #000 85%, transparent 100%);
 }
-.ag-ueber__licht .ag-ln__licht {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  transition: opacity 0.6s var(--weich);
-}
-.ag-ueber[data-licht="live"] .ag-ln__licht {
-  opacity: 1;
-}
-/* Der Platz des Sterns: so groß wie das ganze Logo im Kopfbereich, der Stern füllt gut die Hälfte. */
+/* Der Platz des Sterns: so groß wie das ganze Logo im Kopfbereich, der Stern füllt die Hälfte.
+   Mittig ohne Verschieben: Ein verschobenes Element wäre eine eigene Ebene, und der Stern könnte
+   nicht mehr aufgehellt über den Grund des Abschnitts gemischt werden (er stünde auf Schwarz). */
 .ag-ueber__platz {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  inset: 0;
   width: clamp(250px, 31vw, 480px);
   aspect-ratio: 1;
-  translate: -50% -50%;
+  margin: auto;
 }
 /* Weicher, warmer Schein um den Stern: Er kommt mit dem Auftritt und atmet langsam. */
 .ag-ueber__schein {
@@ -202,20 +188,37 @@
     scale: 0.9;
   }
 }
-/* Ruhiges Bild des Sterns: nur bei „weniger Bewegung“ oder wenn die Szene nicht zeichnen kann. */
-.ag-ueber__standbild {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  opacity: 0;
-  /* Das Bild hat schwarzen Grund: aufgehellt gemischt, damit der Schein dahinter nicht verdeckt wird. */
-  mix-blend-mode: screen;
-  transition: opacity 0.8s var(--weich);
+/* Auftritt des Sterns beim Hinscrollen: Aus einem Lichtpunkt wächst er (leichtes Überschwingen),
+   dann fächern die Strahlen auf. Stand er bei diesem Seitenaufruf schon da (data-da="steht"),
+   steht er sofort. */
+.ag-ueber:not([data-da]) .ag-stern__mitte {
+  scale: 0;
 }
-.ag-ueber[data-still] .ag-ueber__standbild {
-  opacity: 1;
+.ag-ueber:not([data-da]) .ag-stern__auf {
+  opacity: 0;
+  scale: 0.3;
+}
+.ag-ueber[data-da="1"] .ag-stern__mitte {
+  animation: ag-leuchtstern-wachsen 1.3s both;
+}
+.ag-ueber[data-da="1"] .ag-stern__auf {
+  transition:
+    opacity 1.5s cubic-bezier(0.22, 1, 0.36, 1) 0.75s,
+    scale 1.5s cubic-bezier(0.22, 1, 0.36, 1) 0.75s;
+}
+@keyframes ag-leuchtstern-wachsen {
+  0% {
+    scale: 0;
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  19.2%,
+  23% {
+    scale: 0.07;
+    animation-timing-function: cubic-bezier(0.34, 1.45, 0.64, 1);
+  }
+  100% {
+    scale: 1;
+  }
 }
 
 /* Die Wörter. Ihr Platz steht hier (Mitte des Wortes); geschoben und gedreht werden sie vom Skript. */
@@ -842,7 +845,9 @@
   font-size: clamp(1.7rem, 3vw, 2.6rem);
 }
 /* Ladebalken in den Buchstaben: Über der hellen Schrift liegt eine goldene Schicht, die beim
-   aktiven Schritt in 4 s von links nach rechts wächst (zwei Hintergründe, auf die Schrift beschnitten). */
+   aktiven Schritt in 6 s von links nach rechts wächst, bis zum letzten Buchstaben (zwei
+   Hintergründe, auf die Schrift beschnitten). Danach bleibt sie 0,5 s ganz voll stehen
+   (AblaufNummern.tsx wechselt erst dann zum nächsten Schritt). */
 .ag-abn__titel {
   color: transparent;
   background-image: linear-gradient(90deg, var(--gold) 0%, var(--gold-hell) 100%), linear-gradient(var(--elfenbein), var(--elfenbein));
@@ -856,7 +861,7 @@
   transition: filter 0.3s var(--weich);
 }
 .ag-abn__liste li[data-gewaehlt="true"] .ag-abn__titel {
-  animation: ag-abn-fuellen 4s linear both;
+  animation: ag-abn-fuellen 6s linear both;
 }
 /* Angeklickt (oder „weniger Bewegung“): sofort ganz gefüllt. */
 .ag-abn__liste li[data-voll="true"] .ag-abn__titel {
@@ -1055,6 +1060,8 @@
   display: flex;
   flex-direction: column;
   min-height: 100svh;
+  /* Der Stern wird aufgehellt über diesen Grund gemischt. */
+  isolation: isolate;
   /* Oben bleibt Platz für die Kopfleiste: Ganz unten steht sie frei über der Fußleiste. */
   padding-top: clamp(96px, 12svh, 124px);
   overflow: clip;
@@ -1094,32 +1101,14 @@ html.ag-fuss-oben .ag-kopf__marke {
   gap: clamp(18px, 3svh, 46px);
   width: 100%;
 }
-/* Platz des Sterns (so groß wie das Logo im Kopfbereich wäre; der Stern füllt gut die Hälfte). */
+/* Platz des Sterns (so groß wie das Logo im Kopfbereich wäre; der Stern füllt die Hälfte). Darin
+   der leichte Stern: Er atmet, dreht sich leicht, die Strahlen schimmern, das Korn tanzt. */
 .ag-schluss__loch {
   position: relative;
   flex: none;
   width: clamp(96px, min(11vw, 17svh), 190px);
   aspect-ratio: 1;
   pointer-events: none;
-}
-.ag-schluss__stern {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 150%;
-  max-width: none;
-  height: auto;
-  translate: -50% -50%;
-  opacity: 0.4;
-  animation: ag-schluss-atmen 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
-}
-@keyframes ag-schluss-atmen {
-  from {
-    opacity: 0.26;
-  }
-  to {
-    opacity: 0.52;
-  }
 }
 /* Der gewöhnliche Schriftzug hält nur den Platz frei (wie im Kopfbereich); gezeichnet wird der Name aus Zeichen. */
 .ag-schluss .ag-wortmarke {
@@ -1165,11 +1154,6 @@ html.ag-fuss-oben .ag-kopf__marke {
   }
   .ag-schluss__loch {
     width: 34vw;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ag-schluss__stern {
-    animation: none;
   }
 }
 

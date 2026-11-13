@@ -2261,6 +2261,47 @@ html.ag-menue-offen .ag-chat {
   }
 }
 
+/* ───────────── Scroll-Sperre während der Startanimation (umgebung.ts: scrollSperre) ─────────────
+   Die Seite steht oben, bis der Name gelandet und die Welle durch ist. Der Platz des Scrollbalkens
+   bleibt dabei frei, damit beim Freigeben nichts zur Seite rückt. Ist die Sperre „fest“, ist die
+   Seite nur so hoch wie das Bild und schneidet alles darunter ab: Dann gibt es nichts, wohin sie
+   scrollen könnte, auch nicht, wenn die Tab-Taste zu einem Feld weiter unten springt oder ein
+   Skript scrollt. So löst während des Starts auch kein Abschnitt weiter unten seinen Auftritt aus.
+   (Der Inhalt bleibt im Dokument, Vorleseprogramme erreichen ihn weiter.) Fest wird die Sperre
+   erst, wenn der Browser keine frühere Lage mehr wiederherstellen muss (LichtName.tsx). */
+html.ag-scroll-gesperrt {
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+html.ag-scroll-gesperrt body {
+  overscroll-behavior: none;
+  touch-action: none;
+}
+html.ag-scroll-fest body {
+  height: 100svh;
+  overflow: clip;
+}
+/* Schon bevor das Skript der Seite läuft, steht sie oben: vom ersten Bild an, solange der
+   Kopfbereich auf den Start wartet. Das Skript übernimmt die Sperre und meldet „Start frei“
+   (ag-start-frei). Käme es nie (Skript nicht geladen), gibt diese Regel das Scrollen nach 14 s von
+   selbst frei. Ohne Skript und bei „weniger Bewegung“ gilt sie nicht. Diese Regel sperrt nur das
+   Scrollen des Besuchers: Der Browser muss in dieser Zeit noch eine frühere Lage wiederherstellen
+   oder zum Ziel in der Adresse springen können. */
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  html:has(.ag-kopf5[data-start="warten"]):not(.ag-start-frei) {
+    scrollbar-gutter: stable;
+    animation: ag-start-sperre 14s step-end both;
+  }
+}
+@keyframes ag-start-sperre {
+  from {
+    overflow: hidden;
+  }
+  to {
+    overflow: visible;
+  }
+}
+
 /* ───────────── Anrufen am Daumen (Handy) ───────────── */
 .ag-daumen {
   position: fixed;

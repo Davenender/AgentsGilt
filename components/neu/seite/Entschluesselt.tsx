@@ -27,6 +27,8 @@ type Feld = {
   x: number;
   y: number;
   wirr: boolean;
+  /** Tippen: Wann der Platz erscheint (Zeit von performance.now(); 0 = er ist schon da). */
+  kommt: number;
   /** Wann der Buchstabe einrastet (Zeit von performance.now(); 0 = noch offen) und als was. */
   rastet: number;
   ziel: "echt" | "erst";
@@ -37,6 +39,19 @@ export type Buchstabenspiel = {
   verhuellen: () => void;
   /** Die Zeichen rasten von links nach rechts ein (einmal je Seitenaufruf). */
   loesen: (dauer?: number) => void;
+  /** Vor dem ersten Hinscrollen: Der Platz ist leer, die Zeilen bleiben frei. */
+  leeren: () => void;
+  /**
+   * Der Text tippt sich Buchstabe für Buchstabe: Alle `abstand` ms erscheint der nächste Platz als
+   * Zufallszeichen, flackert `flackern` ms und rastet dann ein. Vorn läuft eine verbuggte Kante
+   * durch den Satz, dahinter steht schon das fertige Wort.
+   */
+  tippen: (abstand?: number, flackern?: number) => void;
+  /**
+   * Der ganze Text steht auf einmal als Zufallszeichen da und rastet in `dauer` ms von links nach
+   * rechts ein (nach dem Ort im Text, alle Zeilen zugleich).
+   */
+  wandeln: (dauer?: number) => void;
   /** Ohne Spiel als fertig gelten (die Überschrift lag beim Laden schon über dem Bild). */
   stehen: () => void;
   /** Maus bei (x, y) im Fenster: Die Buchstaben in der Nähe verbuggen kurz und rasten wieder ein. */
@@ -67,7 +82,7 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
   // Mitten der Buchstaben vom letzten Aufbau (für die Maus), bis sich die Größe ändert.
   let orte: { x: number; y: number }[] | null = null;
   let grundStil: CSSStyleDeclaration | null = null;
-  let zustand: "ruhe" | "verhuellt" | "loest" | "fertig" = "ruhe";
+  let zustand: "ruhe" | "verhuellt" | "leer" | "loest" | "fertig" = "ruhe";
   let rahmen = 0;
   let zuletzt = 0;
   let imBild = true;
@@ -82,16 +97,17 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     f.el.style.height = `${o.h}px`;
     f.el.style.lineHeight = `${o.h}px`;
   };
-  const zeigeWirr = (f: Feld) => {
+  /** Zufallszeichen am Platz `ort`; `zwischen`: in der Farbe des Satzes (Platz des Zwischenworts). */
+  const zeigeWirr = (f: Feld, ort: Ort = f.ort, zwischen = false) => {
     f.wirr = true;
-    setzeOrt(f, f.ort);
+    setzeOrt(f, ort);
     f.el.className = "ag-zufall";
     f.el.style.fontFamily = "";
     f.el.style.fontSize = "";
     f.el.style.fontWeight = "";
     f.el.style.fontStyle = "";
     f.el.style.textTransform = "";
-    f.el.style.color = f.stil.color;
+    f.el.style.color = (zwischen && grundStil ? grundStil : f.stil).color;
     f.el.textContent = zufall();
   };
   const zeigeFest = (f: Feld, als: "echt" | "erst") => {
@@ -121,8 +137,8 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     delete huelle.dataset.spiel;
   };
 
-  /** Die Ebene (neu) aufbauen: jeder Buchstabe an seinem Platz, als Zufallszeichen oder echt. */
-  const baue = (wirr: boolean) => {
+  /** Die Ebene (neu) aufbauen: jeder Buchstabe an seinem Platz, als Zufallszeichen, echt oder noch leer. */
+  const baue = (art: "wirr" | "fest" | "leer") => {
     abbauen();
     if (!echt) return false;
     const kasten = huelle.getBoundingClientRect();
@@ -164,10 +180,10 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
         const inGruppe = gruppe && zwischen ? gruppe : null;
         const el = document.createElement("span");
         const ort = { l: b.left - kasten.left, t: b.top - kasten.top, b: b.width, h: b.height };
-        const f: Feld = { el, zeichen, stil, erst, ort, erstOrt: null, x: ort.l + ort.b / 2, y: ort.t + ort.h / 2, wirr: false, rastet: 0, ziel: "echt" };
+        const f: Feld = { el, zeichen, stil, erst, ort, erstOrt: null, x: ort.l + ort.b / 2, y: ort.t + ort.h / 2, wirr: false, kommt: 0, rastet: 0, ziel: "echt" };
         if (inGruppe) zuGruppe.set(f, inGruppe);
-        if (wirr) zeigeWirr(f);
-        else zeigeFest(f, "echt");
+        if (art === "wirr") zeigeWirr(f);
+        else if (art === "fest") zeigeFest(f, "echt");
         neu.append(el);
         felder.push(f);
       }
@@ -235,6 +251,15 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     const wechsel = 1 - Math.pow(1 - anteil, Math.max(0.25, dt / (1000 / 60)));
     let offen = false;
     for (const f of felder) {
+      if (f.kommt) {
+        // Tippen: Dieser Platz ist noch nicht dran.
+        if (jetzt < f.kommt) {
+          offen = true;
+          continue;
+        }
+        f.kommt = 0;
+        zeigeWirr(f, f.ziel === "erst" && f.erstOrt ? f.erstOrt : f.ort, f.ziel === "erst" && f.erst !== null);
+      }
       if (!f.wirr) continue;
       if (f.rastet && jetzt >= f.rastet) {
         zeigeFest(f, f.ziel);
@@ -254,8 +279,10 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     else zuletzt = 0;
   };
 
+  let abgeschlossen = false;
   const schluss = () => {
-    if (vorbei) return;
+    if (vorbei || abgeschlossen) return;
+    abgeschlossen = true;
     zustand = "fertig";
     abbauen();
     // Ab jetzt leuchtet das goldene Schlüsselwort einmal auf (Stylesheet).
@@ -275,7 +302,14 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     if (vorbei) return;
     orte = null;
     if (zustand === "verhuellt") {
-      if (baue(true)) wecken();
+      if (baue("wirr")) wecken();
+    } else if (zustand === "leer") baue("leer");
+    else if (zustand === "loest") {
+      // Mitten im Spiel (Fenster schmaler, Handy gedreht): Die Plätze der Zeichen stimmen nicht
+      // mehr. Statt Zeichen an falschen Stellen steht der Text sofort fertig da.
+      uhren.forEach((u) => window.clearTimeout(u));
+      uhren.length = 0;
+      schluss();
     } else if (zustand === "fertig") abbauen();
   };
   const groesse = new ResizeObserver(() => {
@@ -285,18 +319,54 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     neuVermessen();
   });
   groesse.observe(huelle);
-  document.fonts?.ready.then(neuVermessen).catch(() => undefined);
+  // Sind die Schriften da, stimmen die Plätze womöglich nicht mehr. Ein laufendes Spiel endet aber
+  // nur, wenn sich die Größe wirklich geändert hat (die Meldung kommt auch, wenn längst alles da ist).
+  document.fonts?.ready
+    .then(() => {
+      const gleich = huelle.offsetWidth === breiteZuletzt && huelle.offsetHeight === hoeheZuletzt;
+      if (zustand === "loest" && gleich) return;
+      breiteZuletzt = huelle.offsetWidth;
+      hoeheZuletzt = huelle.offsetHeight;
+      neuVermessen();
+    })
+    .catch(() => undefined);
+
+  /**
+   * Steht der Satz (nach `dauer` ms), bleibt das Zwischenwort kurz stehen (0,55 s). Dann zerfällt
+   * es Buchstabe für Buchstabe in Zufallszeichen (0,05 s Abstand) und rastet nach 0,6 s von links
+   * nach rechts als das echte Wort ein (0,45 s). Ohne Zwischenwort ist der Satz gleich fertig.
+   */
+  const zwischenwort = (dauer: number) => {
+    const gruppe = felder.filter((f) => f.erst !== null);
+    if (!gruppe.length) return void spaeter(dauer + 80, schluss);
+    spaeter(dauer + 550, () => {
+      if (vorbei) return;
+      const zerfall = performance.now();
+      // Der Rest der Zeile gleitet an seinen echten Platz zurück.
+      for (const f of felder) if (f.erst === null && f.erstOrt) setzeOrt(f, f.ort);
+      gruppe.forEach((f, i) =>
+        spaeter(i * 50, () => {
+          if (vorbei || !ebene) return;
+          zeigeWirr(f);
+          f.ziel = "echt";
+          f.rastet = zerfall + 600 + (450 * (i + 1)) / gruppe.length;
+          wecken();
+        }),
+      );
+      spaeter(600 + 450 + 120, schluss);
+    });
+  };
 
   return {
     verhuellen: () => {
       if (vorbei || zustand !== "ruhe") return;
-      if (!baue(true)) return;
+      if (!baue("wirr")) return;
       zustand = "verhuellt";
       wecken();
     },
     loesen: (dauer = 900) => {
       if (vorbei || zustand === "loest" || zustand === "fertig") return;
-      if (!ebene && !baue(true)) return schluss();
+      if (!ebene && !baue("wirr")) return schluss();
       zustand = "loest";
       const ab = performance.now();
       felder.forEach((f, i) => {
@@ -306,27 +376,44 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
         f.rastet = ab + (dauer * (i + 1)) / felder.length;
       });
       wecken();
-      const gruppe = felder.filter((f) => f.erst !== null);
-      if (!gruppe.length) return void spaeter(dauer + 80, schluss);
-      // Das Zwischenwort bleibt kurz stehen (0,55 s). Dann zerfällt es Buchstabe für Buchstabe in
-      // Zufallszeichen (0,05 s Abstand) und rastet nach 0,6 s von links nach rechts als das
-      // echte Wort ein (0,45 s).
-      spaeter(dauer + 550, () => {
-        if (vorbei) return;
-        const zerfall = performance.now();
-        // Der Rest der Zeile gleitet an seinen echten Platz zurück.
-        for (const f of felder) if (f.erst === null && f.erstOrt) setzeOrt(f, f.ort);
-        gruppe.forEach((f, i) =>
-          spaeter(i * 50, () => {
-            if (vorbei || !ebene) return;
-            zeigeWirr(f);
-            f.ziel = "echt";
-            f.rastet = zerfall + 600 + (450 * (i + 1)) / gruppe.length;
-            wecken();
-          }),
-        );
-        spaeter(600 + 450 + 120, schluss);
-      });
+      zwischenwort(dauer);
+    },
+    leeren: () => {
+      if (vorbei || zustand !== "ruhe") return;
+      if (!baue("leer")) return;
+      zustand = "leer";
+    },
+    tippen: (abstand = 45, flackern = 250) => {
+      if (vorbei || zustand === "loest" || zustand === "fertig") return;
+      if (!ebene && !baue("leer")) return schluss();
+      zustand = "loest";
+      const ab = performance.now();
+      let nr = 0;
+      for (const f of felder) {
+        f.ziel = f.erst !== null || f.erstOrt ? "erst" : "echt";
+        // Plätze, die im Zwischenwort leer bleiben, kommen erst mit dem echten Wort.
+        if (f.erst === "") continue;
+        // In Lesereihenfolge: ein Platz nach dem anderen.
+        f.kommt = ab + nr * abstand;
+        f.rastet = f.kommt + flackern;
+        nr += 1;
+      }
+      wecken();
+      zwischenwort(Math.max(0, nr - 1) * abstand + flackern);
+    },
+    wandeln: (dauer = 800) => {
+      if (vorbei || zustand === "loest" || zustand === "fertig") return;
+      if (!baue("wirr")) return schluss();
+      zustand = "loest";
+      const ab = performance.now();
+      const breite = Math.max(1, huelle.getBoundingClientRect().width);
+      for (const f of felder) {
+        f.ziel = "echt";
+        // Von links nach rechts über alle Zeilen zugleich: Wer weiter rechts steht, rastet später ein.
+        f.rastet = ab + 60 + (dauer - 60) * Math.min(1, Math.max(0, f.x / breite));
+      }
+      wecken();
+      spaeter(dauer + 80, schluss);
     },
     stehen: () => {
       if (vorbei || zustand === "fertig") return;
@@ -341,7 +428,7 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
       if (x < -STOER_UMKREIS || y < -STOER_UMKREIS || x > kasten.width + STOER_UMKREIS || y > kasten.height + STOER_UMKREIS) return;
       // Liegt gar kein Buchstabe in der Nähe, bleibt der echte Text einfach stehen.
       if (!ebene && orte && !orte.some((o) => Math.hypot(o.x - x, o.y - y) <= STOER_UMKREIS)) return;
-      if (!ebene && !baue(false)) return;
+      if (!ebene && !baue("fest")) return;
       const jetzt = performance.now();
       let getroffen = false;
       for (const f of felder) {
