@@ -128,3 +128,16 @@ test("Etappe 5: Schule eintragen, Stoppuhr, Abfrage, Anzeigen", async () => {
   for (const b of [{ typ: "schuldaten", was: "note", fach: "Bio", punkte: 11, zeit: "z" }, { typ: "lernen", aktion: "start", zeit: "z" }, { typ: "abfrage", fach: "Bio", zeit: "z" }] as const) assert.ok(briefLesen(briefText(b)), b.typ);
   for (const v of ["klausuren", "hausaufgaben", "lernzeit"]) assert.ok((ZEIG_VORLAGEN as readonly string[]).includes(v), v);
 });
+
+// Etappe 6 (14.11.): Agents Gilt am Telefon
+test("Etappe 6: Mail-Entwurf, Frist, Preis, Geld, Pipeline", async () => {
+  const { briefLesen, ZEIG_VORLAGEN } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("mail_entwurf", { an: "Marc", worum: "Nachfassen zum Angebot" }, "s"), { typ: "mailentwurf", an: "Marc", worum: "Nachfassen zum Angebot" });
+  assert.equal(briefAus("mail_entwurf", { an: "Marc" }, "s"), null);
+  assert.deepEqual(briefAus("frist_merken", { titel: "Angebot läuft aus", bis: "20.11." }, "s"), { typ: "frist", titel: "Angebot läuft aus", bis: "20.11." });
+  assert.deepEqual(briefAus("frist_merken", { titel: "Shadow", erledigt: true }, "s"), { typ: "frist", titel: "Shadow", erledigt: true });
+  assert.deepEqual(briefAus("preis_rechnen", { posten: ["Website", "Chatbot"] }, "s"), { typ: "preis", posten: ["Website", "Chatbot"] });
+  assert.deepEqual(briefAus("geld_abfragen", {}, "s"), { typ: "geld" });
+  for (const b of [{ typ: "mailentwurf", an: "M", worum: "x", zeit: "z" }, { typ: "frist", titel: "x", zeit: "z" }, { typ: "preis", posten: ["x"], zeit: "z" }, { typ: "geld", zeit: "z" }] as const) assert.ok(briefLesen(briefText(b)), b.typ);
+  for (const v of ["pipeline", "geld"]) assert.ok((ZEIG_VORLAGEN as readonly string[]).includes(v), v);
+});

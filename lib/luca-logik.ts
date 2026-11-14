@@ -121,7 +121,7 @@ export const LAGE_MARKE = "📋 Lagebericht";
 export const ANRUF_MARKE = "📞 Luca ruft David an";
 
 /** Stufe 6: was Luca am Telefon auf der Bühne der Zentrale zeigen kann (Vorlagen der Zentrale) – „schliessen“ macht sie zu. */
-export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "hilfe", "wunschliste", "nachrichten", "anrufe", "tageskarte", "klausuren", "hausaufgaben", "lernzeit", "schliessen"] as const;
+export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "hilfe", "wunschliste", "nachrichten", "anrufe", "tageskarte", "klausuren", "hausaufgaben", "lernzeit", "pipeline", "geld", "schliessen"] as const;
 
 export type Brief =
   | { typ: "zeigen"; vorlage: string; wunsch?: string }
@@ -132,6 +132,11 @@ export type Brief =
   | { typ: "nachschauen"; frage: string }
   | { typ: "schule" }
   | ({ typ: "erinnerung"; text: string; minuten?: number; uhrzeit?: string; ort?: string; ereignis?: "ankunft" | "abfahrt"; warten?: number; ab?: string; ueberblick?: boolean; nachSchule?: boolean; thema?: string } & ErinnerungExtra)
+  /** Etappe 6: Agents Gilt */
+  | { typ: "mailentwurf"; an: string; worum: string }
+  | { typ: "frist"; titel: string; bis?: string; erledigt?: boolean }
+  | { typ: "preis"; posten: string[] }
+  | { typ: "geld" }
   /** Etappe 5: Schule */
   | { typ: "schuldaten"; was: SchulWas; fach?: string; text?: string; bis?: string; punkte?: number; art?: string; ziel?: number; themen?: string[]; klausur?: string; thema?: string; frage?: string; antwort?: string }
   | { typ: "lernen"; aktion: "start" | "stopp"; fach?: string; thema?: string }
@@ -213,6 +218,24 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     const minuten = Math.round(Number(args.minuten));
     return Number.isFinite(minuten) && minuten >= 1 && minuten <= 720 ? { typ: "rueckruf", minuten, text: text || "Rückruf, wie besprochen", ...(thema ? { thema } : {}) } : null;
   }
+  // ── Etappe 6
+  if (werkzeug === "mail_entwurf") {
+    const an = kurzText(args.an, 80);
+    const worum = kurzText(args.worum, 600);
+    return an && worum ? { typ: "mailentwurf", an, worum } : null;
+  }
+  if (werkzeug === "frist_merken") {
+    const titel = kurzText(args.titel, 120);
+    if (!titel) return null;
+    if (args.erledigt === true) return { typ: "frist", titel, erledigt: true };
+    const bis = kurzText(args.bis, 20);
+    return bis ? { typ: "frist", titel, bis } : null;
+  }
+  if (werkzeug === "preis_rechnen") {
+    const posten = Array.isArray(args.posten) ? args.posten.map((p) => kurzText(p, 60)).filter(Boolean).slice(0, 10) : [];
+    return posten.length ? { typ: "preis", posten } : null;
+  }
+  if (werkzeug === "geld_abfragen") return { typ: "geld" };
   // ── Etappe 5
   if (werkzeug === "schule_eintragen") {
     const was = (SCHUL_WAS as readonly string[]).includes(String(args.was)) ? (args.was as SchulWas) : null;
@@ -367,7 +390,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
 
 export function briefText(b: BriefMitZeit): string {
   const kopf =
-    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "nachricht" ? "Nachricht an David" : b.typ === "erinnerung_aendern" ? `Geplanten Anruf ${b.nr} ändern` : b.typ === "schuldaten" ? `Schule: ${b.was}` : b.typ === "lernen" ? `Lernen ${b.aktion}` : b.typ === "abfrage" ? `Abfrage ${b.fach}` : b.typ === "pause" ? (b.aufheben ? "Pause aus" : `${b.fokus ? "Fokus" : "Pause"} bis ${b.bis}`) : b.typ === "einstellung" ? `${b.was} ${b.an ? "an" : "aus"}` : b.typ === "wunsch" ? "Wunschliste" : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
+    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "nachricht" ? "Nachricht an David" : b.typ === "erinnerung_aendern" ? `Geplanten Anruf ${b.nr} ändern` : b.typ === "mailentwurf" ? `Mail-Entwurf an ${b.an}` : b.typ === "frist" ? `Frist: ${b.titel}` : b.typ === "preis" ? "Preis rechnen" : b.typ === "geld" ? "Geld" : b.typ === "schuldaten" ? `Schule: ${b.was}` : b.typ === "lernen" ? `Lernen ${b.aktion}` : b.typ === "abfrage" ? `Abfrage ${b.fach}` : b.typ === "pause" ? (b.aufheben ? "Pause aus" : `${b.fokus ? "Fokus" : "Pause"} bis ${b.bis}`) : b.typ === "einstellung" ? `${b.was} ${b.an ? "an" : "aus"}` : b.typ === "wunsch" ? "Wunschliste" : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
   // ``` im Text würde den Block beenden
   const json = JSON.stringify(b).replace(/`/g, "'");
   return `${BRIEF_MARKE} · ${kopf}\n\`\`\`json\n${json}\n\`\`\``;
@@ -379,7 +402,7 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   if (!m) return null;
   try {
     const j = JSON.parse(m[1]) as BriefMitZeit;
-    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg", "nachricht", "wunsch", "erinnerung_aendern", "pause", "einstellung", "schuldaten", "lernen", "abfrage"].includes(j.typ)) return null;
+    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg", "nachricht", "wunsch", "erinnerung_aendern", "pause", "einstellung", "schuldaten", "lernen", "abfrage", "mailentwurf", "frist", "preis", "geld"].includes(j.typ)) return null;
     return typeof j.zeit === "string" ? j : null;
   } catch {
     return null;
@@ -592,6 +615,10 @@ const WERKZEUGE_LIVE = [
   fn("nachschauen", "Das Team sucht in Notion, den Mails von kontakt@agentsgilt.com, im Kalender, in Omi (Davids Gespräche und Aufgaben), in Stripe, Vercel und im Tresor nach einer Antwort. Dauert meist unter einer Minute, das Ergebnis kommt im Gespräch nach. Das Ergebnis kommt nicht als Antwort auf diesen Aufruf.", { frage: txt("Die Frage in einem klaren Satz") }, ["frage"]),
   fn("schule_aktualisieren", "Schaut frisch im Schulportal nach (Vertretung, Entfall, Räume). Das Ergebnis kommt im Gespräch nach."),
   fn("erinnerung_erledigt", "David sagt zu einer Erinnerung oder einem geplanten Anruf „erledigt“, „hab ich schon“, „ruf deswegen nicht mehr an“ oder „mach ich später“. Dann gibt es dazu keinen Anruf mehr. Sagt er „später“ mit Zeit („um halb acht“, „in einer Stunde“), plant spaeter_uhrzeit oder spaeter_minuten den einen neuen Anruf. Sagt er nur „später“, frag einmal kurz, wann.", { thema: txt("Stichwort, worum es geht, zum Beispiel „Marc Mail“"), erst_morgen: { type: "boolean", description: "true bei „heute nicht mehr wegen X“: alles dazu auf morgen statt weg" }, spaeter_uhrzeit: txt("Neuer Zeitpunkt HH:MM in Berliner Zeit, genau wie David ihn sagt"), spaeter_minuten: { type: "number", description: "Oder: in so vielen Minuten" }, text: txt("Woran dann erinnert werden soll, als Satz an David") }, ["thema"]),
+  fn("mail_entwurf", "Mail-Entwurf per Sprache: Der Postbote legt nur einen Gmail-Entwurf an (nie senden). Sobald er fertig ist, kommt der Link per iMessage. Vorher in einem Satz wiederholen und Davids Ja abwarten.", { an: txt("An wen (Name oder Firma)"), worum: txt("Worum es geht, in Davids Worten") }, ["an", "worum"]),
+  fn("frist_merken", "Frist eintragen (Kündigung, Rechnung, Angebot läuft aus) mit Vorwarnung 7, 3 und 1 Tag vorher, oder mit erledigt true abhaken.", { titel: txt("Was"), bis: txt("Bis wann: TT.MM., Wochentag oder morgen"), erledigt: { type: "boolean" } }, ["titel"]),
+  fn("preis_rechnen", "Rechnet aus der Preisliste: „Was kostet Website plus Chatbot?“. Das Ergebnis kommt gleich ins Gespräch.", { posten: { type: "array", items: { type: "string" }, description: "Leistungen, zum Beispiel Website, Chatbot, Telefon-Assistent" } }, ["posten"]),
+  fn("geld_abfragen", "Kosten diesen Monat, feste Einnahmen und die nächste Frist. Das Ergebnis kommt gleich ins Gespräch.", {}, []),
   fn("schule_eintragen", "Schule eintragen: hausaufgabe oder abgabe (fach, text, bis: „morgen“, Wochentag oder „20.11.“), erledigt (text = Stichworte), note (fach, art klausur oder muendlich, punkte 0–15), brauche (fach, ziel in Punkten: was er in der nächsten Klausur braucht), lernthemen (fach, klausur = Datum, themen), geuebt (fach, thema), karte (fach, thema, frage, antwort: Karteikarte für die Abfrage).", { was: { type: "string", enum: ["hausaufgabe", "abgabe", "erledigt", "note", "brauche", "lernthemen", "geuebt", "karte"] }, fach: txt("Fach"), text: txt("Aufgabe oder Stichworte"), bis: txt("Fällig: morgen, Wochentag oder TT.MM."), art: txt("Bei note: klausur oder muendlich"), punkte: { type: "number", description: "Bei note: 0 bis 15" }, ziel: { type: "number", description: "Bei brauche: Ziel in Punkten" }, klausur: txt("Bei lernthemen: Klausurdatum"), themen: { type: "array", items: { type: "string" }, description: "Bei lernthemen: Themen in der Reihenfolge" }, thema: txt("Thema"), frage: txt("Bei karte: Frage"), antwort: txt("Bei karte: Antwort") }, ["was"]),
   fn("lernen", "Lern-Stoppuhr: „ich lerne jetzt Bio“ (aktion start) und „fertig“ (aktion stopp, thema = was er geschafft hat: wird im Lernplan abgehakt). Nach 45 Minuten kommt einmal ein Pausen-Hinweis.", { aktion: { type: "string", enum: ["start", "stopp"] }, fach: txt("Fach"), thema: txt("Bei stopp: geschafftes Thema") }, ["aktion"]),
   fn("abfrage", "Mündliche Abfrage: „frag mich Bio ab“. Die Zentrale schickt gleich Karteikarten ins Gespräch (oder sagt, dass du selbst fragen sollst).", { fach: txt("Fach") }, ["fach"]),
