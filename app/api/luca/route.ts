@@ -92,6 +92,7 @@ const ANTWORT: Record<string, string> = {
   erledigt: "Ist durch: Dazu ruft Luca nicht mehr an. Hat David eine neue Zeit genannt, kommt genau ein Anruf zu dieser Zeit. Sag es ihm in einem Satz.",
   erinnerung_weg: "Ist an die Zentrale raus. Kam die Nummer nicht hin, sagt sie es dir gleich im Gespräch.",
   nachricht: "Ist unterwegs auf Davids Handy (iMessage). Sag es ihm in einem Satz.",
+  erinnerung_aendern: "Ist an die Zentrale raus. Sie sagt dir gleich, ob die Nummer gepasst hat. Sag David kurz, was jetzt gilt.",
   wunsch: "Steht auf der Wunschliste, der Bauer schreibt David den fertigen Prompt dazu. Sag David ehrlich und kurz: Kann ich noch nicht, steht auf der Wunschliste.",
 };
 

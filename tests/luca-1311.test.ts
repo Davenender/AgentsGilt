@@ -81,3 +81,21 @@ test("Etappe 2: nachricht_schicken und wunsch_merken werden Briefe, die der Brie
   const namen = LUCA_WERKZEUGE.map((w) => w.function.name);
   assert.ok(namen.includes("nachricht_schicken") && namen.includes("wunsch_merken"));
 });
+
+// Etappe 3 (14.11.): Erinnern komplett am Telefon
+test("Etappe 3: wiederkehrend, unterwegs, bei Ereignis, vor dem Termin, am Mac, ändern, heute nicht mehr", async () => {
+  const { briefLesen, ZEIG_VORLAGEN } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("erinnerung_wiederkehrend", { text: "Wochenplan", tage: "mo,mi", uhrzeit: "7:00", thema: "Wochenplan" }, "s"), { typ: "erinnerung", text: "Wochenplan", wiederholen: { tage: [1, 3], uhrzeit: "07:00" }, thema: "Wochenplan" });
+  assert.deepEqual(briefAus("erinnerung_wiederkehrend", { text: "Lernen", tage: "schultage", nach_stunde: 6 }, "s"), { typ: "erinnerung", text: "Lernen", wiederholen: { tage: "schultage", nachStunde: 6 } });
+  assert.deepEqual(briefAus("erinnerung_wiederkehrend", { text: "Tasche", tage: "taeglich", uhrzeit: "21:30" }, "s"), { typ: "erinnerung", text: "Tasche", wiederholen: { tage: [0, 1, 2, 3, 4, 5, 6], uhrzeit: "21:30" } });
+  assert.equal(briefAus("erinnerung_wiederkehrend", { text: "x", tage: "mo" }, "s"), null);
+  assert.deepEqual(briefAus("erinnerung_unterwegs", { text: "Buch", ziel: "Bibliothek", wann: "halb" }, "s"), { typ: "erinnerung", text: "Buch", unterwegs: { ziel: "Bibliothek", wann: "halb" } });
+  assert.deepEqual(briefAus("erinnerung_bei_ereignis", { text: "Marc hat geantwortet", art: "mail", wer: "Marc", wie: "nachricht" }, "s"), { typ: "erinnerung", text: "Marc hat geantwortet", wenn: { art: "mail", wer: "Marc" }, wie: "nachricht" });
+  assert.deepEqual(briefAus("erinnerung_vor_termin", { text: "Unterlagen", termin: "Relax Fit", minuten: 30 }, "s"), { typ: "erinnerung", text: "Unterlagen", vorTermin: { titel: "Relax Fit", minuten: 30 } });
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "Rechnung", am_mac: true, nachhaken: true }, "s"), { typ: "erinnerung", text: "Rechnung", amMac: true, nachhaken: true });
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "Hausaufgaben", ort: "Schule", ereignis: "abfahrt", mal: 2 }, "s"), { typ: "erinnerung", text: "Hausaufgaben", ort: "Schule", ereignis: "abfahrt", mal: 2 });
+  assert.deepEqual(briefAus("erinnerung_aendern", { nr: 1, uhrzeit: "18:00" }, "s"), { typ: "erinnerung_aendern", nr: 1, uhrzeit: "18:00" });
+  assert.deepEqual(briefAus("erinnerung_erledigt", { thema: "Marc", erst_morgen: true }, "s"), { typ: "erledigt", thema: "Marc", erstMorgen: true });
+  assert.ok(briefLesen(briefText({ typ: "erinnerung_aendern", nr: 1, uhrzeit: "18:00", zeit: "z" })));
+  assert.ok((ZEIG_VORLAGEN as readonly string[]).includes("anrufe"));
+});
