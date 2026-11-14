@@ -121,7 +121,7 @@ export const LAGE_MARKE = "📋 Lagebericht";
 export const ANRUF_MARKE = "📞 Luca ruft David an";
 
 /** Stufe 6: was Luca am Telefon auf der Bühne der Zentrale zeigen kann (Vorlagen der Zentrale) – „schliessen“ macht sie zu. */
-export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "hilfe", "wunschliste", "nachrichten", "anrufe", "tageskarte", "klausuren", "hausaufgaben", "lernzeit", "pipeline", "geld", "schliessen"] as const;
+export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "hilfe", "wunschliste", "nachrichten", "anrufe", "tageskarte", "klausuren", "hausaufgaben", "lernzeit", "pipeline", "geld", "team", "schliessen"] as const;
 
 export type Brief =
   | { typ: "zeigen"; vorlage: string; wunsch?: string }
@@ -132,6 +132,13 @@ export type Brief =
   | { typ: "nachschauen"; frage: string }
   | { typ: "schule" }
   | ({ typ: "erinnerung"; text: string; minuten?: number; uhrzeit?: string; ort?: string; ereignis?: "ankunft" | "abfahrt"; warten?: number; ab?: string; ueberblick?: boolean; nachSchule?: boolean; thema?: string } & ErinnerungExtra)
+  /** Etappe 7: Agents Gilt II und Team */
+  | { typ: "teamaufgabe"; wer: string; was: string; bis?: string; erledigt?: boolean }
+  | { typ: "teamnachricht"; wer: string; text: string }
+  | { typ: "teamanruf"; wer: string; worum: string; kundeninfo?: string }
+  | { typ: "demo"; kunde: string }
+  | { typ: "idee"; text: string }
+  | { typ: "recherche"; art: "leads" | "bewertungen" | "sonst"; wunsch: string }
   /** Etappe 6: Agents Gilt */
   | { typ: "mailentwurf"; an: string; worum: string }
   | { typ: "frist"; titel: string; bis?: string; erledigt?: boolean }
@@ -217,6 +224,34 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     }
     const minuten = Math.round(Number(args.minuten));
     return Number.isFinite(minuten) && minuten >= 1 && minuten <= 720 ? { typ: "rueckruf", minuten, text: text || "Rückruf, wie besprochen", ...(thema ? { thema } : {}) } : null;
+  }
+  // ── Etappe 7
+  if (werkzeug === "team_aufgabe") {
+    const wer = kurzText(args.wer, 40);
+    const was = kurzText(args.was, 200);
+    if (!wer || !was) return null;
+    if (args.erledigt === true) return { typ: "teamaufgabe", wer, was, erledigt: true };
+    return { typ: "teamaufgabe", wer, was, ...(kurzText(args.bis, 20) ? { bis: kurzText(args.bis, 20) } : {}) };
+  }
+  if (werkzeug === "team_nachricht") {
+    const wer = kurzText(args.wer, 40);
+    const t = kurzText(args.text, 1000);
+    return wer && t ? { typ: "teamnachricht", wer, text: t } : null;
+  }
+  if (werkzeug === "team_anrufen") {
+    // Davids Regel 13.11.: nur Team, nur nach seinem Ja; Kundeninfos nur, wenn er sie ausdrücklich freigibt
+    const wer = kurzText(args.wer, 40);
+    const worum = kurzText(args.worum, 600);
+    if (!wer || !worum || args.bestaetigt !== true) return null;
+    const info = args.kundeninfo_freigegeben === true ? kurzText(args.kundeninfo, 1200) : "";
+    return { typ: "teamanruf", wer, worum, ...(info ? { kundeninfo: info } : {}) };
+  }
+  if (werkzeug === "demo_schicken") return kurzText(args.kunde, 60) ? { typ: "demo", kunde: kurzText(args.kunde, 60) } : null;
+  if (werkzeug === "idee_merken") return text ? { typ: "idee", text: text.slice(0, 500) } : null;
+  if (werkzeug === "recherche_auftrag") {
+    const wunsch = kurzText(args.wunsch, 300);
+    const art = args.art === "leads" || args.art === "bewertungen" ? args.art : "sonst";
+    return wunsch ? { typ: "recherche", art, wunsch } : null;
   }
   // ── Etappe 6
   if (werkzeug === "mail_entwurf") {
@@ -390,7 +425,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
 
 export function briefText(b: BriefMitZeit): string {
   const kopf =
-    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "nachricht" ? "Nachricht an David" : b.typ === "erinnerung_aendern" ? `Geplanten Anruf ${b.nr} ändern` : b.typ === "mailentwurf" ? `Mail-Entwurf an ${b.an}` : b.typ === "frist" ? `Frist: ${b.titel}` : b.typ === "preis" ? "Preis rechnen" : b.typ === "geld" ? "Geld" : b.typ === "schuldaten" ? `Schule: ${b.was}` : b.typ === "lernen" ? `Lernen ${b.aktion}` : b.typ === "abfrage" ? `Abfrage ${b.fach}` : b.typ === "pause" ? (b.aufheben ? "Pause aus" : `${b.fokus ? "Fokus" : "Pause"} bis ${b.bis}`) : b.typ === "einstellung" ? `${b.was} ${b.an ? "an" : "aus"}` : b.typ === "wunsch" ? "Wunschliste" : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
+    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "nachricht" ? "Nachricht an David" : b.typ === "erinnerung_aendern" ? `Geplanten Anruf ${b.nr} ändern` : b.typ === "teamaufgabe" ? `Team: ${b.wer}` : b.typ === "teamnachricht" ? `Team-Nachricht ${b.wer}` : b.typ === "teamanruf" ? `Team anrufen: ${b.wer}` : b.typ === "demo" ? `Demo ${b.kunde}` : b.typ === "idee" ? "Idee" : b.typ === "recherche" ? `Recherche ${b.art}` : b.typ === "mailentwurf" ? `Mail-Entwurf an ${b.an}` : b.typ === "frist" ? `Frist: ${b.titel}` : b.typ === "preis" ? "Preis rechnen" : b.typ === "geld" ? "Geld" : b.typ === "schuldaten" ? `Schule: ${b.was}` : b.typ === "lernen" ? `Lernen ${b.aktion}` : b.typ === "abfrage" ? `Abfrage ${b.fach}` : b.typ === "pause" ? (b.aufheben ? "Pause aus" : `${b.fokus ? "Fokus" : "Pause"} bis ${b.bis}`) : b.typ === "einstellung" ? `${b.was} ${b.an ? "an" : "aus"}` : b.typ === "wunsch" ? "Wunschliste" : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
   // ``` im Text würde den Block beenden
   const json = JSON.stringify(b).replace(/`/g, "'");
   return `${BRIEF_MARKE} · ${kopf}\n\`\`\`json\n${json}\n\`\`\``;
@@ -402,7 +437,7 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   if (!m) return null;
   try {
     const j = JSON.parse(m[1]) as BriefMitZeit;
-    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg", "nachricht", "wunsch", "erinnerung_aendern", "pause", "einstellung", "schuldaten", "lernen", "abfrage", "mailentwurf", "frist", "preis", "geld"].includes(j.typ)) return null;
+    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg", "nachricht", "wunsch", "erinnerung_aendern", "pause", "einstellung", "schuldaten", "lernen", "abfrage", "mailentwurf", "frist", "preis", "geld", "teamaufgabe", "teamnachricht", "teamanruf", "demo", "idee", "recherche"].includes(j.typ)) return null;
     return typeof j.zeit === "string" ? j : null;
   } catch {
     return null;
@@ -615,6 +650,12 @@ const WERKZEUGE_LIVE = [
   fn("nachschauen", "Das Team sucht in Notion, den Mails von kontakt@agentsgilt.com, im Kalender, in Omi (Davids Gespräche und Aufgaben), in Stripe, Vercel und im Tresor nach einer Antwort. Dauert meist unter einer Minute, das Ergebnis kommt im Gespräch nach. Das Ergebnis kommt nicht als Antwort auf diesen Aufruf.", { frage: txt("Die Frage in einem klaren Satz") }, ["frage"]),
   fn("schule_aktualisieren", "Schaut frisch im Schulportal nach (Vertretung, Entfall, Räume). Das Ergebnis kommt im Gespräch nach."),
   fn("erinnerung_erledigt", "David sagt zu einer Erinnerung oder einem geplanten Anruf „erledigt“, „hab ich schon“, „ruf deswegen nicht mehr an“ oder „mach ich später“. Dann gibt es dazu keinen Anruf mehr. Sagt er „später“ mit Zeit („um halb acht“, „in einer Stunde“), plant spaeter_uhrzeit oder spaeter_minuten den einen neuen Anruf. Sagt er nur „später“, frag einmal kurz, wann.", { thema: txt("Stichwort, worum es geht, zum Beispiel „Marc Mail“"), erst_morgen: { type: "boolean", description: "true bei „heute nicht mehr wegen X“: alles dazu auf morgen statt weg" }, spaeter_uhrzeit: txt("Neuer Zeitpunkt HH:MM in Berliner Zeit, genau wie David ihn sagt"), spaeter_minuten: { type: "number", description: "Oder: in so vielen Minuten" }, text: txt("Woran dann erinnert werden soll, als Satz an David") }, ["thema"]),
+  fn("team_aufgabe", "Aufgabe im Team verteilen (wer, was, bis) oder mit erledigt true abhaken. Nur Leute aus dem Team.", { wer: txt("Name aus dem Team"), was: txt("Aufgabe"), bis: txt("Bis wann"), erledigt: { type: "boolean" } }, ["wer", "was"]),
+  fn("team_nachricht", "Nachricht für ein Teammitglied vorbereiten. Sie kommt als fertiger Text auf Davids Handy zum Weiterleiten; Luca schickt selbst nie etwas ans Team.", { wer: txt("Name aus dem Team"), text: txt("Der fertige Text") }, ["wer", "text"]),
+  fn("team_anrufen", "Luca ruft ein Teammitglied an und erklärt etwas (zum Beispiel wie der Telefon-Assistent funktioniert). Nur Leute aus dem Team-Register, nur tagsüber (8 bis 21 Uhr), nur nach Davids klarem Ja, das Luca vorher wiederholt hat (bestaetigt true). Kundeninfos nur, wenn David sie ausdrücklich freigibt (kundeninfo_freigegeben true), sonst weglassen.", { wer: txt("Name aus dem Team"), worum: txt("Was Luca erklären soll"), bestaetigt: { type: "boolean" }, kundeninfo: txt("Nur freigegebene Kundeninfos"), kundeninfo_freigegeben: { type: "boolean" } }, ["wer", "worum", "bestaetigt"]),
+  fn("demo_schicken", "Schickt David den Demo-Link eines Kunden aufs Handy.", { kunde: txt("Kunde") }, ["kunde"]),
+  fn("idee_merken", "Eine Geschäftsidee in den Tresor (20 Ideen).", { text: txt("Die Idee in Davids Worten") }, ["text"]),
+  fn("recherche_auftrag", "Recherche fürs Team: art leads (passende lokale Betriebe, wunsch = Branche und Ort) oder bewertungen (Bewertungen eines Kunden). Das Ergebnis kommt aufs Handy.", { art: { type: "string", enum: ["leads", "bewertungen", "sonst"] }, wunsch: txt("Was gesucht wird") }, ["art", "wunsch"]),
   fn("mail_entwurf", "Mail-Entwurf per Sprache: Der Postbote legt nur einen Gmail-Entwurf an (nie senden). Sobald er fertig ist, kommt der Link per iMessage. Vorher in einem Satz wiederholen und Davids Ja abwarten.", { an: txt("An wen (Name oder Firma)"), worum: txt("Worum es geht, in Davids Worten") }, ["an", "worum"]),
   fn("frist_merken", "Frist eintragen (Kündigung, Rechnung, Angebot läuft aus) mit Vorwarnung 7, 3 und 1 Tag vorher, oder mit erledigt true abhaken.", { titel: txt("Was"), bis: txt("Bis wann: TT.MM., Wochentag oder morgen"), erledigt: { type: "boolean" } }, ["titel"]),
   fn("preis_rechnen", "Rechnet aus der Preisliste: „Was kostet Website plus Chatbot?“. Das Ergebnis kommt gleich ins Gespräch.", { posten: { type: "array", items: { type: "string" }, description: "Leistungen, zum Beispiel Website, Chatbot, Telefon-Assistent" } }, ["posten"]),
@@ -862,4 +903,61 @@ export const ERSTER_SATZ_MIT_NOTIZ = "Hey Chef! Ich hätte noch kurz was von Cla
 export const NACH_VORN_AB = 70;
 export function festeNachVorn(alle: { id: string; content: string; istUnsere: boolean }[], marken: string[]): { id: string; content: string }[] {
   return alle.flatMap((m, i) => (i >= NACH_VORN_AB && m.istUnsere && marken.some((x) => m.content.startsWith(x)) ? [{ id: m.id, content: m.content }] : []));
+}
+
+// ------------------------------------------------------------------ Etappe 7: Luca ruft ein Teammitglied an
+/** „0151 …“, „0049 …“, „+49 …“ → „+49…“ */
+export function nummerE164(roh: string): string {
+  const d = roh.replace(/[^\d+]/g, "");
+  if (d.startsWith("+")) return `+${d.slice(1).replace(/\D/g, "")}`;
+  if (d.startsWith("00")) return `+${d.slice(2)}`;
+  if (d.startsWith("0")) return `+49${d.slice(1)}`;
+  return `+${d}`;
+}
+type MitgliedKurz = { name: string; status: string; telefon: string };
+/** Nur aktive Teammitglieder (Status „team“) mit Nummer: aus dem Register, sonst aus den Vercel-Einstellungen („Name=Nummer“). */
+export function teamMitgliedFuer(team: readonly MitgliedKurz[], rohNummern: string, wer: string): { name: string; nummer: string } | null {
+  const w = wer.trim().toLowerCase();
+  if (!w) return null;
+  const m = team.find((x) => x.status === "team" && x.name.toLowerCase().startsWith(w));
+  if (!m) return null;
+  const aus = m.telefon || teamEintraege(rohNummern, []).find((e) => e.name?.toLowerCase() === m.name.toLowerCase())?.roh || "";
+  const nummer = aus ? nummerE164(aus) : "";
+  return nummer.replace(/\D/g, "").length >= 9 ? { name: m.name, nummer } : null;
+}
+/** Teammitglieder ruft Luca nur zwischen 8 und 21 Uhr an. */
+export function teamAnrufZeit(jetzt: Date): boolean {
+  const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hourCycle: "h23" }).format(jetzt));
+  return h >= 8 && h < 21;
+}
+/** Ein eigener, vorübergehender Assistent für den Team-Anruf: Lucas Stimme und Modell, eigener Auftrag, keine Werkzeuge außer Auflegen. */
+export function teamAnrufAssistent(vorlage: { model?: Record<string, unknown>; voice?: Record<string, unknown>; transcriber?: Record<string, unknown> }, o: { name: string; worum: string; kundeninfo?: string }) {
+  const auftrag = [
+    `Du bist Luca, der KI-Assistent von David von Agents Gilt. Du rufst ${o.name} aus dem Team von Agents Gilt an, weil David dich darum gebeten hat.`,
+    `Wenn sich ${o.name} meldet: kurz vorstellen („Hey ${o.name}, hier ist Luca, Davids KI-Assistent. David hat mich gebeten, dir kurz was zu erklären.“) und fragen, ob gerade ein paar Minuten passen. Passt es nicht, frag, wann David sich melden soll, und verabschiede dich.`,
+    `Das sollst du erklären: ${o.worum}`,
+    "Erklär es locker, in kurzen Sätzen, eins nach dem anderen, und frag zwischendurch, ob es klar ist. Beantworte Rückfragen, soweit du es weißt; sonst sag, dass David sich dazu meldet.",
+    o.kundeninfo ? `Von David freigegeben: ${o.kundeninfo}. Nur das darfst du über Kunden sagen.` : "Kundendaten gibst du nicht weiter, auch nicht auf Nachfrage. Dafür soll man David direkt fragen.",
+    "Du trägst nichts ein, schickst nichts, versprichst nichts im Namen von David. Wenn alles klar ist, verabschiede dich und leg auf.",
+  ].join("\n\n");
+  const m = (vorlage.model ?? {}) as Record<string, unknown> & { speaker?: Record<string, unknown>; reasoner?: Record<string, unknown> };
+  const ohneIds: Record<string, unknown> = { ...m };
+  delete ohneIds.toolIds;
+  const model = {
+    ...ohneIds,
+    ...(m.speaker ? { speaker: { ...m.speaker, instructions: auftrag } } : {}),
+    ...(m.reasoner ? { reasoner: { ...m.reasoner, instructions: `Du bist das Backend für einen Anruf von Luca bei ${o.name} aus dem Team. Es gibt nur ein Werkzeug: endCall, wenn das Gespräch vorbei ist.` } } : {}),
+    ...(!m.speaker ? { messages: [{ role: "system", content: auftrag }] } : {}),
+    tools: [{ type: "endCall" }],
+  };
+  return {
+    name: "Luca – Team-Anruf",
+    model,
+    ...(vorlage.voice ? { voice: vorlage.voice } : {}),
+    ...(vorlage.transcriber ? { transcriber: vorlage.transcriber } : {}),
+    firstMessageMode: "assistant-waits-for-user" as const,
+    firstMessage: `Hey ${o.name}, hier ist Luca, Davids KI-Assistent.`,
+    maxDurationSeconds: 900,
+    metadata: { luca: true, team: true, wer: o.name },
+  };
 }

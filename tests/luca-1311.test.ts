@@ -141,3 +141,48 @@ test("Etappe 6: Mail-Entwurf, Frist, Preis, Geld, Pipeline", async () => {
   for (const b of [{ typ: "mailentwurf", an: "M", worum: "x", zeit: "z" }, { typ: "frist", titel: "x", zeit: "z" }, { typ: "preis", posten: ["x"], zeit: "z" }, { typ: "geld", zeit: "z" }] as const) assert.ok(briefLesen(briefText(b)), b.typ);
   for (const v of ["pipeline", "geld"]) assert.ok((ZEIG_VORLAGEN as readonly string[]).includes(v), v);
 });
+
+// Etappe 7 (14.11.): Agents Gilt II und Team
+test("Etappe 7: Team-Aufgabe, Team-Nachricht, Team anrufen, Demo, Idee, Recherche", async () => {
+  const { briefLesen, ZEIG_VORLAGEN } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("team_aufgabe", { wer: "Oskar", was: "Fotos machen", bis: "Montag" }, "s"), { typ: "teamaufgabe", wer: "Oskar", was: "Fotos machen", bis: "Montag" });
+  assert.deepEqual(briefAus("team_aufgabe", { wer: "Oskar", was: "Fotos", erledigt: true }, "s"), { typ: "teamaufgabe", wer: "Oskar", was: "Fotos", erledigt: true });
+  assert.deepEqual(briefAus("team_nachricht", { wer: "Oskar", text: "Kannst du Montag?" }, "s"), { typ: "teamnachricht", wer: "Oskar", text: "Kannst du Montag?" });
+  // Anrufen nur nach Davids Ja; Kundeninfos nur, wenn er sie freigibt
+  assert.equal(briefAus("team_anrufen", { wer: "Oskar", worum: "Telefon-Assistent erklären" }, "s"), null);
+  assert.deepEqual(briefAus("team_anrufen", { wer: "Oskar", worum: "Telefon-Assistent erklären", bestaetigt: true }, "s"), { typ: "teamanruf", wer: "Oskar", worum: "Telefon-Assistent erklären" });
+  assert.deepEqual(briefAus("team_anrufen", { wer: "Oskar", worum: "Relax Fit erklären", bestaetigt: true, kundeninfo: "Relax Fit: Angebot 150 €", kundeninfo_freigegeben: true }, "s"), { typ: "teamanruf", wer: "Oskar", worum: "Relax Fit erklären", kundeninfo: "Relax Fit: Angebot 150 €" });
+  assert.deepEqual(briefAus("team_anrufen", { wer: "Oskar", worum: "x", bestaetigt: true, kundeninfo: "geheim" }, "s"), { typ: "teamanruf", wer: "Oskar", worum: "x" });
+  assert.deepEqual(briefAus("demo_schicken", { kunde: "Relax Fit" }, "s"), { typ: "demo", kunde: "Relax Fit" });
+  assert.deepEqual(briefAus("idee_merken", { text: "Paket für Friseure" }, "s"), { typ: "idee", text: "Paket für Friseure" });
+  assert.deepEqual(briefAus("recherche_auftrag", { art: "leads", wunsch: "Friseure in Offenbach" }, "s"), { typ: "recherche", art: "leads", wunsch: "Friseure in Offenbach" });
+  for (const b of [{ typ: "teamaufgabe", wer: "a", was: "b", zeit: "z" }, { typ: "teamanruf", wer: "a", worum: "b", zeit: "z" }, { typ: "demo", kunde: "a", zeit: "z" }, { typ: "idee", text: "a", zeit: "z" }, { typ: "recherche", art: "leads", wunsch: "a", zeit: "z" }, { typ: "teamnachricht", wer: "a", text: "b", zeit: "z" }] as const) assert.ok(briefLesen(briefText(b)), b.typ);
+  assert.ok((ZEIG_VORLAGEN as readonly string[]).includes("team"));
+});
+
+test("Etappe 7: Team-Anruf nur an aktive Teammitglieder, tagsüber, ohne Werkzeuge", async () => {
+  const { teamMitgliedFuer, teamAnrufZeit, teamAnrufAssistent, nummerE164 } = await import("../lib/luca-logik.ts");
+  const team = [
+    { discord: "1", name: "Oskar", status: "team", notion: "", figur: "", seit: "", telefon: "0151 2345678" },
+    { discord: "2", name: "Lena", status: "ausgetreten", notion: "", figur: "", seit: "", telefon: "0151 9999999" },
+  ] as const;
+  assert.deepEqual(teamMitgliedFuer(team, "", "oskar"), { name: "Oskar", nummer: "+491512345678" });
+  assert.equal(teamMitgliedFuer(team, "", "Lena"), null);
+  assert.equal(teamMitgliedFuer(team, "", "Marc"), null);
+  assert.deepEqual(teamMitgliedFuer([{ ...team[0], telefon: "" }], "Oskar=+49 151 1112223", "Oskar"), { name: "Oskar", nummer: "+491511112223" });
+  assert.equal(nummerE164("0049 151 1"), "+491511");
+  assert.equal(teamAnrufZeit(new Date("2026-11-14T07:30:00Z")), true); // 8:30 Uhr
+  assert.equal(teamAnrufZeit(new Date("2026-11-14T20:30:00Z")), false); // 21:30 Uhr
+  const vorlage = { model: { provider: "openai", model: "gpt-live-1", speaker: { instructions: "alt" }, reasoner: { instructions: "alt" }, tools: [{ type: "function" }], toolIds: ["x"] }, voice: { provider: "openai", voiceId: "cedar" }, transcriber: { provider: "assembly-ai" } };
+  const a = teamAnrufAssistent(vorlage, { name: "Oskar", worum: "Wie der Telefon-Assistent funktioniert" });
+  assert.equal(a.firstMessageMode, "assistant-waits-for-user");
+  assert.deepEqual((a.model as { tools: unknown[] }).tools, [{ type: "endCall" }]);
+  assert.equal((a.model as { toolIds?: unknown }).toolIds, undefined);
+  const sp = (a.model as { speaker: { instructions: string } }).speaker.instructions;
+  assert.match(sp, /Oskar/);
+  assert.match(sp, /Wie der Telefon-Assistent funktioniert/);
+  assert.match(sp, /Kundendaten gibst du nicht weiter/);
+  assert.deepEqual(a.metadata, { luca: true, team: true, wer: "Oskar" });
+  const mit = teamAnrufAssistent(vorlage, { name: "Oskar", worum: "Relax Fit", kundeninfo: "Angebot 150 €" });
+  assert.match((mit.model as { speaker: { instructions: string } }).speaker.instructions, /Von David freigegeben: Angebot 150 €/);
+});

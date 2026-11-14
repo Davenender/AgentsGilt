@@ -3,7 +3,7 @@ import { briefAus, gespraechBrief } from "@/lib/luca-logik";
 import { kostenStand } from "@/lib/kosten";
 import { lucaLive } from "@/lib/luca-live";
 import { ortsname } from "@/lib/luca-unterwegs";
-import { lesePrompts, setzePrompts } from "@/lib/luca";
+import { lesePrompts, rufeTeamAn, setzePrompts } from "@/lib/luca";
 import { owntracksKonfig, owntracksLink, standortText } from "@/lib/standort-logik";
 import {
   assistentFuerEingang,
@@ -92,6 +92,12 @@ const ANTWORT: Record<string, string> = {
   erledigt: "Ist durch: Dazu ruft Luca nicht mehr an. Hat David eine neue Zeit genannt, kommt genau ein Anruf zu dieser Zeit. Sag es ihm in einem Satz.",
   erinnerung_weg: "Ist an die Zentrale raus. Kam die Nummer nicht hin, sagt sie es dir gleich im Gespräch.",
   nachricht: "Ist unterwegs auf Davids Handy (iMessage). Sag es ihm in einem Satz.",
+  teamaufgabe: "Ist eingetragen. Sag es David kurz und frag, ob du eine Nachricht für die Person vorbereiten sollst.",
+  teamnachricht: "Die fertige Nachricht kommt gleich auf Davids Handy, zum Weiterleiten. Luca schickt selbst nie etwas ans Team.",
+  teamanruf: "Ist an die Zentrale raus, sie meldet gleich, ob der Anruf rausgeht.",
+  demo: "Der Demo-Link kommt gleich aufs Handy, oder die Zentrale sagt, dass keiner in Notion steht.",
+  idee: "Ist notiert.",
+  recherche: "Der Rechercheur sucht, das Ergebnis kommt aufs Handy.",
   mailentwurf: "Der Postbote schreibt den Entwurf. Sag David: Sobald er in Gmail liegt, kommt der Link aufs Handy.",
   frist: "Ist an die Zentrale raus, die Bestätigung kommt gleich.",
   preis: "Die Zentrale rechnet, das Ergebnis kommt gleich ins Gespräch.",
@@ -255,6 +261,13 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       return NextResponse.json(await sagImGespraech(anruf, text));
     }
     if (aktion === "prompt" && req.method === "GET") return NextResponse.json(await lesePrompts());
+    if (aktion === "team-anrufen") {
+      const wer = typeof body.wer === "string" ? body.wer.trim().slice(0, 40) : "";
+      const worum = typeof body.worum === "string" ? body.worum.trim().slice(0, 600) : "";
+      const kundeninfo = typeof body.kundeninfo === "string" ? body.kundeninfo.trim().slice(0, 1200) : undefined;
+      if (!wer || !worum) return NextResponse.json({ ok: false, grund: "wer oder worum fehlt" }, { status: 400 });
+      return NextResponse.json(await rufeTeamAn(wer, worum, kundeninfo || undefined));
+    }
     if (aktion === "prompt") {
       if (typeof body.speaker !== "string" || typeof body.reasoner !== "string") return NextResponse.json({ error: "speaker und reasoner fehlen" }, { status: 400 });
       return NextResponse.json(await setzePrompts(body.speaker.slice(0, 20_000), body.reasoner.slice(0, 20_000)));

@@ -30,6 +30,9 @@ import {
   LAGE_MARKE,
   MAILBOX,
   istMailbox,
+  teamAnrufAssistent,
+  teamAnrufZeit,
+  teamMitgliedFuer,
   kundenText,
   type KundeFuerLuca,
   assistentUeberblick,
@@ -438,6 +441,35 @@ export async function setzePrompts(speaker: string, reasoner: string) {
   const model = { ...m, speaker: { ...m.speaker, instructions: speaker }, reasoner: { ...m.reasoner, instructions: reasoner } };
   const neu = await vapi<VapiAssistent>(`/assistant/${id}`, { method: "PATCH", body: JSON.stringify({ model }) });
   return assistentUeberblick(neu as Parameters<typeof assistentUeberblick>[0]);
+}
+
+/**
+ * Etappe 7: Luca ruft ein Teammitglied an (Davids Regel 13.11.: nur Team, nur nach seinem Ja, Kundeninfos nur freigegeben).
+ * Nummern nur aus dem Team-Register (Status „team“) oder den Rufgruppen-Einstellungen, nur 8–21 Uhr. Der Anruf zählt nicht
+ * als Gespräch mit David (kein Assistent mit Lucas Kennung, keine Werkzeuge außer Auflegen).
+ */
+export async function rufeTeamAn(wer: string, worum: string, kundeninfo?: string): Promise<{ ok: boolean; id?: string; grund?: string }> {
+  if (!process.env.VAPI_API_KEY?.trim()) return { ok: false, grund: "VAPI_API_KEY fehlt." };
+  if (!teamAnrufZeit(new Date())) return { ok: false, grund: "Teammitglieder ruft Luca nur zwischen 8 und 21 Uhr an." };
+  const { ladeTeam } = await import("@/lib/team-daten");
+  const team = await ladeTeam(process.env.DISCORD_BOT_TOKEN);
+  const roh = `${process.env.RUFGRUPPE_NUMMERN ?? ""},${process.env.RUFGRUPPE_NUMMERN_2 ?? ""}`;
+  const m = teamMitgliedFuer(team, roh, wer);
+  if (!m) return { ok: false, grund: `${wer} steht nicht als aktives Teammitglied mit Nummer im Team-Register.` };
+  const vorlage = await lucaBeiVapi();
+  if (!vorlage) return { ok: false, grund: "Lucas Einstellungen bei Vapi sind nicht lesbar." };
+  try {
+    const call = await vapi<{ id?: string }>("/call", {
+      method: "POST",
+      body: JSON.stringify({ assistant: teamAnrufAssistent(vorlage, { name: m.name, worum, kundeninfo }), phoneNumberId: NUMBER_ID, customer: { number: m.nummer } }),
+    });
+    const kanal = await lucaKanal();
+    if (kanal) after(() => poste(kanal, `📞 Luca ruft ${m.name} aus dem Team an: ${worum.slice(0, 200)}${kundeninfo ? " (mit freigegebenen Kundeninfos)" : ""}`).then(() => undefined).catch(() => undefined));
+    return { ok: true, ...(call?.id ? { id: call.id } : {}) };
+  } catch (err) {
+    console.error("[luca] Team-Anruf:", err);
+    return { ok: false, grund: "Vapi hat den Anruf abgelehnt." };
+  }
 }
 
 /** Die Prompts, die gerade bei Vapi stehen (zum Sichern vor dem Ersetzen). */
