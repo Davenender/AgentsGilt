@@ -39,6 +39,7 @@
 import * as THREE from "three";
 import { BlendFunction, EffectComposer, EffectPass, GodRaysEffect, KernelSize, NoiseEffect, RenderPass } from "postprocessing";
 import { gsap } from "@/lib/gsap";
+import { lichtStaerke, stufenWerte as stufenWerteVon } from "./startlogik";
 
 /** Was die Zeichen vom Licht wissen müssen, um richtig zu schimmern (alles in CSS-Pixeln der Bühne). */
 export type LichtLage = {
@@ -825,25 +826,12 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   };
 
   // ── Auftritt in Stufen (Startanimation), von innen nach außen, jede weich in die nächste:
-  // erst wird der Stern heller, dann kommen die vier Balken, dann wachsen die Strahlen.
-  // „p“ läuft gleichmäßig von 0 bis 1 über die ganze Dauer; jede Stufe beginnt kurz bevor die vorige endet.
-  const stufenWerte = (p: number) => {
-    const z = wahl.stufen?.zeiten ?? [1, 1, 1];
-    const ganz = z[0] + z[1] + z[2];
-    const t = p * ganz;
-    const weich = (von: number, dauer: number) => {
-      const x = Math.min(1, Math.max(0, (t - von) / dauer));
-      return x * x * (3 - 2 * x);
-    };
-    const ueber = 0.15;
-    return { stern: weich(0, z[0]), balken: weich(z[0] - ueber, z[1] + ueber), strahlen: weich(z[0] + z[1] - ueber, z[2] + ueber) };
-  };
-  /** Lichtstärke 0 bis 1: Stern und Balken machen je ein Viertel aus, die Strahlen die Hälfte. */
-  const staerke = (p: number) => {
-    if (!wahl.stufen) return p;
-    const w = stufenWerte(p);
-    return 0.25 * w.stern + 0.25 * w.balken + 0.5 * w.strahlen;
-  };
+  // erst wird der Stern heller, dann kommen die vier Balken, dann wachsen die Strahlen
+  // (Rechenregeln in startlogik.ts).
+  const stufenZeiten = wahl.stufen?.zeiten ?? ([1, 1, 1] as const);
+  const stufenWerte = (p: number) => stufenWerteVon(p, stufenZeiten);
+  /** Lichtstärke 0 bis 1 (ohne Stufen: gleich dem Auftritt). */
+  const staerke = (p: number) => (wahl.stufen ? lichtStaerke(p, stufenZeiten) : p);
 
   // ── Sparen: Die Strahlen werden nur dort gerechnet, wo überhaupt Licht hinkommen kann.
   // Der Effekt sucht von jedem Bildpunkt aus nur ein Stück weit (Anteil „Dichte“) in Richtung der

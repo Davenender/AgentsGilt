@@ -878,8 +878,10 @@ export function erzeugeZeichenname(leinwand: HTMLCanvasElement, still: boolean):
         ruheCtx.clearRect(0, 0, ruhe.width, ruhe.height);
         ruheCtx.drawImage(leinwand, 0, 0);
       }
-    } else if ((lichtNeu || bewegtBild) && rollS <= 0) {
+    } else if ((lichtNeu || bewegtBild) && rollS <= 0 && !verschoben) {
       // Nichts bewegt sich, aber das Licht hat sich geändert: ruhendes Bild neu, dann als Ganzes zeigen.
+      // Nicht, solange Zeichen neben ihrem Platz stehen (die Maus ruht im Namen): Das ruhende Bild
+      // zeigt den Namen ohne Loch. Die Fläche bleibt dann, wie sie ist, bis sich wieder etwas ändert.
       if (speicherAlt || lichtNeu) ruheZeichnen();
       ruheZeigen(1);
       bewegtBild = false;

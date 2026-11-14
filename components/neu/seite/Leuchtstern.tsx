@@ -101,12 +101,12 @@ export function Leuchtstern({ className = "" }: { className?: string }) {
           <span className="ag-stern__auf">
             <span className="ag-stern__strahlen">
               {STRAHLEN.map((bild, i) => (
-                <Image key={i} className="ag-stern__strahl" src={bild} alt="" unoptimized loading="eager" decoding="async" draggable={false} />
+                <Image key={i} className="ag-stern__strahl" src={bild} alt="" unoptimized loading="eager" fetchPriority="low" decoding="async" draggable={false} />
               ))}
             </span>
           </span>
           <span className="ag-stern__mitte">
-            <Image className="ag-stern__kern" src={kernBild} alt="" unoptimized loading="eager" decoding="async" draggable={false} />
+            <Image className="ag-stern__kern" src={kernBild} alt="" unoptimized loading="eager" fetchPriority="low" decoding="async" draggable={false} />
           </span>
         </span>
         <span className="ag-stern__korn">

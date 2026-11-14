@@ -26,21 +26,51 @@ function WeichesScrollen() {
     const takt = (zeit: number) => lenis.raf(zeit * 1000);
     gsap.ticker.add(takt);
     gsap.ticker.lagSmoothing(0);
-    // „Anrufen“ in der Kopfleiste scrollt am Computer hierüber weich zum Kontakt.
-    scrollZiel.melde((ziel) => lenis.scrollTo(ziel));
+    // „Anrufen“ in der Kopfleiste scrollt am Computer hierüber weich zum Kontakt; nach der
+    // Startanimation geht es hierüber zum Sprungziel. Misst ScrollTrigger unterwegs neu (etwa weil
+    // die Seite gerade fertig geladen hat), bricht das den weichen Lauf ab: Dann geht es noch einmal
+    // los, bis das Ziel erreicht ist. Greift der Besucher selbst ein, hat er das letzte Wort.
+    // Womit der Besucher selbst eingreift: Mausrad, Finger, Tasten, und jeder Klick (auch auf ein
+    // anderes Sprungziel in der Kopfleiste; die gewöhnlichen Sprungziele scrollt Lenis selbst) sowie
+    // ein neues Ziel in der Adresse.
+    const EINGRIFFE = ["wheel", "touchstart", "keydown", "pointerdown", "hashchange"];
+    let zielAb: (() => void) | undefined;
+    scrollZiel.melde((ziel) => {
+      zielAb?.();
+      const nochmal = () => lenis.scrollTo(ziel, { onComplete: ende });
+      const ende = () => {
+        if (zielAb !== ende) return;
+        zielAb = undefined;
+        window.clearTimeout(uhr);
+        ScrollTrigger.removeEventListener("refresh", nochmal);
+        for (const art of EINGRIFFE) window.removeEventListener(art, ende, true);
+      };
+      zielAb = ende;
+      ScrollTrigger.addEventListener("refresh", nochmal);
+      for (const art of EINGRIFFE) window.addEventListener(art, ende, { passive: true, capture: true });
+      // Spätestens nach 4 s ist Schluss mit dem Nachfassen.
+      const uhr = window.setTimeout(ende, 4000);
+      nochmal();
+    });
     // Während der Startanimation steht die Seite oben: Solange hält auch das weiche Scrollen an.
     // Die Seite ist in dieser Zeit nur so hoch wie das Bild (Stylesheet); nach der Freigabe messen
     // Lenis und ScrollTrigger deshalb neu.
     // Nur nach einer echten Sperre (dann steht die Seite ganz oben): Beim Neumessen fährt
     // ScrollTrigger die Seite kurz auf 0 und zurück, das darf eine wiederhergestellte Lage nicht stören.
+    // Solange die Seite gesperrt ist, scrollt nichts: Dann gleicht GSAP lange Pausen zwischen zwei
+    // Bildern aus (über 0,5 s zählen wie 33 ms). Ist der Tab während der Startanimation verdeckt
+    // oder hängt der Rechner kurz, läuft die Abfolge danach dort weiter, wo sie war, statt ans Ende
+    // zu springen. Mit der Freigabe gilt wieder der genaue Takt, den das weiche Scrollen braucht.
     let warGesperrt = false;
     scrollSperre.melde((an) => {
       if (an) {
         warGesperrt = true;
+        gsap.ticker.lagSmoothing(500, 33);
         return lenis.stop();
       }
       if (!warGesperrt) return;
       warGesperrt = false;
+      gsap.ticker.lagSmoothing(0);
       lenis.resize();
       lenis.start();
       ScrollTrigger.refresh();
@@ -48,6 +78,7 @@ function WeichesScrollen() {
     return () => {
       scrollSperre.melde(undefined);
       scrollZiel.melde(undefined);
+      zielAb?.();
       gsap.ticker.remove(takt);
       gsap.ticker.lagSmoothing(500, 33);
       lenis.destroy();

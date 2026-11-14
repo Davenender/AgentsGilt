@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { gsap } from "@/lib/gsap";
 // Als Datei eingebunden: Die Adresse trägt dann eine Prüfsumme, ein neu aufgenommenes Bild kommt sicher an.
 import lichtBild from "@/public/kopf/licht-logo.jpg";
-import sternBild from "@/public/kopf/licht-stern.webp";
 import { marke } from "@/lib/inhalt-neu";
 import { Wortmarke } from "../Rahmen";
 import {
@@ -19,8 +18,12 @@ import {
   START_FREI_KLASSE,
   istVorschau,
   scrollSperre,
+  scrollZiel,
 } from "../umgebung";
 import type { LichtLage, LichtSzene } from "./lichtszene";
+import { OBEN_PX, erzeugeSichtUhr, lichtQuelle, lichtStaerke, probeFrist, rollStand, sichtbarZwischen, stufenWerte, wennBildKommt, wennSzeneKommt, type StartStand } from "./startlogik";
+import { NOT_LICHT } from "./notlicht";
+import { STERN_BILD } from "./sternbild";
 import { erzeugeZeichenname } from "./zeichenname";
 
 /**
@@ -28,20 +31,25 @@ import { erzeugeZeichenname } from "./zeichenname";
  * Licht-Logo, vorn der Name aus Zeichen-Teilchen. Diese Datei hält beide im
  * Takt und führt die Startanimation.
  *
- * Startanimation (bei jedem Laden der Seite):
+ * Startanimation (bei jedem Laden der Seite, immer ganz und immer von oben):
  *   1. Warten: Der Bildschirm ist schwarz, in der Mitte schimmert nur der Stern
  *      des Logos (ein vorgerendertes Bild, genau an der Stelle des späteren
  *      Sterns). Währenddessen wird alles fertig gemacht: Schriften, Raster und
  *      Vorrat der Zeichen, die Licht-Szene (Shader übersetzt, die echte Szene
- *      in voller Größe unsichtbar vorgezeichnet) und die Bilder der ersten
- *      Abschnitte. Zum Schluss die Probe unter echter Last: 30 Bilder
- *      hintereinander unter 17 ms.
- *   2. Weiter geht es, wenn alles fertig ist: frühestens 1,5 s, spätestens 6 s
- *      nach dem ersten Bild. Nach der Höchstzeit geht das Licht in jedem Fall an.
+ *      in voller Größe unsichtbar vorgezeichnet) und die Bilder des ersten
+ *      Bildschirms (alles weiter unten lädt danach im Hintergrund). Zum Schluss
+ *      die Probe unter echter Last: 30 Bilder hintereinander unter 17 ms.
+ *   2. Weiter geht es erst, wenn alles bereit ist, frühestens 1,5 s nach dem
+ *      ersten Bild. Dauert das Laden länger, pulsiert der Stern weiter, bis
+ *      alles da ist (Sicherheitsgrenze 15 s). Die Probe allein hält den Start
+ *      höchstens bis 6 s nach dem ersten Bild auf. Nie springt die Seite direkt
+ *      in den fertigen Zustand.
  *   3. Das Licht baut sich von innen nach außen auf, jeder Schritt weich in
  *      den nächsten: Der Stern wird heller (0,7 s; er geht ohne Sprung vom
  *      Bild in die Szene über), dann kommen die vier Balken (0,6 s), dann
- *      wachsen die Strahlen (1,2 s). Am Handy etwas kürzer.
+ *      wachsen die Strahlen (1,2 s). Am Handy etwas kürzer. Gibt es kein Licht
+ *      aus der Szene (kein WebGL, Laden gescheitert), läuft dieselbe Abfolge
+ *      mit dem ruhigen Bild: Es wird von der Mitte her freigegeben.
  *   4. Bei 60 % der Lichtstärke fliegen die Zeichen ein (2,2 s); 250 ms nach
  *      der Landung läuft die Welle aus der Namensmitte.
  *   5. Während die Zeichen landen, erscheinen Kopfleiste, „Anrufen“ und
@@ -50,7 +58,15 @@ import { erzeugeZeichenname } from "./zeichenname";
  * (Zeichen gelandet, Welle vorbei), wartet es 1 s und dreht sich dann langsam
  * zur Maus (1,5 s). Während der ganzen Startanimation steht die Seite oben:
  * Man kann nicht scrollen und nichts überspringen, bis der Name gelandet und
- * die Welle durch ist. Bei „weniger Bewegung“ blendet alles ruhig ein.
+ * die Welle durch ist. Der Browser stellt nach Neuladen oder Zurück keine
+ * frühere Lage wieder her (`history.scrollRestoration = "manual"`); steht ein
+ * Ziel in der Adresse (#kontakt), läuft erst der Start, danach scrollt die
+ * Seite weich dorthin. Holt der Browser die Seite bei „Zurück“ aus seinem
+ * Zwischenspeicher (sie käme so wieder, wie sie verlassen wurde), wird alles
+ * frisch eingerichtet und der Start läuft noch einmal ganz. Nur wenn der Start
+ * bei diesem Laden schon lief (neu eingerichtet nach einer Umstellung, im
+ * Dev-Server nach einem Fast Refresh), steht alles sofort. Bei „weniger
+ * Bewegung“ blendet alles ruhig ein.
  *
  * Danach: Die Zeichen weichen dem Zeiger aus, ein Klick auf den Namen schickt
  * eine Welle hindurch. Beim Runterscrollen fliegen die Zeichen auf den Bahnen
@@ -76,10 +92,13 @@ const szeneVorab =
 // (nur im Arbeitsspeicher gemerkt, nichts wird im Browser abgelegt).
 let geraetRuckelt = false;
 
-// Der Stern steht jedes Mal mindestens so lange im Dunkeln (Sekunden seit dem ersten Bild) …
+// Der Stern steht jedes Mal mindestens so lange im Dunkeln (Sekunden seit dem ersten Bild).
 const WARTEN_MIN = 1.5;
-// … und höchstens so lange: Dann geht es los, auch wenn noch nicht alles fertig ist.
-const WARTEN_MAX = 6;
+// Die Probe darf den Start höchstens bis hierhin aufhalten …
+const PROBE_BIS = 6;
+// … Laden und Aufwärmen dagegen bis zur Sicherheitsgrenze: So lange pulsiert der Stern notfalls
+// weiter. Erst danach geht es mit dem los, was da ist.
+const WARTEN_GRENZE = 15;
 // Aufbau des Lichts von innen nach außen (Sekunden): Der Stern wird heller, dann kommen die vier
 // Balken, dann wachsen die Strahlen. Am Handy etwas kürzer.
 const LICHT_STUFEN: [number, number, number] = [0.7, 0.6, 1.2];
@@ -99,6 +118,10 @@ const PROBE_BILDER = 30;
 // Diese Tasten scrollen die Seite; während der Startanimation tun sie nichts.
 const SCROLL_TASTEN = [" ", "PageDown", "PageUp", "End", "Home", "ArrowDown", "ArrowUp"];
 const PROBE_MS = 17.5;
+// Der erste Start nach dem Laden der Seite misst seine Wartezeiten ab dem ersten Bild der Seite.
+let ersterStart = true;
+// Verdeckt die Seite, während sie im Zwischenspeicher des Browsers liegt (Stylesheet).
+const ZURUECK_KLASSE = "ag-zurueck";
 
 export function LichtName() {
   const ebene = useRef<HTMLDivElement>(null);
@@ -109,6 +132,38 @@ export function LichtName() {
   // Die Startanimation läuft einmal je Laden der Seite. Wird später nur neu eingerichtet (andere
   // Einstellung), steht alles sofort.
   const startGelaufen = useRef(false);
+  // Zählt hoch, wenn der Browser die Seite bei „Zurück“ aus seinem Zwischenspeicher holt. Sie käme
+  // so wieder, wie sie verlassen wurde: mitten auf der Seite, der Start längst vorbei. Dann wird
+  // alles frisch eingerichtet, und die Startanimation läuft noch einmal ganz, von oben.
+  const [rueckkehr, setRueckkehr] = useState(0);
+
+  useEffect(() => {
+    const wurzel = document.documentElement;
+    const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches || istVorschau();
+    let uhr = 0;
+    // Beim Verlassen wird die Seite verdeckt: Kommt sie aus dem Zwischenspeicher zurück, blitzt
+    // nicht erst der alte Stand auf. (Bei „weniger Bewegung“ kommt sie einfach so wieder.)
+    const weg = (ev: PageTransitionEvent) => {
+      if (ev.persisted && !still()) wurzel.classList.add(ZURUECK_KLASSE);
+    };
+    const zurueck = (ev: PageTransitionEvent) => {
+      if (!ev.persisted) return;
+      if (!still()) {
+        startGelaufen.current = false;
+        setRueckkehr((n) => n + 1);
+      }
+      // Sicherheitsnetz: Spätestens dann ist die Seite wieder zu sehen.
+      uhr = window.setTimeout(() => wurzel.classList.remove(ZURUECK_KLASSE), 1500);
+    };
+    window.addEventListener("pagehide", weg);
+    window.addEventListener("pageshow", zurueck);
+    return () => {
+      window.removeEventListener("pagehide", weg);
+      window.removeEventListener("pageshow", zurueck);
+      window.clearTimeout(uhr);
+      wurzel.classList.remove(ZURUECK_KLASSE);
+    };
+  }, []);
 
   useEffect(() => {
     const el = ebene.current;
@@ -117,6 +172,7 @@ export function LichtName() {
     const platz = held?.querySelector<HTMLElement>(".ag-ln__platz");
     const loch = platz?.querySelector<HTMLElement>(".ag-ln__loch");
     const stern = loch?.querySelector<HTMLElement>(".ag-ln__stern");
+    const standbild = loch?.querySelector<HTMLImageElement>(".ag-ln__standbild");
     const wort = platz?.querySelector<SVGElement>(".ag-wortmarke");
     const wortText = wort?.querySelector("text");
     if (!el || !leinwand || !held || !platz || !loch || !wort || !wortText) return;
@@ -180,60 +236,107 @@ export function LichtName() {
       if (!frei && ev.cancelable) ev.preventDefault();
     };
     const haltTaste = (ev: KeyboardEvent) => {
-      if (frei) return;
-      // Nach Neuladen oder Zurück ist die Sperre anfangs noch nicht fest (der Browser darf die
-      // frühere Lage noch herstellen). In dieser kurzen Zeit tut auch die Tab-Taste nichts: Ein
-      // Fokus-Sprung würde die Seite sonst scrollen, und das gälte als wiederhergestellte Lage.
-      if (ev.key === "Tab" && gesperrt && !fest) return ev.preventDefault();
-      if (!SCROLL_TASTEN.includes(ev.key)) return;
+      if (frei || !SCROLL_TASTEN.includes(ev.key)) return;
       if ((ev.target as Element | null)?.closest?.("input, textarea, select, [contenteditable='true']")) return;
       ev.preventDefault();
     };
-    // Auch ein Klick auf ein Sprungziel der Seite („#kontakt“) bewegt sie solange nicht.
+    // Auch ein Klick auf ein Sprungziel der Seite („#kontakt“) bewegt sie solange nicht. Die Seite
+    // merkt sich das Ziel und scrollt nach dem Start dorthin.
     const haltSprung = (ev: MouseEvent) => {
       if (frei) return;
-      const ziel = (ev.target as Element | null)?.closest?.("a[href]");
-      if (ziel?.getAttribute("href")?.includes("#")) ev.preventDefault();
+      const verweis = (ev.target as Element | null)?.closest?.<HTMLAnchorElement>("a[href]");
+      if (!verweis?.getAttribute("href")?.includes("#")) return;
+      ev.preventDefault();
+      if (verweis.origin !== window.location.origin || verweis.pathname !== window.location.pathname) return;
+      merkeZiel(verweis.hash);
+    };
+    /** Das zuletzt gewünschte Ziel zählt. Ein Ziel ganz oben (#top) oder gar keines hebt ein früheres auf. */
+    const merkeZiel = (hash: string) => {
+      const ziel = zielVon(hash);
+      if (ziel) scrollZiel.zu(ziel);
+      else scrollZiel.vergiss();
+    };
+    // Ändert sich das Ziel in der Adresse während des Starts, gilt das neue.
+    const beiHash = () => merkeZiel(window.location.hash);
+    /** Das Element zu einem Ziel wie „#kontakt“; ein Ziel ganz oben (#top) ist kein Sprung. */
+    const zielVon = (hash: string): HTMLElement | null => {
+      let ziel: HTMLElement | null = null;
+      try {
+        ziel = document.getElementById(decodeURIComponent(hash.slice(1)));
+      } catch {
+        return null;
+      }
+      return ziel && ziel.getBoundingClientRect().top + window.scrollY > OBEN_PX ? ziel : null;
     };
     let gesperrt = false;
-    // Fest: Die Seite ist nur so hoch wie das Bild und kann gar nicht scrollen.
-    let fest = false;
-    // Nach Neuladen oder Zurück: Die Sperre wird erst fest, wenn die Seite geladen ist (siehe unten).
-    let beiGeladen: (() => void) | undefined;
-    const sperren = (gleichFest: boolean) => {
+    // Sichtbare Zeit seit dem Beginn der Sperre (für das Sicherheitsnetz).
+    let sichtUhr: ReturnType<typeof erzeugeSichtUhr> | undefined;
+    const sichtWechsel = () => sichtUhr?.wechsel();
+    // Wie lange der Stern schon zu sehen war (Sekunden seit dem ersten Bild; Zeit in einem verdeckten
+    // Tab zählt nicht mit). Alle Fristen des Starts rechnen damit. Von der Zeit vor dem Einrichten
+    // (zwischen dem ersten Bild und dem Skript) zählt nur, was laut Sichtbarkeits-Protokoll des
+    // Browsers zu sehen war; kennt er keines, zählt davon nichts (startlogik.ts).
+    let vorEinrichten = 0;
+    const sichtProtokoll = () => {
+      try {
+        return PerformanceObserver.supportedEntryTypes?.includes("visibility-state") ? performance.getEntriesByType("visibility-state") : null;
+      } catch {
+        return null;
+      }
+    };
+    const gesehen = () => (sichtUhr ? vorEinrichten + sichtUhr.ms() : performance.now() - erstesBild) / 1000;
+    const netz = () => {
+      if (frei || vorbei || !sichtUhr) return;
+      const rest = (WARTEN_GRENZE + 9) * 1000 - sichtUhr.ms();
+      if (rest <= 0) return freigeben();
+      uhren.push(window.setTimeout(netz, Math.max(250, rest)));
+    };
+    // Die Sperre ist fest: Die Seite ist nur so hoch wie das Bild und kann gar nicht scrollen, auch
+    // nicht durch die Tab-Taste, ein Skript oder einen Sprung des Browsers zum Ziel in der Adresse.
+    const sperren = () => {
       gesperrt = true;
-      fest = gleichFest;
-      scrollSperre.setze(true, gleichFest);
+      scrollSperre.setze(true, true);
       window.addEventListener("wheel", haltAn, { passive: false });
       window.addEventListener("touchmove", haltAn, { passive: false });
       window.addEventListener("keydown", haltTaste);
       window.addEventListener("click", haltSprung, true);
+      window.addEventListener("hashchange", beiHash);
     };
-    const entsperren = () => {
-      scrollSperre.setze(false);
+    /** Gibt zurück, ob die Seite jetzt zu einem gemerkten Ziel scrollt. */
+    const entsperren = (): boolean => {
+      const zumZiel = scrollSperre.setze(false);
       window.removeEventListener("wheel", haltAn);
       window.removeEventListener("touchmove", haltAn);
       window.removeEventListener("keydown", haltTaste);
       window.removeEventListener("click", haltSprung, true);
-      if (beiGeladen) window.removeEventListener("load", beiGeladen);
+      window.removeEventListener("hashchange", beiHash);
+      return zumZiel;
     };
     const freigeben = () => {
       if (frei || vorbei) return;
       const warGesperrt = gesperrt;
       frei = true;
-      entsperren();
+      gesperrt = false;
+      // Ziel in der Adresse (#kontakt) oder ein Klick auf ein Sprungziel während des Starts: Erst
+      // lief der Start, jetzt scrollt die Seite weich dorthin.
+      const zumZiel = entsperren();
       melden(START_FREI, START_FREI_KLASSE);
+      if (!warGesperrt || zumZiel) return;
       // Ist der Tastatur-Fokus während der Sperre zu einem Feld weiter unten gesprungen (die Seite
       // selbst konnte nicht mit), kommt es jetzt ins Bild.
       const ziel = document.activeElement;
-      if (warGesperrt && ziel instanceof HTMLElement && ziel !== document.body) {
+      if (ziel instanceof HTMLElement && ziel !== document.body) {
         const r = ziel.getBoundingClientRect();
         if (r.bottom < 0 || r.top > window.innerHeight) ziel.scrollIntoView({ block: "center" });
       }
     };
 
     // ── Messung: Wie lange dauert jede Ladephase? Nachzulesen über performance.getEntriesByType("measure").
-    const erstesBild = performance.getEntriesByType("paint").find((p) => p.name === "first-contentful-paint")?.startTime ?? performance.now();
+    // Ab wann der Stern pulsiert. Beim ersten Start nach dem Laden ist das das erste Bild der Seite.
+    // Jeder spätere Start (zurück innerhalb der Website, zurück aus dem Zwischenspeicher) rechnet ab
+    // jetzt: Sonst wären Mindestzeit und Sicherheitsgrenze längst abgelaufen, bevor etwas geladen ist.
+    const erstesBild = (ersterStart ? performance.getEntriesByType("paint").find((p) => p.name === "first-contentful-paint")?.startTime : undefined) ?? performance.now();
+    ersterStart = false;
     const gemessen = async <T,>(name: string, arbeit: () => Promise<T> | T): Promise<T | undefined> => {
       const von = performance.now();
       try {
@@ -350,8 +453,48 @@ export function LichtName() {
       szene?.ende();
       szene = undefined;
       ohneSzene = true;
-      if (lichtAn) mitRuhigemBild(0.6);
+      if (lichtAn) bildNachholen();
+      else void standbildLaden();
     };
+    // Das ruhige Bild wird sonst gar nicht geladen. Braucht der Start es (kein WebGL, die Szene kommt
+    // nicht), wird es geholt, während der Stern noch pulsiert: So ist es da, wenn es los geht.
+    // Gewartet wird, bis es wirklich da ist (oder nicht zu laden war): Sonst liefe sein Auftritt ins
+    // Leere, und das Bild stünde später auf einmal ganz da. Zu lange hält es den Start trotzdem nicht
+    // auf: Dafür sorgt die Sicherheitsgrenze (lichtAnmachen).
+    let standbildDa: Promise<unknown> | undefined;
+    const standbildLaden = () =>
+      (standbildDa ??= (async () => {
+        if (!standbild) return;
+        // Im Dokument, aber unsichtbar (Stylesheet): Erst dann lädt der Browser es.
+        held.dataset.bildvor = "1";
+        standbild.loading = "eager";
+        await (standbild.decode?.().catch(() => undefined) ?? Promise.resolve());
+      })());
+    const bildBereit = () => !!standbild && standbild.complete && standbild.naturalWidth > 0;
+    // ── Not-Licht: Ist das große ruhige Bild noch nicht geladen, wenn es gebraucht wird, steht an
+    // seiner Stelle sofort dasselbe Bild in klein (fest im Skript, braucht keine Leitung): als
+    // Hintergrund desselben Elements. Das große lädt weiter und legt sich darüber, sobald es da
+    // ist: gleiches Bild, nur schärfer, ohne Sprung.
+    let notlichtAn = false;
+    const notlichtEinsetzen = () => {
+      if (!standbild || notlichtAn || bildBereit()) return;
+      notlichtAn = true;
+      standbild.style.backgroundImage = `url("${NOT_LICHT}")`;
+      standbild.style.backgroundSize = "100% 100%";
+      void standbildLaden();
+    };
+    // Der Start läuft schon oder ist vorbei, und die Szene kommt nicht (mehr): Das ruhige Bild
+    // übernimmt. Stand schon lebendes Licht, blendet es weich ein; war noch keines zu sehen, baut
+    // es sich in Stufen auf. Ist das große Bild noch nicht geladen, steht solange das Not-Licht.
+    const bildNachholen = () => {
+      if (vorbei || szene || held.dataset.licht === "bild") return;
+      notlichtEinsetzen();
+      // Wurde der Lichtaufbau unterbrochen, bevor die Zeichen losflogen (die Grafik fiel mittendrin
+      // aus), baut sich auch das Bild in Stufen auf: Nur so fliegen die Zeichen los.
+      if (wennBildKommt(startStand()) === "einblenden") mitRuhigemBild(0.6);
+      else bildAuftritt();
+    };
+    const startStand = (): StartStand => ({ fertig, fliegt, zeigt: held.dataset.licht === "live" ? "live" : held.dataset.licht === "bild" ? "bild" : "nichts" });
     // Der Stern beginnt in der Szene so schwach, wie sein Bild gerade ist (wird beim Übergang gesetzt).
     const stufen = { stern: 0.05, zeiten: maus ? LICHT_STUFEN : LICHT_STUFEN_HANDY };
     // Kommt die Szene gar nicht (kein WebGL, Laden gescheitert, Gerät ruckelt)? Dann gehört das ruhige Bild hin.
@@ -361,14 +504,16 @@ export function LichtName() {
     // aufwärmt, ist dieser Versuch hinfällig (die Szene darf danach nicht mehr eingesetzt werden).
     let lichtVersuch = 0;
     const lichtLaden = async () => {
-      if (ohneSzene) return;
+      if (ohneSzene) return void (await standbildLaden());
       try {
         await lichtHolen();
       } catch {
         if (vorbei) return;
         ohneSzene = true;
-        // Der Start läuft schon: Statt der Szene blendet das ruhige Bild ein.
-        if (lichtAn) mitRuhigemBild(0.9);
+        // Der Start läuft schon: Statt der Szene kommt das ruhige Bild (bildNachholen). Sonst wird
+        // es jetzt geholt, und der Start läuft danach mit dem Bild.
+        if (lichtAn) bildNachholen();
+        else await standbildLaden();
       }
     };
     const lichtHolen = async () => {
@@ -417,39 +562,56 @@ export function LichtName() {
       // Die Grafik ist beim Aufwärmen ausgefallen: Diese Szene ist schon abgebaut, ein neuer Versuch läuft.
       if (versuch !== lichtVersuch) return;
       // Abgebaut, oder das ruhige Bild gilt inzwischen: wieder wegräumen.
-      if (vorbei || ohneSzene) return neu.ende();
+      if (vorbei || ohneSzene) {
+        neu.ende();
+        if (!vorbei && !lichtAn) await standbildLaden();
+        return;
+      }
       szene = neu;
       if (!lichtAn) return;
+      const weg = wennSzeneKommt(startStand());
       // Neu aufgebaut, nachdem alles schon stand (die Grafik war ausgefallen): Das Licht ist sofort wieder da.
-      if (fertig && held.dataset.licht === "live") {
+      if (weg === "sofort") {
         szene.zeigen(true);
         szene.mausFolgen(true);
         return;
       }
-      // Der Start läuft schon (die Szene kam zu spät): Das Licht kommt jetzt nach.
-      if (held.dataset.licht !== "bild") {
-        // Bis jetzt schimmert noch der Stern: Das Licht baut sich ganz normal auf.
-        lichtAuftritt();
-        return;
-      }
-      // Steht schon das ruhige Bild (übersprungen), wird überblendet: Die Szene ist sofort voll da
-      // und blendet darunter ein, das ruhige Bild blendet darüber aus und verschwindet erst danach.
-      held.dataset.lichtwechsel = "1";
-      spaeter.push(gsap.delayedCall(1.1, () => delete held.dataset.lichtwechsel));
-      szene.zeigen(true);
-      szene.mausFolgen(true);
-      held.dataset.licht = "live";
+      // Die Grafik fiel mitten im Lichtaufbau aus, bevor die Zeichen losflogen: Der Aufbau beginnt
+      // neu, in Stufen. Sonst käme das Licht auf einmal, und die Zeichen flögen nie los.
+      if (weg === "aufbauen") return lichtAuftritt();
+      // Der Start läuft schon mit dem ruhigen Bild (die Szene kam erst nach der Sicherheitsgrenze):
+      // Es wird überblendet. Die Szene ist voll da und blendet darunter ein, das ruhige Bild blendet
+      // darüber aus und verschwindet erst danach. Baut sich das Bild gerade noch auf, wartet der
+      // Wechsel, bis es ganz steht.
+      const wechseln = () => {
+        if (vorbei || !szene) return;
+        delete held.dataset.bildstufen;
+        held.dataset.lichtwechsel = "1";
+        spaeter.push(gsap.delayedCall(1.1, () => delete held.dataset.lichtwechsel));
+        szene.zeigen(true);
+        szene.mausFolgen(true);
+        held.dataset.licht = "live";
+      };
+      if (held.dataset.bildstufen === "lauf") nachBild = wechseln;
+      else wechseln();
     };
+    // Was kommen soll, sobald das ruhige Bild ganz aufgebaut ist.
+    let nachBild: (() => void) | undefined;
 
-    // ── Phase „Bilder“: Bilder der ersten Abschnitte fertig dekodieren.
+    // ── Phase „Bilder“: nur die Bilder des ersten Bildschirms fertig dekodieren. Alles weiter
+    // unten lädt danach im Hintergrund und hält den Start nicht auf.
     const bilderLaden = async () => {
-      const bilder = Array.from(document.querySelectorAll<HTMLImageElement>(".ag-neu img")).filter(
-        (bild) => bild.loading !== "lazy" && bild.getBoundingClientRect().top < window.innerHeight * 3,
-      );
+      const bilder = Array.from(document.querySelectorAll<HTMLImageElement>(".ag-neu img")).filter((bild) => {
+        if (bild.loading === "lazy") return false;
+        const r = bild.getBoundingClientRect();
+        return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight;
+      });
       // Das kleine Licht von Logo und Chat-Knopf liegt als Hintergrund im Stylesheet.
       const mini = new window.Image();
       mini.src = "/kopf/licht-mini.webp";
-      await hoechstens(Promise.allSettled([...bilder, mini].map((bild) => bild.decode?.())), 2.5);
+      // Gewartet wird, bis sie wirklich da sind (oder nicht zu laden waren). Zu lange halten sie den
+      // Start trotzdem nicht auf: Dafür sorgt die Sicherheitsgrenze.
+      await Promise.allSettled([...bilder, mini].map((bild) => bild.decode?.()));
     };
 
     // ── Phase „Probe“: Läuft es unter echter Last ruhig? In jedem Bild wird das volle Licht mit
@@ -526,7 +688,7 @@ export function LichtName() {
       fertig = true;
       startGelaufen.current = true;
       // Kommt die Szene gar nicht mehr, steht spätestens jetzt das ruhige Bild.
-      if (!szene && ohneSzene && held.dataset.licht !== "bild") mitRuhigemBild(0.6);
+      if (!szene && ohneSzene) bildNachholen();
       held.dataset.start = "fertig";
       allesGemeldet();
     };
@@ -568,29 +730,77 @@ export function LichtName() {
     // Statt der Szene das ruhige Bild des Lichts: Es blendet ein, der Stern blendet darunter aus.
     const mitRuhigemBild = (sternDauer: number) => {
       sternAus(sternDauer);
+      delete held.dataset.bildvor;
       held.dataset.licht = "bild";
       feld.licht(ruheLage());
     };
+    // Kein Licht aus der Szene: Die Startanimation läuft trotzdem ganz, mit dem ruhigen Bild. Es
+    // wird im Takt der Szene von der Mitte her freigegeben: Erst wird der Stern heller, dann kommen
+    // die Balken, dann die Strahlen. Bei 60 % der Lichtstärke fliegen die Zeichen ein.
+    const bildAuftritt = () => {
+      if (vorbei) return;
+      const zeiten = stufen.zeiten;
+      sternAus(zeiten[0]);
+      delete held.dataset.bildvor;
+      held.dataset.bildstufen = "lauf";
+      held.dataset.licht = "bild";
+      // Größe des Logos: Der Stern reicht bis rund ein Viertel davon, die Balken bis zur Hälfte,
+      // die Strahlen bis an den Rand des Bildes (das 2,1-Fache).
+      const logo = loch.getBoundingClientRect().width;
+      const lauf = { p: 0 };
+      const setze = () => {
+        const w = stufenWerte(lauf.p, zeiten);
+        const r = logo * (0.12 + 0.22 * w.stern + 0.42 * w.balken + 1.6 * w.strahlen);
+        standbild?.style.setProperty("--bild-r", `${r.toFixed(1)}px`);
+        standbild?.style.setProperty("--bild-hell", (0.2 + 0.8 * w.stern).toFixed(3));
+        const hell = lichtStaerke(lauf.p, zeiten);
+        feld.licht({ ...ruheLage(), hell });
+        if (hell >= FLUG_AB_PEGEL) fliegen();
+      };
+      setze();
+      spaeter.push(
+        gsap.to(lauf, {
+          p: 1,
+          duration: zeiten[0] + zeiten[1] + zeiten[2],
+          ease: "none",
+          onUpdate: setze,
+          onComplete: () => {
+            held.dataset.bildstufen = "fertig";
+            standbild?.style.removeProperty("--bild-r");
+            standbild?.style.removeProperty("--bild-hell");
+            const danach = nachBild;
+            nachBild = undefined;
+            danach?.();
+          },
+        }),
+      );
+    };
     const lichtAnmachen = () => {
       if (lichtAn || fertig || vorbei) return;
+      // Welcher Auslöser auch immer zuerst kommt: Der Stern war mindestens 1,5 s zu sehen.
+      const fehlt = WARTEN_MIN - gesehen();
+      if (fehlt > 0.02) return void spaeter.push(gsap.delayedCall(fehlt, lichtAnmachen));
       lichtAn = true;
       probeAus?.();
       melden(INTRO_FERTIG, INTRO_FERTIG_KLASSE);
       melden(LADEN_FERTIG, LADEN_FERTIG_KLASSE);
       held.dataset.start = "licht";
-      if (szene) return lichtAuftritt();
-      // Die Szene kommt nicht (kein WebGL, „weniger Bewegung“ …): Es steht das ruhige Bild des Lichts.
-      // Ist sie nach der Höchstzeit noch gar nicht geladen (sehr langsames Netz), gibt es noch kein
-      // Licht, das angehen könnte: Der Stern schimmert weiter, die Zeichen fliegen schon, und das
-      // Licht baut sich auf, sobald die Szene da ist (lichtHolen). Scheitert das Laden, steht das
-      // ruhige Bild.
-      if (ohneSzene) mitRuhigemBild(0.9);
-      spaeter.push(gsap.delayedCall(0.4, fliegen));
+      const quelle = lichtQuelle(!!szene, bildBereit());
+      if (quelle === "szene") return lichtAuftritt();
+      // Kein Licht aus der Szene (kein WebGL, das Laden ist gescheitert, oder sie ist auch nach der
+      // Sicherheitsgrenze noch nicht da): Es läuft dieselbe Abfolge mit dem ruhigen Bild. Kommt die
+      // Szene später doch, wird überblendet (lichtHolen).
+      if (quelle === "bild") return bildAuftritt();
+      // Weder Szene noch das große Bild sind da (nur an der Sicherheitsgrenze, bei sehr langsamer
+      // Leitung): Die Abfolge läuft mit dem Not-Licht, in derselben Reihenfolge. Die Zeichen fliegen
+      // erst, wenn das Licht bei 60 % ist, und die Freigabe kommt erst nach der Welle.
+      notlichtEinsetzen();
+      bildAuftritt();
     };
-    // Alles steht sofort, ohne Startanimation. Der Besucher kann das nicht auslösen (kein
-    // Überspringen per Klick, Taste oder Scrollen); es gilt nur, wenn die Seite schon weiter unten
-    // steht (Sprungziel in der Adresse, wiederhergestellte Lage) oder neu eingerichtet wird.
-    const ueberspringen = () => {
+    // Alles steht sofort, ohne Startanimation. Das gilt nur, wenn sie bei diesem Laden schon lief
+    // und der Kopfbereich neu eingerichtet wird (andere Einstellung; im Dev-Server nach einem Fast
+    // Refresh). Der Besucher kann es nicht auslösen, und beim Laden der Seite passiert es nie.
+    const sofortStehen = () => {
       if (fertig || vorbei) return;
       uebersprungenUm = performance.now();
       spaeter.forEach((t) => t.kill());
@@ -601,7 +811,10 @@ export function LichtName() {
         held.dataset.licht = "live";
         szene.zeigen(true);
         szene.mausFolgen(true);
-      } else mitRuhigemBild(0.4);
+      } else {
+        notlichtEinsetzen();
+        mitRuhigemBild(0.4);
+      }
       if (gebaut) feld.sofort();
       else sofortNachBau = true;
       stehen();
@@ -634,16 +847,9 @@ export function LichtName() {
     const beimScrollen = () => {
       const y = window.scrollY;
       const hoch = window.innerHeight;
-      // Steht die Seite während des Starts weiter unten, hat der Browser eine frühere Lage
-      // wiederhergestellt (Neuladen, Zurück): Dann steht alles sofort. Der Besucher selbst kann das
-      // nicht auslösen: Ist die Sperre fest, kann die Seite gar nicht scrollen (sie ist dann nur so
-      // hoch wie das Bild), auch nicht mit der Tab-Taste.
-      if (y > 24 && !frei && !still) {
-        ueberspringen();
-        freigeben();
-      }
-      // Scroll-Fortschritt: scrollY ÷ (0,9 × Bildschirmhöhe), begrenzt auf 0 bis 1.
-      const s = Math.max(0, Math.min(1, y / (0.9 * hoch)));
+      // Scroll-Fortschritt 0 bis 1 über 90 % der Bildhöhe. Solange die Seite oben ist (bis 24 px),
+      // bleibt er genau 0: Nur dann reagieren die Zeichen auf die Maus (startlogik.ts).
+      const s = rollStand(y, hoch);
       if (gebaut) feld.rollen(s, Math.max(0, y - obenImDokument), hoch);
       if (s === rollZuletzt) return;
       rollZuletzt = s;
@@ -674,81 +880,86 @@ export function LichtName() {
 
     if (still) {
       // „Weniger Bewegung“: Es steht das ruhige Bild, der Name blendet ein, alles ist sofort da.
+      // Der Browser darf hier wie gewohnt die frühere Lage wiederherstellen.
+      try {
+        window.history.scrollRestoration = "auto";
+      } catch {
+        /* dann eben ohne */
+      }
       held.dataset.licht = "bild";
       lichtAn = true;
       stehen();
       freigeben();
     } else {
       held.dataset.start = "warten";
+      // Das Skript läuft: Das Sicherheitsnetz des Stylesheets (Kopfleiste nach 8 s von selbst) gilt nicht mehr.
+      held.dataset.skript = "1";
       held.addEventListener("click", klick);
-      // Während der ganzen Startanimation steht die Seite oben: kein Scrollen, kein Überspringen.
-      // Nur wenn der Browser die Seite selbst woanders hinstellt, steht alles sofort:
-      //  - Ziel in der Adresse (#kontakt): Der Browser springt dorthin, oft erst nach diesem Skript.
-      //  - Neuladen oder Zurück: Er stellt die frühere Lage wieder her (meist schon vor dem Skript).
-      const aufruf = (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.type;
-      const wiederherstellung = aufruf === "reload" || aufruf === "back_forward";
-      const sprungziel = (() => {
-        let ziel: HTMLElement | null = null;
-        try {
-          ziel = document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
-        } catch {
-          /* kein gültiges Ziel */
-        }
-        // Ein Ziel ganz oben (#top) ist kein Sprung.
-        return !!ziel && ziel.getBoundingClientRect().top + window.scrollY > 24;
-      })();
-      if (!startGelaufen.current && !sprungziel) {
-        // Steht die Seite schon weiter unten, obwohl der Browser nichts herzustellen hatte (frischer
-        // Aufruf), hat ein Fokus-Sprung sie bewegt, bevor das Skript lief (Tab-Taste): zurück nach
-        // oben, der Start läuft ganz normal.
-        if (window.scrollY > 24 && !wiederherstellung) window.scrollTo({ top: 0, behavior: "instant" });
-        if (window.scrollY <= 24) {
-          // Frischer Aufruf: sofort fest (nichts kann die Seite bewegen). Nach Neuladen oder Zurück
-          // erst, wenn die Seite geladen ist und noch oben steht: Bis dahin darf der Browser die
-          // frühere Lage noch herstellen (beimScrollen lässt dann alles sofort stehen).
-          sperren(!wiederherstellung);
-          if (wiederherstellung) {
-            beiGeladen = () =>
-              uhren.push(
-                window.setTimeout(() => {
-                  if (frei || vorbei || window.scrollY > 24) return;
-                  fest = true;
-                  scrollSperre.fest();
-                }, 300),
-              );
-            if (document.readyState === "complete") beiGeladen();
-            else window.addEventListener("load", beiGeladen, { once: true });
-          }
-          // Sicherheitsnetz: Spätestens nach 14 s ist das Scrollen frei, was auch immer geschieht.
-          uhren.push(window.setTimeout(freigeben, 14000));
-        }
-      }
       if (maus) {
         window.addEventListener("pointermove", zeigerBewegt, { passive: true });
         wurzel.addEventListener("pointerleave", zeigerWeg);
       }
-      beimScrollen();
-      // Alles fertig machen, während der Stern schimmert; zum Schluss die Probe.
-      const allesDa = Promise.allSettled([vermessen(), gemessen("licht", lichtLaden), gemessen("bilder", bilderLaden)]).then(() => (vorbei ? undefined : gemessen("probe", probe)));
-      // Frühestens 1,5 s, spätestens 6 s nach dem ersten Bild.
-      const seitErstemBild = () => (performance.now() - erstesBild) / 1000;
-      spaeter.push(gsap.delayedCall(Math.max(0, WARTEN_MAX - seitErstemBild()), lichtAnmachen));
-      // Lief die Startanimation bei diesem Laden schon, oder springt der Browser gleich zu einem
-      // Ziel weiter unten, steht alles sofort.
-      if (startGelaufen.current || sprungziel) {
-        ueberspringen();
-        freigeben();
+      // Immer oben beginnen: Der Browser stellt nach Neuladen oder Zurück keine frühere Lage wieder her.
+      try {
+        window.history.scrollRestoration = "manual";
+      } catch {
+        /* dann eben ohne */
       }
-      allesDa.then(() => {
-        if (vorbei) return;
-        try {
-          performance.measure("ag-start:warten", { start: erstesBild, end: performance.now() });
-        } catch {
-          /* ohne Messung */
-        }
-        spaeter.push(gsap.delayedCall(Math.max(0, WARTEN_MIN - seitErstemBild()), lichtAnmachen));
-      });
+      // Lief die Startanimation bei diesem Laden schon, steht alles sofort (siehe sofortStehen).
+      const schonGelaufen = startGelaufen.current;
+      if (!schonGelaufen) {
+        // Hat der Browser die Seite schon bewegt (Ziel in der Adresse, erste Wiederherstellung),
+        // geht es zurück nach oben. Ein Ziel in der Adresse merkt sich die Seite für danach.
+        const sprungziel = zielVon(window.location.hash);
+        if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: "instant" });
+        // Während der ganzen Startanimation steht die Seite oben: kein Scrollen, kein Überspringen.
+        sperren();
+        if (sprungziel) scrollZiel.zu(sprungziel);
+        vorEinrichten = sichtbarZwischen(erstesBild, performance.now(), sichtProtokoll());
+        sichtUhr = erzeugeSichtUhr(() => performance.now(), () => document.hidden);
+        document.addEventListener("visibilitychange", sichtWechsel);
+        // Sicherheitsnetz: Spätestens dann ist das Scrollen frei, was auch immer geschieht. Gezählt
+        // wird nur Zeit, in der die Seite zu sehen war (verdeckt wartet die Abfolge).
+        netz();
+      }
+      beimScrollen();
+      // Alles fertig machen, während der Stern pulsiert.
+      const geladen = Promise.allSettled([vermessen(), gemessen("licht", lichtLaden), gemessen("bilder", bilderLaden)]);
+      if (schonGelaufen) {
+        sofortStehen();
+      } else {
+        // Sicherheitsgrenze: Nach 15 s geht es in jedem Fall los, mit dem, was da ist. Fehlt 5 s
+        // davor die Szene noch, wird das ruhige Bild geholt, damit dann wenigstens es bereitsteht.
+        spaeter.push(gsap.delayedCall(Math.max(0, WARTEN_GRENZE - gesehen()), lichtAnmachen));
+        spaeter.push(
+          gsap.delayedCall(Math.max(0, WARTEN_GRENZE - 5 - gesehen()), () => {
+            if (!szene && !lichtAn) void standbildLaden();
+          }),
+        );
+        void geladen.then(() => {
+          if (vorbei || lichtAn) return;
+          try {
+            performance.measure("ag-start:laden", { start: erstesBild, end: performance.now() });
+          } catch {
+            /* ohne Messung */
+          }
+          // Alles ist da. Zum Schluss die Probe unter echter Last; sie hält den Start nur begrenzt auf.
+          spaeter.push(gsap.delayedCall(probeFrist(gesehen(), PROBE_BIS, WARTEN_GRENZE), lichtAnmachen));
+          void gemessen("probe", probe).then(() => {
+            if (vorbei || lichtAn) return;
+            try {
+              performance.measure("ag-start:warten", { start: erstesBild, end: performance.now() });
+            } catch {
+              /* ohne Messung */
+            }
+            // Frühestens, wenn der Stern 1,5 s zu sehen war.
+            spaeter.push(gsap.delayedCall(Math.max(0, WARTEN_MIN - gesehen()), lichtAnmachen));
+          });
+        });
+      }
     }
+    // Nach „Zurück“ aus dem Zwischenspeicher: Jetzt steht die Seite oben und wartet auf den Start.
+    wurzel.classList.remove(ZURUECK_KLASSE);
 
     return () => {
       vorbei = true;
@@ -764,6 +975,9 @@ export function LichtName() {
       wurzel.removeEventListener("pointerleave", zeigerWeg);
       spaeter.forEach((t) => t.kill());
       uhren.forEach((u) => window.clearTimeout(u));
+      document.removeEventListener("visibilitychange", sichtWechsel);
+      // Die Seite wird abgebaut: Ein gemerktes Ziel gilt nicht mehr.
+      scrollZiel.vergiss();
       entsperren();
       if (stern) {
         gsap.killTweensOf(stern);
@@ -777,8 +991,21 @@ export function LichtName() {
       delete held.dataset.ln;
       delete held.dataset.licht;
       delete held.dataset.lichtwechsel;
+      // Verlässt der Besucher die Seite innerhalb der Website, gilt für die nächste wieder das Übliche.
+      try {
+        window.history.scrollRestoration = "auto";
+      } catch {
+        /* dann eben ohne */
+      }
+      delete held.dataset.skript;
+      delete held.dataset.bildvor;
+      delete held.dataset.bildstufen;
+      standbild?.style.removeProperty("--bild-r");
+      standbild?.style.removeProperty("--bild-hell");
+      standbild?.style.removeProperty("background-image");
+      standbild?.style.removeProperty("background-size");
     };
-  }, [einstellung]);
+  }, [einstellung, rueckkehr]);
 
   // Drei Schichten, von hinten nach vorn: das Licht, der gewöhnliche Schriftzug
   // (ohne Skript sichtbar, sonst nur Maß und Name für Vorleseprogramme), die Zeichen.
@@ -792,8 +1019,9 @@ export function LichtName() {
           <span className="ag-ln__loch" aria-hidden="true">
             {/* Ruhiges Bild des Lichts: nur bei „weniger Bewegung“ oder wenn die Szene nicht flüssig läuft. Sonst wird es nicht geladen. */}
             <Image className="ag-ln__standbild" src={lichtBild} alt="" sizes="(max-width: 767px) 150vw, min(72vw, 1260px)" loading="lazy" />
-            {/* Stern im Dunkeln: Er schimmert, während alles lädt, genau an der Stelle des späteren Sterns. */}
-            <Image className="ag-ln__stern" src={sternBild} alt="" sizes="(max-width: 767px) 53vw, min(26vw, 450px)" priority />
+            {/* Stern im Dunkeln: Er schimmert, während alles lädt, genau an der Stelle des späteren Sterns.
+                Sein Bild steht fest im Dokument (sternbild.ts): Er ist sofort da, auch bei langsamer Leitung. */}
+            <Image className="ag-ln__stern" src={STERN_BILD} alt="" width={512} height={512} unoptimized loading="eager" decoding="sync" />
           </span>
           <Wortmarke />
         </div>

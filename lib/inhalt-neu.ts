@@ -46,17 +46,40 @@ export const wasWirMachen = {
   fussnote: "* Gilt nur bei sehr einfachen Projekten und ist kein Versprechen.",
 };
 
-// Die erste Aussage unter dem Kopfbereich: die Hauptüberschrift der Seite. Sie setzt sich aus
-// Zufallszeichen zusammen, zuerst mit dem falschen Wort („Tagen“); das zerfällt und rastet als
-// das richtige ein („Stunden“), das golden aufleuchtet. Darunter Davids Text in der Sie-Form.
+// Die erste Aussage unter dem Kopfbereich: die Hauptüberschrift der Seite. Sie tippt sich selbst,
+// zuerst mit dem falschen Wort („Tagen“); das zerfällt und rastet als das richtige ein
+// („Stunden“), das golden aufleuchtet. Darunter zeigt ein Wettlauf aus zwei Balken dasselbe als
+// Bild (ohne Zahlen), dann folgen drei Glaskarten mit Davids Text in der Sie-Form.
 export const aussage = {
   vor: wasWirMachen.vor.trim(),
   erst: wasWirMachen.falsch,
   gold: wasWirMachen.richtig,
   nach: wasWirMachen.nach,
-  text: wasWirMachen.text,
   fussnote: wasWirMachen.fussnote,
-};
+  lauf: {
+    // Für Vorleseprogramme: Der Wettlauf ist ein Bild.
+    beschreibung: "Vergleich: Eine Agentur braucht Wochen, Agents Gilt Stunden (siehe Fußnote).",
+    agentur: { name: "Agentur", zeit: "Wochen" },
+    wir: { name: marke.name, zeit: wasWirMachen.richtig },
+  },
+  karten: [
+    {
+      symbol: "mass",
+      titel: "Maßgeschneidert mit KI",
+      text: "Wir entwickeln digitale Lösungen, die genau zu Ihrem Betrieb passen: mit modernster KI statt Baukasten von der Stange.",
+    },
+    {
+      symbol: "tempo",
+      titel: "Schnell und bezahlbar",
+      text: "Erste Ergebnisse in Tagen statt Monaten, zu festen und fairen Preisen für kleine und mittlere Unternehmen.",
+    },
+    {
+      symbol: "technik",
+      titel: "Technik wie bei den Großen",
+      text: "Sie bekommen Technik auf dem neuesten Stand, die sonst großen Firmen vorbehalten ist.",
+    },
+  ],
+} as const;
 
 // Die Wörter im Wörter-Feld um den Stern und im laufenden Band.
 export const worte = ["Persönlich", "Schnell", "Feste Preise", "Aus Rhein-Main", "Modern", "Rund um die Uhr"];

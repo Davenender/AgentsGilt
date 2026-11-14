@@ -54,15 +54,28 @@ export function zufall(saat: number) {
 /**
  * Weiches Scrollen zu einem Ziel auf der Seite. Der Rahmen meldet hier sein weiches Scrollen
  * (Lenis) an; ohne das scrollt der Browser selbst (bei „weniger Bewegung“ ohne Animation).
+ *
+ * Solange die Seite gesperrt ist (Startanimation), merkt sie sich das Ziel nur: das Ziel in der
+ * Adresse (#kontakt) oder einen Klick auf „Anrufen“. Mit der Freigabe scrollt sie dorthin; das
+ * zuletzt gewünschte Ziel zählt.
  */
 let weichZu: ((ziel: HTMLElement) => void) | undefined;
+let gemerkt: HTMLElement | undefined;
 export const scrollZiel = {
   melde: (wie: ((ziel: HTMLElement) => void) | undefined) => {
     weichZu = wie;
   },
   zu: (ziel: HTMLElement) => {
+    if (gesperrt) {
+      gemerkt = ziel;
+      return;
+    }
     if (weichZu) weichZu(ziel);
     else ziel.scrollIntoView({ behavior: willWenigerBewegung() ? "auto" : "smooth", block: "start" });
+  },
+  /** Ein gemerktes Ziel verwerfen (die Seite wird abgebaut). */
+  vergiss: () => {
+    gemerkt = undefined;
   },
 };
 
@@ -72,8 +85,8 @@ export const scrollZiel = {
  * <html>; das weiche Scrollen (Lenis) meldet sich hier an und hält so lange an.
  *
  * „Fest“ heißt: Die Seite ist dazu nur so hoch wie das Bild, es gibt gar nichts, wohin sie scrollen
- * könnte (auch nicht durch die Tab-Taste oder ein Skript). Das gilt erst, wenn der Browser keine
- * frühere Lage mehr wiederherstellen muss (siehe kopf/LichtName.tsx).
+ * könnte (auch nicht durch die Tab-Taste, ein Skript oder einen Sprung des Browsers zu einem Ziel
+ * in der Adresse). Die Startanimation sperrt immer fest (kopf/LichtName.tsx).
  */
 const SPERRE_KLASSE = "ag-scroll-gesperrt";
 const FEST_KLASSE = "ag-scroll-fest";
@@ -84,16 +97,31 @@ export const scrollSperre = {
     beiSperre = wie;
     wie?.(gesperrt);
   },
-  setze: (an: boolean, fest = false) => {
+  /** Sperren oder freigeben. Gibt zurück, ob die Seite mit der Freigabe zu einem gemerkten Ziel scrollt. */
+  setze: (an: boolean, fest = false): boolean => {
+    // Eine neue Sperre beginnt ohne Ziel.
+    if (an && !gesperrt) gemerkt = undefined;
+    const warGesperrt = gesperrt;
     gesperrt = an;
     if (typeof document !== "undefined") {
       document.documentElement.classList.toggle(SPERRE_KLASSE, an);
       document.documentElement.classList.toggle(FEST_KLASSE, an && fest);
     }
     beiSperre?.(an);
-  },
-  /** Die laufende Sperre fest machen (die Seite ist dann nur so hoch wie das Bild). */
-  fest: () => {
-    if (gesperrt && typeof document !== "undefined") document.documentElement.classList.add(FEST_KLASSE);
+    // Steht ein Ziel in der Adresse (#kontakt) und lädt die Seite noch, stellt der Browser sie
+    // selbst dorthin, sobald sie wieder scrollen kann: ein Sprung, von dem das weiche Scrollen
+    // nichts weiß (es setzte die Seite danach zurück auf Anfang). Ein eigener kleiner Schritt
+    // beendet diesen Sprung des Browsers für immer, und die Seite steht wie zuvor ganz oben. Von
+    // dort scrollt sie weich zum gemerkten Ziel. Alles im selben Augenblick: Zu sehen ist nichts.
+    if (!an && warGesperrt && typeof window !== "undefined" && typeof window.scrollTo === "function") {
+      window.scrollTo({ top: 1, behavior: "instant" });
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+    if (an || !gemerkt) return false;
+    const ziel = gemerkt;
+    gemerkt = undefined;
+    if (!ziel.isConnected) return false;
+    scrollZiel.zu(ziel);
+    return true;
   },
 };

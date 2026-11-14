@@ -236,6 +236,12 @@
 .ag-hero[data-licht="bild"] .ag-ln__standbild {
   display: block;
 }
+/* Braucht der Start das Bild (kein WebGL), wird es schon geholt, während der Stern noch pulsiert:
+   im Dokument, aber unsichtbar. Erst dann lädt der Browser es. */
+.ag-hero[data-bildvor]:not([data-licht="bild"]):not([data-lichtwechsel]) .ag-ln__standbild {
+  display: block;
+  visibility: hidden;
+}
 /* Kommt die Szene erst spät, wird überblendet: Das ruhige Bild blendet über der Szene aus
    (während sie darunter einblendet) und verschwindet erst danach. */
 .ag-hero[data-lichtwechsel] .ag-ln__standbild {
@@ -367,14 +373,32 @@
     opacity: 0;
   }
 }
+/* Startanimation ohne Licht-Szene (kein WebGL): Dieselbe Abfolge läuft mit dem ruhigen Bild. Es
+   wird von der Mitte her freigegeben, im Takt der Szene: erst der Stern (und er wird heller),
+   dann die Balken, dann die Strahlen. Radius und Helligkeit setzt LichtName.tsx (bildAuftritt). */
+.ag-kopf5[data-bildstufen="lauf"][data-licht="bild"]:not([data-start="warten"]) .ag-ln__standbild {
+  opacity: var(--bild-hell, 1);
+  animation: none;
+  -webkit-mask-image: radial-gradient(closest-side, #000 52%, transparent 96%), radial-gradient(circle at 50% 50%, #000 calc(var(--bild-r, 9999px) * 0.7), transparent var(--bild-r, 9999px));
+  mask-image: radial-gradient(closest-side, #000 52%, transparent 96%), radial-gradient(circle at 50% 50%, #000 calc(var(--bild-r, 9999px) * 0.7), transparent var(--bild-r, 9999px));
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+/* Steht es ganz, atmet es wie sonst (ohne noch einmal einzublenden). */
+.ag-kopf5[data-bildstufen="fertig"][data-licht="bild"]:not([data-start="warten"]) .ag-ln__standbild {
+  animation: ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite alternate;
+}
 /* Bis die Zeichen landen, bleiben Kopfleiste, „Anrufen“, Chat-Knopf und der Anrufen-Knopf am
    Daumen verborgen; dann erscheinen sie weich. Sicherheitsnetz: Startet das Skript nicht,
-   sind sie nach 8 Sekunden von selbst da. */
+   sind sie nach 8 Sekunden von selbst da. Läuft das Skript (data-skript), gilt das Netz nicht:
+   Dann kann der Stern auch länger pulsieren, bis alles bereit ist. */
 .ag-neu:has(.ag-kopf5) :is(.ag-kopf, .ag-chat, .ag-daumen) {
   transition: opacity 0.9s var(--weich);
 }
 .ag-neu:has(.ag-kopf5:is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) {
   opacity: 0;
+}
+.ag-neu:has(.ag-kopf5:not([data-skript]):is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) {
   animation: ag-start-netz 0.6s 8s forwards;
 }
 .ag-neu:has(.ag-kopf5:is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) > * {

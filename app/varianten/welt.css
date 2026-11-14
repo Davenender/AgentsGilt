@@ -2267,8 +2267,8 @@ html.ag-menue-offen .ag-chat {
    Seite nur so hoch wie das Bild und schneidet alles darunter ab: Dann gibt es nichts, wohin sie
    scrollen könnte, auch nicht, wenn die Tab-Taste zu einem Feld weiter unten springt oder ein
    Skript scrollt. So löst während des Starts auch kein Abschnitt weiter unten seinen Auftritt aus.
-   (Der Inhalt bleibt im Dokument, Vorleseprogramme erreichen ihn weiter.) Fest wird die Sperre
-   erst, wenn der Browser keine frühere Lage mehr wiederherstellen muss (LichtName.tsx). */
+   (Der Inhalt bleibt im Dokument, Vorleseprogramme erreichen ihn weiter.) Die Startanimation
+   sperrt immer fest; die Seite beginnt immer oben (LichtName.tsx). */
 html.ag-scroll-gesperrt {
   overflow: hidden;
   scrollbar-gutter: stable;
@@ -2281,16 +2281,26 @@ html.ag-scroll-fest body {
   height: 100svh;
   overflow: clip;
 }
+/* „Zurück“ aus dem Zwischenspeicher des Browsers: Die Seite käme so wieder, wie sie verlassen
+   wurde. Sie bleibt verdeckt, bis sie oben steht und die Startanimation neu beginnt (LichtName.tsx). */
+html.ag-zurueck body {
+  visibility: hidden;
+}
 /* Schon bevor das Skript der Seite läuft, steht sie oben: vom ersten Bild an, solange der
-   Kopfbereich auf den Start wartet. Das Skript übernimmt die Sperre und meldet „Start frei“
-   (ag-start-frei). Käme es nie (Skript nicht geladen), gibt diese Regel das Scrollen nach 14 s von
-   selbst frei. Ohne Skript und bei „weniger Bewegung“ gilt sie nicht. Diese Regel sperrt nur das
-   Scrollen des Besuchers: Der Browser muss in dieser Zeit noch eine frühere Lage wiederherstellen
-   oder zum Ziel in der Adresse springen können. */
+   Kopfbereich auf den Start wartet. Auch hier ist die Sperre fest (die Seite ist nur so hoch wie
+   das Bild): Der Browser kann weder eine frühere Lage wiederherstellen noch zu einem Ziel in der
+   Adresse springen, bevor der Start gelaufen ist. Das Skript übernimmt die Sperre (ab dann,
+   erkennbar an data-skript, gelten diese Regeln nicht mehr: Wartet der Stern bei langsamer Leitung
+   länger, hält das Skript die Seite weiter oben) und meldet „Start frei“ (ag-start-frei). Käme
+   es nie (Skript nicht geladen), geben diese Regeln das Scrollen nach 14 s von selbst frei. Ohne
+   Skript und bei „weniger Bewegung“ gelten sie nicht. */
 @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
-  html:has(.ag-kopf5[data-start="warten"]):not(.ag-start-frei) {
+  html:has(.ag-kopf5[data-start="warten"]:not([data-skript])):not(.ag-start-frei) {
     scrollbar-gutter: stable;
     animation: ag-start-sperre 14s step-end both;
+  }
+  html:has(.ag-kopf5[data-start="warten"]:not([data-skript])):not(.ag-start-frei) body {
+    animation: ag-start-fest 14s step-end both;
   }
 }
 @keyframes ag-start-sperre {
@@ -2298,6 +2308,16 @@ html.ag-scroll-fest body {
     overflow: hidden;
   }
   to {
+    overflow: visible;
+  }
+}
+@keyframes ag-start-fest {
+  from {
+    height: 100svh;
+    overflow: clip;
+  }
+  to {
+    height: auto;
     overflow: visible;
   }
 }

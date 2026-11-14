@@ -422,6 +422,8 @@ Der Kontakt-Bereich bleibt, wie er ist (nur seine Überschrift entschlüsselt si
 
 ## 4k. Zweite Runde vom 13.11.2026: Licht friert nie ein, Korn wie früher, Sterne lebendig, Überschrift tippt sich
 
+**Durch 4l ersetzt (dritte Runde vom 14.11.2026):** die Höchstzeit von 6 s am Start (jetzt wartet der Stern, bis alles bereit ist, Sicherheitsgrenze 15 s), „steht alles sofort“ bei einem Ziel in der Adresse und nach Neuladen oder Zurück (jetzt beginnt die Seite immer oben, und der Start läuft ganz), die halbfeste Sperre in den ersten 0,3 s (jetzt immer fest), „kein Verbuggen unter der Maus“ bei der ersten Überschrift (jetzt verbuggt sie wie alle) und der Absatz unter der ersten Aussage (jetzt Wettlauf und drei Glaskarten).
+
 Davids Rückmeldung zu 6d45187: Die Startanimation, die Geister-Wörter, das Verbuggen der Überschriften, „Großer Anspruch“ und die Zertifikate mit Glasblase bleiben. Auf seinem Bildschirm (MacBook Pro M1, außen ein OMEN 32q mit 2560 × 1440 bei 165 Hz, Pixeldichte 1; manchmal der eingebaute Bildschirm mit Pixeldichte 2) gab es vier Probleme: Das Licht wurde nach ein paar Sekunden zum Standbild, das Korn war unsauber, der Stern im Wörter-Feld war ein Standbild mit sichtbarem Viereck, der Stern im Fuß bewegte sich nicht.
 
 ### 0 · Ursache
@@ -519,6 +521,115 @@ Kornstärke = Streuung der Helligkeit gegenüber dem weichgezeichneten Bild. Ein
 ### 9 · Nicht angefasst
 Alles andere bleibt genau so. Kontakt-Bereich und Chat-Fenster kommen später. Nichts wurde echt abgesendet.
 
+## 4l. Dritte Runde vom 14.11.2026: Start immer komplett, Name hängt nie, Glaskarten unter der ersten Aussage
+
+Davids Rückmeldung zu fcbeb26: „wunschlos glücklich“. Licht, Sterne, Geister-Wörter, Leistungen, Ablauf, „Großer Anspruch“, Band, Zertifikate und Fuß bleiben genau so. Es ging nur um vier Punkte.
+
+### 0 · Die Startanimation läuft immer ganz
+`kopf/LichtName.tsx`, `kopf/startlogik.ts` (reine Rechenregeln, mit Tests), `kopf/sternbild.ts`, `kopf/notlicht.ts`, `umgebung.ts`, `Rahmen.tsx`, `welt.css`, `kopf/kopf.css`.
+
+**Was David sah:** Nach dem Neuladen kam der Stern, dann stand sofort der fertige Zustand; einmal kam die Startanimation gar nicht. **Ursachen (beide nachgestellt):**
+- Im Dev-Server dauerte das Laden länger als die Höchstzeit von 6 s (gemessen: Bilder 9,0 s, Licht 9,2 s). Dann flogen die Zeichen schon los, und das Licht sprang später voll an.
+- Nach Neuladen mitten auf der Seite stellte der Browser die frühere Lage wieder her. Für diesen Fall galt die Regel „steht alles sofort“ (4k).
+
+**So ist es jetzt:**
+- **Nie direkt in den fertigen Zustand.** Der Stern pulsiert, bis alles bereit ist: Schriften, Zeichen, Licht-Szene (angelegt und einmal gezeichnet) und die Bilder des ersten Bildschirms. „Bereit“ heißt wirklich geladen: Für Bilder gibt es keine eigene kürzere Frist mehr (kommen sie 8 s zu spät, wartet der Stern 8 s). Die Probe unter echter Last (30 Bilder unter 17 ms) hält den Start danach nur begrenzt auf: bis 6 s nach dem ersten Bild, mindestens aber 1 s (`probeFrist`). **Sicherheitsgrenze: 15 s** nach dem ersten Bild (`WARTEN_GRENZE`). Danach läuft immer die ganze Abfolge: Stern hell, Balken, Strahlen, Zeichen, Welle.
+- **Der wartende Stern ist sofort da.** Sein Bild (4 kB) steht fest im Dokument (`kopf/sternbild.ts`) und muss nicht geladen werden: Auch bei langsamer Leitung ist er das Erste, was man sieht. Vorher blieb der Bildschirm schwarz, solange sein Bild unterwegs war.
+- **Fällt das Licht wirklich aus** (kein WebGL, Szene lädt nicht, oder sie ist an der Sicherheitsgrenze noch nicht da), läuft dieselbe Abfolge mit dem ruhigen Bild (`bildAuftritt`): Eine runde Maske gibt erst den Stern frei, dann die Balken, dann die Strahlen (`--bild-r`, `--bild-hell`; dieselben Zeiten wie beim Licht), die Zeichen fliegen bei 60 %. Auch auf das ruhige Bild wartet der Stern, bis es wirklich da ist. Kommt die Szene später doch noch, blendet das Bild in das lebende Licht über.
+- **Es gibt immer ein Licht (Not-Licht).** Sind an der Sicherheitsgrenze weder die Szene noch das große ruhige Bild geladen (sehr langsame Leitung), läuft die Abfolge mit dem Not-Licht (`lichtQuelle`, `kopf/notlicht.ts`): dasselbe Bild in klein (640 × 640, 4 kB), fest im Skript, es braucht keine Leitung. Es liegt als Hintergrund im selben Bild-Element; das große Bild lädt weiter und legt sich darüber, sobald es da ist (gleiches Bild, nur schärfer). So bleibt die Reihenfolge immer dieselbe: Stern, Balken, Strahlen, dann erst die Zeichen, die Welle und die Freigabe. Auch späte Ausfälle (die Szene kommt nach der Grenze und scheitert dann) gehen diesen Weg (`bildNachholen`): Nichts steht auf einmal ganz da.
+- **Fällt die Grafik mitten im Lichtaufbau aus** (bevor die Zeichen losfliegen), beginnt der Aufbau neu, in Stufen: mit der neu aufgebauten Szene, oder mit dem ruhigen Bild, wenn auch der Neuaufbau scheitert (`wennSzeneKommt`, `wennBildKommt` in `startlogik.ts`). Vorher kam das Licht danach auf einmal, und die Zeichen flogen nie los (der Name blieb weg).
+- **Verdeckter Tab:** Ist die Seite während des Starts verdeckt (anderer Tab), bleibt die Abfolge stehen und läuft danach dort weiter, wo sie war. Vorher sprang das Licht beim Zurückkommen ans Ende, und die Freigabe kam, bevor die Welle zu sehen war. Dafür gleicht GSAP lange Pausen aus, solange die Seite gesperrt ist (`lagSmoothing(500, 33)` in `Rahmen.tsx`; mit der Freigabe gilt wieder der genaue Takt für das weiche Scrollen), und alle Fristen des Starts rechnen mit sichtbarer Zeit (`erzeugeSichtUhr`, `gesehen()`): Mindestzeit, Probe, Sicherheitsgrenze und das Sicherheitsnetz des Skripts (24 s). Die Mindestzeit prüft `lichtAnmachen` selbst, gleich welcher Auslöser zuerst kommt: Der Stern war immer mindestens 1,5 s zu sehen. Von der Zeit zwischen dem ersten Bild und dem Einrichten des Skripts zählt nur, was laut Sichtbarkeits-Protokoll des Browsers zu sehen war (`sichtbarZwischen`); kennt der Browser kein Protokoll, zählt davon nichts, dann pulsiert der Stern eher einen Augenblick länger. Lädt die Seite in einem Tab im Hintergrund, beginnt die Abfolge, wenn man hinsieht.
+- **Nicht auf alle Bilder warten.** Abgewartet werden nur Bilder, die im ersten Bildschirm stehen. Alles weiter unten lädt im Hintergrund; der leichte Stern und der Stern der Glaskarten laden mit niedrigem Rang (`fetchPriority="low"`).
+- **Immer oben beginnen.** `history.scrollRestoration = "manual"`, und die Sperre im Stylesheet ist vom ersten gezeichneten Bild an fest (die Seite ist nur so hoch wie das Bild): Der Browser kann weder eine frühere Lage wiederherstellen noch zu einem Ziel springen, bevor der Start gelaufen ist. Die Regeln im Stylesheet gelten nur, bis das Skript die Sperre übernommen hat (`data-skript`): Ihr eigenes Netz von 14 s gäbe die Seite sonst frei, während der Stern bei langsamer Leitung noch wartet. Bei „weniger Bewegung“ bleibt alles beim Üblichen (`auto`, keine Sperre).
+- **Sprungziel (#kontakt):** Erst läuft der Start, danach scrollt die Seite weich dorthin. Dasselbe gilt für einen Klick auf ein Sprungziel während des Starts (etwa „Anrufen“ am Computer): Die Seite merkt sich das Ziel (`scrollZiel` in `umgebung.ts`) und scrollt mit der Freigabe hin. Vorher ging so ein Klick verloren. Das zuletzt gewünschte Ziel zählt: Ändert sich das Ziel in der Adresse während des Starts, gilt das neue; ein Klick auf „nach oben“ (#top) hebt ein früheres Ziel auf. **Dabei gefunden und behoben:** Lädt die Seite noch, wenn der Start vorbei ist (etwa ein Bild weiter unten), stellt der Browser sie beim Entsperren selbst zum Ziel in der Adresse. Das weiche Scrollen wusste davon nichts und setzte die Seite zurück an den Anfang; sie blieb dann oben. Jetzt beendet ein eigener kleiner Schritt (1 px und zurück, nicht zu sehen) diesen Sprung des Browsers mit der Freigabe (`scrollSperre.setze` in `umgebung.ts`), und die Seite scrollt von oben weich zum Ziel. Misst ScrollTrigger unterwegs neu, fasst der Rahmen nach, bis das Ziel erreicht ist (`Rahmen.tsx`); greift der Besucher selbst ein (Mausrad, Finger, Taste, jeder Klick, ein neues Ziel in der Adresse), endet das Nachfassen sofort.
+- **Zurück:** Innerhalb der Website (Impressum und zurück) wird der Kopfbereich neu eingerichtet, der Start läuft ganz; seine Wartezeiten zählen ab diesem Start, nicht ab dem ersten Laden (`ersterStart`). Holt der Browser die Seite aus seinem Zwischenspeicher (sie käme so wieder, wie sie verlassen wurde: mitten auf der Seite, Start längst vorbei), wird sie beim Verlassen verdeckt (`html.ag-zurueck`) und bei der Rückkehr frisch eingerichtet: Sie steht oben, und der Start läuft noch einmal ganz. Es wird dabei nichts neu geladen, Eingaben im Formular bleiben erhalten.
+- **Nur im Dev-Server** darf der Start übersprungen werden: nach einem Fast Refresh (und wenn der Besucher „weniger Bewegung“ oder das Zeigegerät umstellt; dann lief er bei diesem Laden schon).
+- **Fertige Fassung zum Anschauen:** `npm run build`, dann der Eintrag `agentsgilt-fertig` in `.claude/launch.json` (`next start -p 3200`). David beurteilt dort; der Dev-Server (Port 3100) bleibt zum Bauen.
+
+**Geprüft in der fertigen Fassung** (echtes Chrome, Skript `p7/start-faelle.cjs`; Zeiten in Sekunden seit dem Laden bzw. seit der Rückkehr; in jedem Fall alle vier Zustände in der richtigen Reihenfolge, und die Seite stand bis zur Freigabe bei 0 px):
+
+| Fall | Licht geht an | frei | Bemerkung |
+|---|---|---|---|
+| gewöhnlicher Aufruf | 2,2 | 7,5 | |
+| Neuladen mitten auf der Seite (3200 px) | 1,7 | 7,0 | beginnt oben |
+| Zurück innerhalb der Website | 1,1 | 6,4 | beginnt oben |
+| Zurück aus dem Zwischenspeicher des Browsers | 1,8 | 7,1 | 0,2 s verdeckt, dann oben |
+| Ziel in der Adresse (#kontakt) | 1,7 | 7,1 | danach weich zum Kontakt |
+| Klick auf „Anrufen“ mitten im Start | 1,7 | 7,1 | danach weich zum Kontakt |
+| Ziel wechselt im Start von #kontakt zu #leistungen | 1,9 | 7,2 | danach weich zu den Leistungen |
+| Ziel #kontakt, im Start Klick auf „nach oben“ | 1,7 | 6,9 | Seite bleibt oben |
+| nur Bilder 8 s verzögert | 8,7 | 14,0 | Stern wartet auf die Bilder |
+| Bilder und Licht-Szene 8 s verzögert | 8,9 | 14,2 | Stern wartet, dann alles |
+| kein WebGL | 1,7 | 7,0 | ruhiges Bild in Stufen |
+| kein WebGL, Bilder 8 s verzögert | 11,6 | 16,9 | Stern wartet auf das ruhige Bild, dann in Stufen |
+| Licht-Szene 20 s verzögert | 15,2 | 20,7 | Start an der Grenze mit dem Bild, später lebendes Licht |
+| Szene und alle Bilder 20 s verzögert, Ziel #kontakt | 15,6 | 20,9 | Not-Licht in Stufen, danach zum Kontakt, später lebendes Licht |
+| Szene kommt nach 16 s und scheitert (kein WebGL), Bilder 20 s verzögert | 15,6 | 20,9 | Not-Licht in Stufen, das große Bild legt sich später darüber |
+| Ziel #kontakt, die Seite lädt beim Ende des Starts noch | 1,7 | 7,1 | danach weich zum Kontakt (vorher blieb sie oben) |
+| im Hintergrund geladen, nach 17 s hingesehen | danach | danach | der Stern ist erst noch mindestens 1,5 s zu sehen |
+| Grafik fällt 0,4 s nach „Licht an“ aus | wie sonst | rund 1,4 s später | Szene baut sich neu in Stufen auf, Zeichen fliegen |
+| Grafik fällt zweimal aus | wie sonst | rund 1,3 s später | ruhiges Bild in Stufen, Zeichen fliegen |
+| Tab 4 s verdeckt, mitten im Lichtaufbau | 1,7 | 11,0 | nach der Rückkehr läuft der Aufbau noch 2,0 s weiter |
+| Tab 5 s verdeckt, während die Welle läuft | 1,7 | 12,1 | Freigabe erst 1,3 s nach der Rückkehr |
+| im Hintergrund geladen, nach 9 s hingesehen | 9,7 | 15,0 | die Abfolge beginnt erst dann |
+
+**Zum Verdecken:** Unter Playwright bleibt jede Seite „sichtbar“, auch wenn ein anderer Tab vorn liegt oder das Fenster im Dock ist (ausprobiert). Die drei Fälle mit verdecktem Tab sind deshalb in der Seite nachgestellt (`p7/verdeckt.cjs`): Der Browser zeichnet keine Bilder mehr, und die Seite meldet „verdeckt“. Ein echter Tab-Wechsel in Davids Chrome ist damit nicht aufgenommen.
+
+Während des Starts bewegen die Seite weder Mausrad, Bild-ab, Ende, Leertaste, Pfeiltaste, zwölfmal Tab, `scrollTo`, `scrollIntoView` noch ein neues Ziel in der Adresse (`p7/sperre.cjs`: weiteste Lage 0 px; das neue Ziel in der Adresse wird nach dem Start angesteuert). Hinweis zur Messung: Vor dem ersten gezeichneten Bild (das Stylesheet ist noch nicht da) kann der Browser eine Lage melden; zu sehen ist davon nichts, im ersten gezeichneten Bild steht die Seite oben.
+
+### 1 · Der Name reagiert immer auf die Maus
+`kopf/zeichenname.ts`, `kopf/startlogik.ts` (`rollStand`, `OBEN_PX`), `kopf/LichtName.tsx`.
+- **Der Fall:** Die Zeichen weichen der Maus nur, solange der Name nicht „wegrollt“ (beim Scrollen fliegen sie auseinander). Dieser Stand war `Lage ÷ (0,9 × Bildhöhe)`, also schon bei 1 px über null: Die Maus war dann abgeschaltet. Nach dem Hochscrollen bleibt die Seite aber oft ein paar Pixel unter dem Anfang stehen (Trackpad, weiches Scrollen, ein Sprung). Der Name stand heil da und reagierte nicht mehr, bis man neu lud. Nachgestellt mit 10 px und mit 3 px Rest.
+- **Behoben:** `rollStand` hat eine tote Zone von 24 px. Bis dahin gilt die Seite als oben, erst danach beginnt das Wegrollen (sanft ab null, ohne Sprung).
+- **Zweiter Fund, beim Prüfen mit nachgestelltem Tab-Wechsel:** Ruhte die Maus im Namen, fiel das Loch immer wieder für einen Augenblick zu (in 5 bis 13 % der Messpunkte, gemessen alle 100 ms über 6 s). Kam ein Bild, in dem sich nichts änderte (etwa weil der Zeitgeber des Flimmerns einen Augenblick zu früh weckte), legte die Fläche das ruhende Bild des Namens darüber, also den Namen ohne Loch; erst das nächste Flimmern öffnete es wieder. Jetzt bleibt die Fläche, wie sie ist, solange Zeichen neben ihrem Platz stehen (`zeichenname.ts`). Gemessen danach: 0 von 60 Messpunkten zu, mit und ohne Tab-Wechsel. Dazu ein eigener Test.
+- **Die anderen Verdachtsfälle waren es nicht,** sie sind jetzt aber alle mit Test belegt: später Licht-Start (Szene 8 s verzögert, auch mit bewegter Maus), Tab-Wechsel während und nach dem Start (im Browser nachgestellt, siehe oben), ganz runter und wieder hoch, Fenstergröße während und nach dem Start geändert.
+- **Tests:** `tests/zeichenname.test.ts` (je Fall: Nach der Startanimation gehen die Zeichen unter der Maus auseinander; nachgebaute Zeichenfläche) und `tests/kopf-start.test.ts` (tote Zone, Stufen, Fristen, gemerkte Sprungziele, Freigabe, Sicht-Uhr, sichtbare Zeit vor dem Einrichten, Lichtquelle, Licht kommt mitten im Start). Im echten Vollbild 2560 × 1440 der fertigen Fassung: Dichte der Zeichen an der Stelle 101 ohne Maus, 1 mit Maus, in allen zehn Fällen (`p7/name-echt.cjs`).
+
+### 2 · „Wir bauen in Stunden …“ verbuggt unter der Maus
+`seite/Aussage.tsx`. Davids neue Entscheidung: Auch diese Überschrift verbuggt unter der Maus, genau wie alle anderen (Buchstaben im Umkreis werden kurz zu Zufallszeichen und rasten nach 0,22 bis 0,48 s wieder ein). Das Tippen beim Erscheinen bleibt.
+
+### 3 · Unter der ersten Aussage: Wettlauf, drei Glaskarten, Mauslicht
+`seite/Aussage.tsx`, `seite/glaskarten.ts`, `seite/seite.css` (Blöcke „Der Wettlauf“ und „Drei Glaskarten“), Texte in `lib/inhalt-neu.ts` (`aussage.lauf`, `aussage.karten`), `public/stern/stern-glas.webp`. Das Auftauchen des Absatzes aus Zufallszeichen ist weg.
+
+**a) Der Wettlauf (die Überschrift als Bild)**
+- Zwei schmale Balken (4 px) untereinander, je mit Name links und Zeit rechts in der kleinen Zeichen-Schrift. Sie laufen los, sobald die Überschrift steht („Stunden“ ist eingerastet).
+- **„Agentur“ in Grau** kriecht und ist nach 4 s bei einem Drittel; dort bleibt er stehen. Daneben „Wochen“.
+- **„Agents Gilt“ in Gold** ist nach 0,8 s voll und leuchtet kurz auf (warmes Weiß über dem Gold, weiter Schein; auch „Stunden*“ leuchtet mit). Danach bleibt ein ruhiger Goldschein.
+- Keine Zahlen. Das Sternchen verweist auf die Fußnote; sie steht direkt unter dem Wettlauf und blendet ein, wenn der goldene Balken voll ist.
+- Für Vorleseprogramme ist der Wettlauf ein Bild mit Beschreibung („Vergleich: Eine Agentur braucht Wochen, Agents Gilt Stunden (siehe Fußnote).“).
+- Schmal (bis 560 px): Name links, Zeit rechts, der Balken darunter über die ganze Breite.
+
+**b) Drei Glaskarten statt Absatz**
+- Inhalt aus dem alten Absatz, in drei Aussagen (Sie-Form): „Maßgeschneidert mit KI“, „Schnell und bezahlbar“, „Technik wie bei den Großen“ (Wortlaut in `docs/texte.md`).
+- Oben je ein fein gezeichnetes Symbol in Gold (Strich 1,3): Passmarken um den Stern des Logos, eine Stoppuhr, ein Chip mit dem Stern im Kern.
+- Die Karten schweben 0,65 s nach dem Start des Wettlaufs nacheinander ein: je 120 ms versetzt, 30 px von unten, 1 s, weich.
+- **Echtes Glas:** Milchglas, das weich zeichnet, was dahinter liegt (`backdrop-filter: blur(11px)`): ein ruhiger Lichtschein hinter der Reihe (Gold in der Mitte, kühles Blau an den Seiten) und der Stern. Oben eine feine helle Lichtkante, am Rand ein dünner Goldschimmer (1 px, unten etwas kräftiger), darunter ein weicher Schatten. Radius 22 px, alle drei gleich hoch, gerade ausgerichtet, keine Schrägen.
+- Eingeblendet werden Glas und Inhalt einzeln, nicht die ganze Karte. Eine durchscheinende Karte wäre für ihr Glas eine eigene Welt: Das Glas sähe erst nach dem Einblenden, was hinter der Karte liegt, und spränge um.
+
+**c) Der goldene Stern schlüpft hinter dem Glas durch**
+- Hinter jeder Karte wartet unsichtbar derselbe leichte Stern (ein Bild mit durchsichtigem Grund, kleiner). Er liegt unter dem Glas und wird am Rand der Karte abgeschnitten.
+- Kommt die Maus auf die Karte, gleitet er von der Kante herein, über die sie kam, und folgt ihr weich (er holt je Sekunde gut das Fünffache des Abstands auf, das wirkt wie rund 0,2 s Verzögerung). Durch das Glas sieht man ihn verschwommen leuchten; er dreht sich dabei leicht (± 9°, 9 s) und atmet (4,6 s).
+- **Lichtkante und Goldrand fangen sein Licht** dort, wo er gerade ist: ein weicher Fleck von 210 px wandert mit ihm über den 1 px feinen Rand.
+- Die Karte hebt sich um 5 px. Die Fläche, die die Maus annimmt, bleibt dabei liegen (sonst rutschte die Karte der Maus am unteren Rand unter dem Zeiger weg und flackerte).
+- Geht die Maus weg, gleitet er an der Kante hinaus, über die sie die Karte verlassen hat, und verblasst.
+
+**d) Das Mauslicht liest mit**
+- Der Text der Karten steht etwas gedämpft da (Text #9499ae, Titel #e4e1da). Wörter im Umkreis von 120 px um den goldenen Mauspunkt leuchten warm auf (bis #fff0cc mit feinem Goldschein), schnell hinein und weich wieder hinaus. Jedes Wort hat dafür ein eigenes Feld; für Vorleseprogramme bleibt es gewöhnlicher Text.
+- **Am Handy** stehen die Karten untereinander. Kommt eine Karte gut zur Hälfte ins Bild (und steht sie schon da), zieht ihr Stern einmal in 1,9 s von links nach rechts hinter dem Glas durch; der Text leuchtet dabei von links nach rechts auf und bleibt hell.
+- **„Weniger Bewegung“, ohne Skript, in der Vorschau:** der goldene Balken voll, der graue bei einem Drittel, die Karten an ihrem Platz, der Text hell, kein Stern.
+
+**Meine Lesarten, zu denen David anders entscheiden kann:**
+1. „Balken voll“ bei „weniger Bewegung“: Gezeigt wird der Endstand des Wettlaufs (Gold voll, Grau ein Drittel). Wären beide voll, sagte das Bild das Gegenteil der Überschrift.
+2. Der Stern verlässt die Karte dort, wo die Maus sie verlässt. Kommt und geht die Maus über dieselbe Kante, geht er also auch dort hinaus (nicht „auf der anderen Seite“).
+3. Die Fußnote steht direkt unter dem Wettlauf (dort steht auch das Sternchen), nicht unter den Karten.
+
+### 4 · Bilder und Prüfung
+- Bildbögen im echten Vollbild 2560 × 1440 der fertigen Fassung (eigenes Chrome-Profil ohne Leisten, Vollbild über CDP; `p7/echt.cjs`): Start nach Neuladen mitten auf der Seite und bei langsamem Laden (alle 300 ms), der Name unter der Maus je Sonderfall, der Wettlauf bei 0,4 s, 0,8 s und 4 s, die Glaskarten in vier Zuständen. Das Handy-Bild ist nachgestellt (390 × 844).
+- Build, Lint und alle Tests bestehen. Funktionsprüfung nach `docs/funktionen.md` in der fertigen Fassung ohne Befund; lokal fehlt dort nur das Statistik-Skript von Vercel (`/_vercel/insights/script.js`), das es nur auf Vercel gibt.
+
+### 5 · Nicht angefasst
+Alles andere bleibt genau so. Kontakt-Bereich und Chat-Fenster kommen später. Nichts wurde echt abgesendet, nichts gepusht.
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
@@ -568,3 +679,4 @@ Alles andere bleibt genau so. Kontakt-Bereich und Chat-Fenster kommen später. N
 23. **Mauszeiger (12.11.2026):** Punkt mit Schein, Ring über Links, Glasblase „Ansehen“ über Karten und Bildern (4i).
 24. **Feinschliff (13.11.2026, Abschnitt 4j):** Start ohne Ruckeln (das Licht wird in jedem Bild neu gezeichnet und ist dafür viel billiger geworden; Probe: 30 Bilder hintereinander unter 17 ms); Stern mindestens 3 s, Licht von innen nach außen, Zeichen bei 60 %, Licht dreht sich nach 1 s Pause langsam zur Maus. Lichtleiste statt Lichtfleck. Erste Aussage mit „Tagen“ → „Stunden“ und zeilenweise aufleuchtendem Text. Wörter-Feld mit lebendigem Stern und sechs Geister-Wörtern. Alle Überschriften entschlüsseln sich einmal je Seitenaufruf. Glasblase nur über den Zertifikaten. Ablauf läuft von selbst. „Anrufen“ scrollt am Computer zum Kontakt. Fuß mit Stern, Namen aus Zeichen und Lichtleiste.
 25. **Zweite Runde (13.11.2026, Abschnitt 4k):** Das Licht friert am Computer nie ein: höchstens 60 Licht-Bilder je Sekunde, die Wache misst die Arbeitszeit der Grafikkarte und stellt nur Sparstufen ein; das Korn bleibt immer in voller Auflösung. **Davids Entscheidung zur offenen Frage aus 4j:** Nach der Höchstzeit geht das Licht an; ein ruhiges Bild gibt es nur noch als letzte Rettung für sehr schwache Handys. Im Wörter-Feld und im Fuß steht der leichte Stern (Bilder der eigenen Szene, bewegt mit Drehen, Größe und Deckkraft, tanzendes Korn) statt einer zweiten Licht-Szene. Die erste Aussage tippt sich Buchstabe für Buchstabe (erst „Tagen“, dann „Stunden“), der Absatz verwandelt sich danach auf einmal. Der Stern am Start steht 1,5 s; während der Startanimation kann man nicht scrollen und nichts überspringen. Die Lichtleiste kommt 2 s nach der Landung des Namens, bei jedem Seitenaufruf. Der Ablauf-Balken läuft 6 s und bleibt 0,5 s voll stehen.
+26. **Dritte Runde (14.11.2026, Abschnitt 4l):** Davids Rückmeldung zu fcbeb26: „wunschlos glücklich“. Die Startanimation läuft immer ganz und beginnt immer oben (kein Sprung in den fertigen Zustand; der Stern wartet, bis alles bereit ist, Sicherheitsgrenze 15 s; ohne WebGL dieselbe Abfolge mit dem ruhigen Bild; Sprungziel erst nach dem Start). Der Name reagiert immer auf die Maus (tote Zone von 24 px am Seitenanfang). Die erste Überschrift verbuggt unter der Maus wie alle anderen. Unter ihr stehen statt des Absatzes der Wettlauf (zwei Balken, keine Zahlen) und drei Glaskarten mit dem goldenen Stern hinter dem Glas und dem Mauslicht auf dem Text. David beurteilt ab jetzt die fertige Fassung auf Port 3200.
