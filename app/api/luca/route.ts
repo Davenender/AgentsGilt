@@ -92,6 +92,7 @@ const ANTWORT: Record<string, string> = {
   erledigt: "Ist durch: Dazu ruft Luca nicht mehr an. Hat David eine neue Zeit genannt, kommt genau ein Anruf zu dieser Zeit. Sag es ihm in einem Satz.",
   erinnerung_weg: "Ist an die Zentrale raus. Kam die Nummer nicht hin, sagt sie es dir gleich im Gespräch.",
   nachricht: "Ist unterwegs auf Davids Handy (iMessage). Sag es ihm in einem Satz.",
+  alltag: "Die Zentrale kümmert sich, das Ergebnis kommt gleich ins Gespräch.",
   teamaufgabe: "Ist eingetragen. Sag es David kurz und frag, ob du eine Nachricht für die Person vorbereiten sollst.",
   teamnachricht: "Die fertige Nachricht kommt gleich auf Davids Handy, zum Weiterleiten. Luca schickt selbst nie etwas ans Team.",
   teamanruf: "Ist an die Zentrale raus, sie meldet gleich, ob der Anruf rausgeht.",

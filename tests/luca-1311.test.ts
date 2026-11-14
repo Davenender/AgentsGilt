@@ -186,3 +186,38 @@ test("Etappe 7: Team-Anruf nur an aktive Teammitglieder, tagsüber, ohne Werkzeu
   const mit = teamAnrufAssistent(vorlage, { name: "Oskar", worum: "Relax Fit", kundeninfo: "Angebot 150 €" });
   assert.match((mit.model as { speaker: { instructions: string } }).speaker.instructions, /Von David freigegeben: Angebot 150 €/);
 });
+
+test("Etappe 8: Alltag – Listen, Diktat, Karte, Sprachnachricht, Gewohnheit, Geburtstag, Notfall, Standort, frei, besprochen, Limit", async () => {
+  const { briefAus, briefText, ZEIG_VORLAGEN, LUCA_WERKZEUGE } = await import("../lib/luca-logik.ts");
+  const ohneZeit = (b: unknown) => {
+    const rest = { ...(b as Record<string, unknown>) };
+    delete rest.zeit;
+    return rest;
+  };
+  assert.deepEqual(ohneZeit(briefAus("liste", { aktion: "dazu", name: "Einkauf", eintraege: ["Milch", " Eier "] })), { typ: "alltag", was: "liste", aktion: "dazu", name: "Einkauf", eintraege: ["Milch", "Eier"] });
+  assert.deepEqual(ohneZeit(briefAus("liste", { aktion: "schicken", name: "Einkauf" })), { typ: "alltag", was: "liste", aktion: "schicken", name: "Einkauf", eintraege: [] });
+  assert.deepEqual(ohneZeit(briefAus("diktat", { text: "Hey Ferdi, komme später." })), { typ: "alltag", was: "diktat", text: "Hey Ferdi, komme später." });
+  assert.equal(briefAus("diktat", { text: " " }), null);
+  assert.deepEqual(ohneZeit(briefAus("karte_schicken", { ziel: "Relax Fit", modus: "bahn" })), { typ: "alltag", was: "karte", ziel: "Relax Fit", modus: "bahn" });
+  assert.deepEqual(ohneZeit(briefAus("sprachnachricht", { text: "Milch kaufen" })), { typ: "alltag", was: "sprache", text: "Milch kaufen" });
+  assert.deepEqual(ohneZeit(briefAus("gewohnheit", { was: "Wasser", anzahl: 2 })), { typ: "alltag", was: "gewohnheit", name: "Wasser", anzahl: 2 });
+  assert.deepEqual(ohneZeit(briefAus("gewohnheit", {})), { typ: "alltag", was: "gewohnheit", anzahl: 0 });
+  assert.deepEqual(ohneZeit(briefAus("geburtstag", { name: "Ferdi", datum: "21.11." })), { typ: "alltag", was: "geburtstag", name: "Ferdi", datum: "21.11." });
+  assert.deepEqual(ohneZeit(briefAus("notfall", {})), { typ: "alltag", was: "notfall" });
+  assert.deepEqual(ohneZeit(briefAus("notfall", { kontakt_name: "Mama", kontakt_nummer: "0151 1" })), { typ: "alltag", was: "notfallkontakt", name: "Mama", nummer: "0151 1" });
+  assert.deepEqual(ohneZeit(briefAus("wo_war_ich", { tag: "gestern", uhrzeit: "15:00" })), { typ: "alltag", was: "wo_war_ich", tag: "gestern", uhrzeit: "15:00" });
+  assert.deepEqual(ohneZeit(briefAus("wo_war_ich", { geparkt: true })), { typ: "alltag", was: "geparkt" });
+  assert.deepEqual(ohneZeit(briefAus("freie_zeiten", { tage: 3 })), { typ: "alltag", was: "frei", tage: 3 });
+  assert.deepEqual(ohneZeit(briefAus("heute_besprochen", {})), { typ: "alltag", was: "besprochen" });
+  assert.deepEqual(ohneZeit(briefAus("claude_limit", {})), { typ: "alltag", was: "limit" });
+  assert.match(briefText(briefAus("liste", { aktion: "dazu", name: "Einkauf", eintraege: ["Milch"] })!), /Liste/);
+  for (const v of ["gewohnheiten", "geburtstage"]) assert.ok((ZEIG_VORLAGEN as readonly string[]).includes(v), v);
+  const namen = LUCA_WERKZEUGE.map((w) => w.function.name);
+  for (const n of ["liste", "diktat", "karte_schicken", "sprachnachricht", "gewohnheit", "geburtstag", "notfall", "wo_war_ich", "freie_zeiten", "heute_besprochen", "claude_limit"]) assert.ok(namen.includes(n), n);
+});
+
+test("Etappe 8: Alltag-Briefe kommen durch den Briefkasten", async () => {
+  const { briefAus, briefLesen, briefText } = await import("../lib/luca-logik.ts");
+  const b = briefLesen(briefText({ ...briefAus("liste", { aktion: "dazu", name: "Einkauf", eintraege: ["Milch"] })!, zeit: "2026-11-14T09:00:00Z" }));
+  assert.equal(b?.typ, "alltag");
+});

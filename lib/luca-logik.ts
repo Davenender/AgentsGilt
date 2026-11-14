@@ -121,7 +121,7 @@ export const LAGE_MARKE = "📋 Lagebericht";
 export const ANRUF_MARKE = "📞 Luca ruft David an";
 
 /** Stufe 6: was Luca am Telefon auf der Bühne der Zentrale zeigen kann (Vorlagen der Zentrale) – „schliessen“ macht sie zu. */
-export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "hilfe", "wunschliste", "nachrichten", "anrufe", "tageskarte", "klausuren", "hausaufgaben", "lernzeit", "pipeline", "geld", "team", "schliessen"] as const;
+export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "hilfe", "wunschliste", "nachrichten", "anrufe", "tageskarte", "klausuren", "hausaufgaben", "lernzeit", "pipeline", "geld", "team", "gewohnheiten", "geburtstage", "schliessen"] as const;
 
 export type Brief =
   | { typ: "zeigen"; vorlage: string; wunsch?: string }
@@ -132,6 +132,8 @@ export type Brief =
   | { typ: "nachschauen"; frage: string }
   | { typ: "schule" }
   | ({ typ: "erinnerung"; text: string; minuten?: number; uhrzeit?: string; ort?: string; ereignis?: "ankunft" | "abfahrt"; warten?: number; ab?: string; ueberblick?: boolean; nachSchule?: boolean; thema?: string } & ErinnerungExtra)
+  /** Etappe 8: Alltag */
+  | { typ: "alltag"; was: "liste" | "diktat" | "karte" | "sprache" | "gewohnheit" | "geburtstag" | "notfall" | "notfallkontakt" | "wo_war_ich" | "geparkt" | "frei" | "besprochen" | "limit"; name?: string; aktion?: "dazu" | "weg" | "leeren" | "schicken"; eintraege?: string[]; text?: string; ziel?: string; modus?: "auto" | "bahn" | "zu_fuss"; anzahl?: number; datum?: string; weg?: boolean; nummer?: string; tag?: string; uhrzeit?: string; tage?: number }
   /** Etappe 7: Agents Gilt II und Team */
   | { typ: "teamaufgabe"; wer: string; was: string; bis?: string; erledigt?: boolean }
   | { typ: "teamnachricht"; wer: string; text: string }
@@ -225,6 +227,42 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     const minuten = Math.round(Number(args.minuten));
     return Number.isFinite(minuten) && minuten >= 1 && minuten <= 720 ? { typ: "rueckruf", minuten, text: text || "Rückruf, wie besprochen", ...(thema ? { thema } : {}) } : null;
   }
+  // ── Etappe 8: Alltag
+  if (werkzeug === "liste") {
+    const aktion = args.aktion === "weg" || args.aktion === "leeren" || args.aktion === "schicken" ? args.aktion : "dazu";
+    const eintraege = Array.isArray(args.eintraege) ? args.eintraege.map((e) => kurzText(e, 80)).filter(Boolean).slice(0, 20) : [];
+    return { typ: "alltag", was: "liste", aktion, name: kurzText(args.name, 30) || "Einkauf", eintraege };
+  }
+  if (werkzeug === "diktat") return kurzText(args.text, 1500) ? { typ: "alltag", was: "diktat", text: String(args.text).trim().slice(0, 1500) } : null;
+  if (werkzeug === "sprachnachricht") return kurzText(args.text, 1200) ? { typ: "alltag", was: "sprache", text: kurzText(args.text, 1200) } : null;
+  if (werkzeug === "karte_schicken") {
+    const ziel = kurzText(args.ziel, 120);
+    return ziel ? { typ: "alltag", was: "karte", ziel, modus: args.modus === "bahn" || args.modus === "zu_fuss" ? args.modus : "auto" } : null;
+  }
+  if (werkzeug === "gewohnheit") {
+    const name = kurzText(args.was, 30);
+    const anzahl = Number.isFinite(Number(args.anzahl)) ? Math.max(-20, Math.min(20, Math.round(Number(args.anzahl)))) : name ? 1 : 0;
+    return { typ: "alltag", was: "gewohnheit", ...(name ? { name } : {}), anzahl: name ? anzahl : 0 };
+  }
+  if (werkzeug === "geburtstag") {
+    const name = kurzText(args.name, 40);
+    if (args.weg === true) return name ? { typ: "alltag", was: "geburtstag", name, weg: true } : null;
+    const datum = kurzText(args.datum, 20);
+    return { typ: "alltag", was: "geburtstag", ...(name ? { name } : {}), ...(datum ? { datum } : {}) };
+  }
+  if (werkzeug === "notfall") {
+    const name = kurzText(args.kontakt_name, 40);
+    const nummer = kurzText(args.kontakt_nummer, 25);
+    return name && nummer ? { typ: "alltag", was: "notfallkontakt", name, nummer } : { typ: "alltag", was: "notfall" };
+  }
+  if (werkzeug === "wo_war_ich") {
+    if (args.geparkt === true) return { typ: "alltag", was: "geparkt" };
+    const uhrzeit = kurzText(args.uhrzeit, 5);
+    return uhrzeit ? { typ: "alltag", was: "wo_war_ich", tag: kurzText(args.tag, 10) || "heute", uhrzeit } : null;
+  }
+  if (werkzeug === "freie_zeiten") return { typ: "alltag", was: "frei", tage: Number.isFinite(Number(args.tage)) ? Math.max(1, Math.min(14, Math.round(Number(args.tage)))) : 7 };
+  if (werkzeug === "heute_besprochen") return { typ: "alltag", was: "besprochen" };
+  if (werkzeug === "claude_limit") return { typ: "alltag", was: "limit" };
   // ── Etappe 7
   if (werkzeug === "team_aufgabe") {
     const wer = kurzText(args.wer, 40);
@@ -425,7 +463,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
 
 export function briefText(b: BriefMitZeit): string {
   const kopf =
-    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "nachricht" ? "Nachricht an David" : b.typ === "erinnerung_aendern" ? `Geplanten Anruf ${b.nr} ändern` : b.typ === "teamaufgabe" ? `Team: ${b.wer}` : b.typ === "teamnachricht" ? `Team-Nachricht ${b.wer}` : b.typ === "teamanruf" ? `Team anrufen: ${b.wer}` : b.typ === "demo" ? `Demo ${b.kunde}` : b.typ === "idee" ? "Idee" : b.typ === "recherche" ? `Recherche ${b.art}` : b.typ === "mailentwurf" ? `Mail-Entwurf an ${b.an}` : b.typ === "frist" ? `Frist: ${b.titel}` : b.typ === "preis" ? "Preis rechnen" : b.typ === "geld" ? "Geld" : b.typ === "schuldaten" ? `Schule: ${b.was}` : b.typ === "lernen" ? `Lernen ${b.aktion}` : b.typ === "abfrage" ? `Abfrage ${b.fach}` : b.typ === "pause" ? (b.aufheben ? "Pause aus" : `${b.fokus ? "Fokus" : "Pause"} bis ${b.bis}`) : b.typ === "einstellung" ? `${b.was} ${b.an ? "an" : "aus"}` : b.typ === "wunsch" ? "Wunschliste" : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
+    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "nachricht" ? "Nachricht an David" : b.typ === "erinnerung_aendern" ? `Geplanten Anruf ${b.nr} ändern` : b.typ === "alltag" ? (b.was === "liste" ? `Liste ${b.name ?? ""}` : `Alltag: ${b.was}`) : b.typ === "teamaufgabe" ? `Team: ${b.wer}` : b.typ === "teamnachricht" ? `Team-Nachricht ${b.wer}` : b.typ === "teamanruf" ? `Team anrufen: ${b.wer}` : b.typ === "demo" ? `Demo ${b.kunde}` : b.typ === "idee" ? "Idee" : b.typ === "recherche" ? `Recherche ${b.art}` : b.typ === "mailentwurf" ? `Mail-Entwurf an ${b.an}` : b.typ === "frist" ? `Frist: ${b.titel}` : b.typ === "preis" ? "Preis rechnen" : b.typ === "geld" ? "Geld" : b.typ === "schuldaten" ? `Schule: ${b.was}` : b.typ === "lernen" ? `Lernen ${b.aktion}` : b.typ === "abfrage" ? `Abfrage ${b.fach}` : b.typ === "pause" ? (b.aufheben ? "Pause aus" : `${b.fokus ? "Fokus" : "Pause"} bis ${b.bis}`) : b.typ === "einstellung" ? `${b.was} ${b.an ? "an" : "aus"}` : b.typ === "wunsch" ? "Wunschliste" : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
   // ``` im Text würde den Block beenden
   const json = JSON.stringify(b).replace(/`/g, "'");
   return `${BRIEF_MARKE} · ${kopf}\n\`\`\`json\n${json}\n\`\`\``;
@@ -437,7 +475,7 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   if (!m) return null;
   try {
     const j = JSON.parse(m[1]) as BriefMitZeit;
-    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg", "nachricht", "wunsch", "erinnerung_aendern", "pause", "einstellung", "schuldaten", "lernen", "abfrage", "mailentwurf", "frist", "preis", "geld", "teamaufgabe", "teamnachricht", "teamanruf", "demo", "idee", "recherche"].includes(j.typ)) return null;
+    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg", "nachricht", "wunsch", "erinnerung_aendern", "pause", "einstellung", "schuldaten", "lernen", "abfrage", "mailentwurf", "frist", "preis", "geld", "teamaufgabe", "teamnachricht", "teamanruf", "demo", "idee", "recherche", "alltag"].includes(j.typ)) return null;
     return typeof j.zeit === "string" ? j : null;
   } catch {
     return null;
@@ -650,6 +688,17 @@ const WERKZEUGE_LIVE = [
   fn("nachschauen", "Das Team sucht in Notion, den Mails von kontakt@agentsgilt.com, im Kalender, in Omi (Davids Gespräche und Aufgaben), in Stripe, Vercel und im Tresor nach einer Antwort. Dauert meist unter einer Minute, das Ergebnis kommt im Gespräch nach. Das Ergebnis kommt nicht als Antwort auf diesen Aufruf.", { frage: txt("Die Frage in einem klaren Satz") }, ["frage"]),
   fn("schule_aktualisieren", "Schaut frisch im Schulportal nach (Vertretung, Entfall, Räume). Das Ergebnis kommt im Gespräch nach."),
   fn("erinnerung_erledigt", "David sagt zu einer Erinnerung oder einem geplanten Anruf „erledigt“, „hab ich schon“, „ruf deswegen nicht mehr an“ oder „mach ich später“. Dann gibt es dazu keinen Anruf mehr. Sagt er „später“ mit Zeit („um halb acht“, „in einer Stunde“), plant spaeter_uhrzeit oder spaeter_minuten den einen neuen Anruf. Sagt er nur „später“, frag einmal kurz, wann.", { thema: txt("Stichwort, worum es geht, zum Beispiel „Marc Mail“"), erst_morgen: { type: "boolean", description: "true bei „heute nicht mehr wegen X“: alles dazu auf morgen statt weg" }, spaeter_uhrzeit: txt("Neuer Zeitpunkt HH:MM in Berliner Zeit, genau wie David ihn sagt"), spaeter_minuten: { type: "number", description: "Oder: in so vielen Minuten" }, text: txt("Woran dann erinnert werden soll, als Satz an David") }, ["thema"]),
+  fn("liste", "Einkaufs- oder Merkliste per Zuruf: aktion dazu oder weg (eintraege), leeren, oder schicken (kommt aufs Handy). Ohne eintraege bei dazu: sagt, was draufsteht.", { aktion: { type: "string", enum: ["dazu", "weg", "leeren", "schicken"] }, name: txt("Name der Liste, Standard Einkauf"), eintraege: { type: "array", items: { type: "string" } } }, ["aktion"]),
+  fn("diktat", "David diktiert einen Text für jemanden (zum Beispiel für WhatsApp). Formulier ihn sauber in Davids Ton und schreib ihn hier ganz hin; er kommt pur aufs Handy zum Kopieren. Luca schickt ihn nie selbst an andere.", { text: txt("Der fertige Text") }, ["text"]),
+  fn("karte_schicken", "Schickt David einen Karten-Link zum Ziel aufs Handy (Apple Karten mit Wegbeschreibung).", { ziel: txt("Ziel, Name oder Adresse"), modus: { type: "string", enum: ["auto", "bahn", "zu_fuss"] } }, ["ziel"]),
+  fn("sprachnachricht", "Schickt David etwas als Sprachnachricht aufs Handy, wenn er lieber hört als liest.", { text: txt("Was gesagt werden soll, kurz") }, ["text"]),
+  fn("gewohnheit", "Zählt Gewohnheiten: was (Wasser, Gym, Lernen, Lesen …) und anzahl (Standard 1). Ohne was: sagt, was heute gezählt ist. Gym zählt auch von selbst über den Standort.", { was: txt("Gewohnheit"), anzahl: { type: "number" } }),
+  fn("geburtstag", "Geburtstag merken (name, datum wie 21.11.), mit weg true entfernen, ohne Angaben: wer bald Geburtstag hat. Luca erinnert 7 Tage vorher, am Vortag und am Tag.", { name: txt("Name"), datum: txt("Tag und Monat, zum Beispiel 21.11."), weg: { type: "boolean" } }),
+  fn("notfall", "Notfall: schickt David seinen Notfallkontakt und seinen Standort aufs Handy. Mit kontakt_name und kontakt_nummer wird der Notfallkontakt eingetragen. Im echten Notfall immer zuerst 112.", { kontakt_name: txt("Nur zum Eintragen: Name"), kontakt_nummer: txt("Nur zum Eintragen: Nummer") }),
+  fn("wo_war_ich", "Davids eigener Standort-Verlauf (drei Tage): wo er an einem Tag um eine Uhrzeit war, oder mit geparkt true, wo seine letzte Fahrt endete.", { tag: txt("heute, gestern oder vorgestern"), uhrzeit: txt("HH:MM"), geparkt: { type: "boolean" } }),
+  fn("freie_zeiten", "Freie Zeiten aus Davids Kalender und Stundenplan für die nächsten Tage („Wann passt es Ferdi und mir?“, Davids Seite). Das Ergebnis kommt ins Gespräch.", { tage: { type: "number", description: "Wie viele Tage, Standard 7" } }),
+  fn("heute_besprochen", "Was David und Luca heute am Telefon abgemacht haben."),
+  fn("claude_limit", "Wie weit Davids Claude-Limit verbraucht ist und wann es sich zurücksetzt."),
   fn("team_aufgabe", "Aufgabe im Team verteilen (wer, was, bis) oder mit erledigt true abhaken. Nur Leute aus dem Team.", { wer: txt("Name aus dem Team"), was: txt("Aufgabe"), bis: txt("Bis wann"), erledigt: { type: "boolean" } }, ["wer", "was"]),
   fn("team_nachricht", "Nachricht für ein Teammitglied vorbereiten. Sie kommt als fertiger Text auf Davids Handy zum Weiterleiten; Luca schickt selbst nie etwas ans Team.", { wer: txt("Name aus dem Team"), text: txt("Der fertige Text") }, ["wer", "text"]),
   fn("team_anrufen", "Luca ruft ein Teammitglied an und erklärt etwas (zum Beispiel wie der Telefon-Assistent funktioniert). Nur Leute aus dem Team-Register, nur tagsüber (8 bis 21 Uhr), nur nach Davids klarem Ja, das Luca vorher wiederholt hat (bestaetigt true). Kundeninfos nur, wenn David sie ausdrücklich freigibt (kundeninfo_freigegeben true), sonst weglassen.", { wer: txt("Name aus dem Team"), worum: txt("Was Luca erklären soll"), bestaetigt: { type: "boolean" }, kundeninfo: txt("Nur freigegebene Kundeninfos"), kundeninfo_freigegeben: { type: "boolean" } }, ["wer", "worum", "bestaetigt"]),
