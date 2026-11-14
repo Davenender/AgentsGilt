@@ -114,3 +114,17 @@ test("Etappe 4: Pause, Fokus, Einstellungen, Überblick und dringend", async () 
   for (const b of [{ typ: "pause", bis: "morgen", zeit: "z" }, { typ: "einstellung", was: "schlafhinweis", an: false, zeit: "z" }] as const) assert.ok(briefLesen(briefText(b)), b.typ);
   assert.ok((ZEIG_VORLAGEN as readonly string[]).includes("tageskarte"));
 });
+
+// Etappe 5 (14.11.): Schule am Telefon
+test("Etappe 5: Schule eintragen, Stoppuhr, Abfrage, Anzeigen", async () => {
+  const { briefLesen, ZEIG_VORLAGEN } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("schule_eintragen", { was: "hausaufgabe", fach: "Mathe", text: "S. 12 Nr. 3", bis: "morgen" }, "s"), { typ: "schuldaten", was: "hausaufgabe", fach: "Mathe", text: "S. 12 Nr. 3", bis: "morgen" });
+  assert.deepEqual(briefAus("schule_eintragen", { was: "note", fach: "Bio", art: "klausur", punkte: 11 }, "s"), { typ: "schuldaten", was: "note", fach: "Bio", art: "klausur", punkte: 11 });
+  assert.deepEqual(briefAus("schule_eintragen", { was: "lernthemen", fach: "Mathe", klausur: "02.12.", themen: ["Ableitungen", "Integrale"] }, "s"), { typ: "schuldaten", was: "lernthemen", fach: "Mathe", klausur: "02.12.", themen: ["Ableitungen", "Integrale"] });
+  assert.equal(briefAus("schule_eintragen", { was: "quatsch" }, "s"), null);
+  assert.deepEqual(briefAus("lernen", { aktion: "start", fach: "Bio" }, "s"), { typ: "lernen", aktion: "start", fach: "Bio" });
+  assert.deepEqual(briefAus("lernen", { aktion: "stopp", fach: "Bio", thema: "Operon" }, "s"), { typ: "lernen", aktion: "stopp", fach: "Bio", thema: "Operon" });
+  assert.deepEqual(briefAus("abfrage", { fach: "Bio" }, "s"), { typ: "abfrage", fach: "Bio" });
+  for (const b of [{ typ: "schuldaten", was: "note", fach: "Bio", punkte: 11, zeit: "z" }, { typ: "lernen", aktion: "start", zeit: "z" }, { typ: "abfrage", fach: "Bio", zeit: "z" }] as const) assert.ok(briefLesen(briefText(b)), b.typ);
+  for (const v of ["klausuren", "hausaufgaben", "lernzeit"]) assert.ok((ZEIG_VORLAGEN as readonly string[]).includes(v), v);
+});
