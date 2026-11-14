@@ -221,3 +221,24 @@ test("Etappe 8: Alltag-Briefe kommen durch den Briefkasten", async () => {
   const b = briefLesen(briefText({ ...briefAus("liste", { aktion: "dazu", name: "Einkauf", eintraege: ["Milch"] })!, zeit: "2026-11-14T09:00:00Z" }));
   assert.equal(b?.typ, "alltag");
 });
+
+test("Etappe 9: Luca selbst – Vorlieben, Vergessen, was Luca weiß, Woche, heute, Systemcheck", async () => {
+  const { briefAus, briefLesen, briefText, ZEIG_VORLAGEN, LUCA_WERKZEUGE } = await import("../lib/luca-logik.ts");
+  const ohneZeit = (b: unknown) => {
+    const rest = { ...(b as Record<string, unknown>) };
+    delete rest.zeit;
+    return rest;
+  };
+  assert.deepEqual(ohneZeit(briefAus("vorliebe_merken", { text: "Ruf mich nie vor 8 an" })), { typ: "selbst", was: "vorliebe", text: "Ruf mich nie vor 8 an" });
+  assert.equal(briefAus("vorliebe_merken", { text: "" }), null);
+  assert.deepEqual(ohneZeit(briefAus("vergessen", { was: "Nummer 2" })), { typ: "selbst", was: "vergessen", text: "Nummer 2" });
+  assert.deepEqual(ohneZeit(briefAus("was_weisst_du", {})), { typ: "selbst", was: "weiss" });
+  assert.deepEqual(ohneZeit(briefAus("woche_geschafft", {})), { typ: "selbst", was: "woche" });
+  assert.deepEqual(ohneZeit(briefAus("heute_gemacht", {})), { typ: "selbst", was: "heute" });
+  assert.deepEqual(ohneZeit(briefAus("systemcheck", {})), { typ: "selbst", was: "check" });
+  const b = briefLesen(briefText({ ...briefAus("was_weisst_du", {})!, zeit: "2026-11-14T09:00:00Z" }));
+  assert.equal(b?.typ, "selbst");
+  for (const v of ["anrufverlauf", "ampel", "limits", "ueberdich", "wochenrueckblick", "ideen"]) assert.ok((ZEIG_VORLAGEN as readonly string[]).includes(v), v);
+  const namen = LUCA_WERKZEUGE.map((w) => w.function.name);
+  for (const n of ["vorliebe_merken", "vergessen", "was_weisst_du", "woche_geschafft", "heute_gemacht", "systemcheck"]) assert.ok(namen.includes(n), n);
+});
