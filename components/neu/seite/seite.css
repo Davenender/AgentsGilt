@@ -366,7 +366,9 @@
     opacity: 1;
   }
 }
-.ag-gk__glas {
+.ag-gk__glas,
+.ag-kon__glas,
+.ag-anfrage__glas {
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -390,7 +392,9 @@
 }
 /* Der Rand: 1 px. Oben die helle Lichtkante, darunter ein dünner Goldschimmer. Wo der Stern gerade
    ist, fangen Kante und Rand sein Licht (ein weicher Fleck, der mit ihm wandert). */
-.ag-gk__glas::after {
+.ag-gk__glas::after,
+.ag-kon__glas::after,
+.ag-anfrage__glas::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1559,13 +1563,450 @@ html.ag-fuss-oben .ag-kopf__marke {
   }
 }
 
+/* ───────────── Kontakt (KontaktBereich.tsx) ─────────────
+   Anrufen steht im Mittelpunkt: der Hauptsatz, darunter die Anruf-Karte aus Glas (dasselbe
+   Milchglas wie die Karten unter der ersten Aussage), klein der Hinweis auf den Chat und am
+   kleinsten „Lieber schreiben?“ als Glaskarte mit dem Formular. */
+.ag-kon {
+  display: grid;
+  gap: clamp(26px, 3.4vh, 38px);
+}
+.ag-kon__haupt {
+  max-width: min(880px, 100%);
+  font-size: clamp(1.28rem, 1.85vw, 1.7rem);
+  font-weight: 500;
+  line-height: 1.34;
+  color: var(--elfenbein);
+  text-wrap: balance;
+}
+.ag-kon__haupt strong {
+  font-weight: 500;
+  color: var(--gold-hell);
+}
+.ag-kon__karten {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  width: min(880px, 100%);
+  margin-top: 6px;
+}
+.ag-kon__teil {
+  width: 100%;
+}
+/* Kein Stern hinter diesen Karten: Der Rand zeigt nur seine ruhige Lichtkante und den Goldschimmer. */
+.ag-kon__karte,
+.ag-anfrage--glas {
+  --sx: -400px;
+  --sy: 50%;
+  --sd: 0;
+}
+
+/* ── Die Anruf-Karte. */
+.ag-kon__anruf {
+  position: relative;
+  z-index: 0;
+}
+/* Hinter der Karte ein schwacher goldener Schein, ganz leise wie der Stern des Logos: Er atmet
+   kaum merklich. Unter der Maus wird er etwas heller. */
+.ag-kon__schein {
+  position: absolute;
+  inset: -70% -12% -78%;
+  z-index: -1;
+  opacity: 0.7;
+  pointer-events: none;
+  transition: opacity 0.7s var(--weich);
+}
+.ag-kon__schein::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(46% 44% at 40% 50%, rgba(226, 172, 70, 0.4) 0%, rgba(212, 162, 60, 0.15) 42%, rgba(212, 162, 60, 0) 72%);
+  animation: ag-kon-atmen 5.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes ag-kon-atmen {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.ag-kon__karte {
+  position: relative;
+  border-radius: 30px;
+  transition: translate 0.7s var(--weich);
+}
+.ag-kon__innen {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px clamp(18px, 2.4vw, 32px);
+  padding: 18px 18px 18px clamp(24px, 2.6vw, 34px);
+}
+.ag-kon__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #c9f2dc;
+}
+/* Der grüne Punkt atmet sanft wie ein Statuslicht. */
+.ag-kon__status i {
+  position: relative;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #4fdc92;
+  box-shadow: 0 0 10px rgba(79, 220, 146, 0.75);
+}
+.ag-kon__status i::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79, 220, 146, 0.5) 0%, rgba(79, 220, 146, 0) 70%);
+  animation: ag-kon-status 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes ag-kon-status {
+  from {
+    opacity: 0.25;
+    scale: 0.7;
+  }
+  to {
+    opacity: 1;
+    scale: 1.15;
+  }
+}
+.ag-kon__nummer {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  font-size: clamp(1.5rem, 2.3vw, 2rem);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--elfenbein);
+  transition: color 0.3s var(--weich);
+}
+.ag-kon__innen > .ag-knopf {
+  margin-left: auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-kon__anruf:hover .ag-kon__schein {
+    opacity: 1;
+  }
+  .ag-kon__anruf:hover .ag-kon__karte {
+    translate: 0 -3px;
+  }
+  .ag-kon__anruf:hover .ag-kon__glas {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 38px 70px -30px rgba(0, 0, 0, 0.86),
+      0 14px 28px -16px rgba(0, 0, 0, 0.6);
+  }
+  .ag-kon__nummer:hover {
+    color: var(--gold-hell);
+  }
+}
+
+/* ── Der Hinweis auf den Chat: klein. Fährt die Maus darüber, läuft ein feiner Lichtpunkt zum
+   Chat-Knopf unten rechts, und der leuchtet kurz auf (html.ag-chat-wink). */
+.ag-kon__chat {
+  width: auto;
+  padding-inline: 4px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--nebel);
+  transition: color 0.3s var(--weich);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-kon__chat:hover {
+    color: var(--elfenbein);
+  }
+}
+.ag-kon__funke {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 94;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.ag-kon__funke::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff3d0;
+  box-shadow:
+    0 0 8px 2px rgba(246, 204, 122, 0.95),
+    0 0 26px 8px rgba(240, 168, 58, 0.5);
+}
+html.ag-chat-wink .ag-chat__kugel {
+  animation: ag-chat-wink 1.4s var(--weich) both;
+}
+@keyframes ag-chat-wink {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 12px 30px rgba(0, 0, 0, 0.45);
+    filter: brightness(1);
+  }
+  30% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      0 0 0 1px rgba(243, 210, 122, 0.6),
+      0 0 26px rgba(246, 196, 104, 0.8),
+      0 0 74px rgba(240, 168, 58, 0.5),
+      0 12px 30px rgba(0, 0, 0, 0.45);
+    filter: brightness(1.55);
+  }
+}
+
+/* ── „Lieber schreiben?“: die kleinste der Karten. Ein Klick öffnet das Formular; die Karte gleitet
+   nach unten auf (die Seite springt nicht). Aufbau: Glas dahinter, Schalter, Klappe mit Formular. */
+.ag-anfrage--glas {
+  position: relative;
+  width: 100%;
+  border: 0;
+  border-radius: 24px;
+  background: none;
+}
+.ag-anfrage--glas .ag-anfrage__schalter {
+  position: relative;
+  min-height: 62px;
+  padding: 9px 9px 9px 24px;
+  border-radius: 24px;
+  font-size: 15.5px;
+}
+.ag-anfrage__zeilen {
+  display: grid;
+  gap: 1px;
+}
+.ag-anfrage__zeilen small {
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--leise);
+}
+.ag-anfrage--glas .ag-anfrage__schalter span:nth-child(2) {
+  font-size: 14px;
+}
+.ag-anfrage--glas .ag-anfrage__schalter .ag-kreis {
+  width: 42px;
+  height: 42px;
+  background: rgba(255, 255, 255, 0.06);
+  transition: transform 0.5s var(--weich);
+}
+.ag-anfrage--glas .ag-anfrage__klappe {
+  position: relative;
+}
+.ag-anfrage--glas form,
+.ag-anfrage--glas .ag-anfrage__danke {
+  padding: 8px 24px 26px;
+}
+/* Die Felder: dunkles Glas. Das Licht dahinter zeigt, wo man gerade ist:
+   - gerade am Ausfüllen: ein weicher goldener Schein, so groß wie das Feld, weit auslaufend;
+   - ausgefüllt: ein ganz leichter Goldschimmer bleibt;
+   - Pflichtfeld fehlt nach „Anfrage absenden“: ein weicher roter Schein, darunter ein kurzer Satz.
+     Sobald es ausgefüllt ist, wird er golden. */
+/* Erscheint unter einem Feld der Satz, bleibt das Feld daneben an seinem Platz. */
+.ag-anfrage--glas .ag-feld {
+  align-content: start;
+}
+.ag-anfrage--glas .ag-feld :is(input, select, textarea) {
+  border-color: rgba(241, 238, 230, 0.15);
+  background-color: rgba(6, 9, 20, 0.6);
+  box-shadow: 0 0 0 0 rgba(212, 162, 60, 0);
+  transition:
+    border-color 0.4s var(--weich),
+    background-color 0.5s var(--weich),
+    box-shadow 0.55s var(--weich);
+}
+.ag-anfrage--glas .ag-feld[data-voll] :is(input, select, textarea) {
+  border-color: rgba(243, 210, 122, 0.3);
+  background-color: rgba(24, 19, 12, 0.6);
+  box-shadow:
+    0 0 26px 2px rgba(212, 162, 60, 0.12),
+    0 0 70px 10px rgba(212, 162, 60, 0.05);
+}
+.ag-anfrage--glas .ag-feld :is(input, select, textarea):focus {
+  border-color: rgba(243, 210, 122, 0.85);
+  background-color: rgba(30, 23, 12, 0.66);
+  box-shadow:
+    0 0 0 1px rgba(243, 210, 122, 0.3),
+    0 0 34px 6px rgba(226, 172, 70, 0.34),
+    0 0 96px 22px rgba(212, 162, 60, 0.16);
+}
+.ag-anfrage--glas .ag-feld[data-fehlt] :is(input, select, textarea),
+.ag-anfrage--glas .ag-feld[data-fehlt] :is(input, select, textarea):focus {
+  border-color: rgba(255, 138, 117, 0.85);
+  background-color: rgba(34, 12, 12, 0.62);
+  box-shadow:
+    0 0 0 1px rgba(255, 120, 100, 0.28),
+    0 0 34px 6px rgba(255, 86, 66, 0.3),
+    0 0 96px 22px rgba(255, 70, 52, 0.14);
+}
+/* Der kurze Satz unter dem Feld: Er schiebt sich weich auf, nichts springt. */
+.ag-feld__fehlt {
+  max-height: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #ffb3a4;
+  opacity: 0;
+  transition:
+    max-height 0.4s var(--weich),
+    opacity 0.4s var(--weich);
+}
+.ag-feld[data-fehlt] .ag-feld__fehlt {
+  max-height: 3em;
+  opacity: 1;
+}
+
+/* ── Auftritt: Die Karten schweben nacheinander als Glas ein (je 120 ms versetzt, leicht von unten).
+   Wie oben werden Glas und Inhalt einzeln eingeblendet, nicht die ganze Karte. */
+.ag-kon[data-an] .ag-kon__teil {
+  translate: 0 28px;
+  transition: translate 1s var(--weich);
+}
+.ag-kon[data-an] :is(.ag-kon__schein, .ag-kon__glas, .ag-kon__innen, .ag-kon__chat, .ag-anfrage__glas, .ag-anfrage__schalter, .ag-kon__whatsapp > *) {
+  opacity: 0;
+  transition: opacity 0.8s var(--weich);
+}
+.ag-kon[data-an] .ag-kon__glas {
+  transition:
+    opacity 0.8s var(--weich),
+    box-shadow 0.7s var(--weich);
+}
+.ag-kon[data-an][data-da] .ag-kon__teil {
+  translate: 0 0;
+}
+.ag-kon[data-an][data-da] :is(.ag-kon__glas, .ag-kon__innen, .ag-kon__chat, .ag-anfrage__glas, .ag-anfrage__schalter, .ag-kon__whatsapp > *) {
+  opacity: 1;
+}
+.ag-kon[data-an][data-da] .ag-kon__schein {
+  opacity: 0.7;
+  transition:
+    opacity 1.4s var(--weich) 0.3s,
+    opacity 0.7s var(--weich);
+}
+.ag-kon[data-an][data-da] .ag-kon__teil:nth-child(2),
+.ag-kon[data-an][data-da] .ag-kon__teil:nth-child(2) :is(.ag-kon__chat, .ag-anfrage__glas, .ag-anfrage__schalter),
+.ag-kon[data-an][data-da] .ag-kon__teil:nth-child(2).ag-kon__chat,
+.ag-kon[data-an][data-da] .ag-kon__teil:nth-child(2) > .ag-knopf {
+  transition-delay: 0.12s;
+}
+.ag-kon[data-an][data-da] .ag-kon__teil:nth-child(3),
+.ag-kon[data-an][data-da] .ag-kon__teil:nth-child(3) :is(.ag-anfrage__glas, .ag-anfrage__schalter),
+.ag-kon[data-an][data-da] .ag-kon__teil:nth-child(3).ag-kon__chat {
+  transition-delay: 0.24s;
+}
+.ag-kon[data-an][data-da] .ag-kon__teil:nth-child(4),
+.ag-kon[data-an][data-da] .ag-kon__teil:nth-child(4) :is(.ag-anfrage__glas, .ag-anfrage__schalter) {
+  transition-delay: 0.36s;
+}
+@media (max-width: 720px) {
+  /* Schmal: Status, Nummer und Knopf stehen untereinander; der Knopf geht über die ganze Breite. */
+  .ag-kon__innen {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 22px 18px 18px;
+  }
+  .ag-kon__status,
+  .ag-kon__nummer {
+    padding-inline: 6px;
+  }
+  .ag-kon__nummer {
+    font-size: clamp(1.6rem, 7.4vw, 2rem);
+  }
+  .ag-kon__innen > .ag-knopf {
+    margin: 10px 0 0;
+  }
+  .ag-anfrage--glas form,
+  .ag-anfrage--glas .ag-anfrage__danke {
+    padding-inline: 18px;
+  }
+}
+@media (max-width: 599px) {
+  /* Am Handy: links die zwei Zeilen, rechts das Plus. „Anfrage-Formular öffnen“ bleibt für
+     Vorleseprogramme, ist aber nicht zu sehen (sonst stünde es in einer eigenen Zeile). */
+  .ag-anfrage--glas .ag-anfrage__schalter {
+    flex-wrap: nowrap;
+    padding-left: 20px;
+  }
+  .ag-anfrage--glas .ag-anfrage__schalter span:nth-child(2) {
+    position: absolute;
+    order: 0;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ag-anfrage--glas .ag-anfrage__schalter .ag-kreis {
+    flex: none;
+    margin-left: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ag-kon__schein::before,
+  .ag-kon__status i::after {
+    animation: none;
+  }
+  html.ag-chat-wink .ag-chat__kugel {
+    animation: none;
+  }
+}
+
 /* ───────────── Mauszeiger (Zeiger.tsx) ─────────────
-   Nur bei echter Maus. Der gewöhnliche Zeiger bleibt in Eingabefeldern und über dem Chat-Fenster. */
+   Nur bei echter Maus. Der gewöhnliche Zeiger bleibt in Eingabefeldern und über dem Chat-Fenster.
+
+   Der goldene Punkt ist der echte Mauszeiger des Systems: ein kleines Bild (8 px Goldpunkt in
+   32 × 32, für scharfe Bildschirme doppelt aufgelöst). Den zeichnet das System selbst, sofort und
+   unabhängig davon, wie lange die Seite für ihr nächstes Bild braucht. Ein Punkt, den die Seite
+   zeichnet, käme immer erst mit dem nächsten Bild der Seite (über dem Licht im Kopfbereich
+   gemessen: rund 8 Bilder später). Die Seite zeichnet nur noch, was nachziehen darf oder groß ist:
+   den Schein, den Ring über Links und die Glasblase. Dort ist der Zeiger des Systems aus. */
 html.ag-maus-an .ag-neu,
 html.ag-maus-an .ag-neu * {
+  cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABrElEQVR42u2VT0sbURTF73lvMo6ZmFSwiK5KpRs3bUGKG1cudZv0O7h2oS58BFHI2m9hPoD7lu5CKxKqCKFuuyiEEDXJzLzjYvwToYuMTgOF+a2GgXfvuee+e59IRkZGxv8MKSCJ8Sc2RvGorB+FGEUaNbbkD99NU+CFKQ4LSRoPySwnAPB3Y3OhNDW5z5ArFNGOVo2rbrg7vXTwnTQKqNpRY6rRk8fVtU+33hZ97+tEfuKziMxDZDbnOWv5KedLu7nzCajao6H2pCZA5CcAUIuqeQVvrvPnqh+EEYPQstO+Gbiu9rXlISkolxeZagserG9uFHz7qqUd9ToIIgFwf54QEQqjMLLvpj/WLkdtRaJLo7takaLlL/UxHksFCydJzJEEACBp1MzyYUfAhue7ICUYcijMT+YA4LzUav2KHasy5TsQLx5Yu93vBdfFoufe//fzbs6KiKVsolKPpF5Rd6akJyDup0HhQ+1Hv9tfHQTRN63Q0xqDiPbkuttbL70/OCaNQqUe/cP1O7SIzswbXuwtvGQRPVsE+XSCmGD2030T4qrH/yBlZGRkpMUt6DDG02gu8HcAAAAASUVORK5CYII=") 16 16, auto !important;
+  cursor: -webkit-image-set(url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABrElEQVR42u2VT0sbURTF73lvMo6ZmFSwiK5KpRs3bUGKG1cudZv0O7h2oS58BFHI2m9hPoD7lu5CKxKqCKFuuyiEEDXJzLzjYvwToYuMTgOF+a2GgXfvuee+e59IRkZGxv8MKSCJ8Sc2RvGorB+FGEUaNbbkD99NU+CFKQ4LSRoPySwnAPB3Y3OhNDW5z5ArFNGOVo2rbrg7vXTwnTQKqNpRY6rRk8fVtU+33hZ97+tEfuKziMxDZDbnOWv5KedLu7nzCajao6H2pCZA5CcAUIuqeQVvrvPnqh+EEYPQstO+Gbiu9rXlISkolxeZagserG9uFHz7qqUd9ToIIgFwf54QEQqjMLLvpj/WLkdtRaJLo7takaLlL/UxHksFCydJzJEEACBp1MzyYUfAhue7ICUYcijMT+YA4LzUav2KHasy5TsQLx5Yu93vBdfFoufe//fzbs6KiKVsolKPpF5Rd6akJyDup0HhQ+1Hv9tfHQTRN63Q0xqDiPbkuttbL70/OCaNQqUe/cP1O7SIzswbXuwtvGQRPVsE+XSCmGD2030T4qrH/yBlZGRkpMUt6DDG02gu8HcAAAAASUVORK5CYII=") 1x, url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAADTElEQVR42u3YPWwcRRQH8P+b2b219+Jz/EFQEEhIVICEoQsUCJBoEE2KOxoEQhRQ0FBAAop0dxJQBEXpqECA+Cju6KmQASFCgaJgPioooxjFcZy73Zzvdmf+FGsTKyBkC90l67xfudLt3Lx5M/P2AUoppZRSSimllFJKKaUmg6SQlFts0k3D5WZw/fPl5WbATt3u78lfN0H+cWx2Y+X43D8CREwsK2Qyqw6RYjQmv554yBo8R4dHPXkXSGMDc15Efhh5/1nt/re/3d4eIsLSB6BYTaLVasnrjfyktebVaDo0fuiQ5Q4EEAYGthLAZQ5Z7j7ura6/cvvj7yWTCIKMffLdukH9Pqa/5F9U5+OjyaXEk/AAzI7xCYEHRWYWYptuDM5U880nsXRgALQ4ziCYsS5/t26k0XX9lexkdT4+2l9LRsWiSiAiRq4xAglEYPtr6ah6cPrhHsKPRNoeaEkpM4BsGpG276+88UAYBj8553LvYXc5ZnagNhX2rmw+Nbv0zpdkx4o0XLky4Ovi3SRejOIKcsddB5ygwJNG+FKRSd3SZYCQgAjYX3nzXDwVLqWDkRcRs8sCiVHFynDk/0w5vOfwg6fScR2IZkwVHkTA9R+PzYK4M8vdnoItIsgyD4C3xX76juLpeM6CsR6CsjAlAP7HsonAjvc/juXlUpQ9OHh3+woEq6EtjoO9ZFAQGAiwng3sha0MYJkygFxuBiIgIN/bKCAAv4cQ+igKSeDs4pF2r7hRhOXaAo/9RgDwOT70ud9Oit0eoR6hEaF8sPNGKV8l2KlbaXTdxrnjn8wuzjzbX0tGYqTyX7/xnlltLg57l9NvakvRE8WWavtyVoL1jiebZoDs5XTj6pmZhWqFZE7SkSSLc4FbnCfz2lwcDtLh78bIM0CbaJX+Y6i4vy9+99pMPF95P56uNEBguJkjdw4gEAQGURQAgcXw6vCr5HL6/OIjp89vV5P74HP4WhGT/HziaRvIC875IyAPkTTW2ovW4KwDPo3vfevznaX0vugH/P1l2GqKtItJ8cK71c1LyWExMNEhrMpiu7d188P7yfQCblBLrG7/rfVVdII6E2+JyY0LBARoynaRs29XXCmllFJKKaWUUkoppW4mfwHaM44Z4Xir+QAAAABJRU5ErkJggg==") 2x) 16 16, auto !important;
+  cursor: image-set(url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABrElEQVR42u2VT0sbURTF73lvMo6ZmFSwiK5KpRs3bUGKG1cudZv0O7h2oS58BFHI2m9hPoD7lu5CKxKqCKFuuyiEEDXJzLzjYvwToYuMTgOF+a2GgXfvuee+e59IRkZGxv8MKSCJ8Sc2RvGorB+FGEUaNbbkD99NU+CFKQ4LSRoPySwnAPB3Y3OhNDW5z5ArFNGOVo2rbrg7vXTwnTQKqNpRY6rRk8fVtU+33hZ97+tEfuKziMxDZDbnOWv5KedLu7nzCajao6H2pCZA5CcAUIuqeQVvrvPnqh+EEYPQstO+Gbiu9rXlISkolxeZagserG9uFHz7qqUd9ToIIgFwf54QEQqjMLLvpj/WLkdtRaJLo7takaLlL/UxHksFCydJzJEEACBp1MzyYUfAhue7ICUYcijMT+YA4LzUav2KHasy5TsQLx5Yu93vBdfFoufe//fzbs6KiKVsolKPpF5Rd6akJyDup0HhQ+1Hv9tfHQTRN63Q0xqDiPbkuttbL70/OCaNQqUe/cP1O7SIzswbXuwtvGQRPVsE+XSCmGD2030T4qrH/yBlZGRkpMUt6DDG02gu8HcAAAAASUVORK5CYII=") 1x, url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAADTElEQVR42u3YPWwcRRQH8P+b2b219+Jz/EFQEEhIVICEoQsUCJBoEE2KOxoEQhRQ0FBAAop0dxJQBEXpqECA+Cju6KmQASFCgaJgPioooxjFcZy73Zzvdmf+FGsTKyBkC90l67xfudLt3Lx5M/P2AUoppZRSSimllFJKKaUmg6SQlFts0k3D5WZw/fPl5WbATt3u78lfN0H+cWx2Y+X43D8CREwsK2Qyqw6RYjQmv554yBo8R4dHPXkXSGMDc15Efhh5/1nt/re/3d4eIsLSB6BYTaLVasnrjfyktebVaDo0fuiQ5Q4EEAYGthLAZQ5Z7j7ura6/cvvj7yWTCIKMffLdukH9Pqa/5F9U5+OjyaXEk/AAzI7xCYEHRWYWYptuDM5U880nsXRgALQ4ziCYsS5/t26k0XX9lexkdT4+2l9LRsWiSiAiRq4xAglEYPtr6ah6cPrhHsKPRNoeaEkpM4BsGpG276+88UAYBj8553LvYXc5ZnagNhX2rmw+Nbv0zpdkx4o0XLky4Ovi3SRejOIKcsddB5ygwJNG+FKRSd3SZYCQgAjYX3nzXDwVLqWDkRcRs8sCiVHFynDk/0w5vOfwg6fScR2IZkwVHkTA9R+PzYK4M8vdnoItIsgyD4C3xX76juLpeM6CsR6CsjAlAP7HsonAjvc/juXlUpQ9OHh3+woEq6EtjoO9ZFAQGAiwng3sha0MYJkygFxuBiIgIN/bKCAAv4cQ+igKSeDs4pF2r7hRhOXaAo/9RgDwOT70ud9Oit0eoR6hEaF8sPNGKV8l2KlbaXTdxrnjn8wuzjzbX0tGYqTyX7/xnlltLg57l9NvakvRE8WWavtyVoL1jiebZoDs5XTj6pmZhWqFZE7SkSSLc4FbnCfz2lwcDtLh78bIM0CbaJX+Y6i4vy9+99pMPF95P56uNEBguJkjdw4gEAQGURQAgcXw6vCr5HL6/OIjp89vV5P74HP4WhGT/HziaRvIC875IyAPkTTW2ovW4KwDPo3vfevznaX0vugH/P1l2GqKtItJ8cK71c1LyWExMNEhrMpiu7d188P7yfQCblBLrG7/rfVVdII6E2+JyY0LBARoynaRs29XXCmllFJKKaWUUkoppW4mfwHaM44Z4Xir+QAAAABJRU5ErkJggg==") 2x) 16 16, auto !important;
+}
+/* Gedrückt: der Punkt etwas kleiner. */
+html.ag-maus-an.ag-maus-druck .ag-neu,
+html.ag-maus-an.ag-maus-druck .ag-neu * {
+  cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAA0klEQVR42u3UMQ6CMBQG4P9vQSQRV64hl/EGmriw6wXcHXDwBpzGcBSjURR4DsTNgRrRkLxvatqX9uX1tYBSSqmhEsntu/GPDge7zHXhuR8uJCmn43o1CrwFANzL6kBu9681l/2Ma9lJyqXYLKM4yqxhYg2TKI6yS7FZkhTX63BJgMC8AYBaJG3OZX29VY/rrXo057KuRdI2bN60sT1UoA8uCQiQGwCw5M5MAhuOPT8ce76ZBNaSuzYsN21s57J+pwmns8+a8O/PcJgfkVJKqW96AlbtXx4FjcSMAAAAAElFTkSuQmCC") 16 16, auto !important;
+  cursor: -webkit-image-set(url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAA0klEQVR42u3UMQ6CMBQG4P9vQSQRV64hl/EGmriw6wXcHXDwBpzGcBSjURR4DsTNgRrRkLxvatqX9uX1tYBSSqmhEsntu/GPDge7zHXhuR8uJCmn43o1CrwFANzL6kBu9681l/2Ma9lJyqXYLKM4yqxhYg2TKI6yS7FZkhTX63BJgMC8AYBaJG3OZX29VY/rrXo057KuRdI2bN60sT1UoA8uCQiQGwCw5M5MAhuOPT8ce76ZBNaSuzYsN21s57J+pwmns8+a8O/PcJgfkVJKqW96AlbtXx4FjcSMAAAAAElFTkSuQmCC") 1x, url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABxElEQVR42u3XvU7jQBAH8Jnd9QeycESRR7iaU5QH4BkQoQXxApSECqgCL3GCNofuGXiACEHNI7hAMYpwbO8OhZ0TQXcUSElI8v9JaZwd2TueHY2JAAAAAAAAAAAAAABgXfAibioiTHfneurizrllZln5jEu/o7/y36yY+b75M8V8YdP702YYebtladtERMboQTYq/nCrl9Rr3ModAel3NO//tsOHk6MwDC79Da9JUlc8M+WvRZJl427j59WvydqVScDfzT92D+Kt6Dp7GVNe2pJ5UhlEvtEm3AwofR4dNrYvb+aVBJ5Hw2NmSe9Pm8pTT8bwZp5bYWb9YZ31fc1lKS+ucD/iVi+ZxM7y+dTs33/d7T3ai+KwMc6t+7j56hSwHufWRXHYII/2pmKXOgF39QYdtaty+KQcuS4ZR+33sUteAd/b7BOwU59xRQNiZpHP+kV1FkTR4H3ssveAqpMXdDtKs2HgayUi9h/N0ga+VqM0G1JBt1Oxy5wAZhbpd3Tc6iXW2eMgCpRntHYipVD1cyKlZ7QOokBZZ4/jVi+RfkfPYzTGILSAUdj9bxSOFzAKr/3HED6HAQAAAAAAAAAAAABgbbwBsWjvfv9DXI0AAAAASUVORK5CYII=") 2x) 16 16, auto !important;
+  cursor: image-set(url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAA0klEQVR42u3UMQ6CMBQG4P9vQSQRV64hl/EGmriw6wXcHXDwBpzGcBSjURR4DsTNgRrRkLxvatqX9uX1tYBSSqmhEsntu/GPDge7zHXhuR8uJCmn43o1CrwFANzL6kBu9681l/2Ma9lJyqXYLKM4yqxhYg2TKI6yS7FZkhTX63BJgMC8AYBaJG3OZX29VY/rrXo057KuRdI2bN60sT1UoA8uCQiQGwCw5M5MAhuOPT8ce76ZBNaSuzYsN21s57J+pwmns8+a8O/PcJgfkVJKqW96AlbtXx4FjcSMAAAAAElFTkSuQmCC") 1x, url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABxElEQVR42u3XvU7jQBAH8Jnd9QeycESRR7iaU5QH4BkQoQXxApSECqgCL3GCNofuGXiACEHNI7hAMYpwbO8OhZ0TQXcUSElI8v9JaZwd2TueHY2JAAAAAAAAAAAAAABgXfAibioiTHfneurizrllZln5jEu/o7/y36yY+b75M8V8YdP702YYebtladtERMboQTYq/nCrl9Rr3ModAel3NO//tsOHk6MwDC79Da9JUlc8M+WvRZJl427j59WvydqVScDfzT92D+Kt6Dp7GVNe2pJ5UhlEvtEm3AwofR4dNrYvb+aVBJ5Hw2NmSe9Pm8pTT8bwZp5bYWb9YZ31fc1lKS+ucD/iVi+ZxM7y+dTs33/d7T3ai+KwMc6t+7j56hSwHufWRXHYII/2pmKXOgF39QYdtaty+KQcuS4ZR+33sUteAd/b7BOwU59xRQNiZpHP+kV1FkTR4H3ssveAqpMXdDtKs2HgayUi9h/N0ga+VqM0G1JBt1Oxy5wAZhbpd3Tc6iXW2eMgCpRntHYipVD1cyKlZ7QOokBZZ4/jVi+RfkfPYzTGILSAUdj9bxSOFzAKr/3HED6HAQAAAAAAAAAAAABgbbwBsWjvfv9DXI0AAAAASUVORK5CYII=") 2x) 16 16, auto !important;
+}
+/* Über Links und Knöpfen (dort wird der Punkt zum Ring) und über Zertifikaten (Glasblase) zeichnet die Seite. */
+html.ag-maus-an .ag-neu :is(a, button, [role="button"], label, summary),
+html.ag-maus-an .ag-neu :is(a, button, [role="button"], label, summary) *,
+html.ag-maus-an .ag-neu [data-zeiger="ansehen"],
+html.ag-maus-an .ag-neu [data-zeiger="ansehen"] * {
   cursor: none !important;
 }
-html.ag-maus-an .ag-neu :is(input, textarea, select) {
+html.ag-maus-an .ag-neu :is(input, textarea, select, [contenteditable="true"]) {
   cursor: auto !important;
 }
 .ag-maus {
@@ -1602,7 +2043,9 @@ html.ag-maus-an .ag-neu :is(input, textarea, select) {
 .ag-maus[data-art="ansehen"] .ag-maus__schein::before {
   opacity: 0;
 }
-/* Der Punkt; über Links und Knöpfen wird er zu einem feinen Ring. */
+/* Der Punkt der Seite: Er zeigt sich nur noch als Ring (über Links und Knöpfen). In Ruhe ist der
+   Punkt der Zeiger des Systems; dieses Element ist dann unsichtbar. Beim Verlassen eines Links
+   schrumpft der Ring zum Punkt und blendet erst dann aus. */
 .ag-maus__punkt {
   position: absolute;
   top: -4px;
@@ -1617,10 +2060,22 @@ html.ag-maus-an .ag-neu :is(input, textarea, select) {
     background-color 0.25s linear,
     opacity 0.2s linear;
 }
+.ag-maus[data-art="punkt"] .ag-maus__punkt {
+  opacity: 0;
+  transition:
+    scale 0.35s var(--feder),
+    background-color 0.25s linear,
+    opacity 0.16s linear 0.22s;
+}
 .ag-maus[data-art="link"] .ag-maus__punkt {
   scale: 4.2;
   border-width: 0.3px;
   background: rgba(243, 210, 122, 0);
+  /* Sofort da: Der Zeiger des Systems ist in diesem Augenblick aus. */
+  transition:
+    scale 0.35s var(--feder),
+    background-color 0.25s linear,
+    opacity 0s;
 }
 .ag-maus[data-druck] .ag-maus__punkt {
   scale: 0.7;

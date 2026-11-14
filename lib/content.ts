@@ -26,6 +26,10 @@ export const site = {
   whatsappNumber: "4916098427943",
   whatsappMessage:
     "Hey, ich hätte Interesse an einer Dienstleistung bzw. habe allgemeine Fragen dazu!",
+  // Schalter für den Knopf „Per WhatsApp schreiben“ im Kontakt-Bereich der neuen
+  // Seite. Standard: AUS. WhatsApp geben wir nur heraus, wenn ein Kunde danach
+  // fragt. Auf true stellen, dann steht der Knopf wieder neben der Anruf-Karte.
+  whatsappAnzeigen: false,
   // Geschäftsnummer, auf der unser eigener KI-Voice-Agent abnimmt.
   // "phone" ist das Format für tel:-Links (nur Ziffern und +),
   // "phoneDisplay" das, was Besucher lesen.

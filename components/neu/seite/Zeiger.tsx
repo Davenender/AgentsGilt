@@ -5,17 +5,26 @@ import { zeiger } from "@/lib/inhalt-neu";
 import { istVorschau } from "../umgebung";
 
 const KLASSE = "ag-maus-an";
+const DRUCK = "ag-maus-druck";
 
 /**
  * Mauszeiger der neuen Seite (nur bei echter Maus, nicht bei „weniger Bewegung“):
- *   - Normal: ein kleiner Punkt, dem ein dezenter goldener Schein folgt.
+ *   - Normal: ein kleiner goldener Punkt, dem ein dezenter goldener Schein folgt.
  *   - Über Links und Knöpfen: Der Punkt wird zu einem feinen Ring.
  *   - Über einem Zertifikat (`data-zeiger="ansehen"`, nur dort, wo ein Klick etwas öffnet): eine
  *     kleine Glasblase mit „Ansehen“.
- *     Sie sitzt genau auf der Maus (ohne Nachziehen), wächst federnd und wird beim Klicken
- *     kurz kleiner. Echter Glas-Effekt: durchsichtig, mit leichter Linsen-Verzerrung über einen
- *     SVG-Filter (wo der Browser das kann), heller Lichtkante oben und feinem Goldschimmer.
+ *     Sie sitzt genau auf der Maus, wächst federnd und wird beim Klicken kurz kleiner. Echter
+ *     Glas-Effekt: durchsichtig, mit leichter Linsen-Verzerrung über einen SVG-Filter (wo der
+ *     Browser das kann), heller Lichtkante oben und feinem Goldschimmer.
  * In Eingabefeldern und über dem Chat-Fenster gilt der gewöhnliche Zeiger.
+ *
+ * Der Punkt hängt nie hinter der Maus her: Er ist der echte Mauszeiger des Systems (ein kleines
+ * Goldpunkt-Bild, Stylesheet). Das System zeichnet ihn sofort, ohne auf das nächste Bild der Seite
+ * zu warten. Was die Seite selbst zeichnet (Ring, Glasblase), sitzt ohne Nachziehen auf der Maus:
+ * Die Stelle wird direkt gesetzt, in `pointermove` und, wo der Browser es kann, schon in
+ * `pointerrawupdate` (jede Meldung der Maus, nicht erst zum nächsten Bild). Dieser Handler setzt
+ * nur die Stelle. Alles andere (welche Art Zeiger, der Schein) läuft einmal je Bild. Nur der
+ * weiche Schein zieht leicht nach.
  */
 export function Zeiger() {
   const wurzel = useRef<HTMLDivElement>(null);
@@ -27,72 +36,97 @@ export function Zeiger() {
     if (!el || !kern || !schein || istVorschau()) return;
     const fein = window.matchMedia("(hover: hover) and (pointer: fine)");
     const ruhig = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const erlaubt = () => fein.matches && !ruhig.matches;
     const html = document.documentElement;
+    let erlaubt = fein.matches && !ruhig.matches;
+    // Lage und Ziel der Maus: Nur der Handler unten schreibt sie.
     let x = 0;
     let y = 0;
+    let ziel: EventTarget | null = null;
+    let bewegt = false;
+    let andererZeiger = false;
     let sx = 0;
     let sy = 0;
     let rahmen = 0;
     let zuletzt = 0;
     let da = false;
 
+    // ── Der Handler für die Lage: Er setzt die Stelle und sonst nichts.
+    const setze = (ev: PointerEvent) => {
+      if (ev.pointerType !== "mouse") andererZeiger = true;
+      else {
+        x = ev.clientX;
+        y = ev.clientY;
+        ziel = ev.target;
+        bewegt = true;
+        kern.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
+      if (!rahmen) rahmen = requestAnimationFrame(bild);
+    };
+
     const aus = () => {
       da = false;
-      html.classList.remove(KLASSE);
+      html.classList.remove(KLASSE, DRUCK);
       delete el.dataset.da;
+      delete el.dataset.druck;
       cancelAnimationFrame(rahmen);
       rahmen = 0;
+      zuletzt = 0;
     };
-    // Der Schein zieht nach: je Bild 1 − 0,8^(dt × 60) zum Zeiger hin.
+    const welcheArt = (wo: Element | null) => {
+      // Außerhalb der neuen Seite (das Chat-Fenster) und in Eingabefeldern: der gewöhnliche Zeiger.
+      if (!wo?.closest?.(".ag-neu")) return "fremd";
+      if (wo.closest("input, textarea, select, [contenteditable='true']")) return "text";
+      // Die Glasblase gilt nur, wo man etwas öffnen kann (die Zertifikate): Sie geht dem Ring vor.
+      if (wo.closest("[data-zeiger='ansehen']")) return "ansehen";
+      if (wo.closest("a, button, [role='button'], label, summary")) return "link";
+      return "punkt";
+    };
+    // ── Einmal je Bild: Art des Zeigers und der Schein.
     const bild = (jetzt: number) => {
       rahmen = 0;
+      if (andererZeiger || !erlaubt) {
+        andererZeiger = false;
+        return aus();
+      }
+      if (bewegt) {
+        bewegt = false;
+        if (!da) {
+          da = true;
+          sx = x;
+          sy = y;
+          el.dataset.da = "1";
+        }
+        const art = welcheArt(ziel as Element | null);
+        if (el.dataset.art !== art) el.dataset.art = art;
+        html.classList.toggle(KLASSE, art !== "fremd");
+      }
+      // Der Schein zieht leicht nach: je Bild 1 − 0,55^(dt × 60) zum Zeiger hin.
       const dt = zuletzt ? Math.min(0.1, (jetzt - zuletzt) / 1000) : 1 / 60;
       zuletzt = jetzt;
-      const zug = 1 - Math.pow(0.8, dt * 60);
+      const zug = 1 - Math.pow(0.55, dt * 60);
       sx += (x - sx) * zug;
       sy += (y - sy) * zug;
       schein.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0)`;
       if (Math.abs(x - sx) + Math.abs(y - sy) > 0.4) rahmen = requestAnimationFrame(bild);
       else zuletzt = 0;
     };
-    const welcheArt = (ziel: Element | null) => {
-      // Außerhalb der neuen Seite (das Chat-Fenster) und in Eingabefeldern: der gewöhnliche Zeiger.
-      if (!ziel?.closest(".ag-neu")) return "fremd";
-      if (ziel.closest("input, textarea, select, [contenteditable='true']")) return "text";
-      // Die Glasblase gilt nur, wo man etwas öffnen kann (die Zertifikate): Sie geht dem Ring vor.
-      if (ziel.closest("[data-zeiger='ansehen']")) return "ansehen";
-      if (ziel.closest("a, button, [role='button'], label, summary")) return "link";
-      return "punkt";
-    };
-    const bewegt = (ev: PointerEvent) => {
-      if (ev.pointerType !== "mouse" || !erlaubt()) return aus();
-      x = ev.clientX;
-      y = ev.clientY;
-      // Der Kern sitzt genau auf der Maus: sofort gesetzt, ohne auf das nächste Bild zu warten.
-      kern.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      if (!da) {
-        da = true;
-        sx = x;
-        sy = y;
-        schein.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-        el.dataset.da = "1";
-      }
-      const art = welcheArt(ev.target as Element | null);
-      if (el.dataset.art !== art) el.dataset.art = art;
-      html.classList.toggle(KLASSE, art !== "fremd");
-      if (!rahmen) rahmen = requestAnimationFrame(bild);
-    };
     const runter = () => {
+      if (!da) return;
       el.dataset.druck = "1";
+      html.classList.add(DRUCK);
     };
     const hoch = () => {
       delete el.dataset.druck;
+      html.classList.remove(DRUCK);
     };
     const umstellen = () => {
-      if (!erlaubt()) aus();
+      erlaubt = fein.matches && !ruhig.matches;
+      if (!erlaubt) aus();
     };
-    window.addEventListener("pointermove", bewegt, { passive: true });
+    // Jede Meldung der Maus, nicht erst die gesammelte zum nächsten Bild (Chrome und Edge).
+    const roh = "onpointerrawupdate" in window;
+    if (roh) window.addEventListener("pointerrawupdate", setze as EventListener, { passive: true });
+    window.addEventListener("pointermove", setze, { passive: true });
     window.addEventListener("pointerdown", runter, { passive: true });
     window.addEventListener("pointerup", hoch, { passive: true });
     html.addEventListener("pointerleave", aus);
@@ -100,7 +134,8 @@ export function Zeiger() {
     fein.addEventListener("change", umstellen);
     ruhig.addEventListener("change", umstellen);
     return () => {
-      window.removeEventListener("pointermove", bewegt);
+      if (roh) window.removeEventListener("pointerrawupdate", setze as EventListener);
+      window.removeEventListener("pointermove", setze);
       window.removeEventListener("pointerdown", runter);
       window.removeEventListener("pointerup", hoch);
       html.removeEventListener("pointerleave", aus);

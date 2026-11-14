@@ -36,10 +36,15 @@
 //     zuletzt halber Takt). Die Zeichenfläche und das Korn bleiben immer in voller Auflösung. Am
 //     Computer gibt es nie ein Standbild; das ruhige Bild ist nur die letzte Rettung für sehr
 //     schwache Handys.
+//   - Sehr langsame Geräte (seit 14.11.2026): Ein Messfenster schließt spätestens nach 2 s, damit
+//     die Sparstufen auch bei wenigen Bildern je Sekunde binnen Sekunden greifen. Rechnet der
+//     Browser die Grafik in Software (keine Grafikkarte), beginnt das Licht gleich in der
+//     sparsamsten Stufe. In der sparsamsten Stufe trägt die Seite die Klasse `ag-sparsam`: Dann
+//     entfällt das Weichzeichnen hinter Glas (welt.css).
 import * as THREE from "three";
 import { BlendFunction, EffectComposer, EffectPass, GodRaysEffect, KernelSize, NoiseEffect, RenderPass } from "postprocessing";
 import { gsap } from "@/lib/gsap";
-import { lichtStaerke, stufenWerte as stufenWerteVon } from "./startlogik";
+import { lichtStaerke, schonfristVorbei, softwareGrafik, stufenWerte as stufenWerteVon, wachFensterVoll } from "./startlogik";
 
 /** Was die Zeichen vom Licht wissen müssen, um richtig zu schimmern (alles in CSS-Pixeln der Bühne). */
 export type LichtLage = {
@@ -195,6 +200,8 @@ const SPARSTUFEN = [
 // nicht einmal mehr in der Zeit bis zum nächsten schafft.
 const WACHE_ANTEIL = 0.72;
 const WACHE_ANTEIL_SPAET = 1;
+// Diese Klasse trägt die Seite (am <html>), solange das Licht in der sparsamsten Stufe läuft.
+const SPARSAM_KLASSE = "ag-sparsam";
 
 const FLAECHE = `
 varying vec2 vLage;
@@ -224,6 +231,8 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     throw fehler;
   }
   // Pixeldichte der Zeichenfläche: höchstens 2-fach. Sie sinkt nie (das Korn bleibt in voller Auflösung).
+  // (Auch nicht bei Software-Grafik: Dort halb so fein zu zeichnen, brachte gemessen kaum etwas,
+  // 5,0 statt 5,5 Bilder je Sekunde; teuer ist dort das Zusammensetzen der ganzen Seite.)
   let dichte = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(dichte);
 
@@ -583,9 +592,12 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   let gemeldet = false;
 
   // Die Szene kann nicht weiterzeichnen: einmal melden (die Seite entscheidet, was dann gilt).
+  // Hat ein sehr schwaches Handy aufgegeben („last“), bleibt die Seite im sparsamen Modus.
+  let zuSchwach = false;
   const ausfall = (grund: "last" | "verlust") => {
     if (vorbei || gemeldet) return;
     gemeldet = true;
+    zuSchwach = grund === "last";
     wahl.beiAusfall?.(grund);
   };
   const verlust = () => ausfall("verlust");
@@ -614,9 +626,13 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   let abfrageLaeuft: WebGLQuery | null = null;
   let arbeitSumme = 0;
   let arbeitZahl = 0;
+  // Beginn des laufenden Messfensters (0 = noch keine Messung darin).
+  let fensterAb = 0;
   let knapp = 0;
-  // Nach einem Stufenwechsel zählen die nächsten Messungen nicht (die Grafikkarte richtet sich neu ein).
-  let schonfrist = 0;
+  // Nach einem Stufenwechsel zählen die nächsten Messungen nicht (die Grafikkarte richtet sich neu
+  // ein): so viele Messungen sind seitdem gekommen, und wann der Wechsel war (0 = keine Schonfrist).
+  let schonZahl = 0;
+  let schonAb = 0;
 
   const messBeginn = () => {
     if (!zeitErw || abfrageLaeuft || abfragen.length > 4) return;
@@ -729,10 +745,14 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     }
     vermessen();
     kaesten.clear();
-    schonfrist = 30;
+    schonZahl = 0;
+    schonAb = performance.now();
     arbeitSumme = 0;
     arbeitZahl = 0;
+    fensterAb = 0;
     knapp = 0;
+    // In der sparsamsten Stufe wird auch der Rest der Seite leichter (kein Weichzeichnen hinter Glas).
+    document.documentElement.classList.toggle(SPARSAM_KLASSE, stufe === SPARSTUFEN.length - 1);
     try {
       // Nachzulesen über performance.getEntriesByName("ag-licht:stufe").
       performance.mark("ag-licht:stufe", { detail: { stufe, mittel: Math.round(mittel * 10) / 10, abstand: Math.round(lichtJedes() * takt * 10000) / 10 } });
@@ -747,13 +767,17 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     (window as unknown as { __agLichtMessen?: number[][] }).__agLichtMessen?.push([performance.now(), ms, stufe]);
     // Erst nach dem Auftritt, nicht im verdeckten Fenster und nicht direkt nach einem Stufenwechsel.
     if (zustand.auftritt < 1 || document.hidden) return;
-    if (schonfrist > 0) {
-      schonfrist -= 1;
+    const jetzt = performance.now();
+    if (schonAb) {
+      schonZahl += 1;
+      if (!schonfristVorbei(schonZahl, jetzt - schonAb)) return;
+      schonAb = 0;
       return;
     }
+    if (!arbeitZahl) fensterAb = jetzt;
     arbeitSumme += ms;
     arbeitZahl += 1;
-    if (arbeitZahl < 60) return;
+    if (!wachFensterVoll(arbeitZahl, jetzt - fensterAb)) return;
     const mittel = arbeitSumme / arbeitZahl;
     arbeitSumme = 0;
     arbeitZahl = 0;
@@ -1023,7 +1047,18 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   });
   waechter.observe(halter);
   document.addEventListener("visibilitychange", pause);
-  vermessen();
+  // Ohne Grafikkarte (der Browser rechnet die Grafik in Software) ist jedes Licht-Bild teuer, und
+  // messen lässt sich das dort kaum: Das Licht beginnt gleich in der sparsamsten Stufe.
+  let software = false;
+  try {
+    const auskunft = gl2.getExtension("WEBGL_debug_renderer_info");
+    const treiber = auskunft ? String(gl2.getParameter(auskunft.UNMASKED_RENDERER_WEBGL)) : "";
+    software = softwareGrafik(treiber);
+  } catch {
+    /* ohne Auskunft bleibt es bei der Wache */
+  }
+  if (software) stelleStufe(SPARSTUFEN.length - 1);
+  else vermessen();
   wecken();
 
   return {
@@ -1153,6 +1188,7 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
       vorbei = true;
       cancelAnimationFrame(rahmen);
       gsap.killTweensOf(zustand);
+      if (!zuSchwach) document.documentElement.classList.remove(SPARSAM_KLASSE);
       beobachter.disconnect();
       waechter.disconnect();
       document.removeEventListener("visibilitychange", pause);

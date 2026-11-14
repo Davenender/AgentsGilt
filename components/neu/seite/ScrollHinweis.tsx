@@ -1,24 +1,26 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { START_FERTIG, START_FERTIG_KLASSE } from "../umgebung";
+import { START_FREI, START_FREI_KLASSE } from "../umgebung";
 import { Lichtleiste } from "./Lichtleiste";
 
-// So lange nach der Landung des Namens erscheint die Leiste (wenn man dann noch ganz oben steht).
-const WARTEN = 2000;
+// So lange nach dem Ende der Startanimation erscheint die Leiste (wenn man dann noch ganz oben steht).
+const WARTEN = 3000;
+// So lange blendet sie beim ersten Scrollen aus (wie im Stylesheet); danach ruht alles.
+const AUSBLENDEN = 1200;
 
 /**
  * Scroll-Hinweis nur aus Licht, ohne Text und ohne Pfeil: Am unteren Bildschirmrand liegt eine
  * durchgehende, leuchtende Leiste über die ganze Breite (Lichtleiste.tsx). Sie bewegt sich nicht
- * seitlich; sie atmet nur ganz leicht von unten nach oben (Höhe und Helligkeit, 3 s je Atemzug),
- * höchstens dreimal, und blendet dann wieder aus (Stylesheet).
+ * seitlich; sie atmet nur ganz leicht von unten nach oben (Höhe und Helligkeit, 3 s je Atemzug).
  *
- * Sie erscheint bei jedem Seitenaufruf 2 s nach der Landung des Namens, wenn man dann noch ganz
- * oben steht. Beim ersten Scrollen ist sie sofort weg und kommt bei diesem Aufruf nicht wieder.
- * Nur echtes Scrollen zählt: Während der Startanimation ist das Scrollen gesperrt, ein Dreh am
- * Mausrad oder ein Tastendruck in dieser Zeit nimmt die Leiste also nicht weg. (Früher merkte sie
- * sich das erste Scrollen für die ganze Sitzung des Tabs und verschwand schon bei Mausrad oder
- * Taste während des Starts: Deshalb kam sie nach dem ersten Besuch nie wieder.)
+ * Sie blendet 3 s nach dem Ende der Startanimation weich ein (Name gelandet, Welle durch: ab da
+ * kann man scrollen), wenn man dann noch ganz oben steht. Danach atmet sie ununterbrochen weiter,
+ * bis gescrollt wird. Beim ersten Scrollen blendet sie langsam aus (1,2 s) und kommt bei diesem
+ * Seitenaufruf nicht wieder, auch nicht, wenn man wieder hochscrollt. Nur echtes Scrollen zählt:
+ * Während der Startanimation ist das Scrollen gesperrt. Nach einem neuen Laden kommt sie wieder.
+ * (Früher merkte sie sich das erste Scrollen für die ganze Sitzung des Tabs: Deshalb kam sie nach
+ * dem ersten Besuch nie wieder.)
  * Bei „weniger Bewegung“ steht nur ein ruhiger, schwacher Schein.
  */
 export function ScrollHinweis() {
@@ -29,8 +31,13 @@ export function ScrollHinweis() {
     if (!el) return;
     let weg = false;
     let uhr = 0;
+    let ruhe = 0;
     const planen = () => {
       window.clearTimeout(uhr);
+      if (weg) return;
+      // Die Wartezeit beginnt mit jeder Freigabe neu: Läuft die Startanimation noch einmal (etwa
+      // nach „Zurück“ aus dem Zwischenspeicher des Browsers), kommt auch die Leiste erst danach wieder.
+      delete el.dataset.an;
       uhr = window.setTimeout(() => {
         if (!weg && window.scrollY <= 24) el.dataset.an = "1";
       }, WARTEN);
@@ -39,19 +46,23 @@ export function ScrollHinweis() {
       if (weg || window.scrollY <= 24) return;
       weg = true;
       window.clearTimeout(uhr);
-      delete el.dataset.an;
       abbau();
+      if (!el.dataset.an) return;
+      // Langsam ausblenden; sie atmet dabei weiter und ruht erst, wenn sie nicht mehr zu sehen ist.
+      el.dataset.an = "weg";
+      ruhe = window.setTimeout(() => delete el.dataset.an, AUSBLENDEN + 100);
     };
     const abbau = () => {
-      window.removeEventListener(START_FERTIG, planen);
+      window.removeEventListener(START_FREI, planen);
       window.removeEventListener("scroll", beimScrollen);
     };
-    // Die Wartezeit zählt ab der Landung des Namens („Start fertig“).
-    if (document.documentElement.classList.contains(START_FERTIG_KLASSE)) planen();
-    else window.addEventListener(START_FERTIG, planen, { once: true });
+    // Die Wartezeit zählt ab dem Ende der Startanimation („Start frei“).
+    if (document.documentElement.classList.contains(START_FREI_KLASSE)) planen();
+    window.addEventListener(START_FREI, planen);
     window.addEventListener("scroll", beimScrollen, { passive: true });
     return () => {
       window.clearTimeout(uhr);
+      window.clearTimeout(ruhe);
       abbau();
       delete el.dataset.an;
     };

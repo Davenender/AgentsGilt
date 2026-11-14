@@ -103,8 +103,9 @@ const WARTEN_GRENZE = 15;
 // Balken, dann wachsen die Strahlen. Am Handy etwas kürzer.
 const LICHT_STUFEN: [number, number, number] = [0.7, 0.6, 1.2];
 const LICHT_STUFEN_HANDY: [number, number, number] = [0.5, 0.45, 0.9];
-// Die Zeichen fliegen los, sobald das Licht diese Stärke hat (die Balken stehen, die Strahlen beginnen).
-const FLUG_AB_PEGEL = 0.6;
+// Die Zeichen fliegen erst los, wenn das Licht ganz an ist (Stern, Balken und Strahlen fertig),
+// und dann noch so viele Sekunden später.
+const FLUG_NACH_LICHT = 0.7;
 // So lange nach Beginn des Flugs erscheinen Kopfleiste, „Anrufen“ und Chat-Knopf (die Zeichen landen dann).
 const LEISTE_NACH = 1.1;
 // Wenn alles steht (Zeichen gelandet, Welle vorbei: 0,25 s Pause + 1,3 s Welle), wartet das Licht
@@ -692,9 +693,21 @@ export function LichtName() {
       held.dataset.start = "fertig";
       allesGemeldet();
     };
+    // Das Licht ist ganz an: 0,7 s später fliegen die Zeichen los (einmal je Start, gleich womit
+    // das Licht kam). Der Auslöser hängt nicht an der Szene: Fällt sie in dieser Zeit aus, fliegen
+    // die Zeichen trotzdem.
+    let flugGeplant = false;
+    const lichtIstAn = () => {
+      if (flugGeplant || fliegt || fertig || vorbei) return;
+      flugGeplant = true;
+      // Nachzulesen über performance.getEntriesByName("ag-start:licht-an") bzw. "ag-start:flug".
+      performance.mark("ag-start:licht-an");
+      spaeter.push(gsap.delayedCall(FLUG_NACH_LICHT, fliegen));
+    };
     const fliegen = () => {
       if (fliegt || fertig || vorbei) return;
       fliegt = true;
+      performance.mark("ag-start:flug");
       // 250 ms nach dem Ende des Flugs läuft einmal von selbst eine Welle aus der Mitte des Namens:
       // der Hinweis, dass man klicken kann. (War der Kopfbereich beim Start nicht zu sehen, fliegen
       // die Zeichen erst ein, wenn er ins Bild kommt.)
@@ -722,7 +735,7 @@ export function LichtName() {
       stufen.stern = Math.pow(sternAus(0.35) ?? 0.2, 2.2);
       held.dataset.licht = "live";
       szene.zeigen(false, dauer, undefined, (pegel) => {
-        if (pegel >= FLUG_AB_PEGEL) fliegen();
+        if (pegel >= 0.999) lichtIstAn();
       });
       // Standen die Zeichen schon (die Szene kam erst danach), dreht sich das Licht nach seinem Auftritt zur Maus.
       if (fertig) spaeter.push(gsap.delayedCall(dauer + 1, () => szene?.mausFolgen(true, MAUS_DREHEN)));
@@ -755,7 +768,7 @@ export function LichtName() {
         standbild?.style.setProperty("--bild-hell", (0.2 + 0.8 * w.stern).toFixed(3));
         const hell = lichtStaerke(lauf.p, zeiten);
         feld.licht({ ...ruheLage(), hell });
-        if (hell >= FLUG_AB_PEGEL) fliegen();
+        if (lauf.p >= 1) lichtIstAn();
       };
       setze();
       spaeter.push(

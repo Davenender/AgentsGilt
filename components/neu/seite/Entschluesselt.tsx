@@ -13,11 +13,24 @@ const zufall = () => ZEICHEN[Math.floor(Math.random() * ZEICHEN.length)];
 
 type Ort = { l: number; t: number; b: number; h: number };
 
+/**
+ * Schrift und Farbe eines Buchstabens, beim Aufbau einmal abgelesen. Feste Werte, kein „lebendes“
+ * Stil-Objekt des Browsers: Das müsste bei jedem Lesen die ganze Seite neu durchrechnen, sobald
+ * davor ein anderer Buchstabe geändert wurde (beim Einrasten also einmal je Buchstabe). Gemessen
+ * beim Scrollen mit 4-fach gebremstem Prozessor: Das kostete rund ein Viertel der Rechenzeit.
+ */
+type Stil = { fontFamily: string; fontSize: string; fontWeight: string; fontStyle: string; textTransform: string; color: string; textAlign: string };
+
+const liesStil = (el: Element): Stil => {
+  const s = getComputedStyle(el);
+  return { fontFamily: s.fontFamily, fontSize: s.fontSize, fontWeight: s.fontWeight, fontStyle: s.fontStyle, textTransform: s.textTransform, color: s.color, textAlign: s.textAlign };
+};
+
 type Feld = {
   el: HTMLSpanElement;
   /** Der echte Buchstabe und der Stil seines Elternelements (Schrift, Farbe). */
   zeichen: string;
-  stil: CSSStyleDeclaration;
+  stil: Stil;
   /** Zwischenwort: das Zeichen, das hier zuerst einrastet (leer = nichts); null = keines. */
   erst: string | null;
   /** Platz des Buchstabens im echten Text und, fürs Zwischenwort, der Platz seines ersten Zeichens. */
@@ -81,7 +94,7 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
   let felder: Feld[] = [];
   // Mitten der Buchstaben vom letzten Aufbau (für die Maus), bis sich die Größe ändert.
   let orte: { x: number; y: number }[] | null = null;
-  let grundStil: CSSStyleDeclaration | null = null;
+  let grundStil: Stil | null = null;
   let zustand: "ruhe" | "verhuellt" | "leer" | "loest" | "fertig" = "ruhe";
   let rahmen = 0;
   let zuletzt = 0;
@@ -143,12 +156,12 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     if (!echt) return false;
     const kasten = huelle.getBoundingClientRect();
     if (kasten.width < 1) return false;
-    grundStil = getComputedStyle(huelle);
+    grundStil = liesStil(huelle);
     const neu = document.createElement("span");
     neu.className = "ag-wuerfel__spiel";
     neu.setAttribute("aria-hidden", "true");
     const bereich = document.createRange();
-    const stile = new Map<Element, CSSStyleDeclaration>();
+    const stile = new Map<Element, Stil>();
     const gruppen = new Map<Element, number>();
     const zuGruppe = new Map<Feld, Element>();
     const lauf = document.createTreeWalker(echt, NodeFilter.SHOW_TEXT);
@@ -157,7 +170,7 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
       if (!eltern) continue;
       let stil = stile.get(eltern);
       if (!stil) {
-        stil = getComputedStyle(eltern);
+        stil = liesStil(eltern);
         stile.set(eltern, stil);
       }
       const gruppe = eltern.closest<HTMLElement>("[data-erst]");

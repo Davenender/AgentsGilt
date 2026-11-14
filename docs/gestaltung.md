@@ -259,7 +259,8 @@ Am Handy steht alles etwas früher, wenn nichts bremst (das Licht braucht dort n
 
 ## 4g. Scroll-Hinweis: Lichtstreifen am unteren Rand (12.11.2026)
 
-> **Stand 13.11.2026:** Der wandernde Lichtfleck ist durch die Lichtleiste ersetzt, siehe **4j, Punkt 2**. Wann, wie oft und wie er verschwindet, gilt weiter.
+> **Stand 13.11.2026:** Der wandernde Lichtfleck ist durch die Lichtleiste ersetzt, siehe **4j, Punkt 2**.
+> **Stand 14.11.2026:** Wann sie kommt, wie lange sie atmet und wie sie verschwindet, steht in **4m, Punkt 3** (3 s nach dem Start, atmet bis zum Scrollen, blendet in 1,2 s aus).
 
 Code: `components/neu/seite/ScrollHinweis.tsx`, Stile in `kopf.css`. Kein Text, kein Pfeil.
 - **Wann:** Steht man nach dem Ende der Startanimation 4,5 s ganz oben, ohne zu scrollen.
@@ -312,6 +313,7 @@ Code: `components/neu/seite/` (Seite, Aussage, Uebergang, Leistungen, AblaufNumm
 ## 4i. Mauszeiger (12.11.2026)
 
 > **Stand 13.11.2026:** Die Glasblase „Ansehen“ gibt es nur noch über den Zertifikaten, siehe **4j, Punkt 6**.
+> **Stand 14.11.2026:** Der goldene Punkt ist jetzt der Mauszeiger des Betriebssystems selbst, siehe **4m, Punkt 2**.
 
 Code: `components/neu/seite/Zeiger.tsx`, Stile in `seite.css`. Nur bei echter Maus, nicht am Handy, nicht bei „weniger Bewegung“. In Eingabefeldern und über dem Chat-Fenster gilt der gewöhnliche Zeiger.
 - **Normal:** ein kleiner goldener Punkt (8 px), dem ein dezenter goldener Schein folgt (je Bild `1 − 0,8^(dt × 60)`).
@@ -495,7 +497,7 @@ Kornstärke = Streuung der Helligkeit gegenüber dem weichgezeichneten Bild. Ein
 ### 6 · Lichtleiste unten: zeigt sich zuverlässig
 `seite/ScrollHinweis.tsx`.
 - **Warum sie bei David nie kam:** Sie merkte sich das erste Scrollen für die ganze Sitzung des Tabs (auch über Neuladen hinweg). Dazu verschwand sie schon bei einem Dreh am Mausrad oder einem Tastendruck während des Starts, und sie wartete 4,5 s.
-- **Neu:** Sie erscheint bei jedem Seitenaufruf 2 s nach der Landung des Namens, wenn man dann noch ganz oben ist. Nur echtes Scrollen nimmt sie weg (sofort, für diesen Aufruf). Sonst wie bisher: Sie atmet höchstens dreimal und blendet aus.
+- **Neu:** Sie erscheint bei jedem Seitenaufruf 2 s nach der Landung des Namens, wenn man dann noch ganz oben ist. Nur echtes Scrollen nimmt sie weg (sofort, für diesen Aufruf). Sonst wie bisher: Sie atmet höchstens dreimal und blendet aus. **(Seit 14.11.2026: 3 s nach dem Ende des Starts, atmet bis zum Scrollen, siehe 4m, Punkt 3.)**
 
 ### 7 · Ablauf: langsamer und ganz voll
 `seite/AblaufNummern.tsx`. Der Gold-Balken in der Überschrift läuft 6 s je Schritt, bis zum letzten Buchstaben. Dann bleibt er 0,5 s ganz voll stehen, erst danach kommt der nächste Schritt. Nach einem Klick pausiert der Lauf weiter 6 s.
@@ -535,7 +537,7 @@ Davids Rückmeldung zu fcbeb26: „wunschlos glücklich“. Licht, Sterne, Geist
 **So ist es jetzt:**
 - **Nie direkt in den fertigen Zustand.** Der Stern pulsiert, bis alles bereit ist: Schriften, Zeichen, Licht-Szene (angelegt und einmal gezeichnet) und die Bilder des ersten Bildschirms. „Bereit“ heißt wirklich geladen: Für Bilder gibt es keine eigene kürzere Frist mehr (kommen sie 8 s zu spät, wartet der Stern 8 s). Die Probe unter echter Last (30 Bilder unter 17 ms) hält den Start danach nur begrenzt auf: bis 6 s nach dem ersten Bild, mindestens aber 1 s (`probeFrist`). **Sicherheitsgrenze: 15 s** nach dem ersten Bild (`WARTEN_GRENZE`). Danach läuft immer die ganze Abfolge: Stern hell, Balken, Strahlen, Zeichen, Welle.
 - **Der wartende Stern ist sofort da.** Sein Bild (4 kB) steht fest im Dokument (`kopf/sternbild.ts`) und muss nicht geladen werden: Auch bei langsamer Leitung ist er das Erste, was man sieht. Vorher blieb der Bildschirm schwarz, solange sein Bild unterwegs war.
-- **Fällt das Licht wirklich aus** (kein WebGL, Szene lädt nicht, oder sie ist an der Sicherheitsgrenze noch nicht da), läuft dieselbe Abfolge mit dem ruhigen Bild (`bildAuftritt`): Eine runde Maske gibt erst den Stern frei, dann die Balken, dann die Strahlen (`--bild-r`, `--bild-hell`; dieselben Zeiten wie beim Licht), die Zeichen fliegen bei 60 %. Auch auf das ruhige Bild wartet der Stern, bis es wirklich da ist. Kommt die Szene später doch noch, blendet das Bild in das lebende Licht über.
+- **Fällt das Licht wirklich aus** (kein WebGL, Szene lädt nicht, oder sie ist an der Sicherheitsgrenze noch nicht da), läuft dieselbe Abfolge mit dem ruhigen Bild (`bildAuftritt`): Eine runde Maske gibt erst den Stern frei, dann die Balken, dann die Strahlen (`--bild-r`, `--bild-hell`; dieselben Zeiten wie beim Licht), die Zeichen fliegen bei 60 % (seit 4m: 0,7 s nach dem vollen Licht). Auch auf das ruhige Bild wartet der Stern, bis es wirklich da ist. Kommt die Szene später doch noch, blendet das Bild in das lebende Licht über.
 - **Es gibt immer ein Licht (Not-Licht).** Sind an der Sicherheitsgrenze weder die Szene noch das große ruhige Bild geladen (sehr langsame Leitung), läuft die Abfolge mit dem Not-Licht (`lichtQuelle`, `kopf/notlicht.ts`): dasselbe Bild in klein (640 × 640, 4 kB), fest im Skript, es braucht keine Leitung. Es liegt als Hintergrund im selben Bild-Element; das große Bild lädt weiter und legt sich darüber, sobald es da ist (gleiches Bild, nur schärfer). So bleibt die Reihenfolge immer dieselbe: Stern, Balken, Strahlen, dann erst die Zeichen, die Welle und die Freigabe. Auch späte Ausfälle (die Szene kommt nach der Grenze und scheitert dann) gehen diesen Weg (`bildNachholen`): Nichts steht auf einmal ganz da.
 - **Fällt die Grafik mitten im Lichtaufbau aus** (bevor die Zeichen losfliegen), beginnt der Aufbau neu, in Stufen: mit der neu aufgebauten Szene, oder mit dem ruhigen Bild, wenn auch der Neuaufbau scheitert (`wennSzeneKommt`, `wennBildKommt` in `startlogik.ts`). Vorher kam das Licht danach auf einmal, und die Zeichen flogen nie los (der Name blieb weg).
 - **Verdeckter Tab:** Ist die Seite während des Starts verdeckt (anderer Tab), bleibt die Abfolge stehen und läuft danach dort weiter, wo sie war. Vorher sprang das Licht beim Zurückkommen ans Ende, und die Freigabe kam, bevor die Welle zu sehen war. Dafür gleicht GSAP lange Pausen aus, solange die Seite gesperrt ist (`lagSmoothing(500, 33)` in `Rahmen.tsx`; mit der Freigabe gilt wieder der genaue Takt für das weiche Scrollen), und alle Fristen des Starts rechnen mit sichtbarer Zeit (`erzeugeSichtUhr`, `gesehen()`): Mindestzeit, Probe, Sicherheitsgrenze und das Sicherheitsnetz des Skripts (24 s). Die Mindestzeit prüft `lichtAnmachen` selbst, gleich welcher Auslöser zuerst kommt: Der Stern war immer mindestens 1,5 s zu sehen. Von der Zeit zwischen dem ersten Bild und dem Einrichten des Skripts zählt nur, was laut Sichtbarkeits-Protokoll des Browsers zu sehen war (`sichtbarZwischen`); kennt der Browser kein Protokoll, zählt davon nichts, dann pulsiert der Stern eher einen Augenblick länger. Lädt die Seite in einem Tab im Hintergrund, beginnt die Abfolge, wenn man hinsieht.
@@ -630,10 +632,125 @@ Während des Starts bewegen die Seite weder Mausrad, Bild-ab, Ende, Leertaste, P
 ### 5 · Nicht angefasst
 Alles andere bleibt genau so. Kontakt-Bereich und Chat-Fenster kommen später. Nichts wurde echt abgesendet, nichts gepusht.
 
+## 4m. Vierte Runde vom 14.11.2026: Zeichen später, Mauspunkt ohne Verzögerung, Scroll-Hinweis atmet, Kontakt als Glaskarten, schwache Geräte
+
+Davids Rückmeldung zu b95adb9: Die Seite gefällt ihm sehr. Alles bleibt genau so, nur diese Punkte ändern sich. Das Chat-Fenster kommt danach in einem eigenen Auftrag.
+
+### 1 · Start: Die Zeichen kommen später
+`kopf/LichtName.tsx` (`FLUG_NACH_LICHT`).
+- Die Zeichen fliegen erst los, wenn das Licht **ganz** an ist (Stern, Balken und Strahlen fertig: 2,5 s nach „Licht an“, am Handy 1,85 s), und dann noch **0,7 s später**. Bisher flogen sie bei 60 % der Lichtstärke los.
+- Der Startflug selbst ist unverändert (2,2 s). Alles danach hängt am Flug und verschiebt sich mit: Kopfleiste und Knöpfe 1,1 s nach dem Abflug, die Welle 0,25 s nach der Landung, Freigabe 1,55 s nach der Landung, das Licht dreht sich 1 s später zur Maus.
+- Das gilt für jede Lichtquelle (lebendes Licht, ruhiges Bild, Not-Licht) und übersteht einen Ausfall der Grafik in der Wartezeit: Der Abflug hängt nicht an der Szene.
+- Nachzulesen im Browser: `performance.getEntriesByName("ag-start:licht-an")` und `"ag-start:flug"`. Gemessen in der fertigen Fassung (echtes Vollbild 2560 × 1440): Licht an bei 1,86 s, ganz an bei 4,32 s, die ersten Zeichen fliegen bei 5,02 s (0,70 s später), Kopfleiste bei 6,14 s, der Name steht bei 7,23 s, frei bei 8,82 s.
+
+### 2 · Der goldene Mauspunkt folgt ohne Verzögerung
+`seite/Zeiger.tsx`, Zeiger-Bilder in `seite/seite.css`.
+
+**Gemessen (vorher):** Von der Mausbewegung bis zum Bild auf dem Schirm vergingen über dem Licht in der Mitte 46 ms, das sind 7,6 Bilder (165 Hz; 95 % unter 10,5 Bildern), in einem ruhigen Abschnitt 31 ms = 5,1 Bilder. Gemessen mit der Zeitaufzeichnung von Chrome (Abschnitte `EventLatency` für jede Mausbewegung bis zur Ausgabe des Bildes), rund 1000 Bewegungen je Messung, alter und neuer Stand direkt hintereinander.
+
+**Ursache:** Das Setzen der Position kostete nur 0,5 ms. Die Zeit vergeht danach: Jedes Bild der Seite muss durch Stil, Zeichnen, Übergabe und die Grafikkarte, und davor steht meist schon das nächste an. Der Weg, den David vorgeschlagen hat (Position direkt im `pointermove` und `pointerrawupdate` setzen, nur `transform`, kein Glätten), war zum großen Teil schon gebaut und ist jetzt ganz so umgesetzt. Er kann diese Strecke aber nicht verkürzen: Alles, was die Seite zeichnet, kommt frühestens mit dem nächsten fertigen Bild der Seite auf den Schirm. Derselbe Weg gemessen nach dem Umbau: 49 ms = 8,0 Bilder über dem Licht, 37 ms = 6,1 Bilder im ruhigen Abschnitt (unverändert, im Rahmen der Schwankung).
+
+**Deshalb ist der Punkt jetzt der Mauszeiger selbst.** Der goldene Punkt (8 px, mit feinem Schein) ist ein Zeiger-Bild, das der Browser dem Betriebssystem übergibt (`cursor: url(…) 16 16`, in einfacher und doppelter Auflösung; gedrückt etwas kleiner). Das Betriebssystem zeichnet den Zeiger selbst, unabhängig von den Bildern der Seite: Er sitzt immer genau dort, wo die Maus ist, so wie der gewöhnliche Pfeil. Ziel „höchstens 1 Bild“: erreicht, weil der Punkt auf kein Bild der Seite mehr wartet (das lässt sich in der Seite nicht mehr messen; die Zeitaufzeichnung sieht nur, was die Seite zeichnet).
+- **Von der Seite gezeichnet** werden nur noch: der weiche goldene Schein hinter dem Punkt (zieht leicht nach, wie gewünscht), der Ring über Links und Knöpfen und die Glasblase „Ansehen“. Ihre Position wird direkt im Maus-Ereignis gesetzt (`pointermove`, in Chrome zusätzlich `pointerrawupdate`), nur mit `transform: translate3d`, mit `will-change: transform`, ohne Glätten; alles andere (welche Form gerade gilt) rechnet einmal je Bild.
+- Über Links und Knöpfen ist der Zeiger des Betriebssystems ausgeblendet; dort zeigt die Seite den Ring. In Eingabefeldern und über dem Chat-Fenster gilt der gewöhnliche Zeiger. Ohne Skript, am Handy und bei „weniger Bewegung“ gibt es keinen eigenen Zeiger.
+
+### 3 · Scroll-Hinweis: kommt nach 3 s und atmet, bis gescrollt wird
+`seite/ScrollHinweis.tsx`, Stile in `kopf/kopf.css`.
+- **3 s** nach dem Ende der Startanimation (Welle durch, Scrollen frei: `ag:start-frei`) blendet die Lichtleiste unten weich ein (0,9 s), wenn man dann noch ganz oben ist.
+- Danach **atmet sie ununterbrochen** (ein Atemzug 3 s), bis man scrollt. Die Regel „höchstens dreimal“ ist entfallen.
+- Beim ersten Scrollen blendet sie **langsam aus (1,2 s, gleichmäßig; gemessen 1,1 s)** und kommt bei diesem Seitenaufruf nicht wieder, auch nicht, wenn man wieder ganz nach oben scrollt.
+- „Weniger Bewegung“: Sie steht ruhig da (55 % Deckkraft), ohne Atmen.
+
+### 4 · „Sprechen wir über Ihr Projekt“: Anrufen steht klar im Mittelpunkt
+`seite/KontaktBereich.tsx` (neu), `Anfrage.tsx` (Schalter `glas`), `anfrage-fehlt.ts` (reine Regeln, mit Tests), `seite/seite.css` (Block „Kontakt“), Texte in `lib/inhalt-neu.ts` (`kontakt`), Schalter in `lib/content.ts`. Anker `#kontakt` unverändert.
+
+**a) Texte:** Hauptsatz „Rufen Sie uns an: Unser KI-Assistent nimmt sofort ab und macht direkt einen Termin mit Ihnen aus.“ („Rufen Sie uns an:“ in Gold). Darunter klein: „Kurze Frage? Unser KI-Chat unten rechts antwortet sofort.“ Am kleinsten, ganz unten: „Lieber schreiben?“ mit „Meist antworten wir innerhalb eines Werktages.“
+
+**b) Anruf-Karte** (Glaskarte, das Wichtigste im Abschnitt):
+- Links **„KI-Assistent bereit“** mit einem **grünen Punkt** (#4fdc92), der sanft atmet wie ein Statuslicht (ein weicher Ring pulsiert in 2,6 s). Daneben die Nummer, rechts der Knopf „Jetzt anrufen“ (Nummer und Knopf sind `tel:`-Verweise).
+- Hinter der Karte liegt ein schwacher goldener Schein, leise wie der Logo-Stern; er atmet kaum merklich (5,4 s). Unter der Maus wird er etwas heller, und die Karte hebt sich um 3 px.
+- Schmal (bis 720 px) stehen Status, Nummer und Knopf untereinander; der Knopf ist dann so breit wie die Karte.
+
+**c) Chat-Hinweis:** Fährt die Maus über den Satz, läuft ein feiner goldener Lichtpunkt (6 px) in einem flachen Bogen vom Satz zum Chat-Knopf unten rechts (0,55 bis 1,1 s, je nach Weg), und der Knopf leuchtet kurz auf (1,4 s). Der Chat wird dabei nicht geöffnet und nicht angefasst: Gesetzt wird nur eine Klasse am `html`, die das Stylesheet auswertet. Ist der Chat offen, passiert nichts.
+
+**d) WhatsApp ist ausgeschaltet.** Der Knopf „Per WhatsApp schreiben“ ist nicht gelöscht: Schalter `site.whatsappAnzeigen` in `lib/content.ts`, Standard `false`. Auf `true` steht er wieder unter der Anruf-Karte. Der Schalter gilt für die neue Seite und die Vergleichs-Varianten; die bisherige Startseite (`components/Contact.tsx`) ist nicht angefasst.
+
+**e) Auftritt:** Beim Hinscrollen schweben die Karten nacheinander als Glas ein: Anruf-Karte, Chat-Hinweis, „Lieber schreiben?“, je 120 ms versetzt, 28 px von unten, weich, ohne Hüpfen, einmal je Seitenaufruf. Wie bei den Glaskarten oben blenden Glas und Inhalt einzeln ein (sonst spränge das Glas um).
+
+**f) „Lieber schreiben?“ als Glaskarte mit Formular:**
+- Klein unter der Anruf-Karte. Ein Klick öffnet die Karte; sie gleitet weich auf (die Höhe wächst, die Seite springt nicht). Sie öffnet sich auch, wenn oben bei einer Leistung „Anfragen“ gedrückt wird oder der Chat Angaben übergibt (wie bisher).
+- **Goldenes Licht beim Ausfüllen:** Hinter dem Feld, in dem man gerade schreibt, liegt ein weicher goldener Schein (so groß wie das Feld, weit auslaufend). Ist ein Feld ausgefüllt, bleibt ein ganz leichter Goldschimmer.
+- **Rotes Licht bei fehlenden Pflichtfeldern:** Drückt man „Anfrage absenden“ und ein Pflichtfeld ist leer, erscheint hinter genau diesem Feld ein weicher roter Schein, darunter ein kurzer Satz, was fehlt (Wortlaut in `docs/texte.md`); das erste fehlende Feld bekommt den Fokus. Sobald das Feld ausgefüllt ist, wird der Schein golden und der Satz verschwindet.
+- **Die Prüfung ist dieselbe wie bisher:** Der Browser prüft (`required`, `type="email"`, Höchstlängen) und sendet bei einem Fehler nichts. Neu ist nur die Anzeige: Statt der Sprechblase des Browsers leuchtet das Feld. Zustand, Felder, Aufruf von `/api/contact` und die Meldungen des Servers sind unverändert (`useAnfrage`).
+- Für Vorleseprogramme: Das Feld ist als ungültig gekennzeichnet (`aria-invalid`), der Satz ist mit ihm verbunden und wird angesagt.
+
+### 5 · Auf anderen Rechnern flüssig: was auf schwachen Geräten automatisch leichter wird
+
+**Geprüft** in der fertigen Fassung (Port 3200): im echten Vollbild 2560 × 1440, im Fenster 1366 × 768 und am nachgestellten Handy (375 × 812, Pixeldichte 3), je 20 s im Kopfbereich mit bewegter Maus und 14 s Scrollen durch die ganze Seite; mit 4-fach gebremstem Prozessor (Bremse der Entwicklerwerkzeuge von Chrome) und mit Software-Grafik (Chrome rechnet ohne Grafikkarte: SwiftShader).
+
+**a) Bildschirm entsperrt, gewöhnlicher Betrieb** (alter Stand b95adb9 am Vormittag, neuer Stand am Nachmittag des 14.11.2026; dazwischen lief anderes auf dem Rechner):
+
+| Fall | Kopfbereich mit bewegter Maus: alt → neu | Scrollen: alt → neu | längstes Bild beim Scrollen: alt → neu | Sparstufe neu | Licht |
+|---|---|---|---|---|---|
+| Echtes Vollbild 2560 × 1440, ungebremst | 110 → **129** Bilder/s | 116 → **151** Bilder/s | 67 → 54 ms | 0 | lebendig |
+| Fenster 1366 × 768, ungebremst | 56 → **74** Bilder/s | 62 → **84** Bilder/s | 206 → 104 ms | 0 | lebendig |
+| Fenster 1366 × 768, Prozessor 4-fach gebremst | 14,4 → **21** Bilder/s | 16,3 → **27** Bilder/s | 1965 → 545 ms | 0 | lebendig |
+| Handy 375 × 812 (Pixeldichte 3), Prozessor 4-fach gebremst | 67 → **90** Bilder/s (ohne Maus) | 6,2 → **44** Bilder/s | 1456 → 121 ms | 0 | lebendig |
+| Fenster 1366 × 768, Software-Grafik (ohne Grafikkarte) | 2,6 → **4,4** Bilder/s | 2,1 → **4,6** Bilder/s | 831 → 479 ms | 4 | lebendig |
+| Fenster 1366 × 768, Software-Grafik und Prozessor 4-fach gebremst | 0,5 → **3** Bilder/s | 0,4 → **3,9** Bilder/s | 4641 → 472 ms | 4 | lebendig |
+
+**b) Alt und neu abwechselnd unter gleichen Bedingungen** (dabei war Davids Bildschirm gesperrt; dann läuft alles schneller als sonst, der Vergleich ist aber der sauberste):
+
+| Fall | Kopfbereich mit bewegter Maus: alt → neu | Scrollen: alt → neu | längstes Bild beim Scrollen: alt → neu | Sparstufe neu | Licht |
+|---|---|---|---|---|---|
+| Fenster 1366 × 768, ungebremst | 144 → **157** Bilder/s | 139 → **156** Bilder/s | 73 → 74 ms | 0 | lebendig |
+| Fenster 1366 × 768, Prozessor 4-fach gebremst | 33 → **46** Bilder/s | 44 → **60** Bilder/s | 345 → 60 ms | 0 | lebendig |
+| Handy 375 × 812 (Pixeldichte 3), Prozessor 4-fach gebremst | 156 → **164** Bilder/s (ohne Maus) | 33 → **98** Bilder/s | 436 → 50 ms | 0 | lebendig |
+| Fenster 1366 × 768, Software-Grafik (ohne Grafikkarte) | 2,8 → **7** Bilder/s | 3,5 → **15,2** Bilder/s | 455 → 437 ms | 4 | lebendig |
+
+**Gefunden und behoben (gilt für alle Geräte, auf schwachen merkt man es am meisten):**
+1. **Eine Stil-Regel ließ den Browser die ganze Seite neu rechnen,** sobald irgendwo ein Zeichen wechselte (Überschriften, Geister-Wörter, Sprechblase): „alle Teile von Kopfleiste und Chat-Knopf sind vor dem Start nicht klickbar“, geschrieben mit `:has()` und `> *`. Bei jedem zehnten Stil-Durchgang rechnete er rund 2300 Elemente neu statt rund 30. Jetzt setzt die Regel nur einen Wert an den drei Behältern, der sich vererbt (`--ag-klick`, `kopf.css`, `welt.css`); das Verhalten ist dasselbe. Stil-Arbeit beim Scrollen: mehr als halbiert.
+2. **Die Überschriften fragten für jeden Buchstaben Schrift und Farbe neu beim Browser ab** (ein „lebendes“ Stil-Objekt); nach jedem geänderten Buchstaben rechnete er dafür die Seite durch. Jetzt werden die Werte einmal beim Aufbau abgelesen (`seite/Entschluesselt.tsx`). Das war beim Scrollen rund ein Viertel der Rechenzeit.
+3. **Der Glimmrand der Kopfleiste** maß und schrieb je Bild abwechselnd (für jedes Teil eine Durchrechnung der Seite). Jetzt: erst alle messen, dann alle setzen; ein Teil, das fern der Maus dunkel ruht, wird gar nicht angefasst (`glimmrand.ts`). Das war bei bewegter Maus rund ein Fünftel der Rechenzeit.
+
+**Was auf schwachen Geräten automatisch leichter wird** (in dieser Reihenfolge; Inhalt und Funktionen bleiben immer dieselben):
+- **Licht, Sparstufen 1 und 2** (die Grafikkarte braucht für ein Licht-Bild länger als 72 % der Zeit bis zum nächsten): kleinere Zwischenbilder der Strahlen (250 000, dann 190 000 Bildpunkte statt 330 000) und der Öffnungen (90 %, 80 %). Nicht zu sehen.
+- **Sparstufe 3:** dazu weniger Proben je Bildpunkt (60 %) und 20 statt 30 Proben in den Öffnungen.
+- **Sparstufe 4** (sparsamste): dazu nur jedes zweite Licht-Bild (27 bis 30 je Sekunde). **Neu:** In dieser Stufe trägt die Seite die Klasse `ag-sparsam`: Glas (Kopfleiste, Chat-Knopf, Karten, Glasblase) zeichnet dann nicht mehr weich, was dahinter liegt, und ist dafür dunkler getönt. Form, Lichtkante, Goldrand und Schatten bleiben.
+- **Neu: Die Wache reagiert auch bei wenigen Bildern je Sekunde binnen Sekunden.** Ein Messfenster schließt nach 60 Messungen oder spätestens nach 2 s (mit mindestens 8 Messungen); vorher brauchte ein Schritt bei 3 Bildern je Sekunde rund eine Minute (`wachFensterVoll`, `schonfristVorbei` in `kopf/startlogik.ts`).
+- **Neu: Ohne Grafikkarte** (der Browser rechnet die Grafik in Software; erkannt am Namen des Grafik-Treibers, `softwareGrafik`) beginnt das Licht sofort in der sparsamsten Stufe, und die Seite ist von Anfang an im sparsamen Modus.
+- **Nie ein Standbild am Computer.** Das Licht bleibt in jeder Stufe lebendig (`data-licht="live"` in allen Fällen oben). Die Zeichenfläche und das Korn bleiben immer in voller Auflösung. Ein ruhiges Bild gibt es nur bei „weniger Bewegung“, ohne WebGL und als letzte Rettung für sehr schwache Handys.
+- **Handy** (wie bisher): Licht mit 60 statt 80 Proben, ohne Maus; der Name steht still; kein eigener Mauszeiger; Glaskarten untereinander, der Stern zieht einmal durch.
+- **Der goldene Mauspunkt** bleibt auf jedem Gerät genau auf der Maus, auch wenn die Seite ruckelt (Punkt 2).
+
+**Zur Software-Grafik:** Dort kostet schon das Zusammensetzen der Seite selbst die meiste Zeit; versuchsweise das Licht in halber Feinheit zu zeichnen, brachte fast nichts (5,0 → 5,5 Bilder je Sekunde) und ist deshalb nicht eingebaut (das Korn bleibt überall in voller Auflösung). Solche Rechner sind selten (Grafik-Beschleunigung im Browser abgeschaltet, virtuelle Maschinen, Fernsteuerung).
+
+**Zur Messung:** Die Prozessor-Bremse und die Software-Grafik sind Nachstellungen auf Davids MacBook (M1), kein echter schwacher Rechner. Die 4-fache Bremse entspricht einem deutlich älteren Bürorechner. Tabelle a zeigt, was auf einem echten Bildschirm ankommt, hat aber unterschiedliche Fremdlast zwischen alt und neu; Tabelle b vergleicht alt und neu unmittelbar nacheinander, lief aber bei gesperrtem Bildschirm und zeigt deshalb höhere Zahlen. Beide zeigen dieselbe Richtung.
+
+**Was bleibt:** Mit 4-fach gebremstem Prozessor läuft die Seite am Computer bei entsperrtem Bildschirm mit gut 20 Bildern je Sekunde (bewegte Maus über dem Namen) und knapp 30 beim Scrollen: besser als vorher (14 und 16), aber nicht flüssig. Die Sparstufen des Lichts greifen dort nicht, weil nicht die Grafikkarte der Engpass ist, sondern der Prozessor (das Zeichnen der rund 900 Zeichen des Namens je Bild und die Stil-Arbeit des Browsers). Ohne Grafikkarte bleibt die Seite benutzbar, aber ruckelig.
+
+### 6 · Meine Lesarten, zu denen David anders entscheiden kann
+1. **Mauspunkt als Zeiger des Betriebssystems** statt eines von der Seite gezeichneten Punkts: Nur so sitzt er wirklich auf der Maus (Punkt 2). Folge: Der Punkt wechselt Farbe und Größe nicht mehr weich, sondern in einem Schritt (gedrückt), und in Bildern der Seite ist er nicht zu sehen.
+2. **„3 s, nachdem die Startanimation fertig ist“** zählt ab der Freigabe (Welle durch, Scrollen frei), nicht ab der Landung des Namens.
+3. **„Kommt in dieser Sitzung nicht wieder“** heißt: nicht bei diesem Seitenaufruf. Nach dem Neuladen zeigt sie sich wieder (ein Merker über das Neuladen hinweg war der Grund, warum David sie früher nie sah).
+4. **WhatsApp** ist nur im Kontakt-Bereich der neuen Seite (und der Vergleichs-Varianten) ausgeschaltet. Datenschutz-Text und die bisherige Startseite sind nicht angefasst.
+5. **Der Lichtpunkt zum Chat** läuft nur mit Maus (am Handy gibt es kein Drüberfahren) und höchstens einer zugleich.
+
+### 7 · Bilder und Prüfung
+- Bildbögen aus der fertigen Fassung (Port 3200): Start als Bildreihe mit den Zeiten aus der Seite; Mauspunkt vorher und nachher; Scroll-Hinweis bei 3 s, 8 s, 20 s und beim Ausblenden; Kontakt am Computer und am Handy; Formular mit goldenem und rotem Schein; Bildraten auf den nachgestellten schwachen Geräten. Start und Scroll-Hinweis im echten Vollbild 2560 × 1440; der Kontakt in 1920 × 1080 und am nachgestellten Handy (375 × 812).
+- Geprüft in der fertigen Fassung: alle 24 Fälle der Startanimation (Liste in 4l) (jeder mit allen Zuständen in der richtigen Reihenfolge, die Seite bis zur Freigabe bei 0 px), die Sperre gegen Scrollen, der Name unter der Maus, der Kontakt-Bereich am Computer, am Handy und bei „weniger Bewegung“. Dabei ging keine Anfrage an `/api` (alle gesperrt), und „Anfrage absenden“ wurde nur mit leeren Pflichtfeldern gedrückt (der Browser sendet dann nichts).
+- Build, Lint und alle Tests bestehen (264 Tests; neu: `tests/anfrage-fehlt.test.ts`, drei weitere in `tests/kopf-start.test.ts`).
+- **Ohne zweite KI geprüft:** Codex war nicht erreichbar (Nutzungsgrenze des Kontos erreicht, laut Meldung bis 18.11.2026). Stattdessen habe ich die Punkte, die Codex prüfen sollte, selbst im Browser nachgemessen: Kopfleiste, „Anrufen“, Chat-Knopf und Daumen-Knopf sind vor der Landung nicht klickbar und danach klickbar (Computer und Handy); der Zeiger ist im Kopfbereich das Goldpunkt-Bild, über Links der Ring, in Eingabefeldern der gewöhnliche Zeiger.
+- **Beim Prüfen aufgefallen, nicht angefasst:** Am Handy liegt der Anrufen-Knopf am Daumen auch im Kontakt-Abschnitt über dem unteren Rand und verdeckt dort ein Stück des Formulars (er war schon vorher da). Im Kontakt steht ohnehin „Jetzt anrufen“; dort könnte er ausgeblendet werden.
+
+### 8 · Nicht angefasst
+Alles andere bleibt. Das Chat-Fenster kommt im nächsten Auftrag. Nichts wurde echt abgesendet, nichts gepusht.
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
 - Kein Scroll-Zwang: normales Scrollen, kein Festhalten ganzer Bereiche, Animationen begleiten nur. `prefers-reduced-motion` zeigt alles sofort im Endzustand.
+- **Schwache Geräte:** Was dort automatisch leichter wird, steht in **4m, Punkt 5**.
 - **Handy leichter:** Licht mit 60 statt 80 Proben, ohne Maus, im oberen Drittel, ruhiges Bild nur, wenn es ruckelt; Name aus Zeichen steht still, Tippen löst die Welle aus (4d); kein Zeiger-Effekt, kürzerer Ladebildschirm, Tropfen als einfache Linie mit Punkt, Kopfleiste als schwebende Kachel, Anrufen-Knopf in voller Breite am Daumen.
 
 ## 6. Zustände und Mengen
@@ -643,7 +760,7 @@ Alles andere bleibt genau so. Kontakt-Bereich und Chat-Fenster kommen später. N
 ## 7. Grenzen
 - Keine Änderung an `app/api`, `lib` (außer Texten in `lib/content.ts` und reinen Anzeige-Texten im Chat-Widget), Metadaten, Statistik, Terminseiten-Logik, Weiterleitung. Alle Anker-IDs bleiben. Die sechs Leistungstitel bleiben wörtlich (Schnittstellenwerte für Formular, Chat und Notion, siehe `docs/funktionen.md` 4a); ein anderer Anzeigename nur als getrennter Anzeigetext.
 - Nie: lila Verläufe, Inter, 3D-Blobs, KI-Standard-Kästchenraster, Emojis als Symbole, Glas überall, reines Schwarz ohne Farbe, erfundene Zahlen oder Stimmen. Keine fremde Seite 1:1.
-- Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML). Das Licht (three.js mit postprocessing) wird nachgeladen und rechnet nur, wenn es zu sehen ist; ruckelt es, steht ein Bild. Glas-Effekt nur an Kopfleiste, „Anrufen“, Chat-Knopf und an der Glasblase des Mauszeigers.
+- Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML). Das Licht (three.js mit postprocessing) wird nachgeladen und rechnet nur, wenn es zu sehen ist; ruckelt es, steht ein Bild. Glas-Effekt nur an Kopfleiste, „Anrufen“, Chat-Knopf, an der Glasblase des Mauszeigers, an den drei Glaskarten unter der ersten Aussage (4l) und an den Karten im Kontakt (4m). Im sparsamen Modus zeichnet Glas nicht weich (4m, Punkt 5).
 
 ## 8. Was die Code-Fehlersuche in Schritt 2 gelehrt hat (im Bau von Anfang an vermeiden)
 - Keine kursive Serife in Riesen-Überschriften: Betonungswörter stehen aufrecht (von David bestätigt, 11.11.2026).
@@ -680,3 +797,4 @@ Alles andere bleibt genau so. Kontakt-Bereich und Chat-Fenster kommen später. N
 24. **Feinschliff (13.11.2026, Abschnitt 4j):** Start ohne Ruckeln (das Licht wird in jedem Bild neu gezeichnet und ist dafür viel billiger geworden; Probe: 30 Bilder hintereinander unter 17 ms); Stern mindestens 3 s, Licht von innen nach außen, Zeichen bei 60 %, Licht dreht sich nach 1 s Pause langsam zur Maus. Lichtleiste statt Lichtfleck. Erste Aussage mit „Tagen“ → „Stunden“ und zeilenweise aufleuchtendem Text. Wörter-Feld mit lebendigem Stern und sechs Geister-Wörtern. Alle Überschriften entschlüsseln sich einmal je Seitenaufruf. Glasblase nur über den Zertifikaten. Ablauf läuft von selbst. „Anrufen“ scrollt am Computer zum Kontakt. Fuß mit Stern, Namen aus Zeichen und Lichtleiste.
 25. **Zweite Runde (13.11.2026, Abschnitt 4k):** Das Licht friert am Computer nie ein: höchstens 60 Licht-Bilder je Sekunde, die Wache misst die Arbeitszeit der Grafikkarte und stellt nur Sparstufen ein; das Korn bleibt immer in voller Auflösung. **Davids Entscheidung zur offenen Frage aus 4j:** Nach der Höchstzeit geht das Licht an; ein ruhiges Bild gibt es nur noch als letzte Rettung für sehr schwache Handys. Im Wörter-Feld und im Fuß steht der leichte Stern (Bilder der eigenen Szene, bewegt mit Drehen, Größe und Deckkraft, tanzendes Korn) statt einer zweiten Licht-Szene. Die erste Aussage tippt sich Buchstabe für Buchstabe (erst „Tagen“, dann „Stunden“), der Absatz verwandelt sich danach auf einmal. Der Stern am Start steht 1,5 s; während der Startanimation kann man nicht scrollen und nichts überspringen. Die Lichtleiste kommt 2 s nach der Landung des Namens, bei jedem Seitenaufruf. Der Ablauf-Balken läuft 6 s und bleibt 0,5 s voll stehen.
 26. **Dritte Runde (14.11.2026, Abschnitt 4l):** Davids Rückmeldung zu fcbeb26: „wunschlos glücklich“. Die Startanimation läuft immer ganz und beginnt immer oben (kein Sprung in den fertigen Zustand; der Stern wartet, bis alles bereit ist, Sicherheitsgrenze 15 s; ohne WebGL dieselbe Abfolge mit dem ruhigen Bild; Sprungziel erst nach dem Start). Der Name reagiert immer auf die Maus (tote Zone von 24 px am Seitenanfang). Die erste Überschrift verbuggt unter der Maus wie alle anderen. Unter ihr stehen statt des Absatzes der Wettlauf (zwei Balken, keine Zahlen) und drei Glaskarten mit dem goldenen Stern hinter dem Glas und dem Mauslicht auf dem Text. David beurteilt ab jetzt die fertige Fassung auf Port 3200.
+27. **Vierte Runde (14.11.2026, Abschnitt 4m):** Davids Rückmeldung zu b95adb9: Die Seite gefällt ihm sehr. Die Zeichen fliegen erst 0,7 s nach dem vollen Licht los. Der goldene Mauspunkt ist der Mauszeiger des Betriebssystems selbst und sitzt immer genau auf der Maus; nur der Schein zieht nach. Die Lichtleiste kommt 3 s nach dem Start, atmet bis zum ersten Scrollen und blendet dann in 1,2 s aus. Im Kontakt steht Anrufen klar im Mittelpunkt: Anruf-Karte aus Glas mit grünem Statuspunkt; der Chat-Hinweis schickt einen Lichtpunkt zum Chat-Knopf; das Formular ist eine kleine Glaskarte mit goldenem Licht beim Ausfüllen und rotem Licht bei fehlenden Pflichtfeldern. WhatsApp ist über einen Schalter ausgeschaltet. Auf schwachen Geräten läuft die Seite deutlich leichter (4m, Punkt 5).

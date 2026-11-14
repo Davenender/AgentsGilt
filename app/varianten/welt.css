@@ -290,8 +290,9 @@ html.lenis body {
   gap: 12px;
   pointer-events: none;
 }
+/* „--ag-klick“ ist nur gesetzt, solange die Leiste vor dem Start verborgen ist (kopf.css): dann „none“. */
 .ag-kopf > * {
-  pointer-events: auto;
+  pointer-events: var(--ag-klick, auto);
 }
 .ag-kopf__marke {
   display: flex;
@@ -392,6 +393,20 @@ html.lenis body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     0 12px 30px rgba(0, 0, 0, 0.45);
+}
+/* Sparsamer Modus (Klasse am <html>, gesetzt von der Licht-Szene in ihrer sparsamsten Stufe, etwa
+   wenn der Browser die Grafik ohne Grafikkarte in Software rechnet): Glas zeichnet nicht mehr
+   weich, was dahinter liegt. Das Weichzeichnen ist dort das Teuerste an der ganzen Seite. Dafür
+   ist das Glas dunkler getönt, damit Schrift darauf lesbar bleibt. Form, Lichtkante, Goldrand
+   und Schatten bleiben. */
+html.ag-sparsam .ag-neu *,
+html.ag-sparsam .ag-neu *::before,
+html.ag-sparsam .ag-neu *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html.ag-sparsam .ag-glas {
+  background: rgba(6, 9, 18, 0.86);
 }
 /* Glimmrand: ein 1 px feiner Goldrand, der nur dort aufglimmt, wo die Maus in der Nähe ist.
    Ein weicher Lichtfleck von rund 120 px folgt ihr am Rand entlang (glimmrand.ts setzt Ort und
@@ -824,7 +839,7 @@ body:has(.ag-chat) > button:has(> span[role="button"][aria-label="Schließen"]) 
   pointer-events: none;
 }
 .ag-chat > * {
-  pointer-events: auto;
+  pointer-events: var(--ag-klick, auto);
 }
 /* Ist der Chat offen oder das Menü, ruht der Knopf. */
 .ag-chat[data-offen="true"],
@@ -2341,7 +2356,7 @@ html.ag-zurueck body {
 .ag-daumen[data-da="true"] {
   opacity: 1;
   transform: none;
-  pointer-events: auto;
+  pointer-events: var(--ag-klick, auto);
 }
 .ag-daumen .ag-knopf {
   width: 100%;

@@ -1,11 +1,12 @@
 import { ausbildung, kontakt } from "@/lib/inhalt-neu";
-import { Ausbildung, Kontakt } from "../Bereiche";
+import { Ausbildung } from "../Bereiche";
 import { LichtName } from "../kopf/LichtName";
 import { Rahmen } from "../Rahmen";
 import { AblaufNummern } from "./AblaufNummern";
 import { Aussage } from "./Aussage";
 import { Entschluesselt } from "./Entschluesselt";
 import { FussSchluss } from "./FussSchluss";
+import { KontaktBereich } from "./KontaktBereich";
 import { Leistungen } from "./Leistungen";
 import { ScrollHinweis } from "./ScrollHinweis";
 import { Uebergang } from "./Uebergang";
@@ -62,8 +63,8 @@ export function Seite() {
       </section>
       <Stimmen />
       <section id="kontakt">
-        {/* Der Kontakt-Bereich bleibt, wie er ist; nur seine Überschrift entschlüsselt sich wie die anderen. */}
-        <Kontakt
+        {/* Anrufen steht im Mittelpunkt: Anruf-Karte aus Glas, Hinweis auf den Chat, Formular als Glaskarte. */}
+        <KontaktBereich
           titel={
             <Entschluesselt als="h2" className="ag-versal ag-titel">
               {kontakt.vor} <em className="ag-gold ag-leuchtet">{kontakt.gold}</em>

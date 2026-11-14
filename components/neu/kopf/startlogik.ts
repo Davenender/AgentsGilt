@@ -144,3 +144,30 @@ export function sichtbarZwischen(von: number, bis: number, protokoll: readonly {
   }
   return summe;
 }
+
+/**
+ * Rechnet der Browser die Grafik in Software (ohne Grafikkarte)? Erkannt am Namen des
+ * Grafik-Treibers, den WebGL meldet (SwiftShader, llvmpipe, „Microsoft Basic Render Driver“ …).
+ * Dann ist jedes Bild teuer: Das Licht beginnt gleich in der sparsamsten Stufe, und die Seite
+ * verzichtet auf das Weichzeichnen hinter Glas (Klasse `ag-sparsam`).
+ */
+export function softwareGrafik(treiber: string): boolean {
+  return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(treiber);
+}
+
+/**
+ * Wann schließt die Wache des Lichts ein Messfenster? Nach 60 Messungen, oder (auf sehr langsamen
+ * Geräten kämen die erst nach einer halben Minute zusammen) nach 2 s, wenn dann mindestens 8
+ * Messungen da sind. So greifen die Sparstufen auch bei wenigen Bildern je Sekunde binnen Sekunden.
+ */
+export function wachFensterVoll(messungen: number, seitBeginnMs: number): boolean {
+  return messungen >= 60 || (messungen >= 8 && seitBeginnMs >= 2000);
+}
+
+/**
+ * Nach einem Stufenwechsel zählen die nächsten Messungen nicht (die Grafikkarte richtet sich neu
+ * ein): 30 Messungen lang, höchstens aber 1,2 s.
+ */
+export function schonfristVorbei(messungen: number, seitWechselMs: number): boolean {
+  return messungen >= 30 || seitWechselMs >= 1200;
+}

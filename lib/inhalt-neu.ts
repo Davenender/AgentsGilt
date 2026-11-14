@@ -215,9 +215,22 @@ export const kontakt = {
   vor: "Sprechen wir über",
   gold: "Ihr Projekt.",
   text: "Rufen Sie an: Unser Assistent nimmt ab und macht direkt einen Termin aus. Wer lieber schreibt, bekommt meist innerhalb eines Werktages Antwort.",
+  // Die neue Seite (seite/KontaktBereich.tsx): Anrufen steht klar im Mittelpunkt.
+  haupt: "Rufen Sie uns an: Unser KI-Assistent nimmt sofort ab und macht direkt einen Termin mit Ihnen aus.",
+  anrufStatus: "KI-Assistent bereit",
+  chatHinweis: "Kurze Frage? Unser KI-Chat unten rechts antwortet sofort.",
   whatsapp: "Per WhatsApp schreiben",
   formular: {
     frage: "Lieber schreiben?",
+    // Die kleinste Zeile, in der eingeklappten Glaskarte des Formulars.
+    antwortzeit: "Meist antworten wir innerhalb eines Werktages.",
+    // Was unter einem Pflichtfeld steht, wenn es beim Absenden fehlt.
+    fehlt: {
+      name: "Bitte tragen Sie Ihren Namen ein.",
+      email: "Bitte tragen Sie Ihre E-Mail-Adresse ein.",
+      emailFalsch: "Bitte prüfen Sie die E-Mail-Adresse.",
+      message: "Bitte schreiben Sie kurz, worum es geht.",
+    },
     oeffnen: "Anfrage-Formular öffnen",
     schliessen: "Anfrage-Formular schließen",
     name: "Name",

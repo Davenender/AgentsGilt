@@ -397,12 +397,15 @@
 }
 .ag-neu:has(.ag-kopf5:is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) {
   opacity: 0;
+  /* Solange sie verborgen sind, nehmen ihre Teile keine Klicks an (welt.css: „pointer-events:
+     var(--ag-klick, auto)“). Der Wert wird hier nur an den drei Behältern gesetzt und vererbt sich.
+     Früher stand an dieser Stelle eine Regel für „alle Kinder“ (> *): Mit ihr rechnete der
+     Browser bei jedem Zeichen, das irgendwo auf der Seite wechselte, alle Elemente der Seite neu
+     (gemessen beim Scrollen: rund ein Drittel der Stil-Arbeit). */
+  --ag-klick: none;
 }
 .ag-neu:has(.ag-kopf5:not([data-skript]):is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) {
   animation: ag-start-netz 0.6s 8s forwards;
-}
-.ag-neu:has(.ag-kopf5:is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) > * {
-  pointer-events: none;
 }
 @keyframes ag-start-netz {
   to {
@@ -432,7 +435,7 @@
    Kein Text, kein Pfeil. Eine durchgehende, leuchtende Leiste über die ganze Breite: am Rand am
    hellsten, nach oben weich auslaufend (gut 100 px), dazu ein feiner, hellerer Goldstreifen genau
    an der Kante. Sie bewegt sich nicht seitlich, sie atmet nur leicht von unten nach oben
-   (3 s je Atemzug), höchstens dreimal, und blendet dann aus. */
+   (3 s je Atemzug), ununterbrochen, bis gescrollt wird. */
 .ag-hinweis {
   position: absolute;
   /* Am unteren Rand des sichtbaren Bildes, nicht des Kopfbereichs (der in sehr niedrigen Fenstern höher ist). */
@@ -444,30 +447,25 @@
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  /* Beim ersten Scrollen ist sie sofort weg. */
-  transition: opacity 0.2s linear;
+  /* Beim ersten Scrollen blendet sie langsam aus (data-an="weg"): gleichmäßig über die ganzen 1,2 s.
+     (Mit der Kurve der übrigen Seite, die vorn schnell ist, war sie schon nach 0,4 s kaum noch zu sehen.) */
+  transition: opacity 1.2s cubic-bezier(0.45, 0, 0.55, 1);
 }
-/* Einblenden (0,9 s), drei Atemzüge (9 s), ausblenden (1,2 s). */
-.ag-hinweis[data-an] {
-  animation: ag-hinweis-da 11.1s linear both;
+/* Solange die Startanimation läuft (auch wenn sie nach „Zurück“ noch einmal läuft), ist die Leiste nicht zu sehen. */
+html:not(.ag-start-frei) .ag-hinweis {
+  opacity: 0;
+  transition: none;
 }
-@keyframes ag-hinweis-da {
-  0% {
-    opacity: 0;
-  }
-  8%,
-  89% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
+/* Weich einblenden (0,9 s), dann atmet sie, bis gescrollt wird. */
+.ag-hinweis[data-an="1"] {
+  opacity: 1;
+  transition: opacity 0.9s var(--weich);
 }
 .ag-hinweis[data-an] .ag-leiste__schein {
-  animation: ag-leiste-atem 3s cubic-bezier(0.45, 0, 0.55, 1) 0.9s 3 both;
+  animation: ag-leiste-atem 3s cubic-bezier(0.45, 0, 0.55, 1) 0.9s infinite both;
 }
 .ag-hinweis[data-an] .ag-leiste__kante {
-  animation: ag-leiste-kante 3s cubic-bezier(0.45, 0, 0.55, 1) 0.9s 3 both;
+  animation: ag-leiste-kante 3s cubic-bezier(0.45, 0, 0.55, 1) 0.9s infinite both;
 }
 /* Ein Atemzug: Höhe und Helligkeit steigen von unten her an und sinken wieder. */
 @keyframes ag-leiste-atem {
@@ -492,9 +490,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   /* Nur ein ruhiger, schwacher Schein: nichts atmet. */
-  .ag-hinweis[data-an] {
+  .ag-hinweis[data-an="1"] {
     opacity: 0.55;
-    animation: none;
     transition-duration: 0.6s;
   }
   .ag-hinweis[data-an] .ag-leiste__schein,

@@ -1,7 +1,16 @@
 // Tests für die Rechenregeln der Startanimation im Kopfbereich: `npm test`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { OBEN_PX, lichtStaerke, probeFrist, rollStand, stufenWerte } from "../components/neu/kopf/startlogik.ts";
+import {
+  lichtStaerke,
+  OBEN_PX,
+  probeFrist,
+  rollStand,
+  schonfristVorbei,
+  softwareGrafik,
+  stufenWerte,
+  wachFensterVoll,
+} from "../components/neu/kopf/startlogik.ts";
 
 test("Oben ist oben: Bis 24 px unter dem Seitenanfang fliegt nichts auseinander", () => {
   for (const y of [0, 0.5, 1, 3, 10, OBEN_PX]) assert.equal(rollStand(y, 900), 0, `scrollY ${y}`);
@@ -246,4 +255,41 @@ test("kennt der Browser kein Sichtbarkeits-Protokoll, zählt die Zeit vor dem Ei
   assert.equal(sichtbarZwischen(150, 600, null), 0);
   assert.equal(sichtbarZwischen(150, 600, []), 0);
   assert.equal(sichtbarZwischen(600, 150, [{ name: "visible", startTime: 0 }]), 0, "verkehrte Zeiten ergeben nichts");
+});
+
+test("Software-Grafik wird am Namen des Treibers erkannt, echte Grafikkarten nicht", () => {
+  // So meldet Chrome die Grafik, wenn es ohne Grafikkarte rechnet (gemessen am 14.11.2026).
+  assert.ok(softwareGrafik("ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"));
+  assert.ok(softwareGrafik("Google SwiftShader"));
+  assert.ok(softwareGrafik("llvmpipe (LLVM 15.0.7, 256 bits)"));
+  assert.ok(softwareGrafik("ANGLE (Microsoft, Microsoft Basic Render Driver Direct3D11 vs_5_0 ps_5_0)"));
+  assert.ok(softwareGrafik("Apple Software Renderer"));
+  // Echte Grafikkarten.
+  assert.ok(!softwareGrafik("ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)"));
+  assert.ok(!softwareGrafik("ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)"));
+  assert.ok(!softwareGrafik("ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)"));
+  assert.ok(!softwareGrafik("Mali-G78"));
+  assert.ok(!softwareGrafik(""), "ohne Auskunft bleibt es bei der Wache");
+});
+
+test("die Wache schließt ein Messfenster nach 60 Messungen oder spätestens nach 2 s", () => {
+  // Schnelles Gerät: 60 Messungen sind nach rund einer Sekunde da.
+  assert.equal(wachFensterVoll(59, 980), false);
+  assert.equal(wachFensterVoll(60, 1000), true);
+  // Langsames Gerät (4 Bilder je Sekunde): Nach 2 s sind 8 Messungen da, das Fenster schließt.
+  assert.equal(wachFensterVoll(7, 1750), false);
+  assert.equal(wachFensterVoll(8, 2000), true);
+  // Sehr langsam (unter 4 Bildern je Sekunde): Es wartet, bis 8 Messungen da sind, nicht länger.
+  assert.equal(wachFensterVoll(5, 2600), false);
+  assert.equal(wachFensterVoll(8, 4200), true);
+  // Zwei Sekunden allein genügen nicht: Ein einzelner Ausreißer stellt keine Sparstufe ein.
+  assert.equal(wachFensterVoll(1, 9000), false);
+});
+
+test("nach einem Stufenwechsel zählen 30 Messungen nicht, höchstens aber 1,2 s", () => {
+  assert.equal(schonfristVorbei(29, 480), false);
+  assert.equal(schonfristVorbei(30, 500), true);
+  // Langsames Gerät: Nach 1,2 s geht es weiter, auch wenn erst drei Messungen kamen.
+  assert.equal(schonfristVorbei(3, 1100), false);
+  assert.equal(schonfristVorbei(3, 1200), true);
 });

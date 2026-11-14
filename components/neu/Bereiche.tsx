@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useGSAP } from "@gsap/react";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
+import { site } from "@/lib/content";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { ablauf, ausbildung, hero, kontakt, marke, wasWirMachen } from "@/lib/inhalt-neu";
 import { Anfrage } from "./Anfrage";
@@ -262,9 +263,12 @@ export function Kontakt({ mitte = false, titel }: { mitte?: boolean; titel?: Rea
       <p className="ag-text">{kontakt.text}</p>
       <div className="ag-kontakt__wege">
         <AnrufLeiste />
-        <Knopf art="linie" href={marke.whatsapp} neu>
-          {kontakt.whatsapp}
-        </Knopf>
+        {/* WhatsApp: über den Schalter in lib/content.ts (Standard aus). */}
+        {site.whatsappAnzeigen && (
+          <Knopf art="linie" href={marke.whatsapp} neu>
+            {kontakt.whatsapp}
+          </Knopf>
+        )}
       </div>
       <p className="ag-mono">{hero.anrufHinweis}</p>
       <Anfrage />
