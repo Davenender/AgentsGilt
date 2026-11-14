@@ -69,3 +69,15 @@ test("Der Briefkasten lässt die neuen Briefe durch (sonst kämen sie nie in der
     { typ: "erinnerung_weg", nr: 2, zeit: "z" },
   ] as const) assert.ok(briefLesen(briefText(b)), b.typ);
 });
+
+// Etappe 2 (14.11.): Nachricht aufs Handy, Wunschliste, neue Vorlagen zum Zeigen
+test("Etappe 2: nachricht_schicken und wunsch_merken werden Briefe, die der Briefkasten durchlässt", async () => {
+  const { briefLesen, ZEIG_VORLAGEN } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("nachricht_schicken", { text: "Relax Fit: Bürgermeister-Mahr-Str. 44" }, "s"), { typ: "nachricht", text: "Relax Fit: Bürgermeister-Mahr-Str. 44" });
+  assert.equal(briefAus("nachricht_schicken", { text: "  " }, "s"), null);
+  assert.deepEqual(briefAus("wunsch_merken", { text: "Spotify steuern" }, "s"), { typ: "wunsch", text: "Spotify steuern" });
+  for (const b of [{ typ: "nachricht", text: "x", zeit: "z" }, { typ: "wunsch", text: "y", zeit: "z" }] as const) assert.ok(briefLesen(briefText(b)), b.typ);
+  for (const v of ["hilfe", "wunschliste", "nachrichten"]) assert.ok((ZEIG_VORLAGEN as readonly string[]).includes(v), v);
+  const namen = LUCA_WERKZEUGE.map((w) => w.function.name);
+  assert.ok(namen.includes("nachricht_schicken") && namen.includes("wunsch_merken"));
+});

@@ -121,7 +121,7 @@ export const LAGE_MARKE = "📋 Lagebericht";
 export const ANRUF_MARKE = "📞 Luca ruft David an";
 
 /** Stufe 6: was Luca am Telefon auf der Bühne der Zentrale zeigen kann (Vorlagen der Zentrale) – „schliessen“ macht sie zu. */
-export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "schliessen"] as const;
+export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "hilfe", "wunschliste", "nachrichten", "schliessen"] as const;
 
 export type Brief =
   | { typ: "zeigen"; vorlage: string; wunsch?: string }
@@ -138,6 +138,10 @@ export type Brief =
   | { typ: "erledigt"; thema: string; minuten?: number; uhrzeit?: string; text?: string }
   /** 13.11.: geplanten Anruf mit seiner Nummer löschen */
   | { typ: "erinnerung_weg"; nr: number }
+  /** Etappe 2: „Schick mir …“ – geht per iMessage an David */
+  | { typ: "nachricht"; text: string }
+  /** Etappe 2: Kann Luca nicht und das Team auch nicht – Wunschliste */
+  | { typ: "wunsch"; text: string }
   | { typ: "lerncheck"; fach: string; sitzt?: string; luecken?: string }
   | { typ: "ruhe"; ort?: string; aufheben?: boolean }
   | { typ: "notiz"; text: string };
@@ -185,6 +189,8 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
       ...(text ? { text } : {}),
     };
   }
+  if (werkzeug === "nachricht_schicken") return text ? { typ: "nachricht", text } : null;
+  if (werkzeug === "wunsch_merken") return text ? { typ: "wunsch", text: text.slice(0, 300) } : null;
   if (werkzeug === "erinnerung_loeschen") return Number.isInteger(nr) && nr >= 1 && nr <= 99 ? { typ: "erinnerung_weg", nr } : null;
   if (werkzeug === "nachschauen") {
     const frage = typeof args.frage === "string" ? args.frage.replace(/\s+/g, " ").trim().slice(0, 500) : "";
@@ -244,7 +250,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
 
 export function briefText(b: BriefMitZeit): string {
   const kopf =
-    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
+    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "nachricht" ? "Nachricht an David" : b.typ === "wunsch" ? "Wunschliste" : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
   // ``` im Text würde den Block beenden
   const json = JSON.stringify(b).replace(/`/g, "'");
   return `${BRIEF_MARKE} · ${kopf}\n\`\`\`json\n${json}\n\`\`\``;
@@ -256,7 +262,7 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   if (!m) return null;
   try {
     const j = JSON.parse(m[1]) as BriefMitZeit;
-    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg"].includes(j.typ)) return null;
+    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg", "nachricht", "wunsch"].includes(j.typ)) return null;
     return typeof j.zeit === "string" ? j : null;
   } catch {
     return null;
@@ -469,6 +475,8 @@ const WERKZEUGE_LIVE = [
   fn("nachschauen", "Das Team sucht in Notion, den Mails von kontakt@agentsgilt.com, im Kalender, in Omi (Davids Gespräche und Aufgaben), in Stripe, Vercel und im Tresor nach einer Antwort. Dauert meist unter einer Minute, das Ergebnis kommt im Gespräch nach. Das Ergebnis kommt nicht als Antwort auf diesen Aufruf.", { frage: txt("Die Frage in einem klaren Satz") }, ["frage"]),
   fn("schule_aktualisieren", "Schaut frisch im Schulportal nach (Vertretung, Entfall, Räume). Das Ergebnis kommt im Gespräch nach."),
   fn("erinnerung_erledigt", "David sagt zu einer Erinnerung oder einem geplanten Anruf „erledigt“, „hab ich schon“, „ruf deswegen nicht mehr an“ oder „mach ich später“. Dann gibt es dazu keinen Anruf mehr. Sagt er „später“ mit Zeit („um halb acht“, „in einer Stunde“), plant spaeter_uhrzeit oder spaeter_minuten den einen neuen Anruf. Sagt er nur „später“, frag einmal kurz, wann.", { thema: txt("Stichwort, worum es geht, zum Beispiel „Marc Mail“"), spaeter_uhrzeit: txt("Neuer Zeitpunkt HH:MM in Berliner Zeit, genau wie David ihn sagt"), spaeter_minuten: { type: "number", description: "Oder: in so vielen Minuten" }, text: txt("Woran dann erinnert werden soll, als Satz an David") }, ["thema"]),
+  fn("nachricht_schicken", "Schickt David etwas per iMessage aufs Handy: „schick mir die Adresse / den Link / die Kosten“. Hol die Daten vorher mit dem passenden Werkzeug, dann schreib hier den fertigen, kurzen Text (ohne Markdown). Nur an David, nie an andere.", { text: txt("Der fertige Text für Davids Handy") }, ["text"]),
+  fn("wunsch_merken", "Nie „kann ich nicht“: Kann weder ein Werkzeug noch das Team (auftrag_geben: recherchieren, Notion, Kalender, Mail-Entwurf, Texte, Pläne) es erledigen, weil es neuen Code braucht, kommt es auf die Wunschliste. Der Bauer schreibt David dazu den fertigen Prompt.", { text: txt("Was David will, in seinen Worten") }, ["text"]),
   fn("erinnerung_loeschen", "Löscht einen geplanten Anruf mit seiner Nummer aus „Geplante Anrufe“ im Wissen, zum Beispiel „lösch den Anruf um 15:35“. Ändern = löschen und neu planen.", { nr: { type: "number", description: "Nummer aus „Geplante Anrufe“" } }, ["nr"]),
   fn("erinnerung_planen", "David wird angerufen und erinnert: an einem Ort (ort + ereignis), in einigen Minuten (minuten) oder zu einer Uhrzeit (uhrzeit). Genau eins davon. Beim Ort geht zusätzlich: warten = so viele Minuten nach der Ankunft (oder Abfahrt) erst anrufen, zum Beispiel „wenn ich zu Hause bin, warte 10 Minuten“; ab = erst ab diesem Tag (JJJJ-MM-TT), zum Beispiel „morgen, wenn ich nach Hause komme“. Sagt David „ruf mich morgen früh an“, ist das eine Erinnerung mit uhrzeit und ueberblick true: Dann kommt beim Anruf auch der Tagesüberblick mit. Fehlt die Uhrzeit, frag nach; vor 7 Uhr ruft Luca nicht an.", { ueberblick: { type: "boolean", description: "true bei einem bestellten Morgen-Anruf: mit Schule, Terminen und dem, was wartet" }, text: txt("Woran erinnert werden soll, als Satz an David („Schreib Marc nochmal eine Mail“), nie „Erinnere David …“"), ort: txt("Ort, zum Beispiel Zuhause oder Schule"), ereignis: { type: "string", enum: ["ankunft", "abfahrt"], description: "ankunft = wenn er dort ankommt, abfahrt = wenn er dort weggeht" }, minuten: { type: "number", description: "In wie vielen Minuten" }, uhrzeit: txt("Zeitpunkt in Berliner Zeit: JJJJ-MM-TTTHH:MM"), nach_schulschluss: { type: "boolean", description: "true bei „wenn ich nach der letzten Stunde (z. B. nach Englisch) die Schule verlasse“: Verlassen in der Mittagspause zählt dann nicht. Nur mit ort Schule und ereignis abfahrt." }, thema: txt("Stichwort aus ein, zwei Wörtern, zum Beispiel „Marc Mail“. Zum selben Thema gibt es nur einen Anruf."), warten: { type: "number", description: "Nur beim Ort: so viele Minuten nach Ankunft oder Abfahrt warten, dann anrufen (1 bis 240)" }, ab: txt("Nur beim Ort: erst ab diesem Tag auslösen, JJJJ-MM-TT in Berliner Zeit (zum Beispiel morgen)") }, ["text"]),
   fn("lerncheck_merken", "Merkt nach einem Lerncheck, was sitzt und was nicht.", { fach: txt("Fach"), sitzt: txt("Was sitzt"), luecken: txt("Was noch nicht sitzt") }, ["fach"]),
