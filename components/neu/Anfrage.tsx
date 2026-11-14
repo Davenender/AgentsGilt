@@ -215,7 +215,7 @@ export function Anfrage({ glas = false }: { glas?: boolean }) {
 
   return (
     <div ref={karte} className={glas ? "ag-anfrage ag-anfrage--glas" : "ag-anfrage"} data-offen={a.offen} onInput={glas ? getippt : undefined}>
-      {glas && <span className="ag-anfrage__glas" aria-hidden="true" />}
+      {glas && <span className="ag-anfrage__glas" aria-hidden="true" data-glimm />}
       <button
         type="button"
         className="ag-anfrage__schalter"

@@ -14,6 +14,10 @@ export interface Message {
   // Gehört nicht ins Gespräch mit dem KI-Assistenten (Support-Chat, Hinweise).
   // Sonst glaubt er z.B., die Übergabe an einen Mitarbeiter laufe noch.
   noAi?: boolean;
+  // Was der Assistent unter dieser Antwort anbietet (aus seinen Markern, seit 14.11.2026):
+  // die Anruf-Karte bzw. den Knopf zum Mitarbeiter. Angezeigt wird es unter der Nachricht.
+  anrufen?: boolean;
+  mitarbeiter?: boolean;
 }
 
 // Ein laufender Support-Chat: der Schlüssel des Tickets und die letzte Nachricht,
@@ -37,6 +41,9 @@ export function aiHistory(messages: Message[]) {
 export const WANTS_HUMAN = /mitarbeiter|mensch|echte[nr]? person|jemand(en)? vom team|support/i;
 
 export const KONTAKT_MARKER = "[KONTAKT]";
+// Der Assistent setzt ihn bei Terminen: Unter der Antwort erscheint der Weg zum Anrufen
+// (am Telefon macht der KI-Telefonassistent direkt einen Termin aus).
+export const ANRUFEN_MARKER = "[ANRUFEN]";
 // Der Assistent setzt ihn, wenn er nicht weiterkommt (Preis, Sonderwunsch,
 // Beschwerde) oder der Besucher einen Menschen verlangt.
 export const MITARBEITER_MARKER = "[MITARBEITER]";
@@ -72,6 +79,7 @@ export function stripMarkers(text: string): string {
   let out = text
     .replace(DATEN_REGEX, "")
     .replace(KONTAKT_MARKER, "")
+    .replace(ANRUFEN_MARKER, "")
     .replace(MITARBEITER_MARKER, "");
 
   // Angefangener Daten-Block: alles ab dort abschneiden.
@@ -119,6 +127,18 @@ export function parseDaten(text: string): PrefillContactDetail | null {
   }
 }
 
+/**
+ * Was der Assistent mit seinen Markern unter einer Antwort anbietet. `mitarbeiter` gilt auch,
+ * wenn der Besucher ausdrücklich einen Menschen verlangt hat (falls der Assistent den Marker
+ * vergisst) und beim älteren Marker [KONTAKT].
+ */
+export function angebote(antwort: string, frage: string): { anrufen: boolean; mitarbeiter: boolean } {
+  return {
+    anrufen: antwort.includes(ANRUFEN_MARKER),
+    mitarbeiter: antwort.includes(KONTAKT_MARKER) || antwort.includes(MITARBEITER_MARKER) || WANTS_HUMAN.test(frage),
+  };
+}
+
 // ───────────── Für das Fenster der neuen Seite ─────────────
 
 /** Die Zufallszeichen, aus denen sich Antworten entschlüsseln (in JetBrains Mono). */
@@ -133,17 +153,27 @@ export function woerter(text: string): Wort[] {
 }
 
 /**
- * Abstand, in dem die Wörter einer Antwort nacheinander erscheinen (Millisekunden): Eine normale
- * Antwort steht nach etwa 1 s. Kurze Antworten laufen nicht langsamer als 45 ms je Wort (das ist
- * schon schneller, als man liest), sehr lange nicht schneller als 12 ms je Wort.
+ * Die Welle, in der sich eine Antwort entschlüsselt (alle Zeiten in Millisekunden):
+ * Die Wörter tauchen nacheinander als Zufallszeichen auf (`takt` Abstand), jedes bleibt
+ * `zeichenzeit` lang Zeichen und rastet dann ein. So läuft die Welle des Einrastens der Welle der
+ * Zeichen mit festem Abstand hinterher. `gesamt`: wann das letzte Wort eingerastet ist.
+ *
+ * Gewöhnlich: Jedes Wort bleibt 0,6 s Zeichen. Eine kurze Antwort steht nach etwa 2 s, eine
+ * normale nach 2,5 bis 3 s, keine braucht länger als 3,5 s: Bei langen Antworten wird der Takt
+ * schneller, die Zeichenzeit bleibt. Ganz kurze Texte (ein paar Wörter) sind früher fertig, damit
+ * nicht ein Wort eine Sekunde allein dasteht.
+ * `zuegig` (die Zusammenfassung im Formular): alles in etwa 1 s.
  */
-export function wortTakt(anzahl: number): number {
-  if (anzahl <= 0) return 45;
-  return Math.max(12, Math.min(45, 850 / anzahl));
+export function wellenPlan(anzahl: number, zuegig = false): { takt: number; zeichenzeit: number; gesamt: number } {
+  const zeichenzeit = zuegig ? 320 : 600;
+  const n = Math.max(1, anzahl);
+  const ziel = zuegig ? 1000 : Math.max(2000, Math.min(3500, 1700 + 28 * n));
+  const takt = n === 1 ? 0 : Math.min(zuegig ? 60 : 120, (ziel - zeichenzeit) / (n - 1));
+  return { takt, zeichenzeit, gesamt: Math.round((n - 1) * takt + zeichenzeit) };
 }
 
-/** So lange steht ein Wort als Zufallszeichen da, bevor es einrastet (Millisekunden). */
-export const WORT_FLACKERN = 150;
+/** So oft wechseln die Zufallszeichen eines Wortes (Millisekunden): ruhig, nicht hektisch. */
+export const ZEICHEN_WECHSEL = 80;
 
 export type ReichTeil =
   | { art: "text"; text: string }
@@ -160,8 +190,8 @@ const NETZ = /(?:https?:\/\/)?(?:www\.)?[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:co
 const ALLE = new RegExp(`(${MAIL.source})|(${TEL.source})|(${NETZ.source})`, "g");
 
 /**
- * Teilt den Text einer Antwort in gewöhnlichen Text, Telefonnummern (werden zum Glas-Chip
- * „Jetzt anrufen“), E-Mail-Adressen und Adressen im Netz. Satzzeichen am Ende gehören zum Text.
+ * Teilt den Text einer Antwort in gewöhnlichen Text, Telefonnummern (als `tel:`-Verweis),
+ * E-Mail-Adressen und Adressen im Netz. Satzzeichen am Ende gehören zum Text.
  */
 export function reichTeile(text: string): ReichTeil[] {
   const teile: ReichTeil[] = [];

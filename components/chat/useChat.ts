@@ -10,18 +10,17 @@ import {
 } from "@/lib/events";
 import {
   GREETING,
-  KONTAKT_MARKER,
-  MITARBEITER_MARKER,
-  WANTS_HUMAN,
   aiHistory,
+  angebote,
   parseDaten,
   stripMarkers,
   type Message,
   type Ticket,
 } from "@/lib/chat-text";
 
-// Die ganze Logik des Website-Chats, unverändert aus components/ChatWidget.tsx herausgezogen
-// (14.11.2026), damit zwei Hüllen sie teilen können: das bisherige Fenster der alten Startseite
+// Die ganze Logik des Website-Chats, aus components/ChatWidget.tsx herausgezogen (14.11.2026;
+// seitdem einzige Änderung: Antworten merken sich, was der Assistent unter ihnen anbietet, dazu
+// der neue Marker [ANRUFEN]), damit zwei Hüllen sie teilen können: das bisherige Fenster der alten Startseite
 // (components/ChatWidget.tsx) und das Glasfenster der neuen Seite (components/neu/chat). Es läuft
 // immer nur EINE Instanz (components/chat/ChatAnbieter.tsx im Stammlayout): ein Verlauf, ein
 // Abruf der Team-Antworten, eine Meldung beim Verlassen der Seite.
@@ -487,12 +486,22 @@ export function useChat() {
         }
       }
 
-      const wantsContact =
-        fullText.includes(KONTAKT_MARKER) || fullText.includes(MITARBEITER_MARKER);
+      // Was der Assistent unter dieser Antwort anbietet: Anrufen ([ANRUFEN], seit 14.11.2026) und
+      // den Mitarbeiter ([MITARBEITER], [KONTAKT], oder der Besucher verlangt einen Menschen).
+      // Die Antwort merkt es sich; die Fenster zeigen es unter der Nachricht.
+      const angebot = angebote(fullText, text);
       const clean = stripMarkers(fullText).trim();
-      setMessages((m) => [...m, { role: "assistant", content: clean }]);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: clean,
+          ...(angebot.anrufen ? { anrufen: true } : {}),
+          ...(angebot.mitarbeiter ? { mitarbeiter: true } : {}),
+        },
+      ]);
       setStreamText("");
-      if (wantsContact || WANTS_HUMAN.test(text)) setShowContact(true);
+      if (angebot.mitarbeiter) setShowContact(true);
 
       const gathered = parseDaten(fullText);
       if (gathered) {

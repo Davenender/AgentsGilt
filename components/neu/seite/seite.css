@@ -257,8 +257,11 @@
    Rand einen dünnen Goldschimmer und darunter einen weichen Schatten. Alle drei sind gleich hoch.
 
    Aufbau je Karte, von hinten nach vorn: der Stern (er wartet unsichtbar neben der Karte und wird
-   an ihrem Rand abgeschnitten), das Glas, der Inhalt. glaskarten.ts setzt je Karte --sx und --sy
-   (Ort des Sterns) und --sd (seine Deckkraft) und je Wort --h (Mauslicht).
+   an ihrem Rand abgeschnitten) mit seinem Lichtkreuz, das matte Glas (und um den Stern das klare),
+   Lichtkante und Rand, der Saum der Lichtbrechung, der Inhalt. glaskarten.ts setzt je Karte --sx
+   und --sy (Ort des Sterns), --sd (seine Deckkraft), --bl --br --bo --bu (Lichtbrechung je Kante)
+   und je Wort --h (Mauslicht). Der Rand glimmt außerdem unter der Maus und im Licht des Sterns der
+   Nachbarkarte (glimmrand.ts: --gx, --gy, --gn).
 
    Eingeblendet werden Glas und Inhalt einzeln, nicht die ganze Karte: Eine durchscheinende Karte
    wäre für ihr Glas eine eigene Welt, und das Glas sähe erst nach dem Einblenden, was hinter der
@@ -292,6 +295,10 @@
   --sx: -400px;
   --sy: 50%;
   --sd: 0;
+  --bl: 0;
+  --br: 0;
+  --bo: 0;
+  --bu: 0;
   position: relative;
   display: flex;
 }
@@ -366,6 +373,148 @@
     opacity: 1;
   }
 }
+/* ── Der Stern bricht sich im Glas (glaskarten.ts).
+   1. Das Lichtkreuz: Aus dem Stern ziehen vier dünne Lichtstreifen waagerecht und senkrecht bis an
+   die Kartenränder, in der Mitte hell, zu den Enden weich auslaufend, wie ein Lichtreflex in einer
+   Kamera. Die Ebene liegt zwischen Stern und Glas; sie wird nur verschoben und in der Deckkraft
+   geändert (--sx, --sy, --sd). */
+.ag-gk__kreuz {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform: translate3d(var(--sx), var(--sy), 0);
+  /* Ruhig, nicht grell: etwas unter der Helligkeit des Sterns. */
+  opacity: calc(var(--sd) * 0.8);
+  mix-blend-mode: screen;
+}
+.ag-gk__kreuz::before,
+.ag-gk__kreuz::after {
+  content: "";
+  position: absolute;
+}
+.ag-gk__kreuz::before {
+  top: -5px;
+  left: -560px;
+  width: 1120px;
+  height: 10px;
+  background: linear-gradient(180deg, rgba(255, 206, 128, 0) 0%, rgba(255, 220, 156, 0.55) 34%, #fff8e6 50%, rgba(255, 220, 156, 0.55) 66%, rgba(255, 206, 128, 0) 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.42) 28%, #000 50%, rgba(0, 0, 0, 0.42) 72%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.42) 28%, #000 50%, rgba(0, 0, 0, 0.42) 72%, transparent 100%);
+}
+.ag-gk__kreuz::after {
+  top: -460px;
+  left: -5px;
+  width: 10px;
+  height: 920px;
+  background: linear-gradient(90deg, rgba(255, 206, 128, 0) 0%, rgba(255, 220, 156, 0.55) 34%, #fff8e6 50%, rgba(255, 220, 156, 0.55) 66%, rgba(255, 206, 128, 0) 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.42) 28%, #000 50%, rgba(0, 0, 0, 0.42) 72%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.42) 28%, #000 50%, rgba(0, 0, 0, 0.42) 72%, transparent 100%);
+}
+/* 2. Klares Glas am Stern: Das Glas ist matt, nur in einem weichen Kreis um den Stern wird es
+   klarer, als wärmte der Stern das Glas von hinten an. Dafür liegen zwei Glas-Ebenen übereinander:
+   die matte (sie zeichnet weich) und eine klare mit wenig Unschärfe. Solange ein Stern in der Karte
+   ist (data-stern), stellt eine Maske an seiner Stelle die klare frei und spart die matte dort aus.
+   Die Unschärfe selbst wird nie je Bild neu gerechnet. */
+.ag-gk__matt,
+.ag-gk__klar {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.ag-gk__matt {
+  -webkit-backdrop-filter: blur(11px) saturate(1.15);
+  backdrop-filter: blur(11px) saturate(1.15);
+}
+.ag-gk__klar {
+  visibility: hidden;
+  -webkit-backdrop-filter: blur(1.6px) saturate(1.3) brightness(1.12);
+  backdrop-filter: blur(1.6px) saturate(1.3) brightness(1.12);
+}
+.ag-gk[data-stern] .ag-gk__matt {
+  -webkit-mask-image: radial-gradient(circle 170px at var(--sx) var(--sy), rgba(0, 0, 0, calc(1 - var(--sd) * 0.96)) 0%, rgba(0, 0, 0, calc(1 - var(--sd) * 0.8)) 34%, #000 100%);
+  mask-image: radial-gradient(circle 170px at var(--sx) var(--sy), rgba(0, 0, 0, calc(1 - var(--sd) * 0.96)) 0%, rgba(0, 0, 0, calc(1 - var(--sd) * 0.8)) 34%, #000 100%);
+}
+.ag-gk[data-stern] .ag-gk__klar {
+  visibility: visible;
+  -webkit-mask-image: radial-gradient(circle 170px at var(--sx) var(--sy), rgba(0, 0, 0, calc(var(--sd) * 0.96)) 0%, rgba(0, 0, 0, calc(var(--sd) * 0.8)) 34%, transparent 100%);
+  mask-image: radial-gradient(circle 170px at var(--sx) var(--sy), rgba(0, 0, 0, calc(var(--sd) * 0.96)) 0%, rgba(0, 0, 0, calc(var(--sd) * 0.8)) 34%, transparent 100%);
+}
+/* In diesen Karten zeichnet die matte Ebene weich, nicht die Fläche mit Lichtkante und Rand. */
+.ag-gk .ag-gk__glas {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* 3. Lichtbrechung an der Kante: Wo der Stern oder ein Lichtstreifen eine Kante trifft, bricht sich
+   das Licht wie an einer echten Glaskante. Ein schmaler heller Saum liegt genau an dieser Stelle
+   der Kante, leicht nach außen versetzt, außen mit einem Hauch kühler, innen mit einem Hauch warmer
+   Farbe (ganz dezent). Je Kante ein Stück, das mit dem Stern wandert (nur Verschieben und
+   Deckkraft); sichtbar ist davon nur der 3 px feine Ring um die Karte. */
+.ag-gk__saum {
+  position: absolute;
+  inset: -2px;
+  padding: 3px;
+  border-radius: 24px;
+  visibility: hidden;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.ag-gk[data-stern] .ag-gk__saum,
+.ag-gk[data-an] .ag-gk__saum {
+  visibility: visible;
+}
+.ag-gk__saum i {
+  position: absolute;
+  display: block;
+}
+/* links, rechts: senkrechte Stücke auf Höhe des Sterns */
+.ag-gk__saum i:nth-child(1),
+.ag-gk__saum i:nth-child(2) {
+  top: -108px;
+  width: 30px;
+  height: 220px;
+  transform: translate3d(0, var(--sy), 0);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 50%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 50%, transparent 100%);
+}
+.ag-gk__saum i:nth-child(1) {
+  left: 0;
+  background: linear-gradient(90deg, rgba(160, 196, 255, 0.9) 0px, #fffaf0 1.5px, rgba(255, 196, 112, 0.95) 3px, rgba(255, 188, 104, 0.5) 9px, rgba(255, 188, 104, 0) 30px);
+  opacity: var(--bl);
+}
+.ag-gk__saum i:nth-child(2) {
+  right: 0;
+  background: linear-gradient(270deg, rgba(160, 196, 255, 0.9) 0px, #fffaf0 1.5px, rgba(255, 196, 112, 0.95) 3px, rgba(255, 188, 104, 0.5) 9px, rgba(255, 188, 104, 0) 30px);
+  opacity: var(--br);
+}
+/* oben, unten: waagerechte Stücke unter und über dem Stern */
+.ag-gk__saum i:nth-child(3),
+.ag-gk__saum i:nth-child(4) {
+  left: -108px;
+  width: 220px;
+  height: 30px;
+  transform: translate3d(var(--sx), 0, 0);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 50%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 50%, transparent 100%);
+}
+.ag-gk__saum i:nth-child(3) {
+  top: 0;
+  background: linear-gradient(180deg, rgba(160, 196, 255, 0.9) 0px, #fffaf0 1.5px, rgba(255, 196, 112, 0.95) 3px, rgba(255, 188, 104, 0.5) 9px, rgba(255, 188, 104, 0) 30px);
+  opacity: var(--bo);
+}
+.ag-gk__saum i:nth-child(4) {
+  bottom: 0;
+  background: linear-gradient(0deg, rgba(160, 196, 255, 0.9) 0px, #fffaf0 1.5px, rgba(255, 196, 112, 0.95) 3px, rgba(255, 188, 104, 0.5) 9px, rgba(255, 188, 104, 0) 30px);
+  opacity: var(--bu);
+}
 .ag-gk__glas,
 .ag-kon__glas,
 .ag-anfrage__glas {
@@ -391,7 +540,9 @@
     0 14px 28px -16px rgba(0, 0, 0, 0.6);
 }
 /* Der Rand: 1 px. Oben die helle Lichtkante, darunter ein dünner Goldschimmer. Wo der Stern gerade
-   ist, fangen Kante und Rand sein Licht (ein weicher Fleck, der mit ihm wandert). */
+   ist, fangen Kante und Rand sein Licht (ein weicher Fleck, der mit ihm wandert). Dazu der
+   Glimmrand: Der Rand glimmt dort auf, wo die Maus in der Nähe ist, und bei den drei Glaskarten
+   dort, wo das Licht des Sterns der Nachbarkarte hinfällt (--gx, --gy, --gn vom Teil mit data-glimm). */
 .ag-gk__glas::after,
 .ag-kon__glas::after,
 .ag-anfrage__glas::after {
@@ -401,6 +552,7 @@
   padding: 1px;
   border-radius: inherit;
   background:
+    radial-gradient(70px circle at var(--gx, 50%) var(--gy, 0px), rgba(255, 232, 170, calc(var(--gn, 0) * 0.98)) 0%, rgba(243, 210, 122, calc(var(--gn, 0) * 0.5)) 50%, rgba(212, 162, 60, 0) 100%),
     radial-gradient(210px circle at var(--sx) var(--sy), rgba(255, 240, 204, calc(var(--sd) * 0.95)) 0%, rgba(243, 210, 122, calc(var(--sd) * 0.6)) 42%, rgba(212, 162, 60, 0) 100%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(243, 210, 122, 0.2) 16%, rgba(212, 162, 60, 0.1) 56%, rgba(212, 162, 60, 0.2) 100%);
   -webkit-mask:
@@ -467,7 +619,8 @@
   translate: 0 30px;
   transition: translate 1s var(--weich);
 }
-.ag-aussage[data-an] :is(.ag-gk__glas, .ag-gk__inhalt) {
+/* Auch der Stern mit seinem Lichtkreuz wartet, bis das Glas da ist: Vorher stünde er nackt im Dunkeln. */
+.ag-aussage[data-an] :is(.ag-gk__glas, .ag-gk__matt, .ag-gk__inhalt, .ag-gk__hinten, .ag-gk__saum) {
   opacity: 0;
 }
 .ag-aussage[data-an] .ag-gk__reihe::before {
@@ -479,7 +632,7 @@
     opacity 0.8s var(--weich),
     box-shadow 0.7s var(--weich);
 }
-.ag-aussage[data-an] .ag-gk__inhalt {
+.ag-aussage[data-an] :is(.ag-gk__inhalt, .ag-gk__matt, .ag-gk__hinten, .ag-gk__saum) {
   transition: opacity 0.8s var(--weich);
 }
 .ag-aussage[data-an][data-lauf] .ag-gk {
@@ -492,6 +645,10 @@
 .ag-aussage[data-an][data-lauf] .ag-gk__glas {
   opacity: 1;
   transition-delay: calc(0.65s + var(--i, 0) * 0.12s), 0s;
+}
+.ag-aussage[data-an][data-lauf] :is(.ag-gk__matt, .ag-gk__hinten, .ag-gk__saum) {
+  opacity: 1;
+  transition-delay: calc(0.65s + var(--i, 0) * 0.12s);
 }
 .ag-aussage[data-an][data-lauf] .ag-gk__inhalt {
   opacity: 1;
@@ -1346,6 +1503,14 @@
     opacity 0.4s var(--weich),
     box-shadow 0.5s var(--weich);
 }
+/* Glimmrand: Er liegt genau auf dem feinen Rand der Karte und glimmt auf, wo die Maus nahe ist. */
+.ag-vers__karte.ag-glimm {
+  --grundrand: 0;
+  position: relative;
+}
+.ag-vers__karte.ag-glimm::after {
+  inset: -1px;
+}
 .ag-vers__karte:nth-child(2) {
   rotate: 1.5deg;
   translate: 0 14px;
@@ -1417,6 +1582,30 @@
   to {
     transform: translate3d(-50%, 0, 0);
   }
+}
+
+/* ───────────── Zertifikate: Glimmrand ─────────────
+   Der Rand des Zertifikats glimmt golden auf, wo die Maus in der Nähe ist (glimmrand.ts; die
+   Glasblase „Ansehen“ und das Heben der Karte bleiben). Auf dem hellen Papier ist er 2 px fein und
+   kräftiger als auf Glas. */
+.ag-seite .ag-zert__bild {
+  position: relative;
+}
+.ag-seite .ag-zert__bild::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  background: radial-gradient(84px circle at var(--gx, 50%) var(--gy, 0px), rgba(255, 214, 120, var(--gn, 0)) 0%, rgba(226, 160, 48, calc(var(--gn, 0) * 0.85)) 45%, rgba(212, 162, 60, 0) 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
 }
 
 /* ───────────── Kundenstimmen (fertig gebaut, über lib/content.ts AUS) ───────────── */

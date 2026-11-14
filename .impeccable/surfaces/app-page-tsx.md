@@ -39,4 +39,8 @@ SIGNATURE INTERACTION: „Das Licht folgt“. Die unsichtbare Wand mit dem Logo-
 
 FORM: Von David gewählte, aus seinen Vorbildern zusammengesetzte Richtung (Active Theory, Poly, Vapi, Lando Norris, recent.design; für den Kopfbereich seit dem Richtungswechsel die Wirkung des Lichts von madebyigor.com und der Zeichen-Teilchen von ksenpanchenko.com, in unserer Form und unseren Farben); nicht aus meiner Siebener-Liste. Die gewürfelte Richtung (Platz 3, „Die Vermittlung“) lag zur Wahl und wurde nicht genommen. seed:373ab79b8d49e7d0
 
+CHAT (Stand 14.11.2026, sechste Runde): Das Glasfenster wird beim Schließen zur Kugel des Chat-Knopfs und beim Öffnen wieder zum Fenster (Form über Verschieben, Größe und Eckenradius, nichts wird abgeschnitten). Im Kopf unser Logo in Gold. Beim Nachdenken drei goldene Punkte; die Antwort entschlüsselt sich als ruhige Welle. Unter der Nachricht stehen Anruf-Karte und „Mit einem Mitarbeiter schreiben“. Das Formular füllt die Nachricht mit einer KI-Zusammenfassung.
+
+LIGHT ON EDGES (Stand 14.11.2026): Der Glimmrand sitzt ohne Verzögerung an der Stelle des Randes, die der Maus am nächsten ist, an allen Karten (Glaskarten, Versprechen, Zertifikate, Kontakt, Chat). Der Stern hinter den drei Glaskarten bricht sich im Glas: Lichtkreuz, klares Glas um den Stern, Saum an der Kante, Licht auf dem Rand der Nachbarkarte.
+
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

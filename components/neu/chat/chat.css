@@ -1,14 +1,12 @@
 /* ───────────── Chat-Fenster der neuen Seite (ChatFenster.tsx) ─────────────
    Dunkles Milchglas wie die Kopfleiste, feine Goldkante, weicher Schatten; dahinter ganz schwach
-   der Logo-Stern als Lichtschein. Bewegt wird nur mit Verschieben, Größe, Deckkraft und dem
-   Ausschnitt des Fensters; nichts läuft, solange das Fenster zu ist. */
+   der Logo-Stern als Lichtschein. Bewegt wird nur mit Verschieben, Größe, Eckenradius und
+   Deckkraft; nichts läuft, solange das Fenster zu ist.
 
-/* Halbmesser der Raute, in der sich das Fenster aus dem Chat-Knopf ausfaltet. */
-@property --cf-r {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
+   Öffnen und Schließen: Das Fenster wird zur Kugel des Chat-Knopfs und wieder zurück. Die Form
+   (.ag-cf__form: Glas und Goldrand) wird dafür verschoben, verkleinert und an den Ecken immer
+   runder, bis sie genau der Chat-Knopf ist; nichts wird abgeschnitten. ChatFenster.tsx setzt die
+   Werte je Bild; Rand, Lichtkante und Unschärfe gleichen die Verkleinerung aus (--rx, --ry). */
 
 .ag-cf {
   position: fixed;
@@ -21,15 +19,26 @@
   line-height: 1.5;
   pointer-events: none;
   visibility: hidden;
-  /* Beim Schließen bleibt es sichtbar, bis es sich eingefaltet hat. */
-  transition: visibility 0s 0.42s;
 }
-.ag-cf[data-offen="true"] {
+/* Sichtbar ist es vom ersten Bild des Öffnens bis zum letzten des Schließens. */
+.ag-cf[data-da] {
   visibility: visible;
-  transition-delay: 0s;
+}
+/* Vorzeichnen (ChatFenster.tsx): zwei Bilder lang da, aber praktisch unsichtbar und nicht bedienbar. */
+.ag-cf[data-warm] {
+  visibility: visible;
+  opacity: 0.01;
+}
+.ag-cf[data-warm] * {
+  pointer-events: none !important;
 }
 html.ag-menue-offen .ag-cf {
   visibility: hidden;
+}
+/* Solange das Fenster nicht ganz zu ist, zeigt seine Kugel den Chat-Knopf. Der echte Knopf bleibt
+   an seinem Platz (für Fokus und Klick), ist aber durchsichtig. */
+html.ag-cf-an .ag-chat__kugel {
+  opacity: 0;
 }
 .ag-cf__dunkel {
   display: none;
@@ -39,99 +48,93 @@ html.ag-menue-offen .ag-cf {
   inset: 0;
 }
 
-/* Der Stern des Chat-Knopfs wächst beim Öffnen auf und vergeht im Fenster. */
-.ag-cf__auf {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 64px;
-  height: 64px;
-  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
-  opacity: 0;
-  pointer-events: none;
-}
-.ag-cf[data-offen="true"] .ag-cf__auf {
-  animation: ag-cf-auf 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-@keyframes ag-cf-auf {
-  0% {
-    opacity: 0.95;
-    transform: scale(0.9);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(7.5) rotate(18deg);
-  }
-}
-
-/* Hinter dem Glas: ganz schwach der Logo-Stern als Lichtschein. */
-.ag-cf__schein {
-  position: absolute;
-  inset: -8% -16%;
-  background: url("/kopf/licht-mini.webp") 50% 40% / 92% auto no-repeat;
-  opacity: 0;
-  transition: opacity 0.35s linear;
-  pointer-events: none;
-}
-.ag-cf[data-offen="true"] .ag-cf__schein {
-  opacity: 0.42;
-  transition: opacity 0.9s linear 0.25s;
-}
-.ag-cf__schatten {
+/* ── Die Form: offen das Glasviereck des Fensters, zu die Kugel auf dem Chat-Knopf. */
+.ag-cf__form {
+  --rx: 1;
+  --ry: 1;
+  --fw: 1;
+  --fs: 1;
+  --kd: 64px;
   position: absolute;
   inset: 0;
   border-radius: 26px;
-  box-shadow:
-    0 34px 80px rgba(0, 0, 0, 0.62),
-    0 8px 22px rgba(0, 0, 0, 0.42);
-  opacity: 0;
-  transition: opacity 0.25s linear;
-  pointer-events: none;
+  -webkit-backdrop-filter: blur(var(--cf-blur, 18px)) saturate(1.35);
+  backdrop-filter: blur(var(--cf-blur, 18px)) saturate(1.35);
 }
-.ag-cf[data-offen="true"] .ag-cf__schatten {
-  opacity: 1;
-  transition: opacity 0.5s linear 0.22s;
-}
-
-/* Das Glasblatt. Es faltet sich als Raute aus der Mitte des Chat-Knopfs aus (unten rechts). */
-.ag-cf__blatt {
-  --cx: calc(100% - 32px);
-  --cy: calc(100% - 32px);
-  --cf-r: 0px;
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 26px;
-  background: linear-gradient(180deg, rgba(15, 20, 40, 0.74) 0%, rgba(7, 10, 21, 0.82) 100%);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-  backdrop-filter: blur(18px) saturate(1.35);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  color: var(--elfenbein);
-  clip-path: polygon(
-    var(--cx) calc(var(--cy) - var(--cf-r)),
-    calc(var(--cx) + var(--cf-r)) var(--cy),
-    var(--cx) calc(var(--cy) + var(--cf-r)),
-    calc(var(--cx) - var(--cf-r)) var(--cy)
-  );
+/* Mitten in der Bewegung nimmt die Form den Klick an: Er lässt sie zurücklaufen. */
+.ag-cf[data-lauf] .ag-cf__form {
+  cursor: pointer;
   pointer-events: auto;
-  /* Schließen: zügig zurück in den Knopf. */
-  transition: --cf-r 0.4s cubic-bezier(0.55, 0, 0.8, 0.3);
+  will-change: transform;
 }
-.ag-cf[data-offen="true"] .ag-cf__blatt {
-  --cf-r: 1010px;
-  /* Öffnen: rund 0,5 s, weich auslaufend. */
-  transition: --cf-r 0.58s cubic-bezier(0.25, 0.8, 0.3, 1);
-}
-/* Feine Goldkante: oben links und unten rechts etwas kräftiger. */
-.ag-cf__blatt::after {
+/* Das Glas der Kugel: genau das des Chat-Knopfs (oben fällt mehr Licht ein). */
+.ag-cf__form::before {
   content: "";
   position: absolute;
   inset: 0;
-  padding: 1px;
   border-radius: inherit;
-  background: linear-gradient(155deg, rgba(243, 210, 122, 0.6) 0%, rgba(212, 162, 60, 0.14) 34%, rgba(212, 162, 60, 0.1) 64%, rgba(243, 210, 122, 0.4) 100%);
+  background:
+    radial-gradient(ellipse calc(var(--kd) * 0.4775 * var(--rx)) calc(var(--kd) * 0.4775 * var(--ry)) at 50% 14%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 100%),
+    rgba(0, 0, 0, 0.35);
+  opacity: calc(1 - var(--fw));
+}
+/* Das Glas des Fensters. */
+.ag-cf__glas {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(15, 20, 40, 0.74) 0%, rgba(7, 10, 21, 0.82) 100%);
+  opacity: var(--fw);
+}
+/* Der Schatten des Fensters: Er wächst mit der Form. */
+.ag-cf__schatten {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    0 34px 80px rgba(0, 0, 0, 0.62),
+    0 8px 22px rgba(0, 0, 0, 0.42);
+  opacity: var(--fs);
+}
+/* Der goldene Schein, in den sich der Inhalt auflöst und aus dem er wieder wächst. */
+.ag-cf__glut {
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 238, 196, 0.5) 0%, rgba(243, 210, 122, 0.28) 30%, rgba(212, 162, 60, 0.1) 62%, rgba(212, 162, 60, 0) 100%);
+  opacity: 0;
+}
+/* Die helle Lichtkante oben. */
+.ag-cf__kante {
+  position: absolute;
+  inset: 0;
+  border-top: calc(1px * var(--ry)) solid rgba(255, 255, 255, 0.17);
+  border-radius: inherit;
+}
+/* Feine Goldkante, 1 px, auch wenn die Form verkleinert ist: beim Fenster oben links und unten
+   rechts etwas kräftiger, bei der Kugel gleichmäßig wie am Chat-Knopf. Gleitet die Maus um das
+   Fenster, glimmt der Rand dort auf, wo sie am nächsten ist (glimmrand.ts: --gx, --gy, --gn). */
+.ag-cf__form::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: calc(1px * var(--ry)) calc(1px * var(--rx));
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      ellipse calc(60px * var(--rx)) calc(60px * var(--ry)) at calc(var(--gx, 50%) * var(--rx)) calc(var(--gy, 0px) * var(--ry)),
+      rgba(243, 210, 122, calc(var(--gn, 0) * 0.95)) 0%,
+      rgba(212, 162, 60, calc(var(--gn, 0) * 0.4)) 55%,
+      rgba(212, 162, 60, 0) 100%
+    ),
+    linear-gradient(
+      155deg,
+      rgba(243, 210, 122, calc(0.6 * var(--fw))) 0%,
+      rgba(212, 162, 60, calc(0.14 * var(--fw))) 34%,
+      rgba(212, 162, 60, calc(0.1 * var(--fw))) 64%,
+      rgba(243, 210, 122, calc(0.4 * var(--fw))) 100%
+    ),
+    linear-gradient(rgba(212, 162, 60, calc(0.3 * (1 - var(--fw)))), rgba(212, 162, 60, calc(0.3 * (1 - var(--fw)))));
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -142,8 +145,104 @@ html.ag-menue-offen .ag-cf {
   mask-composite: exclude;
   pointer-events: none;
 }
-html.ag-sparsam .ag-cf__blatt {
+html.ag-sparsam .ag-cf__glas {
   background: rgba(6, 9, 18, 0.95);
+}
+html.ag-sparsam .ag-cf__form::before {
+  background: rgba(6, 9, 18, 0.86);
+}
+
+/* ── Was nur zur Kugel gehört: ihr Schatten und ihr Logo. Beides sitzt auf der Mitte der Form. */
+.ag-cf__kugelschatten,
+.ag-cf__kugellogo,
+.ag-cf__punkt {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+.ag-cf__kugelschatten {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+/* Das Logo in der Kugel. --l läuft von 0 bis 1: erst der Stern, dann die vier Balken nacheinander,
+   zuletzt wird daraus das Licht des Chat-Knopfs (dasselbe Bild, an derselben Stelle). --k: Beim
+   Öffnen zieht sich das Logo zu einem hellen Punkt zusammen. */
+.ag-cf__kugellogo {
+  --l: 1;
+  --k: 0;
+  --licht: clamp(0, calc((var(--l) - 0.72) / 0.28), 1);
+  width: 64px;
+  height: 64px;
+}
+.ag-cf__kugellicht {
+  position: absolute;
+  inset: 7px;
+  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
+  opacity: calc(var(--licht) * 0.92 * (1 - var(--k) * var(--k)));
+  scale: calc(1 - 0.8 * var(--k));
+}
+.ag-cf__kugellogo svg {
+  position: absolute;
+  inset: 15px;
+  width: 34px;
+  height: 34px;
+  opacity: calc((1 - var(--licht)) * (1 - var(--k) * var(--k)));
+  scale: calc(1 - 0.8 * var(--k));
+  filter: drop-shadow(0 0 5px rgba(243, 210, 122, 0.75));
+}
+.ag-cf__kugellogo path {
+  opacity: clamp(0, calc(var(--l) / 0.26), 1);
+}
+.ag-cf__kugellogo polygon:nth-of-type(1) {
+  opacity: clamp(0, calc((var(--l) - 0.22) / 0.14), 1);
+}
+.ag-cf__kugellogo polygon:nth-of-type(2) {
+  opacity: clamp(0, calc((var(--l) - 0.32) / 0.14), 1);
+}
+.ag-cf__kugellogo polygon:nth-of-type(3) {
+  opacity: clamp(0, calc((var(--l) - 0.42) / 0.14), 1);
+}
+.ag-cf__kugellogo polygon:nth-of-type(4) {
+  opacity: clamp(0, calc((var(--l) - 0.52) / 0.14), 1);
+}
+/* Der Lichtpunkt: Aus ihm wächst beim Öffnen das Fenster, er wandert zur Begrüßung und vergeht. */
+.ag-cf__punkt {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 250, 232, 0.95) 0%, rgba(255, 232, 170, 0.6) 14%, rgba(243, 210, 122, 0.22) 40%, rgba(212, 162, 60, 0) 100%);
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+
+/* Hinter dem Inhalt: ganz schwach der Logo-Stern als Lichtschein. */
+.ag-cf__schein {
+  position: absolute;
+  inset: -8% -16%;
+  background: url("/kopf/licht-mini.webp") 50% 40% / 92% auto no-repeat;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Der Inhalt des Fensters (das Glas dahinter ist die Form). Beim Schließen zieht er sich zur
+   Mitte zusammen, wird kleiner und leicht unscharf (ChatFenster.tsx). */
+.ag-cf__blatt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 26px;
+  color: var(--elfenbein);
+  transform-origin: 50% 46%;
+  pointer-events: auto;
+}
+.ag-cf[data-offen="false"] .ag-cf__blatt,
+.ag-cf[data-lauf] .ag-cf__blatt {
+  pointer-events: none;
 }
 
 /* ── Kopf ── */
@@ -159,62 +258,69 @@ html.ag-sparsam .ag-cf__blatt {
 .ag-cf__griff {
   display: none;
 }
-/* Das Logo: Der Stern füllt den Kreis fast ganz aus und atmet leicht (der leichte Stern). */
+/* Unser Logo: der vierzackige Stern mit den vier schrägen Balken, in Gold, mit leichtem Schein. */
 .ag-cf__logo {
   position: relative;
+  display: grid;
   flex: none;
+  place-items: center;
   width: 48px;
   height: 48px;
-  overflow: hidden;
   border-radius: 50%;
-  background: #000;
+  background: radial-gradient(circle at 50% 30%, #131a33 0%, #05070f 70%);
   box-shadow:
     0 0 0 1px rgba(243, 210, 122, 0.3),
     0 0 20px rgba(212, 162, 60, 0.26);
 }
-.ag-cf__logo img {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  max-width: none;
-  mix-blend-mode: screen;
+.ag-cf__logo svg {
+  width: 30px;
+  height: 30px;
+  overflow: visible;
+  filter: drop-shadow(0 0 5px rgba(243, 210, 122, 0.5));
 }
-/* Der Stern reicht mit seinen Spitzen fast bis an den Rand des Kreises. */
-.ag-cf__kern {
-  width: 128%;
-  height: 128%;
-  margin: -64% 0 0 -64%;
+.ag-cf__logo :is(path, polygon) {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
 }
-.ag-cf__strahlen {
-  width: 210%;
-  height: 210%;
-  margin: -105% 0 0 -105%;
-  opacity: 0.7;
+/* Beim Öffnen baut es sich auf: erst der Stern, dann die vier Balken nacheinander (jeder kommt
+   von außen an seinen Platz), kurz und ruhig. */
+.ag-cf[data-auf] .ag-cf__logo path {
+  animation: ag-cf-stern 0.38s var(--weich) both;
 }
-.ag-cf[data-offen="true"] .ag-cf__kern {
-  animation: ag-cf-atmen 4.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+.ag-cf[data-auf] .ag-cf__logo polygon {
+  animation: ag-cf-balken 0.34s var(--weich) both;
+  animation-delay: calc(0.16s + var(--b) * 0.07s);
 }
-.ag-cf[data-offen="true"] .ag-cf__strahlen {
-  animation: ag-cf-wiegen 9s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+.ag-cf__logo polygon:nth-of-type(1) {
+  --b: 0;
+  --bx: -7px;
+  --by: -7px;
 }
-@keyframes ag-cf-atmen {
+.ag-cf__logo polygon:nth-of-type(2) {
+  --b: 1;
+  --bx: 7px;
+  --by: -7px;
+}
+.ag-cf__logo polygon:nth-of-type(3) {
+  --b: 2;
+  --bx: -7px;
+  --by: 7px;
+}
+.ag-cf__logo polygon:nth-of-type(4) {
+  --b: 3;
+  --bx: 7px;
+  --by: 7px;
+}
+@keyframes ag-cf-stern {
   from {
-    opacity: 0.82;
-    transform: scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1.04);
+    opacity: 0;
+    transform: scale(0.2) rotate(-40deg);
   }
 }
-@keyframes ag-cf-wiegen {
+@keyframes ag-cf-balken {
   from {
-    opacity: 0.4;
-    transform: rotate(-5deg);
-  }
-  to {
-    opacity: 0.7;
-    transform: rotate(5deg);
+    opacity: 0;
+    transform: translate(var(--bx), var(--by));
   }
 }
 .ag-cf__wer {
@@ -294,6 +400,16 @@ html.ag-sparsam .ag-cf__blatt {
   width: 16px;
   height: 16px;
 }
+/* Beim Öffnen dreht sich das X kurz hinein. */
+.ag-cf[data-auf] .ag-cf__zu {
+  animation: ag-cf-dreh 0.5s var(--weich) 0.1s both;
+}
+@keyframes ag-cf-dreh {
+  from {
+    opacity: 0;
+    transform: rotate(-120deg) scale(0.5);
+  }
+}
 .ag-cf__zu:hover {
   box-shadow:
     inset 0 0 0 1px rgba(243, 210, 122, 0.5),
@@ -354,16 +470,82 @@ html.ag-sparsam .ag-cf__blatt {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.ag-cf__blase--tippt {
-  padding: 9px 14px;
+/* Beim Öffnen wächst die erste Nachricht (die Begrüßung) aus dem Lichtpunkt heraus. */
+.ag-cf[data-auf] .ag-cf__inhalt > .ag-cf__zeile:first-child .ag-cf__blase {
+  transform-origin: 0 0;
+  animation: ag-cf-wachsen 0.44s var(--weich) both;
+}
+@keyframes ag-cf-wachsen {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
 }
 /* Zufallszeichen im Chat sind golden. */
 .ag-cf .ag-wuerfel__spiel span.ag-zufall {
   color: var(--gold-hell);
 }
 
-/* Entschlüsseln: Jedes Wort hat von Anfang an seinen Platz. Erst unsichtbar, dann als goldene
-   Zufallszeichen darüber, dann der echte Text. */
+/* ── Nachdenken: drei goldene Punkte in der Glasblase. Sie pulsieren nacheinander (größer und
+   heller, dann zurück), je 0,15 s versetzt, weich und endlos. */
+.ag-cf__blase {
+  position: relative;
+}
+.ag-cf__blase[data-stufe="punkte"] {
+  padding: 13px 15px;
+  line-height: 0;
+}
+.ag-cf__punkte {
+  display: inline-flex;
+  gap: 6px;
+  line-height: 0;
+  vertical-align: top;
+}
+.ag-cf__punkte i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold-hell);
+  opacity: 0.42;
+  scale: 0.72;
+  animation: ag-cf-puls 1.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.ag-cf__punkte i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ag-cf__punkte i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes ag-cf-puls {
+  0%,
+  55%,
+  100% {
+    opacity: 0.42;
+    scale: 0.72;
+    box-shadow: 0 0 0 rgba(243, 210, 122, 0);
+  }
+  27% {
+    opacity: 1;
+    scale: 1.3;
+    box-shadow: 0 0 9px rgba(243, 210, 122, 0.85);
+  }
+}
+/* Die Antwort ist da: Die Punkte fliegen von ihrem Platz aus zu den ersten Wörtern. */
+.ag-cf__punkte--flug {
+  position: absolute;
+  top: 13px;
+  left: 15px;
+  pointer-events: none;
+}
+.ag-cf__punkte--flug i {
+  animation: none;
+  opacity: 1;
+  scale: 1;
+}
+
+/* ── Entschlüsseln als ruhige Welle: Jedes Wort hat von Anfang an seinen Platz. Erst unsichtbar,
+   dann als gedämpft goldene Zufallszeichen in voller Wortlänge, dann rastet das echte Wort ein,
+   leuchtet kurz warm auf und wird gewöhnlicher Text. */
 .ag-cf__vorlesen {
   position: absolute;
   width: 1px;
@@ -371,6 +553,9 @@ html.ag-sparsam .ag-cf__blatt {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+.ag-cf__satz {
+  display: block;
 }
 .ag-cf__w {
   position: relative;
@@ -382,39 +567,41 @@ html.ag-sparsam .ag-cf__blatt {
 }
 .ag-cf__w[data-z="2"] .ag-cf__we {
   opacity: 1;
-  transition: opacity 0.12s linear;
+  animation: ag-cf-einrasten 0.5s cubic-bezier(0.3, 0, 0.3, 1) both;
+}
+@keyframes ag-cf-einrasten {
+  0% {
+    color: #fff1c9;
+    text-shadow: 0 0 12px rgba(243, 210, 122, 0.75);
+  }
+  100% {
+    color: inherit;
+    text-shadow: 0 0 0 rgba(243, 210, 122, 0);
+  }
 }
 .ag-cf__wz {
   position: absolute;
   top: 0;
+  bottom: 0;
   left: 0;
   display: none;
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--gold-hell);
+  align-items: center;
+  /* Gedämpftes Gold: ruhig genug, um daneben schon zu lesen. */
+  color: rgba(226, 184, 92, 0.62);
   font-family: var(--font-mono-ag), ui-monospace, monospace;
-  font-size: 0.8em;
   font-weight: 500;
-  line-height: 1.875;
+  line-height: 1;
   white-space: nowrap;
   pointer-events: none;
 }
 .ag-cf__w[data-z="1"] .ag-cf__wz {
-  display: block;
+  display: flex;
+  animation: ag-cf-zeichen 0.22s linear both;
 }
-/* „Schreibt gerade“: drei kleine Zeichen, die durcheinanderwürfeln. */
-.ag-cf__tippt {
-  display: inline-flex;
-  gap: 4px;
-  color: var(--gold-hell);
-  font-family: var(--font-mono-ag), ui-monospace, monospace;
-  font-size: 13px;
-  line-height: 1.5;
-}
-.ag-cf__tippt i {
-  width: 10px;
-  font-style: normal;
-  text-align: center;
+@keyframes ag-cf-zeichen {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Links: goldene Unterstreichung, die sich beim Drüberfahren aufzieht. */
@@ -439,48 +626,119 @@ html.ag-sparsam .ag-cf__blatt {
   font: inherit;
   font-size: 12.5px;
 }
-/* Telefonnummern: ein kleiner Glas-Chip „Jetzt anrufen“. */
-.ag-cf__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 3px 0;
-  padding: 4px 13px 4px 11px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(243, 210, 122, 0.18), rgba(212, 162, 60, 0.08));
-  box-shadow:
-    inset 0 0 0 1px rgba(243, 210, 122, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  color: var(--gold-hell);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.5;
-  text-decoration: none;
-  white-space: nowrap;
-  vertical-align: middle;
-  transition: box-shadow 0.25s linear;
-}
-.ag-cf__chip::before {
-  content: "";
+
+/* ── Unter einer Antwort: was der Assistent anbietet (Anruf-Karte, Mitarbeiter-Knopf). Es steht
+   außerhalb der Blase im Verlauf und blendet weich ein, nacheinander. */
+.ag-cf__angebot {
+  display: grid;
   flex: none;
-  width: 6px;
-  height: 6px;
+  gap: 8px;
+  margin: 2px 0 4px;
+}
+.ag-cf__angebot > * {
+  animation: ag-cf-angebot 0.55s var(--weich) both;
+  animation-delay: calc(0.08s + var(--n, 0) * 0.16s);
+}
+@keyframes ag-cf-angebot {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+/* Die Anruf-Karte: die kleine Ausgabe der Karte bei „Sprechen wir über Ihr Projekt“. Milchglas
+   mit heller Lichtkante, der grüne Punkt atmet wie ein Statuslicht, darunter die Nummer und der
+   goldene Knopf. Ihr Rand glimmt unter der Maus (.ag-glimm). */
+.ag-cf__anruf {
+  --grundrand: 0.26;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 13px 13px 13px 16px;
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 90% at 18% 0%, rgba(226, 172, 70, 0.14) 0%, rgba(226, 172, 70, 0) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.03) 46%, rgba(255, 255, 255, 0.02) 100%),
+    rgba(9, 13, 28, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 16px 30px -18px rgba(0, 0, 0, 0.8);
+}
+.ag-cf__anruf-status {
+  display: inline-flex;
+  grid-column: 1;
+  align-items: center;
+  gap: 9px;
+  color: #c9f2dc;
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ag-cf__anruf-status i {
+  position: relative;
+  flex: none;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #4fdc92;
-  box-shadow: 0 0 6px rgba(79, 220, 146, 0.7);
+  box-shadow: 0 0 8px rgba(79, 220, 146, 0.75);
 }
-.ag-cf__chip span {
+.ag-cf[data-offen="true"] .ag-cf__anruf-status i::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79, 220, 146, 0.5) 0%, rgba(79, 220, 146, 0) 70%);
+  animation: ag-kon-status 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.ag-cf__anruf-nummer {
+  grid-column: 1;
   color: var(--elfenbein);
-  font-family: var(--font-mono-ag), ui-monospace, monospace;
-  font-size: 12px;
+  font-size: 19px;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.3s var(--weich);
 }
-.ag-cf__chip:hover,
-.ag-cf__chip:focus-visible {
+.ag-cf__anruf-nummer:hover {
+  color: var(--gold-hell);
+}
+.ag-cf__anruf-knopf {
+  display: inline-flex;
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 15px 10px 12px;
+  text-decoration: none;
+  white-space: nowrap;
   box-shadow:
-    inset 0 0 0 1px rgba(243, 210, 122, 0.8),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 0 18px rgba(243, 210, 122, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 8px 20px -8px rgba(243, 190, 90, 0.55);
+  transition:
+    box-shadow 0.3s linear,
+    translate 0.3s var(--weich);
+}
+.ag-cf__anruf-knopf svg {
+  width: 15px;
+  height: 15px;
+}
+.ag-cf__anruf-knopf:hover {
+  translate: 0 -1px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 10px 26px -8px rgba(243, 190, 90, 0.8);
+}
+/* Die kleine Zeile zwischen Karte und Mitarbeiter-Knopf. */
+.ag-cf__weiter {
+  padding: 2px 4px 0;
 }
 
 /* ── Die drei Vorschläge ── */
@@ -494,6 +752,7 @@ html.ag-sparsam .ag-cf__blatt {
 }
 .ag-cf__vorschlag {
   position: relative;
+  overflow: hidden;
   padding: 7px 13px;
   border: 0;
   border-radius: 14px;
@@ -506,33 +765,47 @@ html.ag-sparsam .ag-cf__blatt {
   line-height: 20px;
   text-align: right;
   opacity: 0;
-  translate: 0 8px;
   transition:
-    opacity 0.5s var(--weich) calc(var(--i, 0) * 140ms),
-    translate 0.5s var(--weich) calc(var(--i, 0) * 140ms),
     color 0.2s linear,
     box-shadow 0.2s linear;
 }
+/* Steht die Begrüßung, gleiten sie nacheinander hinein, sofort lesbar. */
 .ag-cf__vorschlaege[data-da="true"] .ag-cf__vorschlag {
-  opacity: 1;
-  translate: 0 0;
+  animation: ag-cf-gleiten 0.5s var(--weich) both;
+  animation-delay: calc(var(--i, 0) * 140ms);
 }
-.ag-cf__vorschlag[data-lesbar="false"] .ag-wuerfel {
-  opacity: 0;
+@keyframes ag-cf-gleiten {
+  from {
+    opacity: 0;
+    translate: 22px 0;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
-/* Zuerst nur eine schwache Zeichenreihe. */
-.ag-cf__reihe {
+/* Jeder mit einem kurzen Lichtstreif. */
+.ag-cf__vorschlag::after {
+  content: "";
   position: absolute;
-  inset: 7px 13px;
-  overflow: hidden;
-  color: rgba(243, 210, 122, 0.36);
-  font-family: var(--font-mono-ag), ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  line-height: 20px;
-  text-align: right;
-  white-space: nowrap;
+  inset: 0 -30%;
+  background: linear-gradient(105deg, rgba(255, 240, 204, 0) 38%, rgba(255, 240, 204, 0.42) 50%, rgba(255, 240, 204, 0) 62%);
+  opacity: 0;
   pointer-events: none;
+}
+.ag-cf__vorschlaege[data-da="true"] .ag-cf__vorschlag::after {
+  animation: ag-cf-streif 0.7s cubic-bezier(0.3, 0, 0.2, 1) both;
+  animation-delay: calc(0.12s + var(--i, 0) * 140ms);
+}
+@keyframes ag-cf-streif {
+  0% {
+    opacity: 1;
+    transform: translate3d(-70%, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(70%, 0, 0);
+  }
 }
 .ag-cf__vorschlag:hover,
 .ag-cf__vorschlag:focus-visible {
@@ -555,21 +828,7 @@ html.ag-sparsam .ag-cf__blatt {
   pointer-events: none;
 }
 
-/* ── Wege, wenn der Assistent nicht weiterkommt ── */
-.ag-cf__wege {
-  display: grid;
-  flex: none;
-  gap: 8px;
-  margin-top: 4px;
-}
-.ag-cf__wege-klein {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 14px;
-}
-/* „Mit einem Mitarbeiter sprechen“: ein richtiger Glasknopf mit Sprechblase. */
+/* „Mit einem Mitarbeiter schreiben“: ein richtiger Glasknopf mit Sprechblase. */
 .ag-cf__mensch {
   display: flex;
   align-items: center;
@@ -714,6 +973,31 @@ html.ag-sparsam .ag-cf__blatt {
 .ag-cf__eingabe[data-fehlt] .ag-cf__fehlt {
   max-height: 36px;
   margin-top: 5px;
+}
+/* Das Nachrichtenfeld: Während die KI-Zusammenfassung kommt, stehen dort die drei Punkte; dann
+   entschlüsselt sich der Text kurz über dem Feld (der Text des Feldes ist so lange unsichtbar). */
+.ag-cf__frage {
+  position: relative;
+  display: block;
+}
+.ag-cf__zf-punkte {
+  position: absolute;
+  top: 15px;
+  left: 13px;
+  pointer-events: none;
+}
+.ag-cf__zf-spiel {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 9px 12px;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.ag-cf__eingabe[data-zf="spielt"] textarea {
+  color: transparent;
 }
 .ag-cf__koeder {
   position: absolute;
@@ -864,13 +1148,30 @@ html.ag-sparsam .ag-cf__blatt {
   transform-origin: 50% 100%;
   pointer-events: none;
 }
+/* Die goldene Linie unter dem Eingabefeld: Beim Öffnen zieht sie sich von links nach rechts. */
+.ag-cf__linie {
+  display: block;
+  height: 1px;
+  margin: 10px 4px 0;
+  background: linear-gradient(90deg, rgba(243, 210, 122, 0.75) 0%, rgba(212, 162, 60, 0.3) 52%, rgba(212, 162, 60, 0) 100%);
+  transform-origin: 0 50%;
+}
+.ag-cf[data-auf] .ag-cf__linie {
+  animation: ag-cf-linie 0.7s var(--weich) 0.12s both;
+}
+@keyframes ag-cf-linie {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
 .ag-cf__fuss {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   min-height: 30px;
-  margin-top: 9px;
+  margin-top: 7px;
   padding: 0 4px;
   color: var(--leise);
   font-size: 11px;
@@ -914,24 +1215,18 @@ html.ag-sparsam .ag-cf__blatt {
     top: calc(var(--cf-oben, 0px) + var(--cf-hoch, 100dvh) * 0.06);
     height: calc(var(--cf-hoch, 100dvh) * 0.94);
   }
-  .ag-cf__auf,
-  .ag-cf__schatten {
-    display: none;
-  }
   .ag-cf__schein {
     inset: -4% -30% auto;
     height: 60%;
   }
-  .ag-cf__blatt,
-  .ag-cf[data-offen="true"] .ag-cf__blatt {
+  /* Offen ist das Blatt unten eckig (ChatFenster.tsx rundet es beim Schließen zur Kugel). */
+  .ag-cf__form,
+  .ag-cf__blatt {
     border-radius: 26px 26px 0 0;
-    clip-path: none;
-    transform: translate3d(0, 104%, 0);
-    transition: transform 0.36s cubic-bezier(0.55, 0, 0.8, 0.3);
   }
-  .ag-cf[data-offen="true"] .ag-cf__blatt {
-    transform: none;
-    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Losgelassen, ohne zu schließen: Das Blatt federt zurück. */
+  .ag-cf__rahmen {
+    transition: transform 0.3s var(--weich);
   }
   .ag-cf__kopf {
     padding-top: 22px;
@@ -970,22 +1265,34 @@ html.ag-sparsam .ag-cf__blatt {
   }
 }
 
-/* „Weniger Bewegung“: Alles steht sofort da, ohne Ausfalten und ohne Zeichen-Effekte. */
+/* „Weniger Bewegung“: Das Fenster blendet nur weich ein und aus (keine Kugel), alles steht sofort
+   da, die drei Punkte ruhen. */
 @media (prefers-reduced-motion: reduce) {
-  .ag-cf,
-  .ag-cf__blatt,
-  .ag-cf[data-offen="true"] .ag-cf__blatt,
-  .ag-cf__schein,
-  .ag-cf__schatten,
-  .ag-cf__dunkel,
-  .ag-cf__vorschlag {
+  .ag-cf__rahmen {
+    opacity: 0;
+    transition: opacity 0.2s linear;
+  }
+  .ag-cf[data-offen="true"] .ag-cf__rahmen {
+    opacity: 1;
+  }
+  .ag-cf__dunkel {
     transition: none !important;
   }
-  .ag-cf__auf,
-  .ag-cf[data-offen="true"] .ag-cf__auf,
-  .ag-cf[data-offen="true"] .ag-cf__kern,
-  .ag-cf[data-offen="true"] .ag-cf__strahlen,
-  .ag-cf[data-offen="true"] .ag-cf__rolle i::after {
-    animation: none;
+  .ag-cf__kugelschatten,
+  .ag-cf__kugellogo,
+  .ag-cf__punkt {
+    display: none;
+  }
+  .ag-cf *,
+  .ag-cf *::before,
+  .ag-cf *::after {
+    animation: none !important;
+  }
+  .ag-cf__vorschlag {
+    opacity: 1;
+  }
+  .ag-cf__punkte i {
+    opacity: 0.85;
+    scale: 1;
   }
 }

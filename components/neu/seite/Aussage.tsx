@@ -72,7 +72,8 @@ function Woerter({ text }: { text: string }) {
  *    0,8 s voll und leuchtet kurz auf („Stunden*“). Keine Zahlen. Darunter steht die Fußnote.
  * 2. Drei Glaskarten schweben nacheinander ein (je 120 ms versetzt). Hinter jeder wartet ein
  *    goldener Stern, der unter der Maus hinter das Glas gleitet, und der Text leuchtet unter der
- *    Maus warm auf (glaskarten.ts).
+ *    Maus warm auf. Der Stern bricht sich im Glas: Lichtkreuz, klares Glas um den Stern, Brechung
+ *    an der Kante, und sein Licht fällt auf den Rand der Nachbarkarte (glaskarten.ts).
  *
  * Alles nur einmal je Seitenaufruf. Der echte Text steht die ganze Zeit im Dokument. Ohne Skript,
  * bei „weniger Bewegung“ und in der Vorschau steht alles sofort da: der goldene Balken voll, der
@@ -188,8 +189,23 @@ export function Aussage() {
                         „bei Bedarf“ geladenes Bild käme erst, wenn die Maus schon da ist. */}
                     <Image src={sternBild} alt="" unoptimized loading="eager" fetchPriority="low" decoding="async" draggable={false} />
                   </span>
+                  {/* Das Lichtkreuz: vier dünne Lichtstreifen aus dem Stern, zwischen Stern und Glas. */}
+                  <span className="ag-gk__kreuz" />
                 </span>
-                <span className="ag-gk__glas" aria-hidden="true" />
+                {/* Das matte Glas und, nur um den Stern, das klarere Glas. */}
+                <span className="ag-gk__matt" aria-hidden="true" />
+                <span className="ag-gk__klar" aria-hidden="true" />
+                {/* Lichtkante und Rand. Der Rand glimmt unter der Maus (glimmrand.ts) und dort, wo das Licht des
+                    Sterns der Nachbarkarte hinfällt. Die Werte hängen an diesem Teil ohne Kinder: So rechnet der
+                    Browser je Bild nur den Rand neu, nicht jedes Wort der Karte. */}
+                <span className="ag-gk__glas" aria-hidden="true" data-glimm />
+                {/* Die Lichtbrechung an der Kante: je Kante ein heller Saum, der mit dem Stern wandert. */}
+                <span className="ag-gk__saum" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </span>
                 <div className="ag-gk__inhalt">
                   <svg className="ag-gk__symbol" viewBox="0 0 48 48" aria-hidden="true">
                     {SYMBOLE[karte.symbol]}

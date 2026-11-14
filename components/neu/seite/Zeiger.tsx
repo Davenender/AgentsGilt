@@ -9,7 +9,7 @@ const DRUCK = "ag-maus-druck";
 
 /**
  * Mauszeiger der neuen Seite (nur bei echter Maus, nicht bei „weniger Bewegung“):
- *   - Normal: ein kleiner goldener Punkt, dem ein dezenter goldener Schein folgt.
+ *   - Normal: ein kleiner goldener Punkt mit einem dezenten goldenen Schein, der genau auf der Maus sitzt.
  *   - Über Links und Knöpfen: Der Punkt wird zu einem feinen Ring.
  *   - Über einem Zertifikat (`data-zeiger="ansehen"`, nur dort, wo ein Klick etwas öffnet): eine
  *     kleine Glasblase mit „Ansehen“.
@@ -23,8 +23,8 @@ const DRUCK = "ag-maus-druck";
  * zu warten. Was die Seite selbst zeichnet (Ring, Glasblase), sitzt ohne Nachziehen auf der Maus:
  * Die Stelle wird direkt gesetzt, in `pointermove` und, wo der Browser es kann, schon in
  * `pointerrawupdate` (jede Meldung der Maus, nicht erst zum nächsten Bild). Dieser Handler setzt
- * nur die Stelle. Alles andere (welche Art Zeiger, der Schein) läuft einmal je Bild. Nur der
- * weiche Schein zieht leicht nach.
+ * nur die Stelle: die des Kerns (Ring, Glasblase) und die des weichen Scheins. Seit dem 14.11.2026
+ * zieht auch der Schein nicht mehr nach. Alles andere (welche Art Zeiger) läuft einmal je Bild.
  */
 export function Zeiger() {
   const wurzel = useRef<HTMLDivElement>(null);
@@ -44,10 +44,7 @@ export function Zeiger() {
     let ziel: EventTarget | null = null;
     let bewegt = false;
     let andererZeiger = false;
-    let sx = 0;
-    let sy = 0;
     let rahmen = 0;
-    let zuletzt = 0;
     let da = false;
 
     // ── Der Handler für die Lage: Er setzt die Stelle und sonst nichts.
@@ -58,7 +55,10 @@ export function Zeiger() {
         y = ev.clientY;
         ziel = ev.target;
         bewegt = true;
-        kern.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        // Kern und Schein sitzen sofort auf der Maus (kein Nachziehen).
+        const lage = `translate3d(${x}px, ${y}px, 0)`;
+        kern.style.transform = lage;
+        schein.style.transform = lage;
       }
       if (!rahmen) rahmen = requestAnimationFrame(bild);
     };
@@ -70,7 +70,6 @@ export function Zeiger() {
       delete el.dataset.druck;
       cancelAnimationFrame(rahmen);
       rahmen = 0;
-      zuletzt = 0;
     };
     const welcheArt = (wo: Element | null) => {
       // Außerhalb der neuen Seite (das Chat-Fenster) und in Eingabefeldern: der gewöhnliche Zeiger.
@@ -81,8 +80,8 @@ export function Zeiger() {
       if (wo.closest("a, button, [role='button'], label, summary")) return "link";
       return "punkt";
     };
-    // ── Einmal je Bild: Art des Zeigers und der Schein.
-    const bild = (jetzt: number) => {
+    // ── Einmal je Bild: die Art des Zeigers.
+    const bild = () => {
       rahmen = 0;
       if (andererZeiger || !erlaubt) {
         andererZeiger = false;
@@ -92,23 +91,12 @@ export function Zeiger() {
         bewegt = false;
         if (!da) {
           da = true;
-          sx = x;
-          sy = y;
           el.dataset.da = "1";
         }
         const art = welcheArt(ziel as Element | null);
         if (el.dataset.art !== art) el.dataset.art = art;
         html.classList.toggle(KLASSE, art !== "fremd");
       }
-      // Der Schein zieht leicht nach: je Bild 1 − 0,55^(dt × 60) zum Zeiger hin.
-      const dt = zuletzt ? Math.min(0.1, (jetzt - zuletzt) / 1000) : 1 / 60;
-      zuletzt = jetzt;
-      const zug = 1 - Math.pow(0.55, dt * 60);
-      sx += (x - sx) * zug;
-      sy += (y - sy) * zug;
-      schein.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0)`;
-      if (Math.abs(x - sx) + Math.abs(y - sy) > 0.4) rahmen = requestAnimationFrame(bild);
-      else zuletzt = 0;
     };
     const runter = () => {
       if (!da) return;

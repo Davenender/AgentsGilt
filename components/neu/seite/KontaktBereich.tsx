@@ -122,7 +122,7 @@ export function KontaktBereich({ titel }: { titel: ReactNode }) {
         <div className="ag-kon__teil ag-kon__anruf">
           <span className="ag-kon__schein" aria-hidden="true" />
           <div className="ag-kon__karte">
-            <span className="ag-kon__glas" aria-hidden="true" />
+            <span className="ag-kon__glas" aria-hidden="true" data-glimm />
             <div className="ag-kon__innen">
               <span className="ag-kon__status">
                 <i aria-hidden="true" />

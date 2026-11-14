@@ -16,7 +16,8 @@ function Trenner() {
 /**
  * „Warum wir“ mit „Unser Versprechen“: drei leicht schräge Karten, jede mit eigener kleiner
  * Drehung. Beim Drüberfahren richtet sich die Karte gerade aus, hebt sich etwas und federt; die
- * anderen werden etwas blasser (Stylesheet). Darunter läuft ein schräges Band mit den vier Wörtern.
+ * anderen werden etwas blasser (Stylesheet). Ihr Rand glimmt, wo die Maus in der Nähe ist
+ * (glimmrand.ts). Darunter läuft ein schräges Band mit den vier Wörtern.
  */
 export function Warum() {
   // Zwei gleiche Hälften: Das Band läuft nahtlos um.
@@ -35,7 +36,7 @@ export function Warum() {
         <h3 className="ag-versal ag-vers__titel">{versprechen.titel}</h3>
         <ul className="ag-vers__karten">
           {versprechen.karten.map((k, i) => (
-            <li key={k.titel} className="ag-vers__karte" style={{ "--i": i } as CSSProperties}>
+            <li key={k.titel} className="ag-vers__karte ag-glimm" style={{ "--i": i } as CSSProperties} data-glimm>
               <h4 className="ag-versal">{k.titel}</h4>
               <p>{k.text}</p>
             </li>

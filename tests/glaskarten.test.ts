@@ -1,7 +1,7 @@
-// Glaskarten unter der ersten Aussage: woher der Stern kommt und wie das Mauslicht abklingt.
+// Glaskarten unter der ersten Aussage: woher der Stern kommt, wie das Mauslicht abklingt und wie stark sich sein Licht an einer Kante bricht.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { UMKREIS, ausserhalb, wortLicht } from "../components/neu/seite/glaskarten.ts";
+import { UMKREIS, ausserhalb, kantenLicht, wortLicht } from "../components/neu/seite/glaskarten.ts";
 
 test("der Stern beginnt außerhalb der Kante, über die die Maus kam", () => {
   // Karte 376 × 295, der Stern wartet 170 px außerhalb.
@@ -31,5 +31,25 @@ test("das Mauslicht: unter der Maus ganz hell, im Umkreis von 120 px weich auf n
     const h = wortLicht(a);
     assert.ok(h <= vorher && h >= 0, `Abstand ${a}`);
     vorher = h;
+  }
+});
+
+test("Lichtbrechung an der Kante: stark, wenn der Stern nah an der Kante ist, zur Mitte hin schnell schwächer", () => {
+  // An der Kante (und darüber hinaus) bricht sich das Licht ganz, mit voller Deckkraft des Sterns.
+  assert.equal(kantenLicht(1, 1), 1);
+  assert.equal(kantenLicht(1.3, 1), 1, "der Stern ist schon über die Kante hinaus");
+  // In der Mitte der Karte nur noch schwach, an der gegenüberliegenden Kante fast nichts.
+  assert.ok(kantenLicht(0.5, 1) > 0.15 && kantenLicht(0.5, 1) < 0.25);
+  assert.ok(kantenLicht(0, 1) > 0 && kantenLicht(0, 1) < 0.1);
+  assert.equal(kantenLicht(-0.4, 1), kantenLicht(0, 1));
+  // Es wird mit der Deckkraft des Sterns hell und dunkel; ohne Stern kein Licht.
+  assert.equal(kantenLicht(1, 0), 0);
+  assert.equal(kantenLicht(0.9, 0.5), kantenLicht(0.9, 1) / 2);
+  // Es wächst gleichmäßig zur Kante hin, ohne Stufe.
+  let vorher = 0;
+  for (let n = 0; n <= 1.0001; n += 0.05) {
+    const licht = kantenLicht(n, 1);
+    assert.ok(licht >= vorher && licht <= 1, `Nähe ${n.toFixed(2)}`);
+    vorher = licht;
   }
 });

@@ -156,7 +156,15 @@ export function ChatWidget() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto bg-cream/30 px-4 py-5">
               <div className="space-y-3">
                 {messages.map((m, i) => (
-                  <Bubble key={i} role={m.role} content={m.content} von={m.von} />
+                  <Bubble
+                    key={i}
+                    role={m.role}
+                    content={m.content}
+                    von={m.von}
+                    // Marker [ANRUFEN] (Termine): der Weg zum Anrufen unter der Antwort. Steht unten
+                    // schon der Block mit allen Wegen, wäre er doppelt.
+                    anrufen={!!m.anrufen && !showContact}
+                  />
                 ))}
                 {streaming && streamText && <Bubble role="assistant" content={streamText} />}
                 {streaming && !streamText && (
@@ -358,12 +366,34 @@ function Bubble({
   role,
   content,
   von,
+  anrufen = false,
 }: {
   role: "user" | "assistant" | "team";
   content: string;
   von?: string;
+  anrufen?: boolean;
 }) {
   const isUser = role === "user";
+  if (anrufen) {
+    return (
+      <div className="space-y-2">
+        <Bubble role={role} content={content} von={von} />
+        <a
+          href={`tel:${site.phone}`}
+          className="ml-9 flex w-fit items-center justify-center gap-2 rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink-soft transition-colors hover:border-gold hover:text-ink"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M2.5 5.5c0-1.1.9-2 2-2h2.2c.9 0 1.7.6 1.9 1.5l.7 2.6c.2.7 0 1.5-.6 2l-1.3 1.1a13 13 0 0 0 5.9 5.9l1.1-1.3c.5-.6 1.3-.8 2-.6l2.6.7c.9.2 1.5 1 1.5 1.9v2.2c0 1.1-.9 2-2 2A17.5 17.5 0 0 1 2.5 5.5Z"
+            />
+          </svg>
+          Jetzt anrufen · {site.phoneDisplay}
+        </a>
+      </div>
+    );
+  }
   return (
     <div className={`flex items-end gap-2 ${isUser ? "justify-end" : ""}`}>
       {!isUser && <Avatar />}

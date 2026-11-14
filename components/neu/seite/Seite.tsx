@@ -6,6 +6,7 @@ import { AblaufNummern } from "./AblaufNummern";
 import { Aussage } from "./Aussage";
 import { Entschluesselt } from "./Entschluesselt";
 import { FussSchluss } from "./FussSchluss";
+import { GlimmAlle } from "./GlimmAlle";
 import { KontaktBereich } from "./KontaktBereich";
 import { Leistungen } from "./Leistungen";
 import { ScrollHinweis } from "./ScrollHinweis";
@@ -40,6 +41,7 @@ export function Seite() {
   return (
     <Rahmen start="licht" klasse="ag-seite" fussSchluss={<FussSchluss />}>
       <Zeiger />
+      <GlimmAlle />
       <Kopf />
       <Aussage />
       <Uebergang />

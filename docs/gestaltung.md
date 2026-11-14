@@ -748,6 +748,8 @@ Alles andere bleibt. Das Chat-Fenster kommt im nächsten Auftrag. Nichts wurde e
 
 ## 4n. Fünfte Runde vom 14.11.2026: Das Chat-Fenster im neuen Stil
 
+**Stand 14.11.2026, sechste Runde: Öffnen, Kopf-Logo, Nachdenken, Entschlüsseln, Anruf-Chip, Kontakt-Block und Vorschläge sind in Abschnitt 4o neu geregelt.** Was hier dazu steht, beschreibt den Stand davor.
+
 Davids Auftrag: Das Chat-Fenster bekommt das Design der neuen Seite (dunkles Glas, Gold, Zeichen-Effekte). Die Logik bleibt genau so. Die alte Startseite (`/`) behält ihr altes Fenster, bis David die Startseite umstellt.
 
 ### 0 · Aufbau: eine Logik, zwei Hüllen
@@ -807,6 +809,84 @@ Davids Auftrag: Das Chat-Fenster bekommt das Design der neuen Seite (dunkles Gla
 ### 8 · Nicht angefasst
 Schnittstellen (`app/api`), `lib/support.ts`, das Wissen des Telefon-Assistenten (`voice-agent-prompt.md`), die alte Startseite und ihr Fenster (nur die Logik liegt jetzt in einer eigenen Datei). Nichts gepusht.
 
+## 4o. Sechste Runde vom 14.11.2026: Chat-Feinschliff, Lichtreflex an allen Karten, Stern bricht durchs Glas
+
+Davids Auftrag (Prompt 10). Ersetzt aus 4n: das Ausfalten als Raute, den Stern im Kopf, die würfelnden Zeichen beim Nachdenken, das schnelle Entschlüsseln, den Anruf-Chip im Text, den Block „Der Assistent kommt nicht weiter“ und die Vorschläge als Zeichenreihen. Ersetzt aus 4m: „Nur der Schein zieht nach“.
+
+### 1 · Logo oben links im Chat
+- Im Kopf steht **unser Logo**: der vierzackige Stern mit den vier schrägen Balken (`LogoFormen` aus `components/neu/Marke.tsx`), in Gold (Verlauf von hellem zu sattem Gold) mit leichtem Schein, im dunklen Kreis von 48 px mit feinem Goldring.
+- Beim Öffnen baut es sich auf: erst der Stern (0,38 s), dann die vier Balken nacheinander von außen an ihren Platz (je 0,34 s, 70 ms versetzt).
+
+### 2 · Drei Punkte beim Nachdenken
+- Drei goldene Punkte in der Glasblase, die nacheinander pulsieren (größer und heller, dann zurück; 0,15 s versetzt; Runde 1,2 s; endlos).
+- Sie stehen, **solange der Assistent nachdenkt und solange die Antwort ankommt**. Die Antwort wird im Hintergrund gesammelt; halbe Sätze sieht man nie (`streamText` zeigt das neue Fenster nicht mehr).
+- Ist die Antwort ganz da: Die Blase wächst in 0,4 s von der Größe der Punkte-Blase auf ihre endgültige Größe (der Text hat dabei schon seine endgültige Breite, keine Zeile bricht um), die drei Punkte fliegen zu den ersten drei Wörtern und gehen dort in die Zeichen über. Es ist dieselbe Zeile im Verlauf (gleicher Schlüssel), nichts wird ausgetauscht.
+- „Weniger Bewegung“: drei ruhige Punkte, die Antwort steht danach einfach da.
+
+### 3 · Entschlüsseln als ruhige Welle
+- Die Zufallszeichen tauchen **nacheinander** auf, Wort für Wort von links nach rechts. Jedes Wort besteht zuerst aus gedämpft goldenen Zufallszeichen **in voller Wortlänge** (die Zeichen werden je Wort so gesetzt, dass sie genau in den Platz des Wortes passen), sie wechseln rund alle 80 ms, und jedes Mal nur etwa die Hälfte.
+- Jedes Wort bleibt **0,6 s** Zeichen, dann rastet es ein, leuchtet 0,5 s warm nach und wird gewöhnlicher Text. Die Welle des Einrastens läuft der Welle der Zeichen mit festem Abstand hinterher.
+- Dauer (`wellenPlan` in `lib/chat-text.ts`, mit Tests): kurze Antwort rund 2 s, normale 2,5 bis 3 s, nie über 3,5 s; bei langen Antworten wird der Takt schneller, die Zeichenzeit bleibt. Gemessen (fertiger Build, 34 Wörter): 2,65 s bis zum letzten Wort, dazu 0,5 s Nachleuchten.
+- Jedes Wort hat von Anfang an seinen Platz. Vorleseprogramme bekommen den Text sofort. Die Begrüßung läuft genauso.
+
+### 4 · Knöpfe unter der Nachricht statt im Text
+- Neuer Marker `[ANRUFEN]` (Termine), `[MITARBEITER]` auch bei tiefergehenden Fragen (Preise, „Was passt für mich?“, konkretes Projekt, Sonderwünsche, Vergleiche, Beschwerden, Wunsch nach einem Menschen). Regeln 8 und 9 in `lib/chatbot-knowledge.ts` mit Beispielen; bei Terminen schreibt der Assistent **keine Telefonnummer** mehr in den Text.
+- `angebote()` in `lib/chat-text.ts` liest aus den Markern, was unter der Antwort angeboten wird; die Nachricht merkt es sich (`anrufen`, `mitarbeiter`).
+- Erst wenn die Nachricht fertig entschlüsselt ist, blenden darunter (außerhalb der Blase) weich und nacheinander ein: bei `[ANRUFEN]` die **Anruf-Karte** (kleine Ausgabe der Karte bei „Sprechen wir über Ihr Projekt“: Milchglas, grüner atmender Punkt mit „KI-Assistent bereit“, Nummer, goldener Knopf „Jetzt anrufen“, beides `tel:`), bei `[MITARBEITER]` der Glasknopf **„Mit einem Mitarbeiter schreiben“**, bei beiden dazwischen die kleine Zeile „Für weitere Fragen verbinden wir Sie gern mit einem Mitarbeiter.“
+- Eine Telefonnummer im Text ist ein gewöhnlicher goldener Link (kein Chip mehr). Der alte Block mit `showContact` entfällt im neuen Fenster, also auch „Anfrage schicken“ dort; die Übernahme ins Kontaktformular läuft weiter von selbst (Ereignis `ag:prefill-contact`).
+- **Alte Startseite:** Ihr Fenster versteht `[ANRUFEN]`: Der Marker erscheint nie, unter der Nachricht steht der alte Knopf „Jetzt anrufen“ mit Nummer (wenn nicht ohnehin der alte Kontakt-Block erscheint).
+
+### 5 · „Mit einem Mitarbeiter schreiben“ und das Formular
+- Überall umbenannt (Knopf im Verlauf, kleiner Knopf unten, Regeln des Assistenten).
+- Das Formular (Name, E-Mail oder Telefon, Nachricht) füllt die **Nachricht mit einer KI-Zusammenfassung** des bisherigen Chats: 2 bis 3 kurze Sätze in der Ich-Form des Besuchers. Schnittstelle `app/api/chat/zusammenfassung/route.ts` (Modell `claude-haiku-5-5`, `max_tokens` 200, Nachdenken aus, 12 Anfragen je 5 Minuten und IP, dieselben Längengrenzen wie der Chat, nur der Verlauf, den die KI ohnehin sehen darf). Regeln und Säubern in `lib/chat-zusammenfassung.ts`, Abruf mit 6 s Zeitgrenze in `components/chat/zusammenfassung.ts`.
+- Während sie kommt: drei goldene Punkte im Feld; dann entschlüsselt sich der Text zügig (rund 1 s). Klappt es nicht: Feld leer mit Platzhalter, nichts hängt. Was der Besucher tippt, wird nie überschrieben; hat er getippt, bleibt sein Text auch beim erneuten Öffnen.
+- Name und Kontakt aus `[DATEN]` stehen wie bisher in den Feldern. „Verbinden“, Schutzregeln und alles dahinter sind unverändert.
+
+### 6 · Vorschläge und Beispielfragen
+- Die drei Vorschläge stehen sofort lesbar da: Sobald die Begrüßung steht, gleiten sie nacheinander hinein (140 ms versetzt), jeder mit einem kurzen Lichtstreif, und ihr Text entschlüsselt sich kurz. Unter der Maus verbuggen sie wie die anderen Texte.
+- Vier neue Beispielfragen im Eingabefeld (jetzt sieben).
+
+### 7 · Alle Lichter folgen der Maus ohne Verzögerung
+- **Schein des Mauszeigers** (`Zeiger.tsx`): Seine Stelle wird direkt in `pointermove` und `pointerrawupdate` gesetzt, wie Ring und Glasblase.
+- **Glimmrand** (`glimmrand.ts`): Der Lichtfleck sitzt sofort an der Stelle des Randes, die der Maus am nächsten ist. Weich ist nur das Auf- und Abblenden (Zeitkonstante 0,05 s, steht nach rund 0,15 s).
+- **Gemessen** (Maus mit festem Tempo, alter und neuer Stand direkt hintereinander): Schein vorher 9 px hinter der Maus bei 400 px/s und 26 px bei 1200 px/s (rund 22 ms), jetzt 0. Glimmrand vorher 22 px bei 400 px/s (56 ms) und 50 px bei 1200 px/s (41 ms), jetzt 0.
+- **Eine gemeinsame Schleife:** Alle Teile mit `data-glimm` melden sich bei einer Stelle an (ein Maus-Lauscher, eine Bildschleife). Erst alle Flächen messen, dann setzen; gemessen wird nur, was im Bild oder bis 200 px daneben ist; ferne Teile werden nicht angefasst; nur Geändertes wird geschrieben.
+
+### 8 · Lichtreflex am Rand an allen Karten
+- Den Glimmrand haben jetzt auch: das offene Chat-Fenster, die drei Glaskarten, die Karten bei „Unser Versprechen“, die Zertifikate (auf dem hellen Papier 2 px und kräftiger), die Anruf-Karte und „Lieber schreiben?“ im Kontakt, die kleine Anruf-Karte im Chat. Alle bisherigen Effekte dieser Karten bleiben.
+- Die Werte hängen wo möglich an einem Teil ohne Kinder (bei den Glaskarten und Kontakt-Karten an der Glasfläche), damit der Browser je Bild nur den Rand neu rechnet und nicht den ganzen Inhalt der Karte.
+
+### 9 · Der Stern hinter den drei Glaskarten bricht durchs Glas
+1. **Lichtkreuz:** vier dünne Lichtstreifen aus dem Stern, waagerecht und senkrecht bis an die Kartenränder, in der Mitte hell, zu den Enden auslaufend; zwischen Stern und Glas, mit Aufhellen gemischt, bewegt nur über Verschieben und Deckkraft.
+2. **Klares Glas am Stern:** zwei Glas-Ebenen, eine matte (11 px Unschärfe) und eine klare (1,6 px, etwas heller). Solange ein Stern in der Karte ist, stellt eine Maske im Umkreis von 170 px die klare frei. Der Text wird dort etwas heller.
+3. **Brechung an der Kante:** je Kante ein heller Saum auf Höhe des Sterns, 2 px nach außen versetzt, außen ein Hauch kühl, innen ein Hauch warm; stark nur nahe der Kante (`kantenLicht`, mit Test).
+4. **Licht auf den Nachbarkarten:** Der Rand der Nachbarkarte glimmt an der gegenüberliegenden Stelle mit auf (über den gemeinsamen Glimmrand, gleiche Werte), schwächer mit dem Abstand des Sterns zur Kante und kurz stärker, wenn der Stern zu ihr hinausgleitet.
+- Am Handy laufen Lichtkreuz und Brechung beim Durchzug mit, die Nachbarkarte glimmt kurz auf. Bei „weniger Bewegung“ nichts davon. Der Stern bleibt verborgen, bis die Karte eingeschwebt ist.
+- **Sparstufen:** Stockt die Bildfolge, solange ein Stern leuchtet (Bilder über 30 ms), fällt zuerst das Licht auf den Nachbarkarten weg, dann das klare Glas; im sparsamen Modus der Seite gleich beides.
+
+### 10 · Öffnen und Schließen: das Fenster wird zur Kugel
+- **Schließen (0,6 s):** Der Inhalt zieht sich zur Mitte zusammen, wird kleiner und leicht unscharf und löst sich in einen goldenen Schein auf (0,25 s). Das Glasviereck schrumpft zum Chat-Knopf hin, die Ecken werden immer runder, bis es die Kugel in der Größe des Knopfs ist; der Goldrand bleibt 1 px fein sichtbar. In der Kugel erscheint das Logo (erst der Stern, dann die vier Balken) und wird zum Licht des Knopfs; dann ist die Kugel wieder der Knopf (gleiches Glas, gleicher Rand, gleiches Licht an derselben Stelle).
+- **Öffnen (1,1 s):** Die Kugel hebt sich leicht, das Logo zieht sich zum Lichtpunkt zusammen (0,2 s); die Kugel dehnt sich zum Fenster (0,5 s, leichte Feder am Ende), der Lichtpunkt wandert dorthin, wo die Begrüßung beginnt; der Inhalt baut sich auf: Logo, Name und Rolle verbuggt, Begrüßung wächst und entschlüsselt sich, Vorschläge gleiten hinein, die goldene Linie unter dem Eingabefeld zieht sich von links nach rechts, das X dreht sich hinein.
+- **Umsetzung:** Form und Größe über `transform` (Verschieben und Skalieren zur Mitte des Knopfs) und `border-radius`; kein `clip-path`. Rand, Lichtkante und Unschärfe gleichen die Verkleinerung aus. Gesteuert von einer GSAP-Zeitleiste über sieben Größen; ein Klick mitten in der Bewegung (auf die Form oder den Knopf) lässt sie von der aktuellen Stelle zurücklaufen. Esc und Fokus wie bisher.
+- **Am Handy:** dieselbe Bewegung, das Fenster ist das Blatt von unten; nach dem Hinunterwischen wird es von dort aus zur Kugel.
+- **„Weniger Bewegung“:** Das Fenster blendet nur ein und aus (0,2 s).
+- **Erstes Öffnen:** Die Nachrichten entstehen schon vorher in einer ruhigen Minute, und das Fenster wird nach dem Start einmal unsichtbar vorgezeichnet. So muss der Klick nichts mehr aufbauen.
+
+### 11 · Meine Lesarten, zu denen David anders entscheiden kann
+- **Zeile über dem Mitarbeiter-Knopf:** Sie steht wörtlich so, wie David sie geschrieben hat („… verbinden wir Sie gern …“), obwohl der Chat sonst duzt.
+- **„Anfrage schicken“** gibt es im neuen Chat nicht mehr (der Block, in dem es stand, entfällt nach Auftrag).
+- **Knöpfe unter älteren Nachrichten bleiben stehen** (jede Nachricht trägt, was sie anbietet). Der Mitarbeiter-Knopf ist verborgen, solange das Formular offen ist oder das Team schon schreibt.
+- **Lichtkreuz zwischen Stern und Glas** (wie beauftragt): Durch das matte Glas wirkt es weich, im klaren Kreis um den Stern scharf.
+- **Goldene Linie unter dem Eingabefeld:** Es gab dort bisher keine; sie ist neu und bleibt als feine Linie stehen.
+
+### 12 · Prüfung und Messung
+- Alles mit nachgestelltem Netz (0 echte Anfragen an `/api`): Öffnen, Schließen, Umkehren, Punkte, Welle, Termin- und Preis-Frage, Formular mit Zusammenfassung, alte Startseite, „weniger Bewegung“, Handy.
+- **Bildraten auf dem nachgestellten schwachen Gerät** (Prozessor 4-fach gebremst, alter und neuer Stand abwechselnd, Bildschirm entsperrt, mit Fremdlast auf dem Rechner): Glaskarten mit Stern 27 → 24 bis 28 Bilder je Sekunde (gleich), Scrollen 30 → 25 bis 29, am Handy Durchzug 58 → 57, Scrollen 48 → 44. **Chat öffnen ist auf dem gebremsten Gerät langsamer als vorher** (Rechner 22 → 14, Handy 65 → 33 Bilder je Sekunde; Schließen 31 → 25 und 95 → 51): Der Eckenradius lässt sich nicht von der Grafikkarte allein bewegen, das alte Ausfalten und Hochgleiten schon. Auf dem Mac läuft es flüssig (ab dem zweiten Öffnen rund 60 Bilder je Sekunde).
+- **Funde am Rand (nicht angefasst, weil außerhalb des Auftrags):** Jeder Mausklick rechnet die ganze Seite zweimal neu (die Klasse für den gedrückten Mauspunkt sitzt am `html`, die Regel gilt für alle Elemente). Und mehrere `:has()`-Regeln der Startanimation lassen den Browser bei jedem wechselnden Zeichen die Seite absuchen. Beides bremst vor allem schwache Geräte.
+
+### 13 · Nicht angefasst
+Startanimation, alle anderen Abschnitte, die alte Startseite außer dem Marker `[ANRUFEN]`. `voice-agent-prompt.md` und `vapi-prompt.txt` (fremde Änderungen).
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
@@ -860,3 +940,4 @@ Schnittstellen (`app/api`), `lib/support.ts`, das Wissen des Telefon-Assistenten
 26. **Dritte Runde (14.11.2026, Abschnitt 4l):** Davids Rückmeldung zu fcbeb26: „wunschlos glücklich“. Die Startanimation läuft immer ganz und beginnt immer oben (kein Sprung in den fertigen Zustand; der Stern wartet, bis alles bereit ist, Sicherheitsgrenze 15 s; ohne WebGL dieselbe Abfolge mit dem ruhigen Bild; Sprungziel erst nach dem Start). Der Name reagiert immer auf die Maus (tote Zone von 24 px am Seitenanfang). Die erste Überschrift verbuggt unter der Maus wie alle anderen. Unter ihr stehen statt des Absatzes der Wettlauf (zwei Balken, keine Zahlen) und drei Glaskarten mit dem goldenen Stern hinter dem Glas und dem Mauslicht auf dem Text. David beurteilt ab jetzt die fertige Fassung auf Port 3200.
 27. **Vierte Runde (14.11.2026, Abschnitt 4m):** Davids Rückmeldung zu b95adb9: Die Seite gefällt ihm sehr. Die Zeichen fliegen erst 0,7 s nach dem vollen Licht los. Der goldene Mauspunkt ist der Mauszeiger des Betriebssystems selbst und sitzt immer genau auf der Maus; nur der Schein zieht nach. Die Lichtleiste kommt 3 s nach dem Start, atmet bis zum ersten Scrollen und blendet dann in 1,2 s aus. Im Kontakt steht Anrufen klar im Mittelpunkt: Anruf-Karte aus Glas mit grünem Statuspunkt; der Chat-Hinweis schickt einen Lichtpunkt zum Chat-Knopf; das Formular ist eine kleine Glaskarte mit goldenem Licht beim Ausfüllen und rotem Licht bei fehlenden Pflichtfeldern. WhatsApp ist über einen Schalter ausgeschaltet. Auf schwachen Geräten läuft die Seite deutlich leichter (4m, Punkt 5).
 28. **Fünfte Runde (14.11.2026, Abschnitt 4n):** Das Chat-Fenster der neuen Seite ist ein Glasfenster im Stil der Seite: Es faltet sich aus dem Stern des Chat-Knopfs aus, Antworten entschlüsseln sich Wort für Wort, Telefonnummern werden zum Chip „Jetzt anrufen“, „Mit einem Mitarbeiter sprechen“ ist ein Glasknopf, der zum bestehenden Support-Ticket führt; am Handy ein Blatt von unten. Die Logik ist unverändert und läuft einmal für beide Fenster; die alte Startseite behält ihr Fenster. Der Assistent verweist für Termine aufs Anrufen, bietet sonst den Mitarbeiter-Chat an und nennt WhatsApp nicht mehr von sich aus.
+29. **Sechste Runde (14.11.2026, Abschnitt 4o):** Das Chat-Fenster wird beim Öffnen und Schließen zur Kugel des Chat-Knopfs (kein Abschneiden mehr). Im Kopf steht unser Logo. Beim Nachdenken drei goldene Punkte, die Antwort erscheint erst ganz und entschlüsselt sich als ruhige Welle (0,6 s Zeichen je Wort, höchstens 3,5 s). Was der Assistent anbietet, steht unter der Nachricht: Anruf-Karte bei `[ANRUFEN]`, „Mit einem Mitarbeiter schreiben“ bei `[MITARBEITER]`; keine Telefonnummer mehr im Text bei Terminen. Das Formular füllt die Nachricht mit einer KI-Zusammenfassung des Chats. Schein und Glimmrand folgen der Maus ohne Verzögerung; der Glimmrand ist an allen Karten. Der Stern hinter den Glaskarten bricht sich im Glas (Lichtkreuz, klares Glas, Brechung an der Kante, Licht auf den Nachbarkarten).
