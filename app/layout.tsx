@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Sora } from "next/font/google";
 import "./globals.css";
+import { ChatAnbieter } from "@/components/chat/ChatAnbieter";
 import { ChatWidget } from "@/components/ChatWidget";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -121,8 +122,11 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        {children}
-        <ChatWidget />
+        {/* Der Chat läuft einmal für die ganze Website; welches Fenster ihn zeigt, entscheidet die Seite. */}
+        <ChatAnbieter>
+          {children}
+          <ChatWidget />
+        </ChatAnbieter>
         {/* Cookiefreie, anonyme Besucherstatistik – kein Consent-Banner nötig */}
         <Analytics />
       </body>

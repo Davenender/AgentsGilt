@@ -262,6 +262,53 @@ export const chat = {
   oeffnen: "Chat mit Agents Gilt öffnen",
   blase: "Bei Fragen helfe ich dir gerne weiter",
   blaseSchliessen: "Hinweis schließen",
+  /**
+   * Das Glasfenster der neuen Seite (components/neu/chat). Der Chat duzt. Was der Assistent sagt
+   * (Begrüßung, Vorschläge, Hinweise) steht bei der Logik in lib/chat-text.ts und
+   * components/chat/useChat.ts; hier stehen nur die Beschriftungen des Fensters.
+   */
+  fenster: {
+    titel: "Chat mit Agents Gilt",
+    name: "Agents Gilt",
+    ki: "KI-Assistent",
+    online: "online",
+    team: "Team",
+    verbunden: "verbunden",
+    schliessen: "Chat schließen",
+    griff: "Chat schließen (nach unten wischen)",
+    tippt: "Der Assistent schreibt gerade",
+    eingabe: "Nachricht an den Assistenten",
+    eingabeTeam: "Nachricht an das Team",
+    // Der Platzhalter wechselt zwischen diesen Beispielfragen.
+    platz: ["Was kostet eine Website?", "Wie schnell seid ihr?", "Was macht ein Telefon-Assistent?"],
+    platzTeam: "Schreib dem Team …",
+    senden: "Senden",
+    istKi: "Agents Gilt ist eine KI",
+    mitarbeiter: "Mit einem Mitarbeiter sprechen",
+    mitTeam: "Du schreibst mit unserem Team · Antworten erscheinen hier im Chat",
+    anrufen: "Jetzt anrufen",
+    anfrage: "Anfrage schicken",
+    telefonHinweis: "Am Telefon nimmt unser KI-Assistent ab und macht direkt einen Termin aus.",
+    ticket: {
+      hinweis: "Du schreibst gleich mit einem echten Mitarbeiter aus unserem Team. Er antwortet hier im Chat.",
+      weg: "Falls du die Seite verlässt, melden wir uns über den Kontakt, den du angibst.",
+      name: "Dein Name",
+      kontakt: "E-Mail oder Telefonnummer",
+      frage: "Worum geht es?",
+      datenschutzVor: "Mit dem Absenden wird dein Anliegen samt Chatverlauf an unser Team übergeben (siehe ",
+      datenschutz: "Datenschutz",
+      datenschutzNach: ").",
+      verbinden: "Verbinden",
+      laeuft: "Wird übergeben …",
+      abbrechen: "Abbrechen",
+      // Was unter einem Pflichtfeld steht, wenn es beim Absenden fehlt.
+      fehlt: {
+        name: "Bitte trag deinen Namen ein.",
+        kontakt: "Bitte gib eine E-Mail-Adresse oder Telefonnummer an.",
+        frage: "Bitte schreib kurz, worum es geht.",
+      },
+    },
+  },
 };
 
 export const fuss = {

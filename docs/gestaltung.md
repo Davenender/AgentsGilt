@@ -746,6 +746,67 @@ Davids Rückmeldung zu b95adb9: Die Seite gefällt ihm sehr. Alles bleibt genau 
 ### 8 · Nicht angefasst
 Alles andere bleibt. Das Chat-Fenster kommt im nächsten Auftrag. Nichts wurde echt abgesendet, nichts gepusht.
 
+## 4n. Fünfte Runde vom 14.11.2026: Das Chat-Fenster im neuen Stil
+
+Davids Auftrag: Das Chat-Fenster bekommt das Design der neuen Seite (dunkles Glas, Gold, Zeichen-Effekte). Die Logik bleibt genau so. Die alte Startseite (`/`) behält ihr altes Fenster, bis David die Startseite umstellt.
+
+### 0 · Aufbau: eine Logik, zwei Hüllen
+- **Die Logik ist unverändert herausgezogen** (wörtlich verschoben, nichts umgeschrieben): `components/chat/useChat.ts`. Sie läuft genau einmal, im Stammlayout um alle Seiten (`components/chat/ChatAnbieter.tsx`): Antworten über `/api/chat`, Übergabe an das Team über das Support-Ticket (`/api/support`; Antworten aus Discord erscheinen im Chat), Übernahme ins Kontaktformular, Verlauf, Gesprächsprotokoll, alle Schutzregeln. An `app/api`, `lib/support.ts` und den Schnittstellen ist nichts geändert.
+- **Zwei Hüllen zeigen denselben Chat:** das bisherige Fenster (`components/ChatWidget.tsx`, jetzt nur noch Anzeige) und das Glasfenster der neuen Seite (`components/neu/chat/ChatFenster.tsx`, `chat.css`). Ist das Glasfenster auf der Seite, zeichnet das alte nichts. Der Verlauf bleibt beim Wechsel zwischen den Seiten derselbe.
+- Reine Text-Regeln stehen in `lib/chat-text.ts` (Marker entfernen, Verlauf für die KI; neu: Wörter, Takt, Links, Telefonnummern), mit Tests.
+- Der Chat-Knopf der neuen Seite öffnet den Chat jetzt direkt (vorher klickte er den verborgenen alten Knopf an).
+
+### 1 · Öffnen und Fenster
+- **Öffnen:** Der Stern im Chat-Knopf wächst auf (bis zum 7,5-Fachen, er vergeht dabei), und das Fenster faltet sich als Raute aus der Mitte des Knopfs aus (0,58 s, weich auslaufend; `--cf-r` als Halbmesser der Raute). 0,14 s nach dem Klick setzt sich der Kopf aus Zeichen zusammen (0,62 s). Schließen: umgekehrt, zügiger (0,4 s). Gemessen in echtem Chrome, fertige Fassung: erstes Öffnen beginnt nach 0,12 s und ist nach 0,58 s ganz offen; jedes weitere 0,02 s und 0,47 s. (Der Inhalt wird dafür schon vorher in einer ruhigen Minute vorbereitet; solange das Fenster zu ist, läuft darin nichts.)
+- **Glasfenster:** 404 × 660 px unten rechts, dunkles Milchglas wie die Kopfleiste (`blur(18px)`), feine Goldkante (oben links und unten rechts kräftiger), weicher Schatten, Radius 26 px. Dahinter ganz schwach der Logo-Stern als Lichtschein (durch das Glas weichgezeichnet).
+- **Kopf:** Das Logo ist ein Kreis von 48 px, den der Stern fast ganz ausfüllt (kein breiter schwarzer Rand); er atmet leicht (4,6 s), feine Strahlen wiegen sich dazu: die Bilder des leichten Sterns, ohne Korn. Daneben „Agents Gilt“, darunter „KI-Assistent · online“ mit grünem Punkt, der sanft atmet (2,6 s). Schließen: ein kleiner Glasknopf. Esc schließt ebenfalls; der Fokus geht zurück zum Chat-Knopf.
+
+### 2 · Nachrichten
+- **Antworten entschlüsseln sich:** Jedes Wort erscheint erst als goldene Zufallszeichen (`▓ # % = ▒ + : /` in JetBrains Mono), 0,15 s lang, und rastet dann in normale Schrift ein, Wort für Wort von links nach rechts. Jedes Wort hat von Anfang an seinen endgültigen Platz: nichts springt. **Tempo:** Eine Antwort, die schon ganz da ist, steht nach etwa 1 s (850 ms geteilt durch die Zahl der Wörter, mindestens 12, höchstens 45 ms je Wort; `wortTakt`). Kommt sie noch an (Streaming), entschlüsselt sie sich fortlaufend und holt auf, nie langsamer als 40 ms je Wort.
+- **Ist der Text fertig, ist er gewöhnlicher Text:** markierbar, kopierbar. Für Vorleseprogramme steht er von Anfang an vollständig da (die Zeichen-Ebene ist für sie unsichtbar).
+- **„Schreibt gerade“:** drei kleine Zeichen, die alle 0,11 s durcheinanderwürfeln.
+- **Die eigene Nachricht** erscheint verbuggt und rastet nach 0,25 s von links nach rechts als der getippte Text ein, in einer leicht goldenen Glasblase rechts.
+- **Die 3 Vorschläge** (unverändert aus der Logik): Sie erscheinen nacheinander (je 140 ms versetzt), sobald die Begrüßung steht, zuerst als schwache Zeichenreihen. Beim Drüberfahren (oder mit der Tastatur) setzen sie sich zum Text zusammen (0,42 s) und bleiben lesbar. Ein Klick lässt den Vorschlag ins Eingabefeld fliegen (0,36 s) und schickt ihn ab. Am Handy stehen sie gleich lesbar da. Für Vorleseprogramme tragen die Knöpfe immer ihren Text.
+- **Links und Nummern:** Adressen im Netz und E-Mail-Adressen sind golden mit einer schwachen Unterstreichung, über die sich beim Drüberfahren eine kräftige zieht (0,4 s). Telefonnummern werden zu einem kleinen Glas-Chip „Jetzt anrufen“ mit der Nummer (`tel:`-Verweis). Erkannt werden nur Nummern mit +49 oder führender Null und mindestens 7 Ziffern (`reichTeile`).
+- Nur frische Nachrichten entschlüsseln sich: Der Verlauf von vorher und alles, was bei geschlossenem Fenster ankommt, steht einfach da.
+
+### 3 · Eingabe und Knöpfe
+- **Eingabefeld:** Glas; mit Fokus oder Text liegt ein goldener Schein dahinter (wie im Kontaktformular). Der Platzhalter wechselt alle 3,6 s verbuggt zwischen den Beispielfragen (Wortlaut in `docs/texte.md`). Das Feld wächst mit dem Text bis 120 px; Enter sendet, Umschalt+Enter macht eine neue Zeile (wie bisher).
+- **Senden-Knopf:** der kleine Logo-Stern. Dunkel, solange nichts eingetippt ist (und gesperrt, wie bisher); golden leuchtend, sobald Text da ist. Beim Senden zieht ein feiner Lichtstrich nach oben in den Verlauf (0,52 s).
+- **„Mit einem Mitarbeiter sprechen“:** ein Glasknopf mit Sprechblasen-Zeichen (kein Hörer), immer unter dem Eingabefeld neben „Agents Gilt ist eine KI“; beim Drüberfahren verbuggt der Text kurz. Er führt nur zu einem Weg: dem bestehenden Support-Ticket. Bietet der Assistent ihn an (Marker), steht er zusätzlich groß unter der Antwort, darunter klein der Chip „Jetzt anrufen“ und „Anfrage schicken“ (führt wie bisher mit den übernommenen Angaben zum Kontaktformular).
+- **Das Ticket-Formular** ist eine Glaskarte im Chat. Darüber steht: „Du schreibst gleich mit einem echten Mitarbeiter aus unserem Team. Er antwortet hier im Chat.“ Felder, Prüfung und Senden sind die bisherigen (Name, E-Mail oder Telefon, Anliegen, das unsichtbare Feld gegen Roboter). Neu ist nur die Anzeige wie im Kontaktformular: goldener Schein mit Fokus, leichter Goldschimmer bei ausgefüllten Feldern, roter Schein mit kurzem Satz bei fehlenden Pflichtfeldern (der Browser sendet dann wie bisher nichts).
+- **Verbunden:** Der Kopf zeigt statt „KI-Assistent · online“ „Team · verbunden“ mit grünem Punkt, der Platzhalter „Schreib dem Team …“. Endet der Chat mit dem Team, zeigt der Kopf wieder „KI-Assistent“.
+
+### 4 · Was der Assistent rät (`lib/chatbot-knowledge.ts`)
+- **Termin ausmachen:** Er verweist immer aufs Anrufen und schreibt die Nummer aus; das Fenster macht daraus den Chip „Jetzt anrufen“ (neue Regel 9).
+- **Fragen, die er nicht klären kann:** Er bietet an, mit einem Mitarbeiter zu sprechen; der Knopf öffnet das Support-Ticket (Regeln 3 und 4, Marker unverändert).
+- **WhatsApp** ist aus den Kontaktwegen heraus. Fragt jemand ausdrücklich danach, sagt er, dass das Team es gern gibt, und bietet den Mitarbeiter-Chat an (neue Regel 10).
+- Wissen, Ton und die übrigen Regeln sind unverändert. Das Wissen gilt für den Chat auf allen Seiten, auch auf der alten Startseite.
+
+### 5 · Handy, Ruhe, Leistung
+- **Am Handy** (bis 767 px) gleitet das Fenster als Glasblatt von unten hoch (0,5 s), 94 % der sichtbaren Höhe, mit Griff. Am Griff oder Kopf hinunterwischen schließt es (ab 120 px oder bei schnellem Zug; sonst federt es zurück), ein Tipp auf den abgedunkelten Rest ebenso. **Die Tastatur verdeckt das Eingabefeld nie:** Das Blatt richtet sich nach dem sichtbaren Teil des Bildschirms (`visualViewport`) und schrumpft mit. Schrift in den Feldern 16 px (sonst vergrößert das iPhone die Seite). Am Handy bekommt das Eingabefeld beim Öffnen nicht von selbst den Fokus (die Tastatur schöbe sonst Begrüßung und Vorschläge weg).
+- **„Weniger Bewegung“:** Alles steht sofort da: kein Ausfalten, keine Zeichen-Effekte, kein Atmen, kein wechselnder Platzhalter.
+- **Leistung:** Zeichen laufen nur, solange sich eine sichtbare Nachricht entschlüsselt. Ist das Fenster zu, läuft nichts (keine Schleife, kein Zeitgeber, die Animationen des Kopfs ruhen). Im sparsamen Modus (4m) zeichnet auch dieses Glas nicht weich.
+
+### 6 · Meine Lesarten, zu denen David anders entscheiden kann
+1. **„Anfrage schicken“ bleibt** als kleiner dritter Weg unter dem Mitarbeiter-Knopf (es ist eine bestehende Funktion mit Übernahme ins Kontaktformular). Der Mitarbeiter-Knopf selbst führt nur zum Ticket.
+2. **Die Begrüßung mit 👋 und das Du** bleiben, wie sie sind (Text der Logik; die offene Frage dazu steht in `docs/texte.md`).
+3. **Vorschläge bleiben nach dem ersten Drüberfahren lesbar** (sie fallen nicht in Zeichen zurück).
+4. **Auch Antworten des Teams entschlüsseln sich,** wenn sie bei offenem Fenster ankommen.
+5. **Der Chip heißt überall „Jetzt anrufen“** (im Auftrag einmal „Anrufen“, einmal „Jetzt anrufen“).
+
+### 7 · Prüfung
+- **Nichts wurde echt abgesendet.** Alle Durchläufe liefen mit nachgestelltem Netz: In der Seite antworten `fetch` und `sendBeacon` für `/api/chat`, `/api/support` und `/api/chat-log` selbst (auch gestreamt), und zusätzlich wurde jede echte Anfrage an `/api/**` im Browser abgebrochen und gezählt: in allen Durchläufen 0.
+- Fertige Fassung, Computer: Öffnen, Vorschläge, Frage und Antwort mit Anruf-Chip, Link, Preisfrage mit Mitarbeiter-Knopf, Ticket mit leeren Pflichtfeldern (rot, keine Anfrage, auch nicht ans nachgestellte Netz), „Team · verbunden“, Antwort des Teams, Ende des Team-Chats, Esc. Handy (375 × 812): Blatt, Vorschläge lesbar, nachgestellte Tastatur (Feld bleibt zu sehen), Ticket, Hinunterwischen; keine Tippfläche unter 40 px, nichts ragt über den Rand. „Weniger Bewegung“: kein einziger Zeichen-Effekt. **Alte Startseite `/`:** altes Fenster wie bisher (Begrüßung, 3 Fragen, drei Wege, Übergabe-Formular). Wechsel zwischen den Seiten: derselbe Verlauf, immer genau ein Fenster.
+- Die Tastatur am Handy ist nachgestellt (kleinere sichtbare Höhe), nicht auf einem echten Telefon geprüft.
+- **Logik wörtlich verschoben:** maschinell verglichen mit dem Stand vor dem Umbau (2fcf4b9): Der Rumpf der Logik (456 Zeilen), alle Hilfsfunktionen und Konstanten und die Anzeige des alten Fensters sind Zeichen für Zeichen gleich.
+- Build, Lint und alle Tests bestehen (275 Tests; neu: `tests/chat-text.test.ts`).
+- **Ohne zweite KI geprüft:** Codex war nicht erreichbar (Nutzungsgrenze des Kontos, laut Meldung bis 18.11.2026).
+- **Beim Prüfen aufgefallen, nicht angefasst:** Die Meldung des Kontaktformulars bei einem Zustellfehler (`lib/kontakt-ablauf.ts`, Logik) nennt weiter WhatsApp („Bitte ruf uns kurz an oder schreib uns per WhatsApp.“).
+
+### 8 · Nicht angefasst
+Schnittstellen (`app/api`), `lib/support.ts`, das Wissen des Telefon-Assistenten (`voice-agent-prompt.md`), die alte Startseite und ihr Fenster (nur die Logik liegt jetzt in einer eigenen Datei). Nichts gepusht.
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
@@ -755,10 +816,10 @@ Alles andere bleibt. Das Chat-Fenster kommt im nächsten Auftrag. Nichts wurde e
 
 ## 6. Zustände und Mengen
 - Formular: leer, Fehler am Feld, sendet, Erfolg (Texte aus `docs/texte.md`, gesiezt). Chat: zu, Sprechblase, offen, Übergabe, Support-Chat. Ladebildschirm: erster Besuch, Wiederkehr, reduzierte Bewegung, kein JavaScript (Seite sofort sichtbar).
-- Texte siezen; Datenschutz und Impressum bleiben wortgleich; Chat siezt ohne Emojis.
+- Texte siezen; Datenschutz und Impressum bleiben wortgleich; Chat siezt ohne Emojis. (Stand 14.11.2026: Der Chat duzt weiter und hat seine Begrüßung behalten; das neue Fenster in 4n ändert nur die Gestalt.)
 
 ## 7. Grenzen
-- Keine Änderung an `app/api`, `lib` (außer Texten in `lib/content.ts` und reinen Anzeige-Texten im Chat-Widget), Metadaten, Statistik, Terminseiten-Logik, Weiterleitung. Alle Anker-IDs bleiben. Die sechs Leistungstitel bleiben wörtlich (Schnittstellenwerte für Formular, Chat und Notion, siehe `docs/funktionen.md` 4a); ein anderer Anzeigename nur als getrennter Anzeigetext.
+- Keine Änderung an `app/api`, `lib` (außer Texten in `lib/content.ts` und reinen Anzeige-Texten im Chat-Widget; seit 14.11.2026 von David beauftragt: das Wissen des Assistenten in `lib/chatbot-knowledge.ts`, dazu die herausgezogenen Text-Regeln `lib/chat-text.ts`), Metadaten, Statistik, Terminseiten-Logik, Weiterleitung. Alle Anker-IDs bleiben. Die sechs Leistungstitel bleiben wörtlich (Schnittstellenwerte für Formular, Chat und Notion, siehe `docs/funktionen.md` 4a); ein anderer Anzeigename nur als getrennter Anzeigetext.
 - Nie: lila Verläufe, Inter, 3D-Blobs, KI-Standard-Kästchenraster, Emojis als Symbole, Glas überall, reines Schwarz ohne Farbe, erfundene Zahlen oder Stimmen. Keine fremde Seite 1:1.
 - Leistung: Der Ladebildschirm darf die Seite nicht blockieren (Inhalt steht im HTML). Das Licht (three.js mit postprocessing) wird nachgeladen und rechnet nur, wenn es zu sehen ist; ruckelt es, steht ein Bild. Glas-Effekt nur an Kopfleiste, „Anrufen“, Chat-Knopf, an der Glasblase des Mauszeigers, an den drei Glaskarten unter der ersten Aussage (4l) und an den Karten im Kontakt (4m). Im sparsamen Modus zeichnet Glas nicht weich (4m, Punkt 5).
 
@@ -798,3 +859,4 @@ Alles andere bleibt. Das Chat-Fenster kommt im nächsten Auftrag. Nichts wurde e
 25. **Zweite Runde (13.11.2026, Abschnitt 4k):** Das Licht friert am Computer nie ein: höchstens 60 Licht-Bilder je Sekunde, die Wache misst die Arbeitszeit der Grafikkarte und stellt nur Sparstufen ein; das Korn bleibt immer in voller Auflösung. **Davids Entscheidung zur offenen Frage aus 4j:** Nach der Höchstzeit geht das Licht an; ein ruhiges Bild gibt es nur noch als letzte Rettung für sehr schwache Handys. Im Wörter-Feld und im Fuß steht der leichte Stern (Bilder der eigenen Szene, bewegt mit Drehen, Größe und Deckkraft, tanzendes Korn) statt einer zweiten Licht-Szene. Die erste Aussage tippt sich Buchstabe für Buchstabe (erst „Tagen“, dann „Stunden“), der Absatz verwandelt sich danach auf einmal. Der Stern am Start steht 1,5 s; während der Startanimation kann man nicht scrollen und nichts überspringen. Die Lichtleiste kommt 2 s nach der Landung des Namens, bei jedem Seitenaufruf. Der Ablauf-Balken läuft 6 s und bleibt 0,5 s voll stehen.
 26. **Dritte Runde (14.11.2026, Abschnitt 4l):** Davids Rückmeldung zu fcbeb26: „wunschlos glücklich“. Die Startanimation läuft immer ganz und beginnt immer oben (kein Sprung in den fertigen Zustand; der Stern wartet, bis alles bereit ist, Sicherheitsgrenze 15 s; ohne WebGL dieselbe Abfolge mit dem ruhigen Bild; Sprungziel erst nach dem Start). Der Name reagiert immer auf die Maus (tote Zone von 24 px am Seitenanfang). Die erste Überschrift verbuggt unter der Maus wie alle anderen. Unter ihr stehen statt des Absatzes der Wettlauf (zwei Balken, keine Zahlen) und drei Glaskarten mit dem goldenen Stern hinter dem Glas und dem Mauslicht auf dem Text. David beurteilt ab jetzt die fertige Fassung auf Port 3200.
 27. **Vierte Runde (14.11.2026, Abschnitt 4m):** Davids Rückmeldung zu b95adb9: Die Seite gefällt ihm sehr. Die Zeichen fliegen erst 0,7 s nach dem vollen Licht los. Der goldene Mauspunkt ist der Mauszeiger des Betriebssystems selbst und sitzt immer genau auf der Maus; nur der Schein zieht nach. Die Lichtleiste kommt 3 s nach dem Start, atmet bis zum ersten Scrollen und blendet dann in 1,2 s aus. Im Kontakt steht Anrufen klar im Mittelpunkt: Anruf-Karte aus Glas mit grünem Statuspunkt; der Chat-Hinweis schickt einen Lichtpunkt zum Chat-Knopf; das Formular ist eine kleine Glaskarte mit goldenem Licht beim Ausfüllen und rotem Licht bei fehlenden Pflichtfeldern. WhatsApp ist über einen Schalter ausgeschaltet. Auf schwachen Geräten läuft die Seite deutlich leichter (4m, Punkt 5).
+28. **Fünfte Runde (14.11.2026, Abschnitt 4n):** Das Chat-Fenster der neuen Seite ist ein Glasfenster im Stil der Seite: Es faltet sich aus dem Stern des Chat-Knopfs aus, Antworten entschlüsseln sich Wort für Wort, Telefonnummern werden zum Chip „Jetzt anrufen“, „Mit einem Mitarbeiter sprechen“ ist ein Glasknopf, der zum bestehenden Support-Ticket führt; am Handy ein Blatt von unten. Die Logik ist unverändert und läuft einmal für beide Fenster; die alte Startseite behält ihr Fenster. Der Assistent verweist für Termine aufs Anrufen, bietet sonst den Mitarbeiter-Chat an und nennt WhatsApp nicht mehr von sich aus.

@@ -1,0 +1,991 @@
+/* ───────────── Chat-Fenster der neuen Seite (ChatFenster.tsx) ─────────────
+   Dunkles Milchglas wie die Kopfleiste, feine Goldkante, weicher Schatten; dahinter ganz schwach
+   der Logo-Stern als Lichtschein. Bewegt wird nur mit Verschieben, Größe, Deckkraft und dem
+   Ausschnitt des Fensters; nichts läuft, solange das Fenster zu ist. */
+
+/* Halbmesser der Raute, in der sich das Fenster aus dem Chat-Knopf ausfaltet. */
+@property --cf-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.ag-cf {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  width: min(404px, calc(100vw - 40px));
+  height: min(660px, calc(100dvh - 40px));
+  font-size: 15px;
+  line-height: 1.5;
+  pointer-events: none;
+  visibility: hidden;
+  /* Beim Schließen bleibt es sichtbar, bis es sich eingefaltet hat. */
+  transition: visibility 0s 0.42s;
+}
+.ag-cf[data-offen="true"] {
+  visibility: visible;
+  transition-delay: 0s;
+}
+html.ag-menue-offen .ag-cf {
+  visibility: hidden;
+}
+.ag-cf__dunkel {
+  display: none;
+}
+.ag-cf__rahmen {
+  position: absolute;
+  inset: 0;
+}
+
+/* Der Stern des Chat-Knopfs wächst beim Öffnen auf und vergeht im Fenster. */
+.ag-cf__auf {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 64px;
+  height: 64px;
+  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
+  opacity: 0;
+  pointer-events: none;
+}
+.ag-cf[data-offen="true"] .ag-cf__auf {
+  animation: ag-cf-auf 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes ag-cf-auf {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(7.5) rotate(18deg);
+  }
+}
+
+/* Hinter dem Glas: ganz schwach der Logo-Stern als Lichtschein. */
+.ag-cf__schein {
+  position: absolute;
+  inset: -8% -16%;
+  background: url("/kopf/licht-mini.webp") 50% 40% / 92% auto no-repeat;
+  opacity: 0;
+  transition: opacity 0.35s linear;
+  pointer-events: none;
+}
+.ag-cf[data-offen="true"] .ag-cf__schein {
+  opacity: 0.42;
+  transition: opacity 0.9s linear 0.25s;
+}
+.ag-cf__schatten {
+  position: absolute;
+  inset: 0;
+  border-radius: 26px;
+  box-shadow:
+    0 34px 80px rgba(0, 0, 0, 0.62),
+    0 8px 22px rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  transition: opacity 0.25s linear;
+  pointer-events: none;
+}
+.ag-cf[data-offen="true"] .ag-cf__schatten {
+  opacity: 1;
+  transition: opacity 0.5s linear 0.22s;
+}
+
+/* Das Glasblatt. Es faltet sich als Raute aus der Mitte des Chat-Knopfs aus (unten rechts). */
+.ag-cf__blatt {
+  --cx: calc(100% - 32px);
+  --cy: calc(100% - 32px);
+  --cf-r: 0px;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(15, 20, 40, 0.74) 0%, rgba(7, 10, 21, 0.82) 100%);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: var(--elfenbein);
+  clip-path: polygon(
+    var(--cx) calc(var(--cy) - var(--cf-r)),
+    calc(var(--cx) + var(--cf-r)) var(--cy),
+    var(--cx) calc(var(--cy) + var(--cf-r)),
+    calc(var(--cx) - var(--cf-r)) var(--cy)
+  );
+  pointer-events: auto;
+  /* Schließen: zügig zurück in den Knopf. */
+  transition: --cf-r 0.4s cubic-bezier(0.55, 0, 0.8, 0.3);
+}
+.ag-cf[data-offen="true"] .ag-cf__blatt {
+  --cf-r: 1010px;
+  /* Öffnen: rund 0,5 s, weich auslaufend. */
+  transition: --cf-r 0.58s cubic-bezier(0.25, 0.8, 0.3, 1);
+}
+/* Feine Goldkante: oben links und unten rechts etwas kräftiger. */
+.ag-cf__blatt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(155deg, rgba(243, 210, 122, 0.6) 0%, rgba(212, 162, 60, 0.14) 34%, rgba(212, 162, 60, 0.1) 64%, rgba(243, 210, 122, 0.4) 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+html.ag-sparsam .ag-cf__blatt {
+  background: rgba(6, 9, 18, 0.95);
+}
+
+/* ── Kopf ── */
+.ag-cf__kopf {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 13px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.ag-cf__griff {
+  display: none;
+}
+/* Das Logo: Der Stern füllt den Kreis fast ganz aus und atmet leicht (der leichte Stern). */
+.ag-cf__logo {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #000;
+  box-shadow:
+    0 0 0 1px rgba(243, 210, 122, 0.3),
+    0 0 20px rgba(212, 162, 60, 0.26);
+}
+.ag-cf__logo img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  mix-blend-mode: screen;
+}
+/* Der Stern reicht mit seinen Spitzen fast bis an den Rand des Kreises. */
+.ag-cf__kern {
+  width: 128%;
+  height: 128%;
+  margin: -64% 0 0 -64%;
+}
+.ag-cf__strahlen {
+  width: 210%;
+  height: 210%;
+  margin: -105% 0 0 -105%;
+  opacity: 0.7;
+}
+.ag-cf[data-offen="true"] .ag-cf__kern {
+  animation: ag-cf-atmen 4.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.ag-cf[data-offen="true"] .ag-cf__strahlen {
+  animation: ag-cf-wiegen 9s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes ag-cf-atmen {
+  from {
+    opacity: 0.82;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+@keyframes ag-cf-wiegen {
+  from {
+    opacity: 0.4;
+    transform: rotate(-5deg);
+  }
+  to {
+    opacity: 0.7;
+    transform: rotate(5deg);
+  }
+}
+.ag-cf__wer {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.ag-cf__name {
+  font-family: var(--font-versal), "Arial Narrow", sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ag-cf__rolle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--leise);
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+/* Der grüne Punkt atmet sanft wie ein Statuslicht. */
+.ag-cf__rolle i {
+  position: relative;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4fdc92;
+  box-shadow: 0 0 8px rgba(79, 220, 146, 0.7);
+}
+.ag-cf[data-offen="true"] .ag-cf__rolle i::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid rgba(79, 220, 146, 0.6);
+  animation: ag-cf-status 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes ag-cf-status {
+  0% {
+    opacity: 0.8;
+    transform: scale(0.6);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+/* Schließen: ein kleiner Glasknopf. */
+.ag-cf__zu {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: var(--nebel);
+  cursor: pointer;
+  transition:
+    color 0.2s linear,
+    box-shadow 0.2s linear;
+}
+.ag-cf__zu svg {
+  width: 16px;
+  height: 16px;
+}
+.ag-cf__zu:hover {
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: var(--gold-hell);
+}
+
+/* ── Verlauf ── */
+.ag-cf__liste {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 14px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(212, 162, 60, 0.35) transparent;
+  scrollbar-width: thin;
+}
+.ag-cf__inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ag-cf__zeile {
+  display: flex;
+  flex: none;
+}
+.ag-cf__zeile--ich {
+  justify-content: flex-end;
+}
+.ag-cf__blase {
+  max-width: 86%;
+  padding: 10px 14px;
+  border-radius: 18px 18px 18px 6px;
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.085);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+/* Die eigene Nachricht: eine leicht goldene Glasblase rechts. */
+.ag-cf__blase--ich {
+  border-radius: 18px 18px 6px 18px;
+  background: linear-gradient(160deg, rgba(243, 210, 122, 0.22), rgba(212, 162, 60, 0.1));
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: #fff6dc;
+}
+.ag-cf__blase--team {
+  background: rgba(243, 210, 122, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.3);
+}
+.ag-cf__von {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--gold-hell);
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ag-cf__blase--tippt {
+  padding: 9px 14px;
+}
+/* Zufallszeichen im Chat sind golden. */
+.ag-cf .ag-wuerfel__spiel span.ag-zufall {
+  color: var(--gold-hell);
+}
+
+/* Entschlüsseln: Jedes Wort hat von Anfang an seinen Platz. Erst unsichtbar, dann als goldene
+   Zufallszeichen darüber, dann der echte Text. */
+.ag-cf__vorlesen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ag-cf__w {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+.ag-cf__we {
+  opacity: 0;
+}
+.ag-cf__w[data-z="2"] .ag-cf__we {
+  opacity: 1;
+  transition: opacity 0.12s linear;
+}
+.ag-cf__wz {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--gold-hell);
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 0.8em;
+  font-weight: 500;
+  line-height: 1.875;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ag-cf__w[data-z="1"] .ag-cf__wz {
+  display: block;
+}
+/* „Schreibt gerade“: drei kleine Zeichen, die durcheinanderwürfeln. */
+.ag-cf__tippt {
+  display: inline-flex;
+  gap: 4px;
+  color: var(--gold-hell);
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ag-cf__tippt i {
+  width: 10px;
+  font-style: normal;
+  text-align: center;
+}
+
+/* Links: goldene Unterstreichung, die sich beim Drüberfahren aufzieht. */
+.ag-cf__link {
+  padding-bottom: 1px;
+  background:
+    linear-gradient(var(--gold-hell), var(--gold-hell)) 0 100% / 0% 1px no-repeat,
+    linear-gradient(rgba(243, 210, 122, 0.32), rgba(243, 210, 122, 0.32)) 0 100% / 100% 1px no-repeat;
+  color: var(--gold-hell);
+  text-decoration: none;
+  transition: background-size 0.4s var(--weich);
+}
+.ag-cf__link:hover,
+.ag-cf__link:focus-visible {
+  background-size:
+    100% 1px,
+    100% 1px;
+}
+.ag-cf__link--knopf {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+}
+/* Telefonnummern: ein kleiner Glas-Chip „Jetzt anrufen“. */
+.ag-cf__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0;
+  padding: 4px 13px 4px 11px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(243, 210, 122, 0.18), rgba(212, 162, 60, 0.08));
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  color: var(--gold-hell);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-decoration: none;
+  white-space: nowrap;
+  vertical-align: middle;
+  transition: box-shadow 0.25s linear;
+}
+.ag-cf__chip::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4fdc92;
+  box-shadow: 0 0 6px rgba(79, 220, 146, 0.7);
+}
+.ag-cf__chip span {
+  color: var(--elfenbein);
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
+}
+.ag-cf__chip:hover,
+.ag-cf__chip:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 18px rgba(243, 210, 122, 0.28);
+}
+
+/* ── Die drei Vorschläge ── */
+.ag-cf__vorschlaege {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  margin-top: 2px;
+}
+.ag-cf__vorschlag {
+  position: relative;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+  color: var(--nebel);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 20px;
+  text-align: right;
+  opacity: 0;
+  translate: 0 8px;
+  transition:
+    opacity 0.5s var(--weich) calc(var(--i, 0) * 140ms),
+    translate 0.5s var(--weich) calc(var(--i, 0) * 140ms),
+    color 0.2s linear,
+    box-shadow 0.2s linear;
+}
+.ag-cf__vorschlaege[data-da="true"] .ag-cf__vorschlag {
+  opacity: 1;
+  translate: 0 0;
+}
+.ag-cf__vorschlag[data-lesbar="false"] .ag-wuerfel {
+  opacity: 0;
+}
+/* Zuerst nur eine schwache Zeichenreihe. */
+.ag-cf__reihe {
+  position: absolute;
+  inset: 7px 13px;
+  overflow: hidden;
+  color: rgba(243, 210, 122, 0.36);
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  line-height: 20px;
+  text-align: right;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ag-cf__vorschlag:hover,
+.ag-cf__vorschlag:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.5);
+  color: var(--elfenbein);
+}
+/* Ein gewählter Vorschlag fliegt ins Eingabefeld. */
+.ag-cf__flug {
+  position: fixed;
+  z-index: 70;
+  padding: 7px 13px;
+  border-radius: 14px;
+  background: rgba(243, 210, 122, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.45);
+  color: #fff6dc;
+  font-size: 13.5px;
+  line-height: 20px;
+  text-align: right;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Wege, wenn der Assistent nicht weiterkommt ── */
+.ag-cf__wege {
+  display: grid;
+  flex: none;
+  gap: 8px;
+  margin-top: 4px;
+}
+.ag-cf__wege-klein {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+/* „Mit einem Mitarbeiter sprechen“: ein richtiger Glasknopf mit Sprechblase. */
+.ag-cf__mensch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 22px rgba(0, 0, 0, 0.3);
+  color: var(--elfenbein);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  transition: box-shadow 0.25s linear;
+}
+.ag-cf__mensch svg {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  color: var(--gold-hell);
+}
+.ag-cf__mensch:hover,
+.ag-cf__mensch:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 22px rgba(0, 0, 0, 0.3),
+    0 0 22px rgba(243, 210, 122, 0.2);
+}
+.ag-cf__mensch--klein {
+  gap: 7px;
+  width: auto;
+  padding: 6px 12px 6px 9px;
+  border-radius: 999px;
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  font-size: 12px;
+  font-weight: 500;
+}
+.ag-cf__mensch--klein svg {
+  width: 15px;
+  height: 15px;
+}
+.ag-cf__klein {
+  margin: 0;
+  color: var(--leise);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.ag-cf__fehler {
+  flex: none;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 107, 94, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 94, 0.36);
+  color: #ffb4ab;
+  font-size: 12.5px;
+}
+
+/* ── Das Ticket-Formular als Glaskarte ── */
+.ag-cf__ticket {
+  position: relative;
+  display: grid;
+  flex: none;
+  gap: 9px;
+  margin-top: 4px;
+  padding: 14px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 14px 30px rgba(0, 0, 0, 0.35);
+}
+.ag-cf__ticket-hinweis {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ag-cf__eingabe {
+  display: block;
+}
+.ag-cf__eingabe :is(input, textarea) {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 12px;
+  outline: none;
+  background: rgba(4, 6, 13, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: var(--elfenbein);
+  font: inherit;
+  font-size: 14px;
+  resize: none;
+  transition: box-shadow 0.3s linear;
+}
+.ag-cf__eingabe :is(input, textarea)::placeholder {
+  color: rgba(169, 173, 189, 0.6);
+}
+/* Ausgefüllt: ein ganz leichter Goldschimmer. */
+.ag-cf__eingabe[data-voll] :is(input, textarea) {
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.3),
+    0 0 14px rgba(243, 210, 122, 0.08);
+}
+/* Feld mit Fokus: weicher goldener Schein. */
+.ag-cf__eingabe :is(input, textarea):focus {
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.7),
+    0 0 0 4px rgba(243, 210, 122, 0.07),
+    0 0 26px rgba(243, 210, 122, 0.24);
+}
+/* Fehlendes Pflichtfeld: weicher roter Schein, darunter ein kurzer Satz. */
+.ag-cf__eingabe[data-fehlt] :is(input, textarea),
+.ag-cf__eingabe[data-fehlt] :is(input, textarea):focus {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 107, 94, 0.75),
+    0 0 0 4px rgba(255, 107, 94, 0.08),
+    0 0 26px rgba(255, 107, 94, 0.3);
+}
+.ag-cf__fehlt {
+  display: block;
+  max-height: 0;
+  overflow: hidden;
+  color: #ff9d92;
+  font-size: 11.5px;
+  line-height: 1.4;
+  transition:
+    max-height 0.3s var(--weich),
+    margin-top 0.3s var(--weich);
+}
+.ag-cf__eingabe[data-fehlt] .ag-cf__fehlt {
+  max-height: 36px;
+  margin-top: 5px;
+}
+.ag-cf__koeder {
+  position: absolute;
+  left: -9999px;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+.ag-cf__ticket-knoepfe {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+.ag-cf__gold,
+.ag-cf__leise {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ag-cf__gold {
+  flex: 1;
+  background: linear-gradient(180deg, #f3d27a, #d4a23c);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  color: #1a1304;
+}
+.ag-cf__gold:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ag-cf__leise {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: var(--nebel);
+}
+.ag-cf__leise:hover {
+  box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.5);
+  color: var(--elfenbein);
+}
+
+/* ── Eingabe ── */
+.ag-cf__unten {
+  flex: none;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(4, 6, 13, 0.3);
+}
+.ag-cf__feld {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 5px 5px 5px 15px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: box-shadow 0.35s linear;
+}
+/* Beim Tippen: ein goldener Schein hinter dem Feld, wie im Formular. */
+.ag-cf__feld:focus-within,
+.ag-cf__feld[data-text] {
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 4px rgba(243, 210, 122, 0.06),
+    0 0 28px rgba(243, 210, 122, 0.22);
+}
+.ag-cf__feld textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 120px;
+  padding: 9px 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--elfenbein);
+  font: inherit;
+  line-height: 22px;
+  resize: none;
+}
+.ag-cf__platz {
+  position: absolute;
+  top: 14px;
+  right: 58px;
+  left: 15px;
+  overflow: hidden;
+  color: rgba(169, 173, 189, 0.62);
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Senden: der kleine Logo-Stern. Dunkel, solange nichts da steht; golden leuchtend mit Text. */
+.ag-cf__senden {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 60%), #090d1a;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: box-shadow 0.3s linear;
+}
+.ag-cf__senden svg {
+  width: 21px;
+  height: 21px;
+  fill: var(--gold-hell);
+  filter: drop-shadow(0 0 6px rgba(243, 210, 122, 0.9));
+  transition:
+    fill 0.3s linear,
+    filter 0.3s linear,
+    scale 0.3s var(--weich);
+}
+.ag-cf__senden:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.6),
+    0 0 20px rgba(243, 210, 122, 0.3);
+}
+.ag-cf__senden:disabled {
+  cursor: default;
+}
+.ag-cf__senden:disabled svg {
+  fill: #2f3650;
+  filter: none;
+  scale: 0.86;
+}
+/* Der Lichtstrich, der beim Senden nach oben in den Verlauf zieht. */
+.ag-cf__strich {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 2px;
+  height: 48px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(243, 210, 122, 0) 0%, #f3d27a 55%, #fff6dc 100%);
+  opacity: 0;
+  transform-origin: 50% 100%;
+  pointer-events: none;
+}
+.ag-cf__fuss {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+  margin-top: 9px;
+  padding: 0 4px;
+  color: var(--leise);
+  font-size: 11px;
+}
+.ag-cf :is(button, a, textarea, input):focus-visible {
+  outline: 2px solid var(--gold-hell);
+  outline-offset: 2px;
+}
+.ag-cf__feld textarea:focus-visible,
+.ag-cf__eingabe :is(input, textarea):focus-visible {
+  outline: none;
+}
+
+/* ── Handy: ein Glasblatt, das von unten hochgleitet (fast volle Höhe), mit Griff ── */
+@media (max-width: 767px) {
+  .ag-cf {
+    inset: 0;
+    width: auto;
+    height: auto;
+  }
+  .ag-cf__dunkel {
+    position: absolute;
+    inset: 0;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: rgba(3, 5, 12, 0.62);
+    opacity: 0;
+    /* Wischen auf dem abgedunkelten Rest bewegt die Seite dahinter nicht. */
+    touch-action: none;
+    transition: opacity 0.35s linear;
+  }
+  .ag-cf[data-offen="true"] .ag-cf__dunkel {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* Das Blatt füllt 94 % des sichtbaren Bildschirms: Geht die Tastatur auf, schrumpft es mit
+     (ChatFenster.tsx setzt --cf-hoch und --cf-oben), das Eingabefeld bleibt zu sehen. */
+  .ag-cf__rahmen {
+    inset: auto 0 auto 0;
+    top: calc(var(--cf-oben, 0px) + var(--cf-hoch, 100dvh) * 0.06);
+    height: calc(var(--cf-hoch, 100dvh) * 0.94);
+  }
+  .ag-cf__auf,
+  .ag-cf__schatten {
+    display: none;
+  }
+  .ag-cf__schein {
+    inset: -4% -30% auto;
+    height: 60%;
+  }
+  .ag-cf__blatt,
+  .ag-cf[data-offen="true"] .ag-cf__blatt {
+    border-radius: 26px 26px 0 0;
+    clip-path: none;
+    transform: translate3d(0, 104%, 0);
+    transition: transform 0.36s cubic-bezier(0.55, 0, 0.8, 0.3);
+  }
+  .ag-cf[data-offen="true"] .ag-cf__blatt {
+    transform: none;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .ag-cf__kopf {
+    padding-top: 22px;
+    touch-action: none;
+  }
+  .ag-cf__griff {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    display: block;
+    width: 44px;
+    height: 4px;
+    margin-left: -22px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.3);
+  }
+  .ag-cf__zu,
+  .ag-cf__senden {
+    width: 44px;
+    height: 44px;
+  }
+  /* 16 px: Sonst vergrößert das iPhone die Seite, sobald man ins Feld tippt. */
+  .ag-cf__feld textarea,
+  .ag-cf__platz,
+  .ag-cf__eingabe :is(input, textarea) {
+    font-size: 16px;
+  }
+  .ag-cf__unten {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .ag-cf__mensch--klein {
+    min-height: 40px;
+  }
+  .ag-cf__vorschlag {
+    padding: 11px 14px;
+  }
+}
+
+/* „Weniger Bewegung“: Alles steht sofort da, ohne Ausfalten und ohne Zeichen-Effekte. */
+@media (prefers-reduced-motion: reduce) {
+  .ag-cf,
+  .ag-cf__blatt,
+  .ag-cf[data-offen="true"] .ag-cf__blatt,
+  .ag-cf__schein,
+  .ag-cf__schatten,
+  .ag-cf__dunkel,
+  .ag-cf__vorschlag {
+    transition: none !important;
+  }
+  .ag-cf__auf,
+  .ag-cf[data-offen="true"] .ag-cf__auf,
+  .ag-cf[data-offen="true"] .ag-cf__kern,
+  .ag-cf[data-offen="true"] .ag-cf__strahlen,
+  .ag-cf[data-offen="true"] .ag-cf__rolle i::after {
+    animation: none;
+  }
+}

@@ -7,6 +7,7 @@ import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { fuss, hero, marke, navigation } from "@/lib/inhalt-neu";
 import { Knopf } from "./Knoepfe";
 import { Kopfleiste } from "./Kopfleiste";
+import { ChatFenster } from "./chat/ChatFenster";
 import { ChatKnopf } from "./ChatKnopf";
 import { Ladebildschirm } from "./Ladebildschirm";
 import { Marke } from "./Marke";
@@ -192,6 +193,7 @@ export function Rahmen({ children, klasse, start = "balken", fussSchluss }: { ch
       <Fusszeile schluss={fussSchluss} />
       <DaumenLeiste />
       <ChatKnopf />
+      <ChatFenster />
     </>
   );
 }

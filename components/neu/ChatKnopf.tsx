@@ -2,15 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { chat } from "@/lib/inhalt-neu";
+import { useChatZugang } from "../chat/ChatAnbieter";
 import { richteGlimmrandEin } from "./glimmrand";
 import { richteMagnetEin } from "./magnet";
 import { LADEN_FERTIG, LADEN_FERTIG_KLASSE } from "./umgebung";
 import { enthuelleText } from "./verwuerfeln";
 
-// Der Knopf des echten Chats (components/ChatWidget.tsx im Stammlayout). Er ist in der neuen
-// Welt ausgeblendet (welt.css) und wird von hier aus nur angeklickt: Was der Chat tut, bleibt
-// damit vollständig bei ihm.
-const ECHTER_KNOPF = 'body > button[aria-label="Chat mit Agents Gilt öffnen"]';
 // Merkt sich für diese Sitzung, dass die Sprechblase geschlossen oder (am Handy) gezeigt wurde.
 const MERKER = "ag-neu-blase-zu";
 // Setzt der Chat selbst, sobald er geöffnet oder sein eigener Hinweis geschlossen wurde. Wird hier nur gelesen.
@@ -28,40 +25,22 @@ const MERKER_CHAT = "ag-assistant-dismissed";
  *   Sie lässt sich wegklicken und kommt in dieser Sitzung nicht wieder. Am Handy erscheint sie
  *   einmal für 4 s und verschwindet von selbst.
  *
- * Klick auf Kugel oder Sprechblase öffnet den Chat des Stammlayouts. Ist er offen, ruht der Knopf.
+ * Klick auf Kugel oder Sprechblase öffnet den Chat (derselbe Chat wie überall, components/chat;
+ * auf der neuen Seite zeigt ihn das Glasfenster components/neu/chat/ChatFenster.tsx). Ist er
+ * offen, ruht der Knopf.
  */
 export function ChatKnopf() {
   const wurzel = useRef<HTMLDivElement>(null);
   const kugel = useRef<HTMLButtonElement>(null);
   const [blase, setBlase] = useState(false);
-  const [chatOffen, setChatOffen] = useState(false);
-  const [ungelesen, setUngelesen] = useState(false);
-
-  // Den Zustand des echten Chats spiegeln: Ist sein Knopf weg, ist der Chat offen; trägt er den
-  // roten Punkt, gibt es eine ungelesene Antwort.
+  // Der Zustand des Chats kommt direkt vom Chat selbst.
+  const { chat: derChat } = useChatZugang();
+  const chatOffen = derChat.open;
+  const ungelesen = derChat.unread;
+  const offenJetzt = useRef(chatOffen);
   useEffect(() => {
-    let gesehen = false;
-    let knopfWache: MutationObserver | undefined;
-    const lesen = () => {
-      const echt = document.querySelector<HTMLElement>(ECHTER_KNOPF);
-      if (echt) gesehen = true;
-      setChatOffen(gesehen && !echt);
-      setUngelesen(!!echt?.querySelector('[class*="bg-red"]'));
-      knopfWache?.disconnect();
-      if (echt) {
-        knopfWache = new MutationObserver(lesen);
-        knopfWache.observe(echt, { childList: true });
-      }
-    };
-    const wache = new MutationObserver(lesen);
-    wache.observe(document.body, { childList: true });
-    const start = requestAnimationFrame(lesen);
-    return () => {
-      cancelAnimationFrame(start);
-      wache.disconnect();
-      knopfWache?.disconnect();
-    };
-  }, []);
+    offenJetzt.current = chatOffen;
+  }, [chatOffen]);
 
   // Sprechblase: 6 s nach „Laden fertig“ oder beim Drüberfahren, einmal je Sitzung.
   useEffect(() => {
@@ -81,7 +60,7 @@ export function ChatKnopf() {
       // Ist gerade das Menü offen oder der Chat, kann die Sprechblase nicht zu sehen sein: Dann
       // wartet sie und versucht es jede Sekunde wieder. Erst wenn sie wirklich erscheint, zählt
       // sie als gezeigt (Sitzungs-Merker und die 4 Sekunden am Handy beginnen erst dann).
-      if (document.documentElement.classList.contains("ag-menue-offen") || !document.querySelector(ECHTER_KNOPF)) {
+      if (document.documentElement.classList.contains("ag-menue-offen") || offenJetzt.current) {
         uhren.push(window.setTimeout(zeigen, 1000));
         return;
       }
@@ -129,7 +108,7 @@ export function ChatKnopf() {
   const oeffnen = () => {
     setBlase(false);
     merken();
-    document.querySelector<HTMLElement>(ECHTER_KNOPF)?.click();
+    derChat.openChat();
   };
   const schliessen = () => {
     setBlase(false);

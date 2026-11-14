@@ -137,9 +137,9 @@ export function richteVerwuerfelnEin(wurzel: HTMLElement): () => void {
 
 /**
  * Enthüllen: Der Text von „huelle“ besteht zuerst nur aus Zufallszeichen und rastet über 0,7 s
- * von links nach rechts ein. Bei „weniger Bewegung“ steht er sofort da. Gibt den Abbruch zurück.
+ * (oder die genannte Dauer) von links nach rechts ein. Bei „weniger Bewegung“ steht er sofort da. Gibt den Abbruch zurück.
  */
-export function enthuelleText(huelle: HTMLElement): () => void {
+export function enthuelleText(huelle: HTMLElement, dauer = 700): () => void {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return () => {};
-  return spiele(huelle, { dauer: 700, rastet: (stelle, anzahl) => (stelle + 1) / anzahl, gleichZufall: true });
+  return spiele(huelle, { dauer, rastet: (stelle, anzahl) => (stelle + 1) / anzahl, gleichZufall: true });
 }
