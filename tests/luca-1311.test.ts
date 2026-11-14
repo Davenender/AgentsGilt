@@ -99,3 +99,18 @@ test("Etappe 3: wiederkehrend, unterwegs, bei Ereignis, vor dem Termin, am Mac, 
   assert.ok(briefLesen(briefText({ typ: "erinnerung_aendern", nr: 1, uhrzeit: "18:00", zeit: "z" })));
   assert.ok((ZEIG_VORLAGEN as readonly string[]).includes("anrufe"));
 });
+
+// Etappe 4 (14.11.): Pause und Fokus, Einstellungen, Morgen-Überblick, dringend, Karte des Tages
+test("Etappe 4: Pause, Fokus, Einstellungen, Überblick und dringend", async () => {
+  const { briefLesen, ZEIG_VORLAGEN } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("pause", {}, "s"), { typ: "pause", bis: "morgen" });
+  assert.deepEqual(briefAus("pause", { bis: "18:00", fokus: true }, "s"), { typ: "pause", bis: "18:00", fokus: true });
+  assert.deepEqual(briefAus("pause", { aufheben: true }, "s"), { typ: "pause", aufheben: true });
+  assert.deepEqual(briefAus("luca_einstellen", { was: "tagesabschluss", an: false }, "s"), { typ: "einstellung", was: "tagesabschluss", an: false });
+  assert.deepEqual(briefAus("luca_einstellen", { was: "tagesabschluss", an: true, uhrzeit: "21:00" }, "s"), { typ: "einstellung", was: "tagesabschluss", an: true, uhrzeit: "21:00" });
+  assert.equal(briefAus("luca_einstellen", { was: "kaffee", an: true }, "s"), null);
+  assert.deepEqual(briefAus("erinnerung_wiederkehrend", { text: "Guten Morgen", tage: "schultage", uhrzeit: "06:45", ueberblick: true, wie: "nachricht" }, "s"), { typ: "erinnerung", text: "Guten Morgen", wiederholen: { tage: "schultage", uhrzeit: "06:45" }, wie: "nachricht", ueberblick: true });
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "Arzt", minuten: 30, dringend: true }, "s"), { typ: "erinnerung", text: "Arzt", minuten: 30, dringend: true });
+  for (const b of [{ typ: "pause", bis: "morgen", zeit: "z" }, { typ: "einstellung", was: "schlafhinweis", an: false, zeit: "z" }] as const) assert.ok(briefLesen(briefText(b)), b.typ);
+  assert.ok((ZEIG_VORLAGEN as readonly string[]).includes("tageskarte"));
+});

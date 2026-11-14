@@ -121,7 +121,7 @@ export const LAGE_MARKE = "📋 Lagebericht";
 export const ANRUF_MARKE = "📞 Luca ruft David an";
 
 /** Stufe 6: was Luca am Telefon auf der Bühne der Zentrale zeigen kann (Vorlagen der Zentrale) – „schliessen“ macht sie zu. */
-export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "hilfe", "wunschliste", "nachrichten", "anrufe", "schliessen"] as const;
+export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "schulwoche", "kunden", "website", "karte", "kosten", "tag", "cockpit", "kundenkarte", "vorhernachher", "rechner", "geldfluss", "omi", "losfahren", "plan", "hilfe", "wunschliste", "nachrichten", "anrufe", "tageskarte", "schliessen"] as const;
 
 export type Brief =
   | { typ: "zeigen"; vorlage: string; wunsch?: string }
@@ -132,6 +132,10 @@ export type Brief =
   | { typ: "nachschauen"; frage: string }
   | { typ: "schule" }
   | ({ typ: "erinnerung"; text: string; minuten?: number; uhrzeit?: string; ort?: string; ereignis?: "ankunft" | "abfahrt"; warten?: number; ab?: string; ueberblick?: boolean; nachSchule?: boolean; thema?: string } & ErinnerungExtra)
+  /** Etappe 4: „Pause bis morgen“, „bis 18 Uhr nur Notfälle“ */
+  | { typ: "pause"; bis?: string; fokus?: boolean; aufheben?: boolean }
+  /** Etappe 4: Tagesabschluss oder Schlaf-Hinweis an/aus */
+  | { typ: "einstellung"; was: "tagesabschluss" | "schlafhinweis"; an: boolean; uhrzeit?: string }
   /** Etappe 3: „Mach Nummer 1 um 18 Uhr“ */
   | { typ: "erinnerung_aendern"; nr: number; uhrzeit?: string; minuten?: number; text?: string }
   /** 13.11.: Ein Gespräch ist zu Ende – die Zentrale weiß dann, dass David mit Luca gesprochen hat (oder nur die Mailbox dran war) */
@@ -158,6 +162,8 @@ export type ErinnerungExtra = {
   nachhaken?: boolean;
   amMac?: boolean;
   vorTermin?: { titel: string; minuten: number };
+  dringend?: boolean;
+  ueberblick?: boolean;
 };
 
 const MAX_TEXT = 1500;
@@ -201,6 +207,20 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     const minuten = Math.round(Number(args.minuten));
     return Number.isFinite(minuten) && minuten >= 1 && minuten <= 720 ? { typ: "rueckruf", minuten, text: text || "Rückruf, wie besprochen", ...(thema ? { thema } : {}) } : null;
   }
+  // ── Etappe 4
+  if (werkzeug === "pause") {
+    if (args.aufheben === true) return { typ: "pause", aufheben: true };
+    const bis = kurzText(args.bis, 30) || "morgen";
+    return { typ: "pause", bis, ...(args.fokus === true ? { fokus: true } : {}) };
+  }
+  if (werkzeug === "luca_einstellen") {
+    const was = args.was === "tagesabschluss" || args.was === "schlafhinweis" ? args.was : null;
+    if (!was || typeof args.an !== "boolean") return null;
+    const uhrzeit = typeof args.uhrzeit === "string" ? uhrzeitAus(args.uhrzeit) : null;
+    return { typ: "einstellung", was, an: args.an, ...(uhrzeit ? { uhrzeit } : {}) };
+  }
+  const dringend = args.dringend === true ? { dringend: true } : {};
+  const ueberblick = args.ueberblick === true ? { ueberblick: true } : {};
   // ── Etappe 3
   const wie = args.wie === "nachricht" || args.wie === "abends" ? { wie: args.wie as "nachricht" | "abends" } : {};
   const mitThema = kurzText(args.thema, 60) ? { thema: kurzText(args.thema, 60) } : {};
@@ -211,7 +231,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     const nachStunde = Math.round(Number(args.nach_stunde));
     const uhrzeit = typeof args.uhrzeit === "string" ? uhrzeitAus(args.uhrzeit) : null;
     if (!tage || (!uhrzeit && !(nachStunde >= 1 && nachStunde <= 12))) return null;
-    return { typ: "erinnerung", text, wiederholen: { tage, ...(nachStunde >= 1 && nachStunde <= 12 ? { nachStunde } : { uhrzeit: uhrzeit! }) }, ...mitThema, ...wie, ...nachhaken };
+    return { typ: "erinnerung", text, wiederholen: { tage, ...(nachStunde >= 1 && nachStunde <= 12 ? { nachStunde } : { uhrzeit: uhrzeit! }) }, ...mitThema, ...wie, ...nachhaken, ...ueberblick, ...dringend };
   }
   if (werkzeug === "erinnerung_unterwegs") {
     const ziel = kurzText(args.ziel, 60);
@@ -282,9 +302,9 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     if (args.am_mac === true) return { typ: "erinnerung", text, amMac: true, ...mitThema, ...nachhaken };
     const uhrzeit = typeof args.uhrzeit === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(args.uhrzeit) ? args.uhrzeit.slice(0, 16) : "";
     const thema = kurzText(args.thema, 60);
-    if (uhrzeit) return { typ: "erinnerung", text, uhrzeit, ...(args.ueberblick === true ? { ueberblick: true } : {}), ...(thema ? { thema } : {}), ...wie, ...nachhaken };
+    if (uhrzeit) return { typ: "erinnerung", text, uhrzeit, ...ueberblick, ...(thema ? { thema } : {}), ...wie, ...nachhaken, ...dringend };
     const minuten = Math.round(Number(args.minuten));
-    return Number.isFinite(minuten) && minuten >= 1 && minuten <= 10_080 ? { typ: "erinnerung", text, minuten, ...(thema ? { thema } : {}), ...wie, ...nachhaken } : null;
+    return Number.isFinite(minuten) && minuten >= 1 && minuten <= 10_080 ? { typ: "erinnerung", text, minuten, ...(thema ? { thema } : {}), ...wie, ...nachhaken, ...dringend } : null;
   }
   // Davids Wunsch 11.11.: „Solange ich dort bin, ruf mich nicht an.“ Ohne Ort (oder „hier“): da, wo er gerade ist.
   if (werkzeug === "nicht_stoeren") {
@@ -313,7 +333,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
 
 export function briefText(b: BriefMitZeit): string {
   const kopf =
-    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "nachricht" ? "Nachricht an David" : b.typ === "erinnerung_aendern" ? `Geplanten Anruf ${b.nr} ändern` : b.typ === "wunsch" ? "Wunschliste" : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
+    b.typ === "zeigen" ? `zeigen: ${b.vorlage}` : b.typ === "rueckruf" ? (b.uhrzeit ? `Rückruf um ${b.uhrzeit} Uhr` : `Rückruf in ${b.minuten} Min.`) : b.typ === "gespraech" ? `Gespräch zu Ende (${b.sekunden} s${b.mailbox ? ", Mailbox" : ""})` : b.typ === "erledigt" ? `Erledigt: ${b.thema}` : b.typ === "erinnerung_weg" ? `Geplanten Anruf ${b.nr} löschen` : b.typ === "nachricht" ? "Nachricht an David" : b.typ === "erinnerung_aendern" ? `Geplanten Anruf ${b.nr} ändern` : b.typ === "pause" ? (b.aufheben ? "Pause aus" : `${b.fokus ? "Fokus" : "Pause"} bis ${b.bis}`) : b.typ === "einstellung" ? `${b.was} ${b.an ? "an" : "aus"}` : b.typ === "wunsch" ? "Wunschliste" : b.typ === "notiz" ? "notiz" : b.typ === "nachschauen" ? "nachschauen" : b.typ === "schule" ? "Schule frisch" : b.typ === "erinnerung" ? "Erinnerung" : b.typ === "lerncheck" ? "Lerncheck" : b.typ === "ruhe" ? (b.aufheben ? "Nicht stören aus" : `Nicht stören: ${b.ort ?? "hier"}`) : b.typ === "auftrag" ? "neuer Auftrag" : b.typ === "antwort" ? `Antwort auf Frage ${b.nr}` : `Freigabe ${b.nr}: ${b.erlauben ? "erlaubt" : "abgelehnt"}`;
   // ``` im Text würde den Block beenden
   const json = JSON.stringify(b).replace(/`/g, "'");
   return `${BRIEF_MARKE} · ${kopf}\n\`\`\`json\n${json}\n\`\`\``;
@@ -325,7 +345,7 @@ export function briefLesen(inhalt: string): BriefMitZeit | null {
   if (!m) return null;
   try {
     const j = JSON.parse(m[1]) as BriefMitZeit;
-    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg", "nachricht", "wunsch", "erinnerung_aendern"].includes(j.typ)) return null;
+    if (!["auftrag", "antwort", "freigabe", "rueckruf", "zeigen", "nachschauen", "schule", "erinnerung", "lerncheck", "notiz", "ruhe", "gespraech", "erledigt", "erinnerung_weg", "nachricht", "wunsch", "erinnerung_aendern", "pause", "einstellung"].includes(j.typ)) return null;
     return typeof j.zeit === "string" ? j : null;
   } catch {
     return null;
@@ -538,7 +558,9 @@ const WERKZEUGE_LIVE = [
   fn("nachschauen", "Das Team sucht in Notion, den Mails von kontakt@agentsgilt.com, im Kalender, in Omi (Davids Gespräche und Aufgaben), in Stripe, Vercel und im Tresor nach einer Antwort. Dauert meist unter einer Minute, das Ergebnis kommt im Gespräch nach. Das Ergebnis kommt nicht als Antwort auf diesen Aufruf.", { frage: txt("Die Frage in einem klaren Satz") }, ["frage"]),
   fn("schule_aktualisieren", "Schaut frisch im Schulportal nach (Vertretung, Entfall, Räume). Das Ergebnis kommt im Gespräch nach."),
   fn("erinnerung_erledigt", "David sagt zu einer Erinnerung oder einem geplanten Anruf „erledigt“, „hab ich schon“, „ruf deswegen nicht mehr an“ oder „mach ich später“. Dann gibt es dazu keinen Anruf mehr. Sagt er „später“ mit Zeit („um halb acht“, „in einer Stunde“), plant spaeter_uhrzeit oder spaeter_minuten den einen neuen Anruf. Sagt er nur „später“, frag einmal kurz, wann.", { thema: txt("Stichwort, worum es geht, zum Beispiel „Marc Mail“"), erst_morgen: { type: "boolean", description: "true bei „heute nicht mehr wegen X“: alles dazu auf morgen statt weg" }, spaeter_uhrzeit: txt("Neuer Zeitpunkt HH:MM in Berliner Zeit, genau wie David ihn sagt"), spaeter_minuten: { type: "number", description: "Oder: in so vielen Minuten" }, text: txt("Woran dann erinnert werden soll, als Satz an David") }, ["thema"]),
-  fn("erinnerung_wiederkehrend", "Wiederkehrende Erinnerung: „jeden Montag um 7“, „jeden Tag um halb zehn“, „jeden Schultag nach der 6. Stunde“.", { text: txt("Woran, als Satz an David"), tage: txt("Wochentage wie „mo,mi“, oder „taeglich“ oder „schultage“"), uhrzeit: txt("HH:MM, genau wie David sie sagt"), nach_stunde: { type: "number", description: "Statt Uhrzeit: nach dieser Schulstunde (zum Beispiel 6)" }, thema: txt("Stichwort"), wie: { type: "string", enum: ["anruf", "nachricht", "abends"], description: "Standard anruf" } }, ["text", "tage"]),
+  fn("pause", "„Luca, Pause bis morgen“ (keine Anrufe, Nachrichten warten) oder „bis 18 Uhr nur Notfälle“ (fokus true: nur Dringendes ruft an). Ohne bis: bis morgen 7 Uhr. aufheben true beendet sie.", { bis: txt("„morgen“, Uhrzeit HH:MM oder Minuten"), fokus: { type: "boolean", description: "true bei „nur Notfälle“" }, aufheben: { type: "boolean", description: "true bei „Pause aus“" } }, []),
+  fn("luca_einstellen", "Schaltet den Tagesabschluss am Abend (Standard 21:30) oder den Schlaf-Hinweis nach Mitternacht an oder aus.", { was: { type: "string", enum: ["tagesabschluss", "schlafhinweis"] }, an: { type: "boolean" }, uhrzeit: txt("Nur Tagesabschluss: neue Uhrzeit HH:MM") }, ["was", "an"]),
+  fn("erinnerung_wiederkehrend", "Wiederkehrende Erinnerung: „jeden Montag um 7“, „jeden Tag um halb zehn“, „jeden Schultag nach der 6. Stunde“.", { text: txt("Woran, als Satz an David"), tage: txt("Wochentage wie „mo,mi“, oder „taeglich“ oder „schultage“"), uhrzeit: txt("HH:MM, genau wie David sie sagt"), nach_stunde: { type: "number", description: "Statt Uhrzeit: nach dieser Schulstunde (zum Beispiel 6)" }, ueberblick: { type: "boolean", description: "true beim Weckanruf oder der Morgen-Nachricht: mit Schule, Terminen, Wetter und Jacke" }, dringend: { type: "boolean", description: "true: darf auch im Fokus anrufen" }, thema: txt("Stichwort"), wie: { type: "string", enum: ["anruf", "nachricht", "abends"], description: "Standard anruf" } }, ["text", "tage"]),
   fn("erinnerung_unterwegs", "Erinnerung unterwegs: „auf halber Strecke zur Bibliothek“ (wann halb) oder „kurz bevor ich ankomme“ (wann kurz_vor). Die Zentrale nimmt Davids Standort als Start.", { text: txt("Woran, als Satz an David"), ziel: txt("Ziel, zum Beispiel Bibliothek oder eine Adresse"), wann: { type: "string", enum: ["halb", "kurz_vor"] }, thema: txt("Stichwort"), wie: { type: "string", enum: ["anruf", "nachricht"], description: "Standard anruf" } }, ["text", "ziel", "wann"]),
   fn("erinnerung_bei_ereignis", "Anruf oder Nachricht, sobald etwas passiert: eine Mail von jemandem (art mail, wer = Name), eine neue Anfrage (art lead) oder ein Claude-Chat ist fertig (art chat, wer = Website, Zentrale, Helixlabor).", { text: txt("Was Luca dann sagen soll"), art: { type: "string", enum: ["mail", "lead", "chat"] }, wer: txt("Absender oder Chat"), thema: txt("Stichwort"), wie: { type: "string", enum: ["anruf", "nachricht"], description: "Standard anruf" } }, ["text", "art"]),
   fn("erinnerung_vor_termin", "„30 Minuten vor dem Termin bei Relax Fit“: Die Zentrale sucht den Termin im Kalender und ruft rechtzeitig an.", { text: txt("Woran, als Satz an David"), termin: txt("Ein Wort aus dem Termintitel"), minuten: { type: "number", description: "So viele Minuten vorher" }, thema: txt("Stichwort") }, ["text", "termin", "minuten"]),
@@ -546,7 +568,7 @@ const WERKZEUGE_LIVE = [
   fn("nachricht_schicken", "Schickt David etwas per iMessage aufs Handy: „schick mir die Adresse / den Link / die Kosten“. Hol die Daten vorher mit dem passenden Werkzeug, dann schreib hier den fertigen, kurzen Text (ohne Markdown). Nur an David, nie an andere.", { text: txt("Der fertige Text für Davids Handy") }, ["text"]),
   fn("wunsch_merken", "Nie „kann ich nicht“: Kann weder ein Werkzeug noch das Team (auftrag_geben: recherchieren, Notion, Kalender, Mail-Entwurf, Texte, Pläne) es erledigen, weil es neuen Code braucht, kommt es auf die Wunschliste. Der Bauer schreibt David dazu den fertigen Prompt.", { text: txt("Was David will, in seinen Worten") }, ["text"]),
   fn("erinnerung_loeschen", "Löscht einen geplanten Anruf mit seiner Nummer aus „Geplante Anrufe“ im Wissen, zum Beispiel „lösch den Anruf um 15:35“. Ändern = löschen und neu planen.", { nr: { type: "number", description: "Nummer aus „Geplante Anrufe“" } }, ["nr"]),
-  fn("erinnerung_planen", "David wird angerufen und erinnert: an einem Ort (ort + ereignis), in einigen Minuten (minuten) oder zu einer Uhrzeit (uhrzeit). Genau eins davon. Beim Ort geht zusätzlich: warten = so viele Minuten nach der Ankunft (oder Abfahrt) erst anrufen, zum Beispiel „wenn ich zu Hause bin, warte 10 Minuten“; ab = erst ab diesem Tag (JJJJ-MM-TT), zum Beispiel „morgen, wenn ich nach Hause komme“. Sagt David „ruf mich morgen früh an“, ist das eine Erinnerung mit uhrzeit und ueberblick true: Dann kommt beim Anruf auch der Tagesüberblick mit. Fehlt die Uhrzeit, frag nach; vor 7 Uhr ruft Luca nicht an.", { ueberblick: { type: "boolean", description: "true bei einem bestellten Morgen-Anruf: mit Schule, Terminen und dem, was wartet" }, text: txt("Woran erinnert werden soll, als Satz an David („Schreib Marc nochmal eine Mail“), nie „Erinnere David …“"), ort: txt("Ort, zum Beispiel Zuhause oder Schule"), ereignis: { type: "string", enum: ["ankunft", "abfahrt"], description: "ankunft = wenn er dort ankommt, abfahrt = wenn er dort weggeht" }, minuten: { type: "number", description: "In wie vielen Minuten" }, uhrzeit: txt("Zeitpunkt in Berliner Zeit: JJJJ-MM-TTTHH:MM"), mal: { type: "number", description: "Beim Ort: erst beim n-ten Mal („wenn ich zum zweiten Mal aus der Schule raus bin“ = 2)" }, am_mac: { type: "boolean", description: "„wenn ich wieder an den Mac komme“ (dann ohne Zeit und Ort)" }, wie: { type: "string", enum: ["anruf", "nachricht", "abends"], description: "Wie wichtig: anruf (dringend, Standard), nachricht (normal), abends (egal, um 20 Uhr gesammelt)" }, nachhaken: { type: "boolean", description: "true bei Aufgaben (Mail schreiben, anrufen): am nächsten Tag einmal fragen, ob es erledigt ist" }, nach_schulschluss: { type: "boolean", description: "true bei „wenn ich nach der letzten Stunde (z. B. nach Englisch) die Schule verlasse“: Verlassen in der Mittagspause zählt dann nicht. Nur mit ort Schule und ereignis abfahrt." }, thema: txt("Stichwort aus ein, zwei Wörtern, zum Beispiel „Marc Mail“. Zum selben Thema gibt es nur einen Anruf."), warten: { type: "number", description: "Nur beim Ort: so viele Minuten nach Ankunft oder Abfahrt warten, dann anrufen (1 bis 240)" }, ab: txt("Nur beim Ort: erst ab diesem Tag auslösen, JJJJ-MM-TT in Berliner Zeit (zum Beispiel morgen)") }, ["text"]),
+  fn("erinnerung_planen", "David wird angerufen und erinnert: an einem Ort (ort + ereignis), in einigen Minuten (minuten) oder zu einer Uhrzeit (uhrzeit). Genau eins davon. Beim Ort geht zusätzlich: warten = so viele Minuten nach der Ankunft (oder Abfahrt) erst anrufen, zum Beispiel „wenn ich zu Hause bin, warte 10 Minuten“; ab = erst ab diesem Tag (JJJJ-MM-TT), zum Beispiel „morgen, wenn ich nach Hause komme“. Sagt David „ruf mich morgen früh an“, ist das eine Erinnerung mit uhrzeit und ueberblick true: Dann kommt beim Anruf auch der Tagesüberblick mit. Fehlt die Uhrzeit, frag nach; vor 7 Uhr ruft Luca nicht an.", { ueberblick: { type: "boolean", description: "true bei einem bestellten Morgen-Anruf: mit Schule, Terminen und dem, was wartet" }, text: txt("Woran erinnert werden soll, als Satz an David („Schreib Marc nochmal eine Mail“), nie „Erinnere David …“"), ort: txt("Ort, zum Beispiel Zuhause oder Schule"), ereignis: { type: "string", enum: ["ankunft", "abfahrt"], description: "ankunft = wenn er dort ankommt, abfahrt = wenn er dort weggeht" }, minuten: { type: "number", description: "In wie vielen Minuten" }, uhrzeit: txt("Zeitpunkt in Berliner Zeit: JJJJ-MM-TTTHH:MM"), mal: { type: "number", description: "Beim Ort: erst beim n-ten Mal („wenn ich zum zweiten Mal aus der Schule raus bin“ = 2)" }, am_mac: { type: "boolean", description: "„wenn ich wieder an den Mac komme“ (dann ohne Zeit und Ort)" }, dringend: { type: "boolean", description: "true: darf auch im Fokus anrufen" }, wie: { type: "string", enum: ["anruf", "nachricht", "abends"], description: "Wie wichtig: anruf (dringend, Standard), nachricht (normal), abends (egal, um 20 Uhr gesammelt)" }, nachhaken: { type: "boolean", description: "true bei Aufgaben (Mail schreiben, anrufen): am nächsten Tag einmal fragen, ob es erledigt ist" }, nach_schulschluss: { type: "boolean", description: "true bei „wenn ich nach der letzten Stunde (z. B. nach Englisch) die Schule verlasse“: Verlassen in der Mittagspause zählt dann nicht. Nur mit ort Schule und ereignis abfahrt." }, thema: txt("Stichwort aus ein, zwei Wörtern, zum Beispiel „Marc Mail“. Zum selben Thema gibt es nur einen Anruf."), warten: { type: "number", description: "Nur beim Ort: so viele Minuten nach Ankunft oder Abfahrt warten, dann anrufen (1 bis 240)" }, ab: txt("Nur beim Ort: erst ab diesem Tag auslösen, JJJJ-MM-TT in Berliner Zeit (zum Beispiel morgen)") }, ["text"]),
   fn("lerncheck_merken", "Merkt nach einem Lerncheck, was sitzt und was nicht.", { fach: txt("Fach"), sitzt: txt("Was sitzt"), luecken: txt("Was noch nicht sitzt") }, ["fach"]),
   fn("kunde_aendern", "Ändert Status, nächsten Schritt oder Follow-up eines Kunden in Notion. Nur nachdem Luca die Änderung wiederholt und David zugestimmt hat.", { nr: txt("Kundennummer, zum Beispiel KND-003"), status: txt("Neuer Status"), naechsterSchritt: txt("Neuer nächster Schritt"), followUp: txt("Datum JJJJ-MM-TT"), bestaetigt: { type: "boolean", description: "Nur true, wenn David klar zugestimmt hat" } }, ["nr", "bestaetigt"]),
   fn("termin_anlegen", "Legt einen Termin im Kalender an. Nur nachdem Luca Titel, Tag und Uhrzeit wiederholt und David zugestimmt hat.", { titel: txt("Titel"), start: txt("Beginn in Berliner Zeit: JJJJ-MM-TTTHH:MM"), minuten: { type: "number", description: "Dauer, Standard 60" }, ort: txt("Ort"), bestaetigt: { type: "boolean", description: "Nur true, wenn David klar zugestimmt hat" } }, ["titel", "start", "bestaetigt"]),
