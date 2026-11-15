@@ -1076,10 +1076,41 @@ Davids Auftrag (Prompt 14). Ausgangsstand: Tag `website-zufrieden-2026-11-15`. A
 - Bildraten (Prozessor 4-fach gebremst, beide Fassungen als Kopie ohne Schlüssel, abwechselnd, nur Messungen im 60-Hz-Takt): Computer Scrollen 33 → 34, Glaskarten 38 → 39, Chat öffnen 20 bis 28 → 23, Chat schließen 26 → 27; Handy Scrollen 48 → 47, Chat öffnen 46 → 44. Gleich innerhalb der Schwankung (einzelne Läufe streuen um ±4); keine Änderung greift am Computer oder bei 390 px.
 
 ### Offen
-- Die neue Seite steht noch unter `/varianten/kopf/kern` (Titel „Kopfbild …“, `noindex`). Für den Livegang muss sie an `/`; das betrifft Adressen und Metadaten und ist Davids Entscheidung.
+- Die neue Seite steht noch unter `/varianten/kopf/kern` (Titel „Kopfbild …“, `noindex`). Für den Livegang muss sie an `/`; das betrifft Adressen und Metadaten und ist Davids Entscheidung. (Erledigt in 4t.)
 - Die alten Handynummern stehen in der Git-Geschichte des öffentlichen Repos; entfernen ginge nur durch Umschreiben der Geschichte und erzwungenes Hochladen.
 - Unter 320 px Breite (außerhalb der Prüfbreite der WCAG; 320 px passt) ragen im Kontakt die Überschrift „Sprechen wir über Ihr Projekt.“ und die Anruf-Karte um bis zu 24 px über den rechten Rand. Nicht behoben (das ginge nur über kleinere Schrift).
 - Bewertung nach Impeccable (nur zur Info, nichts umgesetzt): 21 von 36 möglichen Punkten (eine Heuristik entfällt), etwa 23 von 40. Mehrere Punkte betreffen bewusste Entscheidungen (Start-Sperre, Chat duzt, kein Daumen-Knopf). Ablage nur lokal in `.impeccable/critique/`.
+
+## 4t. Livegang vorbereitet (15.11.2026): neue Überschrift, die neue Seite ist die Startseite
+
+Davids Auftrag (Prompt 15). Am Aussehen ändert sich sonst nichts. Online gestellt wird danach aus der Zentrale-Sitzung (erst Vorschau, dann nach Davids OK `main`); hier ist nichts hochgeladen.
+
+### 1 · Überschrift „Wir bauen in Tagen, wofür Agenturen Monate brauchen.“
+- Gleicher Ablauf wie vorher: Der Satz tippt sich mit „Wochen“, dann zerfällt „Wochen,“ in goldene Zufallszeichen und rastet als „Tagen,“ ein, das golden aufleuchtet. „Wochen,“ ist breiter als „Tagen,“ (am Computer rund 295 statt 250 px): Es wird dafür waagerecht genau auf den Platz von „Tagen,“ gestaucht (`scaleX`, nur solange es steht), das überzählige Zeichen bekommt einen Zusatzplatz, der beim Einrasten leer wird. Gemessen über alle Bilder: Höhe und Zeilenzahl der Überschrift gleich, kein Zeichen ragt aus dem Platz, kein anderes Zeichen der Zeile bewegt sich (Computer 800, Handy 1064 Messbilder).
+- Wettlauf: Agentur „Monate“, Agents Gilt „Tage“. Sternchen und Fußnote sind weg, auch die Beschreibung für Vorleseprogramme („Vergleich: Eine Agentur braucht Monate, Agents Gilt Tage.“).
+- Zeitangaben überall „Tage statt Wochen oder Monate“ (Seite, Chat-Wissen, Textliste); „12 Stunden gespart“ bei den Leistungen bleibt.
+
+### 2 · Chat ohne Emojis
+Begrüßung „Hey! Ich bin der KI-Assistent von Agents Gilt. Bei Fragen zu unseren Leistungen helfe ich dir gern weiter!“ ohne Winke-Hand; im Wissen des Assistenten steht „Keine Emojis.“ (vorher erlaubt).
+
+### 3 · `/` ist die neue Seite
+- `app/page.tsx` zeigt die neue Seite; die alte Startseite ist ganz ersetzt. Titel, Beschreibung und Vorschaubild wie auf der Live-Seite, kanonische Adresse `https://agentsgilt.com`, für Suchmaschinen freigegeben; `robots.ts` und `sitemap.ts` passten schon.
+- Alle Adressen unter `/varianten` leiten dauerhaft (308) auf `/` (auch mit Unterpfaden, Bildern und Parametern). `/impressum`, `/datenschutz`, `/termin/…`, `/t/…` und alle Schnittstellen sind unverändert.
+- „Zurück“ auf Impressum und Datenschutz führt auf `/#fuss`.
+- Der Chat steht einmal im Stammlayout: Kugel und Glasfenster der neuen Seite jetzt auf jeder Seite, auch auf der Terminseite und „nicht gefunden“, wo vorher das alte Chat-Fenster stand. Auf der Startseite gehört die Kugel weiter zur Startanimation; dafür zählt nur die Adresse beim ersten Laden (ein Blatt ändert die Adresse, nicht die Seite).
+- Entfernt: die Varianten-Seiten und ihre Bilder, die Abschnitte der alten Startseite, das alte Chat-Fenster, der Ladebildschirm, die früheren Aufbau- und Kopf-Varianten, rund 1000 Zeilen Stile ohne Element. `welt.css` und `kopf.css` liegen jetzt bei ihren Komponenten.
+
+### 4 · Ladereihenfolge der Stylesheets
+Durch den Umzug laden die Stylesheets in anderer Reihenfolge. Geprüft, indem auf derselben Seite die Quell-Stile in alter und neuer Reihenfolge nachgeladen und alle berechneten Werte verglichen wurden: Auf der Startseite (Start, Chat offen, Blatt offen) hängt nichts an der Reihenfolge. Auf den eigenen Seiten Impressum und Datenschutz hing genau ein Wert daran: Der Titel stand dort mit Zeilenhöhe 0,94, im Blatt mit 0,98. Das steht jetzt fest in `recht.css` (`.ag-rechtseite .ag-recht__titel`), Test in `tests/startseite.test.ts`.
+
+### 5 · Geprüft
+- Build, Lint (0 Fehler, die alte Warnung in der Standort-Logik), Typen, alle Tests (320).
+- Bildvergleich `/` neu gegen `/varianten/kopf/kern` vorher an den 15 festen Stellen, Computer 1440 px und Handy 390 px: Weil die Fußnote fehlt, steht alles darunter 42,39 px (Handy 64,78 px) höher, also auf einem anderen Bruchteil eines Pixels. Mit genau diesem Ausgleich nur für den Vergleich ist alles pixelgleich bzw. innerhalb der Schwankung zweier Vorher-Läufe. Abweichungen nur dort, wo gewollt: Überschrift mit Wettlauf und ohne Fußnote, Chat-Begrüßung ohne Emoji, die alte Startseite.
+- Startfälle und Funktionsliste auf `/` mit nachgestelltem Netz (0 echte Anfragen), Chat auf Terminseite und „nicht gefunden“, Weiterleitungen, Metadaten, axe ohne Verstöße.
+
+### 6 · Offen
+- Auf hellen Seiten (Terminseite, „nicht gefunden“) wirkt die Glas-Kugel heller als auf dem dunklen Grund der Startseite; sie ist dieselbe Kugel.
+- Unter 320 px weiter wie in 4s.
 
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
@@ -1139,3 +1170,4 @@ Davids Auftrag (Prompt 14). Ausgangsstand: Tag `website-zufrieden-2026-11-15`. A
 31. **Achte Runde (15.11.2026, Abschnitt 4q):** Beim Öffnen und Schließen des Chats bewegt sich kein Licht mehr (der Schein in der Form ist weg, das Logo der Kugel blendet nur aus, der Glimmrand kommt erst nach dem Öffnen). Am Handy (am Gerät erkannt, nicht an der Breite): Das Logo am Anfang wackelt nicht und reagiert nicht auf Tippen, der Anrufen-Knopf unten ist weg, „So läuft es ab“ hat keine großen Zahlen, und alles, was für die Maus gedacht ist, fällt weg.
 32. **Neunte Runde (15.11.2026, Abschnitt 4r):** Die Glaskarten zeigen nur noch den kleinen Stern hinter Milchglas (weiche, vorbereitete Bilder), die Schrift der hervorgehobenen Karte wird deutlich heller; Strahlen und Licht auf der Seite sind entfernt. Eine Karte leuchtet erst, wenn sie ganz eingeschwebt ist. Am Handy leuchtet die Karte in der Mitte des Bildschirms, und dort ist wieder alles animiert wie am Computer (Überschriften, Wettlauf, Wörter-Feld, „In drei Schritten“, Leistungen nur die Karte in der Mitte, mit Neustart); weg bleibt nur, was Maus oder Finger auf der Fläche braucht, und der Sprung des Namens. Überschriften springen nirgends mehr (Zwischenwort im Platz des echten Wortes). Am Handy greifen Sparstufen (gröberer Takt der Zeichen, feste Ebenen der Leistungs-Karten).
 33. **Prüfung (15.11.2026, Abschnitt 4s):** Am Aussehen ändert sich nichts, außer zwei Behebungen: Die Kopfleiste wird unter 375 px Breite etwas kleiner gezeichnet, damit der Menü-Knopf erreichbar ist, und die nicht aktiven Schritte in „So läuft es ab“ sind heller (Deckkraft 0,75 statt 0,62, Davids Entscheidung), damit sie genug Kontrast haben.
+34. **Livegang vorbereitet (15.11.2026, Abschnitt 4t):** Die Überschrift heißt „Wir bauen in Tagen, wofür Agenturen Monate brauchen.“ (erst „Wochen“, dann „Tagen“), ohne Sternchen und Fußnote; Zeitangaben überall „Tage statt Wochen oder Monate“. Der Chat schreibt ohne Emojis. Die neue Seite ist die Startseite `/`, alle `/varianten`-Adressen leiten auf sie weiter, der Chat ist auf jeder Seite derselbe. Sonst ändert sich am Aussehen nichts.

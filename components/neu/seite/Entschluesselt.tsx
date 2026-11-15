@@ -54,6 +54,13 @@ type Feld = {
   /** Platz des Buchstabens im echten Text und, fürs Zwischenwort, der Platz seines ersten Zeichens. */
   ort: Ort;
   erstOrt: Ort | null;
+  /** Ist das Zwischenwort breiter als das echte Wort, wird es so weit schmaler gezeichnet (1 = nicht). */
+  erstSkala: number;
+  /**
+   * Zusatzplatz: Das Zwischenwort hat mehr Zeichen als das echte Wort (etwa „Wochen,“ für „Tagen,“).
+   * Ein Zusatzplatz zeigt nur ein Zeichen des Zwischenworts; im fertigen Text gibt es ihn nicht.
+   */
+  zusatz: boolean;
   /** Mitte des Buchstabens, bezogen auf die Hülle. */
   x: number;
   y: number;
@@ -134,6 +141,7 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
   const zeigeWirr = (f: Feld, ort: Ort = f.ort, zwischen = false) => {
     f.wirr = true;
     setzeOrt(f, ort);
+    f.el.style.transform = "";
     f.el.className = "ag-zufall";
     f.el.style.fontFamily = "";
     f.el.style.fontSize = "";
@@ -157,6 +165,8 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     f.el.style.fontStyle = stil.fontStyle;
     f.el.style.textTransform = stil.textTransform;
     f.el.style.color = stil.color;
+    // Das Zwischenwort steht, wenn es breiter ist, gestaucht genau im Platz des echten Wortes.
+    f.el.style.transform = zwischen && f.erstSkala < 1 ? `scaleX(${f.erstSkala.toFixed(4)})` : "";
     setzeText(f.el, zwischen ? (f.erst ?? "") : f.zeichen);
   };
 
@@ -213,7 +223,7 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
         const inGruppe = gruppe && zwischen ? gruppe : null;
         const el = document.createElement("span");
         const ort = { l: b.left - kasten.left, t: b.top - kasten.top, b: b.width, h: b.height };
-        const f: Feld = { el, zeichen, stil, erst, ort, erstOrt: null, x: ort.l + ort.b / 2, y: ort.t + ort.h / 2, wirr: false, kommt: 0, rastet: 0, ziel: "echt" };
+        const f: Feld = { el, zeichen, stil, erst, ort, erstOrt: null, erstSkala: 1, zusatz: false, x: ort.l + ort.b / 2, y: ort.t + ort.h / 2, wirr: false, kommt: 0, rastet: 0, ziel: "echt" };
         if (inGruppe) zuGruppe.set(f, inGruppe);
         if (art === "wirr") zeigeWirr(f);
         else if (art === "fest") zeigeFest(f, "echt");
@@ -226,7 +236,9 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     // Platz des echten Wortes, auf der Zeile des Satzes (gemessen an einem unsichtbaren Probetext).
     // Nichts anderes rückt dafür: Jeder übrige Buchstabe bleibt die ganze Zeit an seinem Platz im
     // fertigen Text (seit dem 15.11.2026; vorher rückte der Rest der Zeile um den Unterschied
-    // zusammen und glitt danach zurück).
+    // zusammen und glitt danach zurück). Ist das Zwischenwort breiter als das echte Wort („Wochen,“
+    // für „Tagen,“), wird es genau auf dessen Platz gestaucht; hat es mehr Zeichen, bekommen die
+    // übrigen Zusatzplätze, die es im fertigen Text nicht gibt.
     for (const gruppe of gruppen.keys()) {
       const zellen = felder.filter((f) => zuGruppe.get(f) === gruppe);
       const text = (gruppe as HTMLElement).dataset.erst ?? "";
@@ -239,20 +251,34 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
       huelle.append(probe);
       const knoten = probe.firstChild as Text;
       const probeBreite = probe.getBoundingClientRect().width;
-      // Ist das Zwischenwort kürzer oder länger als das echte, steht es mittig in dessen Platz.
       const letzte = zellen[zellen.length - 1];
-      const luecke = letzte.ort.l + letzte.ort.b - zellen[0].ort.l - probeBreite;
-      const davor = luecke / 2;
+      const platz = letzte.ort.l + letzte.ort.b - zellen[0].ort.l;
+      const skala = probeBreite > platz && probeBreite > 0 ? platz / probeBreite : 1;
+      // Mittig im Platz des echten Wortes (passt es genau, beginnt es an dessen Anfang).
+      const davor = (platz - probeBreite * skala) / 2;
       let stelle = 0;
       let links = 0;
+      let nachLetzter = felder.indexOf(letzte) + 1;
       Array.from(text).forEach((zeichen, nr) => {
         bereich.setStart(knoten, stelle);
         stelle += zeichen.length;
         bereich.setEnd(knoten, stelle);
         const b = bereich.getBoundingClientRect();
         if (nr === 0) links = b.left;
-        const zelle = zellen[nr];
-        if (zelle) zelle.erstOrt = { l: zellen[0].ort.l + davor + (b.left - links), t: zeile.ort.t, b: b.width, h: zeile.ort.h };
+        const ort = { l: zellen[0].ort.l + davor + (b.left - links) * skala, t: zeile.ort.t, b: b.width * skala, h: zeile.ort.h };
+        let zelle = zellen[nr];
+        if (!zelle) {
+          // Zusatzplatz (nicht im Stand „fest“: Dort gibt es kein Zwischenwort mehr).
+          if (art === "fest") return;
+          const el = document.createElement("span");
+          zelle = { el, zeichen: "", stil: zeile.stil, erst: zeichen, ort, erstOrt: null, erstSkala: 1, zusatz: true, x: ort.l + ort.b / 2, y: ort.t + ort.h / 2, wirr: false, kommt: 0, rastet: 0, ziel: "echt" };
+          neu.append(el);
+          // In Lesereihenfolge gleich hinter das echte Wort, damit es sich in der richtigen Reihe tippt.
+          felder.splice(nachLetzter, 0, zelle);
+          nachLetzter += 1;
+        }
+        zelle.erstOrt = ort;
+        zelle.erstSkala = skala;
       });
       probe.remove();
     }
@@ -389,6 +415,14 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
       gruppe.forEach((f, i) =>
         spaeter(i * 50, () => {
           if (vorbei || !ebene) return;
+          if (f.zusatz) {
+            // Zusatzplätze gibt es im echten Wort nicht: Sie verschwinden, wenn das Zwischenwort zerfällt.
+            f.wirr = false;
+            f.rastet = 0;
+            f.el.style.transform = "";
+            setzeText(f.el, "");
+            return;
+          }
           zeigeWirr(f);
           f.ziel = "echt";
           f.rastet = zerfall + 600 + (450 * (i + 1)) / gruppe.length;

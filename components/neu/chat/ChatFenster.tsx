@@ -56,8 +56,7 @@ const WACHSEN = 400;
  *   Fenster zu, läuft nichts.
  */
 export function ChatFenster() {
-  const { chat, meldeNeueHuelle } = useChatZugang();
-  useEffect(() => meldeNeueHuelle(), [meldeNeueHuelle]);
+  const { chat } = useChatZugang();
 
   const offen = chat.open;
   // Der Inhalt entsteht vor dem ersten Öffnen (in einer ruhigen Minute) und bleibt dann.

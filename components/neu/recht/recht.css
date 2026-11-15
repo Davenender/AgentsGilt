@@ -51,6 +51,12 @@
   overflow-wrap: anywhere;
   hyphens: auto;
 }
+/* Auf der eigenen Seite steht der Titel enger, wie die übrigen Versal-Überschriften (0,94); im Blatt
+   über der Startseite bleibt es bei 0,98. Bis zum 15.11.2026 ergab sich das aus der Ladereihenfolge
+   der Stylesheets, seitdem steht es hier fest. */
+.ag-rechtseite .ag-recht__titel {
+  line-height: 0.94;
+}
 .ag-recht__text {
   display: grid;
   gap: clamp(30px, 4.4vh, 44px);

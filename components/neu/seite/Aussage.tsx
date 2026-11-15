@@ -61,14 +61,16 @@ function Woerter({ text }: { text: string }) {
  * bleiben frei, nichts springt). Beim Hinscrollen erscheint Platz für Platz ein Zufallszeichen
  * (alle 45 ms der nächste), flackert rund 250 ms und rastet als richtiger Buchstabe ein. So läuft
  * vorn eine verbuggte Kante durch den Satz, dahinter steht schon das fertige Wort. Getippt wird
- * zuerst „Tagen“. Steht der Satz, zerfällt „Tagen“ in Zufallszeichen und rastet als „Stunden“ ein,
- * das golden aufleuchtet; das Sternchen kommt mit (Entschluesselt.tsx, Gruppe mit `data-erst`).
+ * zuerst „Wochen“. Steht der Satz, zerfällt „Wochen“ in Zufallszeichen und rastet als „Tagen“ ein,
+ * das golden aufleuchtet (Entschluesselt.tsx, Gruppe mit `data-erst`). „Wochen“ ist breiter als
+ * „Tagen“: Es wird dafür genau auf dessen Platz gestaucht, nichts ragt in die Nachbarwörter.
  * Danach verbuggt sie unter der Maus wie alle anderen Überschriften.
  *
  * Darunter, sobald die Überschrift steht:
  * 1. Der Wettlauf zeigt die Überschrift als Bild. Zwei schmale Balken laufen los: „Agentur“ in Grau
- *    kriecht und ist nach 4 s erst zu einem Drittel voll („Wochen“); „Agents Gilt“ in Gold ist nach
- *    0,8 s voll und leuchtet kurz auf („Stunden*“). Keine Zahlen. Darunter steht die Fußnote.
+ *    kriecht und ist nach 4 s erst zu einem Drittel voll („Monate“); „Agents Gilt“ in Gold ist nach
+ *    0,8 s voll und leuchtet kurz auf („Tage“). Keine Zahlen. (Sternchen und Fußnote gibt es seit
+ *    dem 15.11.2026 nicht mehr.)
  * 2. Drei Glaskarten schweben nacheinander ein (je 120 ms versetzt). Fährt die Maus auf eine
  *    Karte (am Handy: steht sie in der Mitte des Bildschirms), wird sie hervorgehoben: In ihrer
  *    Mitte erscheint hinter Milchglas ein kleiner Stern (derselbe wie im Wörter-Feld darunter, weich
@@ -149,10 +151,9 @@ export function Aussage() {
           <span className="ag-wuerfel ag-wuerfel--satz">
             <span className="ag-wuerfel__echt">
               {aussage.vor}{" "}
-              {/* Diese Gruppe wird zuerst als „Tagen,“ getippt und rastet danach als „Stunden*,“ ein. */}
+              {/* Diese Gruppe wird zuerst als „Wochen,“ getippt und rastet danach als „Tagen,“ ein. */}
               <span data-erst={`${aussage.erst}${aussage.nach.slice(0, 1)}`}>
                 <em className="ag-gold ag-leuchtet">{aussage.gold}</em>
-                <span className="ag-aussage__stern">*</span>
                 {aussage.nach.slice(0, 1)}
               </span>
               {aussage.nach.slice(1)}
@@ -174,13 +175,9 @@ export function Aussage() {
             <span className="ag-lauf__bahn">
               <span className="ag-lauf__balken" />
             </span>
-            <span className="ag-lauf__zeit">
-              {aussage.lauf.wir.zeit}
-              <span className="ag-aussage__stern">*</span>
-            </span>
+            <span className="ag-lauf__zeit">{aussage.lauf.wir.zeit}</span>
           </div>
         </div>
-        <p className="ag-fussnote ag-aussage__fussnote">{aussage.fussnote}</p>
 
         {/* Drei Glaskarten: Hinter jeder wartet unsichtbar ein goldener Stern hinter Milchglas. */}
         <ul className="ag-gk__reihe">

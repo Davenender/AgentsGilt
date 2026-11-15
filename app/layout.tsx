@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { Inter, Sora } from "next/font/google";
 import "./globals.css";
 import { ChatAnbieter } from "@/components/chat/ChatAnbieter";
-import { ChatWidget } from "@/components/ChatWidget";
+import { ChatUeberall } from "@/components/neu/chat/ChatUeberall";
+import { WeltChat } from "@/components/neu/Welt";
 import { Analytics } from "@vercel/analytics/next";
 import { NEUE_SEITE } from "@/lib/neue-seite";
 
-// Läuft ganz am Anfang der Seite, noch bevor ihr Inhalt da ist, und nur auf der neuen Seite: Es
+// Läuft ganz am Anfang der Seite, noch bevor ihr Inhalt da ist, und nur auf der Startseite: Es
 // setzt „ag-vorstart“ am <html>. Damit hält das Stylesheet die Seite oben, bis das Skript der
 // Startanimation übernimmt (welt.css). Früher fand das Stylesheet den Kopfbereich mit `:has()`.
 const VORSTART = `try{if(location.pathname.replace(/\\/+$/,"")===${JSON.stringify(NEUE_SEITE.replace(/\/+$/, ""))})document.documentElement.classList.add("ag-vorstart")}catch(e){}`;
@@ -27,6 +28,8 @@ export const metadata: Metadata = {
   title: "Agents Gilt – KI-Lösungen für lokale Unternehmen",
   description:
     "Agents Gilt entwickelt moderne Websites, KI-Chatbots, Voice-Agenten und Automatisierungen für kleine und mittlere Unternehmen.",
+  // Kanonische Adresse der Startseite (seit 15.11.2026 die neue Seite). Next schreibt sie als
+  // https://agentsgilt.com (ohne Schrägstrich am Ende; dieselbe Adresse wie https://agentsgilt.com/).
   alternates: {
     canonical: "/",
   },
@@ -129,10 +132,12 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        {/* Der Chat läuft einmal für die ganze Website; welches Fenster ihn zeigt, entscheidet die Seite. */}
+        {/* Der Chat läuft einmal für die ganze Website: Kugel und Glasfenster auf jeder Seite. */}
         <ChatAnbieter>
           {children}
-          <ChatWidget />
+          <WeltChat>
+            <ChatUeberall />
+          </WeltChat>
         </ChatAnbieter>
         {/* Cookiefreie, anonyme Besucherstatistik – kein Consent-Banner nötig */}
         <Analytics />

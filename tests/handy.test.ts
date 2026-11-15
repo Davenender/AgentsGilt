@@ -13,7 +13,7 @@ test("„Handy“ wird am Gerät entschieden (Touch ohne Maus), nicht an der Bre
 });
 
 test("Hover-Stile der neuen Seite gelten nur bei echter Maus (am Handy bleibt nichts „hängen“)", () => {
-  const dateien = ["app/varianten/welt.css", "components/neu/seite/seite.css", "components/neu/chat/chat.css", "components/neu/recht/recht.css", "app/varianten/kopf/kopf.css", "components/neu/seite/leuchtstern.css"];
+  const dateien = ["components/neu/welt.css", "components/neu/seite/seite.css", "components/neu/chat/chat.css", "components/neu/recht/recht.css", "components/neu/kopf/kopf.css", "components/neu/seite/leuchtstern.css"];
   for (const datei of dateien) {
     const text = ohneKommentare(lies(datei));
     const stapel: string[] = [];
@@ -25,9 +25,7 @@ test("Hover-Stile der neuen Seite gelten nur bei echter Maus (am Handy bleibt ni
         const nurAusnahme = !kopf.replace(/:not\(:hover\)/g, "").includes(":hover");
         if (kopf.includes(":hover") && !nurAusnahme) {
           const imMausBlock = stapel.some((k) => k.includes("hover: hover"));
-          // Die alten Varianten-Seiten (.ag-umlauf, .ag-wahl, .ag-gross) sind nicht die neue Seite.
-          const alteVariante = /\.ag-(umlauf|wahl|gross)/.test(kopf);
-          assert.ok(imMausBlock || alteVariante, `${datei}: ${kopf}`);
+          assert.ok(imMausBlock, `${datei}: ${kopf}`);
         }
         stapel.push(kopf);
         puffer = "";
@@ -40,7 +38,7 @@ test("Hover-Stile der neuen Seite gelten nur bei echter Maus (am Handy bleibt ni
 });
 
 test("den Anrufen-Knopf am unteren Rand (Daumen-Knopf) gibt es nicht mehr", () => {
-  for (const datei of ["components/neu/Rahmen.tsx", "app/varianten/welt.css", "app/varianten/kopf/kopf.css", "components/neu/recht/RechtBlatt.tsx", "components/neu/recht/RechtSeite.tsx"]) {
+  for (const datei of ["components/neu/Rahmen.tsx", "components/neu/welt.css", "components/neu/kopf/kopf.css", "components/neu/recht/RechtBlatt.tsx", "components/neu/recht/RechtSeite.tsx"]) {
     assert.ok(!ohneKommentare(lies(datei)).includes("ag-daumen"), datei);
   }
   assert.ok(!lies("components/neu/Rahmen.tsx").includes("DaumenLeiste"));
@@ -49,7 +47,7 @@ test("den Anrufen-Knopf am unteren Rand (Daumen-Knopf) gibt es nicht mehr", () =
 test("sehr schmale Handys: Die Kopfleiste passt (unter 375 px etwas kleiner gezeichnet, ab 375 px unverändert)", () => {
   // Name, „Anrufen“ und Menü-Knopf brauchen in der Kachel rund 376 px. Jede Stufe darf höchstens
   // so stark verkleinern, dass es bis zur nächst kleineren Stufe passt (Verkleinerung × 376 ≤ Breite).
-  const stil = ohneKommentare(lies("app/varianten/welt.css"));
+  const stil = ohneKommentare(lies("components/neu/welt.css"));
   const stufen = [...stil.matchAll(/@media \(max-width: (\d+)px\) \{\s*\.ag-kopf,\s*\.ag-menue__kopf \{\s*zoom: ([\d.]+);/g)].map((m) => [Number(m[1]), Number(m[2])]);
   assert.ok(stufen.length >= 3, "es gibt die Stufen");
   assert.equal(stufen[0][0], 374, "erst unter 375 px");

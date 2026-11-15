@@ -83,9 +83,6 @@
   max-width: 17ch;
   font-size: clamp(2.9rem, 7.2vw, 6rem);
 }
-.ag-aussage__stern {
-  color: var(--gold-hell);
-}
 /* ── Der Wettlauf: die Überschrift als Bild. Zwei schmale Balken laufen los, sobald die Überschrift
    steht (Aussage.tsx setzt data-lauf). „Agentur“ kriecht in 4 s auf ein Drittel, „Agents Gilt“ ist
    nach 0,8 s voll und leuchtet kurz auf. Ohne Skript und bei „weniger Bewegung“ steht das Ende da:
@@ -227,21 +224,6 @@
   100% {
     text-shadow: 0 0 0 rgba(246, 196, 104, 0);
   }
-}
-/* Die Fußnote gehört zum Sternchen am Wettlauf und steht direkt darunter. */
-.ag-aussage__fussnote {
-  margin-top: 20px;
-}
-.ag-aussage[data-an] .ag-aussage__fussnote {
-  opacity: 0;
-  translate: 0 8px;
-  transition:
-    opacity 0.9s var(--weich) 0.95s,
-    translate 0.9s var(--weich) 0.95s;
-}
-.ag-aussage[data-an][data-lauf] .ag-aussage__fussnote {
-  opacity: 1;
-  translate: 0 0;
 }
 @media (max-width: 560px) {
   /* Schmal: Name links, Zeit rechts, der Balken darunter über die ganze Breite. */
@@ -526,7 +508,7 @@
 
 /* Überschriften, die sich entschlüsseln (Entschluesselt.tsx): Jedes Zeichen steht die ganze Zeit
    am Platz seines Buchstabens im fertigen Text, nichts gleitet und nichts rückt (auch das
-   Zwischenwort „Tagen“ steht im Platz von „Stunden“). Ist die Überschrift fertig, leuchtet das
+   Zwischenwort „Wochen“ steht, gestaucht, im Platz von „Tagen“). Ist die Überschrift fertig, leuchtet das
    goldene Schlüsselwort einmal auf und kommt dann in seinem gewohnten Schein zur Ruhe. */
 .ag-wuerfel[data-fertig] .ag-gold {
   animation: ag-gold-auf 1.6s var(--weich) both;

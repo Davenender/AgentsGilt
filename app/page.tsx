@@ -1,42 +1,18 @@
-import { Header } from "@/components/Header";
-import { Hero } from "@/components/Hero";
-import { Services } from "@/components/Services";
-import { Process } from "@/components/Process";
-import { WhyUs } from "@/components/WhyUs";
-import { Credentials } from "@/components/Credentials";
-import { Contact } from "@/components/Contact";
-import { Footer } from "@/components/Footer";
-import { IntroTypewriter } from "@/components/IntroTypewriter";
+import { Welt } from "@/components/neu/Welt";
+import { Seite } from "@/components/neu/seite/Seite";
 
-export default function Home() {
+// Die Startseite (seit dem 15.11.2026 die neue Seite; vorher lag sie unter /varianten/kopf/kern).
+// Titel, Beschreibung, Vorschaubild und kanonische Adresse kommen aus dem Stammlayout
+// (app/layout.tsx); die Seite ist für Suchmaschinen freigegeben.
+export default function Startseite() {
   return (
-    <>
-      <Header />
-      <main>
-        <Hero />
-
-        {/* Intro / Was wir machen */}
-        <section className="relative overflow-hidden bg-cream py-24 md:py-32">
-          {/* Sehr weicher Gold-Schein hinter dem Text – füllt die Fläche,
-              ohne ein zusätzliches Element in die Sektion zu setzen. */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-1/2 h-[540px] w-[920px] max-w-[135%] -translate-x-1/2 -translate-y-1/2"
-            style={{
-              background:
-                "radial-gradient(ellipse at center, rgba(212,162,60,0.14), rgba(212,162,60,0.05) 45%, transparent 70%)",
-            }}
-          />
-          <IntroTypewriter />
-        </section>
-
-        <Services />
-        <Process />
-        <WhyUs />
-        <Credentials />
-        <Contact />
-      </main>
-      <Footer />
-    </>
+    // Schriften und Stylesheet der neuen Welt: components/neu/Welt.tsx.
+    <Welt>
+      {/* Ohne JavaScript gibt es keine Startanimation: Die Seite ist sofort da. */}
+      <noscript>
+        <style>{".ag-ln__standbild{display:block}.ag-ln__stern{display:none}.ag-kopf,.ag-chat{opacity:1!important;animation:none!important}.ag-wf__innen{opacity:1!important;transform:none!important;filter:none!important}.ag-schluss .ag-wortmarke{opacity:1!important}.ag-stern__auf{opacity:1!important;scale:1!important}.ag-stern__mitte{scale:1!important}"}</style>
+      </noscript>
+      <Seite />
+    </Welt>
   );
 }

@@ -7,9 +7,6 @@ import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { fuss, marke, navigation } from "@/lib/inhalt-neu";
 import { FUSS_ANKER } from "@/lib/neue-seite";
 import { Kopfleiste } from "./Kopfleiste";
-import { ChatFenster } from "./chat/ChatFenster";
-import { ChatKnopf } from "./ChatKnopf";
-import { Ladebildschirm } from "./Ladebildschirm";
 import { GoldVerlauf, Marke } from "./Marke";
 import { istVorschau, scrollRuhe, scrollSperre, scrollZiel, willWenigerBewegung } from "./umgebung";
 
@@ -155,16 +152,19 @@ export function Wortmarke({ className }: { className?: string }) {
 }
 
 /**
- * Rahmen jeder Variante: Ladebildschirm, Kopfleiste, Inhalt, Fußleiste.
+ * Rahmen der Seiten der neuen Welt (Startseite, Impressum, Datenschutz): Kopfleiste, Inhalt, Fußleiste.
  *
- * `start="licht"`: Die Seite hat die neue Startanimation des Kopfbereichs (Stern im Dunkeln, dann
- * Licht, dann Zeichen; kopf/LichtName.tsx). Der alte Ladebildschirm mit den Balken entfällt dann.
- * Kopfleiste und Chat-Knopf tragen dann von Anfang an den Stand des Starts
- * (`data-start="warten"`): Sie bleiben verborgen, bis die Zeichen landen (kopf.css).
+ * `start="licht"`: Die Seite hat die Startanimation des Kopfbereichs (Stern im Dunkeln, dann
+ * Licht, dann Zeichen; kopf/LichtName.tsx). Den alten Ladebildschirm mit den Balken (für die
+ * früheren Aufbau-Varianten) gibt es seit dem 15.11.2026 nicht mehr.
+ * Die Kopfleiste trägt dann von Anfang an den Stand des Starts (`data-start="warten"`): Sie bleibt
+ * verborgen, bis die Zeichen landen (kopf.css). Den Chat (Kugel und Glasfenster) gibt es seit dem
+ * 15.11.2026 einmal im Stammlayout für alle Seiten (chat/ChatUeberall.tsx); die Kugel macht den
+ * Start dort genauso mit.
  *
  * Den Anrufen-Knopf am unteren Rand (am Handy, „Daumen-Knopf“) gibt es seit dem 15.11.2026 nicht
  * mehr: Anrufen steht in der Kopfleiste und im Kontakt-Abschnitt.
- * `start="ohne"`: keine Startanimation, kein Ladebildschirm (Impressum, Datenschutz).
+ * `start="ohne"`: keine Startanimation (Impressum, Datenschutz).
  * `fussSchluss` ersetzt in der Fußleiste den Riesenschriftzug (die neue Seite endet mit Stern,
  * Namen aus Zeichen und Lichtleiste: seite/FussSchluss.tsx).
  * `basis`: Unterseiten (Impressum, Datenschutz) nennen hier die Adresse der neuen Seite; Kopf- und
@@ -173,28 +173,25 @@ export function Wortmarke({ className }: { className?: string }) {
 export function Rahmen({
   children,
   klasse,
-  start = "balken",
+  start = "ohne",
   fussSchluss,
   basis = "",
 }: {
   children: ReactNode;
   klasse?: string;
-  start?: "balken" | "licht" | "ohne";
+  start?: "licht" | "ohne";
   fussSchluss?: ReactNode;
   basis?: string;
 }) {
-  // Mit der Startanimation beginnen Kopfleiste und Chat-Knopf im Stand „warten“.
+  // Mit der Startanimation beginnt die Kopfleiste im Stand „warten“.
   const stand = start === "licht" ? "warten" : undefined;
   return (
     <>
-      {start === "balken" && <Ladebildschirm />}
       <GoldVerlauf />
       <WeichesScrollen />
       <Kopfleiste basis={basis} start={stand} />
       <main className={klasse}>{children}</main>
       <Fusszeile schluss={fussSchluss} basis={basis} />
-      <ChatKnopf start={stand} />
-      <ChatFenster />
     </>
   );
 }

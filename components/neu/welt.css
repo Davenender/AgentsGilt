@@ -1,16 +1,21 @@
 /* ==========================================================================
    Neue Welt „Chromzeichen in der Punktwolke“
-   Gilt nur innerhalb von .ag-neu (Seiten unter /varianten). Die bestehende
-   Startseite, Impressum, Datenschutz und Terminseiten bleiben unberührt.
+   Gilt nur innerhalb von .ag-neu: Startseite, Impressum, Datenschutz, dazu der
+   Chat auf allen Seiten (.ag-neu--chat). Die Terminseiten bleiben unberührt.
    Regeln aus der Code-Fehlersuche: keine Leuchtschein-Schatten, keine runden
    Lichthöfe, keine kursive Serife, kein Etikett über Überschriften.
    ========================================================================== */
 
-body:has(.ag-neu) {
+body:has(.ag-neu:not(.ag-neu--chat)) {
   background: #070b16;
 }
-html:has(.ag-neu) {
+html:has(.ag-neu:not(.ag-neu--chat)) {
   scrollbar-color: #2a3558 #070b16;
+}
+/* Die Hülle des Chats im Stammlayout (Welt.tsx: WeltChat) zeichnet keinen eigenen Kasten: Sie
+   bringt nur Schriften und Werte mit. Auf Seiten im alten Aussehen ändert sie sonst nichts. */
+.ag-neu.ag-neu--chat {
+  display: contents;
 }
 /* Lenis (weiches Scrollen) */
 html.lenis,
@@ -89,9 +94,6 @@ html.lenis body {
     animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
   }
-  .ag-zeiger {
-    display: none;
-  }
 }
 
 /* ───────────── Schrift ───────────── */
@@ -114,9 +116,6 @@ html.lenis body {
   text-transform: none;
   white-space: nowrap;
   color: var(--gold-hell);
-}
-.ag-matt {
-  color: var(--blaugrau);
 }
 .ag-titel {
   font-size: clamp(2.75rem, 6.2vw, 5.75rem);
@@ -146,10 +145,6 @@ html.lenis body {
   display: grid;
   gap: 26px;
   margin-bottom: clamp(48px, 8vh, 96px);
-}
-.ag-kopfzeile--mitte {
-  justify-items: center;
-  text-align: center;
 }
 
 /* ───────────── Knöpfe ───────────── */
@@ -743,8 +738,8 @@ html.ag-sparsam .ag-glas {
 .ag-menue[data-offen="true"] .ag-menue__zu span:last-child {
   transform: translateY(-3.75px) rotate(-45deg);
 }
-/* Solange das Menü offen ist, gehört nur das Menü zur Seite: Alles außerhalb
-   der neuen Seite (der Chat-Knopf des Stammlayouts) ruht und ist ausgeblendet. */
+/* Solange das Menü offen ist, gehört nur das Menü zur Seite: Alles außerhalb der neuen Welt ruht
+   und ist ausgeblendet (der Chat ist Teil der Welt und blendet sich selbst aus: .ag-chat, .ag-cf). */
 html.ag-menue-offen body > :not(.ag-neu) {
   visibility: hidden;
 }
@@ -859,14 +854,9 @@ html.ag-menue-offen body > :not(.ag-neu) {
 }
 
 /* ───────────── Chat-Knopf unten rechts ─────────────
-   Eine runde Glas-Kugel mit einem kleinen goldenen Licht in Logo-Form. Sie löst den Chat des
-   Stammlayouts aus (components/ChatWidget.tsx, unverändert). Dessen eigener Knopf und dessen
-   Sprechblase sind nur dort ausgeblendet, wo die Kugel wirklich auf der Seite ist: Auf Seiten
-   ohne sie (etwa den Übersichten der Varianten) bleibt der bisherige Chat-Knopf. */
-body:has(.ag-chat) > button[aria-label="Chat mit Agents Gilt öffnen"],
-body:has(.ag-chat) > button:has(> span[role="button"][aria-label="Schließen"]) {
-  display: none;
-}
+   Eine runde Glas-Kugel mit einem kleinen goldenen Licht in Logo-Form. Sie öffnet das Glasfenster
+   (chat/ChatFenster.tsx); beide stehen seit dem 15.11.2026 einmal im Stammlayout für alle Seiten
+   (chat/ChatUeberall.tsx). Das alte Chat-Fenster gibt es nicht mehr. */
 .ag-chat {
   position: fixed;
   right: 20px;
@@ -1035,108 +1025,6 @@ html.ag-menue-offen .ag-chat {
   }
 }
 
-/* ───────────── Ladebildschirm ───────────── */
-.ag-lade {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 34px;
-  background: var(--nacht);
-  /* Sicherheitsnetz: Auch wenn das Skript nicht startet, verschwindet der
-     Ladebildschirm von selbst und gibt die Seite frei. */
-  animation: ag-lade-weg 0.01s 5s forwards;
-}
-.ag-lade svg {
-  width: clamp(150px, 22vw, 240px);
-  overflow: visible;
-}
-.ag-lade__balken {
-  width: min(240px, 60vw);
-  height: 1px;
-  background: rgba(241, 238, 230, 0.16);
-}
-.ag-lade__balken i {
-  display: block;
-  height: 100%;
-  background: var(--gold-hell);
-  transform: scaleX(0);
-  transform-origin: left;
-}
-@keyframes ag-lade-weg {
-  to {
-    visibility: hidden;
-    opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ag-lade {
-    display: none;
-  }
-}
-
-/* ───────────── Zeichen (3D-Logo) ───────────── */
-.ag-zeichen {
-  position: relative;
-  aspect-ratio: 1;
-  perspective: 900px;
-  filter: drop-shadow(0 28px 30px rgba(0, 0, 0, 0.55));
-}
-.ag-zeichen__koerper {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-}
-.ag-zeichen__koerper svg,
-.ag-zeichen__raster {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-.ag-zeichen__raster {
-  display: none;
-}
-@media (max-width: 767px) {
-  /* Am Handy leichter: kein 3D, das Zeichen als Rasterpunkt-Zeichnung. */
-  .ag-zeichen {
-    filter: none;
-  }
-  .ag-zeichen__koerper {
-    display: none;
-  }
-  .ag-zeichen__raster {
-    display: block;
-  }
-}
-
-/* ───────────── Bühne (Punktwolke und Lichtbänder) ───────────── */
-.ag-buehne {
-  position: relative;
-  width: 100%;
-}
-.ag-buehne canvas,
-.ag-buehne__baender {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-.ag-buehne__mitte {
-  position: absolute;
-  top: var(--mitte-y, 50%);
-  left: 50%;
-  z-index: 1;
-  transform: translate(-50%, -50%);
-}
-.ag-buehne__vorn {
-  z-index: 2;
-}
-
 /* ───────────── Kopfbereich: gemeinsame Teile ───────────── */
 .ag-hero {
   position: relative;
@@ -1147,58 +1035,7 @@ html.ag-menue-offen .ag-chat {
   overflow: clip;
   background: linear-gradient(180deg, var(--nacht-blau) 0%, var(--nacht-mitte) 34%, var(--nacht) 64%, var(--nacht) 88%, #23120d 96%, var(--glut) 100%);
 }
-.ag-hero__inhalt {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-.ag-hero__h1 {
-  font-size: clamp(3rem, 7.2vw, 6.5rem);
-}
-.ag-hero__sub {
-  margin-top: 18px;
-  max-width: 64ch;
-  font-size: 19px;
-  color: var(--nebel);
-}
-.ag-hero__aktionen {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 30px;
-}
-.ag-hero__aktionen > .ag-knopf--linie {
-  min-height: 74px;
-  padding: 16px 16px 16px 28px;
-}
-.ag-hero__orte {
-  position: absolute;
-  bottom: 46px;
-  left: var(--rand);
-  z-index: 3;
-}
 
-/* Kopfbereich „Mitte“ (Kartenstapel, wie die gewählte Skizze) */
-.ag-hero--mitte .ag-buehne {
-  flex: none;
-  height: clamp(230px, 37svh, 420px);
-}
-.ag-hero--mitte .ag-zeichen {
-  width: clamp(150px, 27svh, 250px);
-}
-.ag-hero--mitte .ag-hero__inhalt {
-  padding-bottom: 110px;
-}
-
-/* Kopfbereich „Schriftzug“ */
-.ag-schrift__oben {
-  position: relative;
-  margin-top: clamp(0px, 3svh, 36px);
-}
 .ag-wortmarke {
   display: block;
   width: 100%;
@@ -1210,146 +1047,11 @@ html.ag-menue-offen .ag-chat {
   font-size: 285px;
   fill: #1b2650;
 }
-.ag-schrift__oben .ag-buehne {
-  position: absolute;
-  inset: -16% 0;
-  width: auto;
-}
-.ag-schrift__oben .ag-zeichen {
-  width: clamp(120px, 17vw, 250px);
-}
-.ag-schrift__unten {
-  position: relative;
-  z-index: 3;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 48px;
-  margin-top: auto;
-  padding-top: 40px;
-  padding-bottom: clamp(72px, 11svh, 120px);
-}
-.ag-schrift__h1 {
-  font-size: clamp(2.75rem, 6.1vw, 5.5rem);
-}
-.ag-schrift__rechts {
-  display: grid;
-  justify-items: start;
-  gap: 22px;
-}
-.ag-schrift__rechts .ag-hero__sub {
-  margin-top: 0;
-}
 
-/* Kopfbereich „Umlaufbahn“ */
-.ag-hero--umlauf {
-  min-height: max(100svh, 840px);
-  justify-content: center;
-  padding-bottom: 60px;
-}
-.ag-umlauf__bahn {
-  position: absolute;
-  inset: 0;
-  width: auto;
-}
-.ag-umlauf__zeichen {
-  position: absolute;
-  top: calc(55% - 21.2vw);
-  left: 50%;
-  z-index: 3;
-  width: clamp(110px, 10.4vw, 160px);
-  transform: translate(-50%, -50%);
-}
-.ag-umlauf__kacheln {
-  list-style: none;
-}
-.ag-umlauf__kachel {
-  position: absolute;
-  top: calc(55% - var(--sin) * 21.2vw);
-  left: calc(50% + var(--cos) * 43vw);
-  z-index: 3;
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  width: 150px;
-  margin: -38px 0 0 -75px;
-  text-align: center;
-  text-decoration: none;
-}
-.ag-umlauf__kachel span:first-child {
-  display: grid;
-  place-items: center;
-  width: 76px;
-  height: 76px;
-  border: 1px solid var(--linie);
-  border-radius: 50%;
-  background: var(--flaeche);
-  color: var(--gold-hell);
-  transition:
-    transform 0.6s var(--weich),
-    border-color 0.4s var(--weich);
-}
-.ag-umlauf__kachel svg {
-  width: 34px;
-  height: 34px;
-}
-.ag-umlauf__kachel .ag-mono {
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--nacht-mitte);
-  color: #b6bacb;
-  text-wrap: balance;
-}
-.ag-umlauf__kachel:hover span:first-child {
-  border-color: rgba(243, 210, 122, 0.7);
-  transform: scale(1.08);
-}
-.ag-hero--umlauf .ag-hero__h1 {
-  font-size: clamp(3rem, 6.2vw, 5.5rem);
-}
-
-@media (max-width: 1099px) {
-  .ag-umlauf__kacheln {
-    display: none;
-  }
-}
-@media (max-width: 1199px) {
-  .ag-schrift__unten {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 26px;
-  }
-}
-@media (max-width: 899px) {
-  .ag-hero--umlauf {
-    justify-content: flex-start;
-  }
-  .ag-umlauf__bahn {
-    display: none;
-  }
-  .ag-umlauf__zeichen {
-    position: relative;
-    top: auto;
-    left: auto;
-    align-self: center;
-    width: 136px;
-    margin: 8px 0 20px;
-    transform: none;
-  }
-}
 @media (max-width: 767px) {
   .ag-hero {
     min-height: max(100svh, 680px);
     padding-top: 84px;
-  }
-  .ag-hero__orte {
-    display: none;
-  }
-  .ag-hero__sub {
-    font-size: 17px;
-  }
-  .ag-hero__aktionen,
-  .ag-schrift__rechts {
-    width: 100%;
   }
   .ag-anruf {
     flex-direction: column;
@@ -1363,65 +1065,6 @@ html.ag-menue-offen .ag-chat {
   .ag-anruf__status {
     justify-content: center;
   }
-  .ag-hero__aktionen > .ag-knopf--linie,
-  .ag-schrift__rechts > .ag-knopf {
-    width: 100%;
-    min-height: 56px;
-    padding: 8px 8px 8px 26px;
-  }
-  .ag-hero--mitte .ag-hero__inhalt {
-    padding-bottom: 64px;
-  }
-  .ag-hero--mitte .ag-buehne {
-    height: 184px;
-  }
-  .ag-hero--mitte .ag-zeichen {
-    width: 150px;
-  }
-}
-
-/* ───────────── „Was wir machen“ ───────────── */
-.ag-tipp {
-  position: relative;
-  max-width: 17ch;
-  font-size: clamp(2.5rem, 5.6vw, 5.25rem);
-}
-.ag-tipp sup {
-  font-size: 0.5em;
-  color: var(--gold-hell);
-}
-.ag-tipp.tippt::after {
-  content: "";
-  display: inline-block;
-  width: 0.05em;
-  height: 0.76em;
-  margin-left: 0.06em;
-  background: var(--gold-hell);
-  vertical-align: -0.04em;
-}
-.ag-machen {
-  display: grid;
-  gap: clamp(32px, 5vh, 56px);
-}
-.ag-machen--mitte {
-  justify-items: center;
-  text-align: center;
-}
-.ag-machen__text {
-  max-width: 34ch;
-  font-size: clamp(1.375rem, 2.3vw, 2rem);
-  line-height: 1.38;
-  color: var(--nebel);
-  text-wrap: pretty;
-}
-.ag-machen--mitte .ag-machen__text {
-  max-width: 38ch;
-}
-.ag-fussnote {
-  max-width: 60ch;
-  font-size: 14px;
-  color: var(--leise);
-  text-wrap: balance;
 }
 
 /* ───────────── Leistungen: gemeinsame Teile ───────────── */
@@ -1464,9 +1107,6 @@ html.ag-menue-offen .ag-chat {
     border-color 0.35s var(--weich),
     transform 0.5s var(--weich);
 }
-.ag-wahl:hover {
-  border-color: rgba(243, 210, 122, 0.7);
-}
 .ag-wahl:active {
   transform: scale(0.98);
 }
@@ -1476,527 +1116,13 @@ html.ag-menue-offen .ag-chat {
   background: var(--flaeche-hell);
   color: var(--gold-hell);
 }
-.ag-wahl:hover .ag-kreis {
-  transform: translateX(3px);
-}
-
-/* Leistungen als Zeilenliste (Kartenstapel) */
-.ag-inbild {
-  display: inline-block;
-  width: 1.5em;
-  height: 0.8em;
-  overflow: clip;
-  border: 1px solid var(--linie);
-  border-radius: 999px;
-  background: var(--flaeche-hell);
-  color: var(--gold-hell);
-  vertical-align: 0.02em;
-}
-.ag-inbild svg {
-  width: 0.52em;
-  height: 0.52em;
-}
-/* Sechs Zeichen liegen übereinander, sichtbar ist das mit der Nummer aus data-nr. */
-.ag-wechsel {
-  position: relative;
-}
-.ag-wechsel svg {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  opacity: 0;
-  transform: translateY(70%) rotate(-14deg);
-  transition:
-    opacity 0.4s var(--weich),
-    transform 0.7s var(--weich);
-}
-.ag-wechsel[data-nr="0"] svg:nth-child(1),
-.ag-wechsel[data-nr="1"] svg:nth-child(2),
-.ag-wechsel[data-nr="2"] svg:nth-child(3),
-.ag-wechsel[data-nr="3"] svg:nth-child(4),
-.ag-wechsel[data-nr="4"] svg:nth-child(5),
-.ag-wechsel[data-nr="5"] svg:nth-child(6) {
-  opacity: 1;
-  transform: none;
-}
-.ag-liste {
-  border-top: 1px solid var(--linie);
-  list-style: none;
-}
-.ag-reihe {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1.05fr) minmax(0, 1.35fr) auto;
-  align-items: start;
-  gap: 28px;
-  padding: 36px 0;
-  border-bottom: 1px solid var(--linie);
-  transition: background-color 0.5s var(--weich);
-}
-.ag-reihe__nr {
-  padding-top: 10px;
-}
-.ag-reihe__titel {
-  font-size: clamp(1.875rem, 3.1vw, 2.875rem);
-}
-.ag-reihe__kurz {
-  margin-top: 10px;
-  color: var(--elfenbein);
-}
-.ag-reihe__text {
-  color: var(--nebel);
-}
-@media (max-width: 1023px) {
-  .ag-reihe {
-    grid-template-columns: 44px minmax(0, 1fr);
-    gap: 14px 12px;
-    padding: 28px 0;
+/* Nur mit echter Maus: Am Handy bliebe der Zustand nach dem Antippen hängen. */
+@media (hover: hover) and (pointer: fine) {
+  .ag-wahl:hover {
+    border-color: rgba(243, 210, 122, 0.7);
   }
-  .ag-reihe__text,
-  .ag-reihe .ag-wahl {
-    grid-column: 2;
-    justify-self: start;
-  }
-}
-
-/* Leistungen als Riesen-Zeilen (Riesen-Schriftzug) */
-.ag-gross {
-  position: relative;
-  list-style: none;
-}
-.ag-gross__zeile {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1.15fr) minmax(0, 1fr);
-  align-items: start;
-  gap: 24px 40px;
-  padding: 34px 0;
-  border-top: 1px solid var(--linie);
-}
-.ag-gross__zeile:last-child {
-  border-bottom: 1px solid var(--linie);
-}
-.ag-gross__titel {
-  font-size: clamp(2.5rem, 5.4vw, 4.75rem);
-  color: var(--blaugrau);
-  transition: color 0.5s var(--weich);
-}
-.ag-gross__zeile:hover .ag-gross__titel,
-.ag-gross__zeile:focus-within .ag-gross__titel {
-  color: var(--elfenbein);
-}
-.ag-gross__kurz {
-  color: var(--elfenbein);
-  font-weight: 500;
-}
-.ag-gross__rechts {
-  display: grid;
-  justify-items: start;
-  gap: 12px;
-  color: var(--nebel);
-}
-.ag-gross__rechts .ag-wahl {
-  margin-top: 8px;
-}
-.ag-zeiger {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 4;
-  width: 132px;
-  height: 132px;
-  border-radius: 50%;
-  background: var(--gold);
-  color: var(--nacht);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.35s var(--weich);
-}
-.ag-zeiger[data-da="true"] {
-  opacity: 1;
-}
-.ag-zeiger svg {
-  width: 56px;
-  height: 56px;
-}
-@media (hover: none), (max-width: 1023px) {
-  .ag-zeiger {
-    display: none;
-  }
-  .ag-gross__titel {
-    color: var(--elfenbein);
-  }
-}
-@media (max-width: 1023px) {
-  .ag-gross__zeile {
-    grid-template-columns: 44px minmax(0, 1fr);
-    gap: 12px;
-  }
-  .ag-gross__rechts {
-    grid-column: 2;
-  }
-}
-
-/* Leistungen am Bogen (Umlaufbahn) */
-.ag-bogenwahl {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 48px;
-}
-.ag-bogenwahl__links {
-  position: sticky;
-  top: 16vh;
-  height: 68vh;
-  min-height: 460px;
-}
-.ag-bogenwahl__rad {
-  position: absolute;
-  top: 50%;
-  left: -430px;
-  width: 720px;
-  height: 720px;
-  margin-top: -360px;
-  border: 1px dashed rgba(243, 210, 122, 0.3);
-  border-radius: 50%;
-  transition: transform 0.9s var(--weich);
-  transform: rotate(calc(var(--aktiv) * -22deg));
-}
-.ag-bogenwahl__kachel {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: grid;
-  place-items: center;
-  width: 84px;
-  height: 84px;
-  margin: -42px;
-  border: 1px solid var(--linie);
-  border-radius: 50%;
-  background: var(--flaeche);
-  color: var(--leise);
-  transform: rotate(calc(var(--i) * 22deg)) translateX(360px) rotate(calc((var(--aktiv) - var(--i)) * 22deg));
-  transition:
-    transform 0.9s var(--weich),
-    background-color 0.5s var(--weich),
-    color 0.5s var(--weich);
-}
-.ag-bogenwahl__kachel svg {
-  width: 36px;
-  height: 36px;
-}
-.ag-bogenwahl__kachel[data-aktiv="true"] {
-  background: var(--gold);
-  color: var(--nacht);
-  transform: rotate(calc(var(--i) * 22deg)) translateX(360px) rotate(calc((var(--aktiv) - var(--i)) * 22deg)) scale(1.5);
-}
-.ag-bogenwahl__nummer {
-  position: absolute;
-  top: 50%;
-  left: 400px;
-  font-size: clamp(4rem, 8vw, 6rem);
-  color: var(--blaugrau);
-  transform: translateY(-50%);
-}
-.ag-bogenwahl__kurz {
-  color: var(--elfenbein);
-  font-weight: 500;
-}
-.ag-bogenwahl__block {
-  display: grid;
-  align-content: center;
-  justify-items: start;
-  gap: 14px;
-  min-height: 62vh;
-  padding-block: 28px;
-  border-top: 1px solid var(--linie);
-  color: var(--nebel);
-}
-.ag-bogenwahl__block h3 {
-  font-size: clamp(1.875rem, 3vw, 2.75rem);
-  color: var(--elfenbein);
-}
-.ag-bogenwahl__block .ag-wahl {
-  margin-top: 10px;
-}
-.ag-bogenwahl__klein {
-  display: none;
-  width: 44px;
-  height: 44px;
-  color: var(--gold-hell);
-}
-@media (max-width: 1023px) {
-  .ag-bogenwahl {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .ag-bogenwahl__links {
-    display: none;
-  }
-  .ag-bogenwahl__block {
-    min-height: 0;
-    padding-block: 32px;
-  }
-  .ag-bogenwahl__klein {
-    display: block;
-  }
-}
-
-/* ───────────── So läuft es ab (Gold-Tropfen) ───────────── */
-.ag-ablauf {
-  position: relative;
-}
-.ag-ablauf__bild {
-  position: relative;
-  aspect-ratio: 1200 / var(--hoehe, 560);
-}
-.ag-ablauf__bild > svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-.ag-ablauf__bahn {
-  fill: none;
-  stroke: rgba(243, 210, 122, 0.34);
-  stroke-width: 1.5;
-  stroke-dasharray: 2 9;
-  stroke-linecap: round;
-}
-.ag-ablauf__station {
-  fill: var(--nacht-mitte);
-  stroke: rgba(243, 210, 122, 0.55);
-  stroke-width: 1.5;
-  transition:
-    fill 0.5s var(--weich),
-    stroke 0.5s var(--weich);
-}
-.ag-ablauf__station.ist-da {
-  fill: var(--gold);
-  stroke: var(--gold-hell);
-}
-.ag-ablauf__schritt {
-  position: absolute;
-  top: calc(var(--y) * 1%);
-  left: calc(var(--x) * 1%);
-  width: min(300px, 26%);
-  transform: translateX(-50%);
-  text-align: center;
-  color: var(--ruhig);
-  transition: color 0.6s var(--weich);
-}
-.ag-ablauf__schritt.ist-da {
-  color: var(--nebel);
-}
-.ag-ablauf__schritt h3 {
-  margin: 6px 0 10px;
-  font-size: clamp(1.5rem, 2.4vw, 2.25rem);
-  color: inherit;
-}
-.ag-ablauf__schritt.ist-da h3 {
-  color: var(--elfenbein);
-}
-.ag-ablauf__schritt p {
-  font-size: 16px;
-  text-wrap: balance;
-}
-.ag-ablauf__ziel {
-  display: inline-block;
-  margin-top: 12px;
-  padding: 5px 14px;
-  border: 1px solid var(--linie);
-  border-radius: 999px;
-  color: var(--ruhig);
-  transition:
-    color 0.6s var(--weich),
-    border-color 0.6s var(--weich);
-}
-.ag-ablauf__schritt.ist-da .ag-ablauf__ziel {
-  border-color: rgba(243, 210, 122, 0.5);
-  color: var(--gold-hell);
-}
-.ag-ablauf__schmal {
-  display: none;
-}
-@media (max-width: 899px) {
-  .ag-ablauf__bild {
-    display: none;
-  }
-  .ag-ablauf__schmal {
-    position: relative;
-    display: grid;
-    gap: 44px;
-    padding-left: 40px;
-    list-style: none;
-  }
-  .ag-ablauf__schmal::before {
-    content: "";
-    position: absolute;
-    top: 8px;
-    bottom: 8px;
-    left: 11px;
-    width: 1px;
-    background: rgba(243, 210, 122, 0.34);
-  }
-  .ag-ablauf__perle {
-    position: absolute;
-    top: 0;
-    left: 4px;
-    width: 15px;
-    height: 15px;
-    border-radius: 50%;
-    background: var(--gold);
-  }
-  .ag-ablauf__schmal h3 {
-    margin: 4px 0 8px;
-    font-size: 1.75rem;
-  }
-  .ag-ablauf__schmal p {
-    color: var(--nebel);
-    text-wrap: balance;
-  }
-}
-
-/* ───────────── Warum wir ───────────── */
-/* Fächer aus vier Karten (Kartenstapel) */
-/* Grundzustand: vier Karten nebeneinander, alles lesbar. Übereinander liegen
-   sie nur, solange die Scroll-Animation läuft (Kartenstapel.tsx). */
-.ag-faecher {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  list-style: none;
-}
-.ag-faecher__karte {
-  flex: none;
-  width: min(300px, calc((100% - 72px) / 4));
-  min-height: 340px;
-  padding: 30px 28px 34px;
-  border: 1px solid var(--linie);
-  border-radius: 28px;
-  background: var(--flaeche-hell);
-}
-.ag-faecher__karte h3 {
-  margin: 96px 0 12px;
-  font-size: clamp(2rem, 3.2vw, 3rem);
-}
-.ag-faecher__karte p {
-  color: var(--nebel-blau);
-  text-wrap: balance;
-}
-@media (max-width: 1023px) {
-  /* Am Handy schieben sich die Karten beim Scrollen übereinander. */
-  .ag-faecher {
-    display: block;
-  }
-  .ag-faecher__karte {
-    position: sticky;
-    top: calc(92px + var(--i) * 16px);
-    width: auto;
-    min-height: 220px;
-    margin: 0 0 18px;
-  }
-  .ag-faecher__karte h3 {
-    margin-top: 40px;
-  }
-}
-
-/* Riesen-Wörter (Riesen-Schriftzug) */
-.ag-worte {
-  list-style: none;
-}
-.ag-worte li {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-  align-items: center;
-  gap: 20px 48px;
-  padding: 22px 0;
-  border-top: 1px solid var(--linie);
-}
-.ag-worte li:last-child {
-  border-bottom: 1px solid var(--linie);
-}
-.ag-worte h3 {
-  font-size: clamp(3.25rem, 9.6vw, 6rem);
-  color: var(--blaugrau);
-}
-.ag-worte h3 {
-  transition: color 0.6s var(--weich);
-}
-.ag-worte li.ist-da h3 {
-  color: var(--elfenbein);
-}
-.ag-worte p {
-  max-width: 34ch;
-  color: var(--nebel);
-}
-@media (max-width: 767px) {
-  .ag-worte li {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-  .ag-worte h3 {
-    color: var(--elfenbein);
-  }
-}
-
-/* Trabanten um eine Aussage (Umlaufbahn) */
-.ag-trabanten {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr);
-  grid-template-areas:
-    "a mitte b"
-    "c mitte d";
-  align-items: center;
-  gap: 56px 40px;
-}
-.ag-trabanten__ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(1040px, 92%);
-  aspect-ratio: 2.3;
-  border: 1px dashed rgba(243, 210, 122, 0.26);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-.ag-trabanten__mitte {
-  position: relative;
-  grid-area: mitte;
-  text-align: center;
-}
-.ag-trabant {
-  position: relative;
-  display: grid;
-  gap: 8px;
-  padding: 26px 24px;
-  border: 1px solid var(--linie);
-  border-radius: 28px;
-  background: var(--nacht-mitte);
-  list-style: none;
-}
-.ag-trabant h3 {
-  font-size: clamp(1.75rem, 2.6vw, 2.5rem);
-}
-.ag-trabant p {
-  font-size: 16px;
-  color: var(--nebel);
-}
-@media (max-width: 1023px) {
-  .ag-trabanten {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: none;
-    gap: 16px;
-  }
-  .ag-trabanten__mitte {
-    grid-area: auto;
-    margin-bottom: 28px;
-    text-align: left;
-  }
-  .ag-trabanten__ring {
-    display: none;
-  }
-  .ag-trabant {
-    grid-area: auto !important;
+  .ag-wahl:hover .ag-kreis {
+    transform: translateX(3px);
   }
 }
 
@@ -2084,28 +1210,6 @@ html.ag-menue-offen .ag-chat {
   }
 }
 
-/* ───────────── Kontakt und Anfrage ───────────── */
-.ag-kontakt {
-  display: grid;
-  gap: 36px;
-}
-.ag-kontakt--mitte {
-  justify-items: center;
-  text-align: center;
-}
-.ag-kontakt__wege {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 14px;
-}
-.ag-kontakt--mitte .ag-kontakt__wege {
-  justify-content: center;
-}
-.ag-kontakt__wege > .ag-knopf--linie {
-  min-height: 74px;
-  padding: 16px 16px 16px 28px;
-}
 .ag-anfrage {
   width: min(720px, 100%);
   border: 1px solid var(--linie);
@@ -2243,11 +1347,6 @@ html.ag-menue-offen .ag-chat {
   .ag-anfrage form,
   .ag-anfrage__danke {
     padding-inline: 20px;
-  }
-  .ag-kontakt__wege > .ag-knopf--linie {
-    width: 100%;
-    min-height: 56px;
-    padding: 8px 8px 8px 26px;
   }
 }
 
@@ -2390,127 +1489,3 @@ html.ag-zurueck body {
   }
 }
 
-/* ───────────── Kartenstapel: Bögen, die sich übereinanderschieben ───────────── */
-.ag-bogen {
-  position: relative;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 40px 40px 0 0;
-  background: var(--ton, var(--nacht-mitte));
-}
-.ag-stapel > .ag-bogen:nth-of-type(odd) {
-  --ton: #0b1330;
-}
-.ag-stapel__marke {
-  height: 0;
-}
-/* Der Bogen ist schon die Karte: Formular und Anruf-Block liegen flach darin. */
-.ag-bogen .ag-anfrage {
-  border: 0;
-  border-top: 1px solid var(--linie);
-  border-bottom: 1px solid var(--linie);
-  border-radius: 0;
-  background: none;
-}
-.ag-bogen .ag-anfrage__schalter {
-  padding-left: 4px;
-  border-radius: 0;
-}
-.ag-bogen .ag-anfrage form,
-.ag-bogen .ag-anfrage__danke {
-  padding-inline: 4px;
-}
-@media (max-width: 767px) {
-  .ag-bogen .ag-anruf {
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: none;
-  }
-}
-@media (min-width: 1024px) {
-  .ag-stapel > .ag-hero,
-  .ag-stapel > .ag-bogen {
-    position: sticky;
-    top: var(--oben, 0px);
-  }
-  .ag-stapel > .ag-bogen {
-    display: grid;
-    align-content: center;
-    min-height: 100svh;
-  }
-}
-@media (max-width: 1023px) {
-  .ag-stapel > .ag-bogen {
-    margin-top: -32px;
-    border-radius: 32px 32px 0 0;
-  }
-}
-
-/* Riesen-Schriftzug: große Tafel, die von unten hereinkommt */
-.ag-tafel {
-  margin-inline: var(--rand);
-  border: 1px solid var(--linie);
-  border-radius: 40px;
-  background: var(--flaeche);
-  transform-origin: 50% 0;
-}
-@media (max-width: 767px) {
-  .ag-tafel {
-    margin-inline: 12px;
-    border-radius: 28px;
-  }
-}
-
-/* ───────────── Übersichtsseite: drei Aufbauten nebeneinander ───────────── */
-.ag-uebersicht {
-  padding-block: clamp(48px, 8vh, 96px);
-}
-.ag-uebersicht__kopf {
-  display: grid;
-  gap: 18px;
-  margin-bottom: 48px;
-}
-.ag-uebersicht h1 {
-  font-size: clamp(2.5rem, 5vw, 4.5rem);
-}
-.ag-uebersicht__reihe {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 28px;
-  list-style: none;
-}
-.ag-uebersicht__karte {
-  display: grid;
-  align-content: start;
-  justify-items: start;
-  gap: 16px;
-}
-.ag-uebersicht__karte h2 {
-  font-size: 2rem;
-}
-.ag-uebersicht__karte p {
-  min-height: 6.4em;
-  font-size: 16px;
-  color: var(--nebel);
-}
-.ag-uebersicht__bilder {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 26%;
-  align-items: end;
-  gap: 12px;
-  width: 100%;
-  margin-top: 8px;
-}
-.ag-uebersicht img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--linie);
-  border-radius: 14px;
-}
-@media (max-width: 1023px) {
-  .ag-uebersicht__reihe {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 56px;
-  }
-}

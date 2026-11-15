@@ -1,24 +1,13 @@
 // =====================================================================
-// Zentrale Inhalts-Datei für agentsgilt.com
-// Hier kannst du fast alle Texte der Website ändern, ohne Code anzufassen.
+// Inhalts-Datei für agentsgilt.com: Kontaktdaten (site), die sechs Leistungen, die Zertifikate und
+// die Kundenstimmen. Die Texte der Startseite stehen in lib/inhalt-neu.ts. Die Texte der alten
+// Startseite (Einleitung, Ablauf, Vorteile, Kontakt) sind seit dem 15.11.2026 entfernt.
 // =====================================================================
 
 export const site = {
   name: "Agents Gilt",
   domain: "agentsgilt.com",
   email: "kontakt@agentsgilt.com",
-  // Claim im Hero
-  // Das Leerzeichen am Ende ist Absicht: optisch ändert es nichts (die zwei
-  // Zeilen stehen sowieso untereinander), aber beim Auslesen des Textes
-  // (Google, Screenreader, Copy-Paste) klebt sonst "KI-Lösungen,die" zusammen.
-  claimLine1: "KI-Lösungen, ",
-  claimLine2: "die dein Geschäft voranbringen.",
-  // Beginnt bewusst NICHT mit "Wir bauen" – die Sektion direkt darunter fängt
-  // mit "Wir bauen in Stunden ..." an, das doppelte sich sonst.
-  heroSub:
-    "Moderne Websites, Chatbots, Voice-Agenten und Automatisierungen für lokale Unternehmen.",
-  heroCtaPrimary: "Projekt anfragen",
-  heroCtaSecondary: "Leistungen ansehen",
   // WhatsApp-Business-Nummer – international, NUR Ziffern (ohne + und ohne
   // Leerzeichen), z.B. "491701234567". Solange leer, öffnet WhatsApp ohne
   // feste Nummer (du wählst dann den Kontakt). Sobald du deine WhatsApp-
@@ -35,14 +24,6 @@ export const site = {
   // "phoneDisplay" das, was Besucher lesen.
   phone: "+4961089694027",
   phoneDisplay: "+49 6108 9694027",
-};
-
-export const intro = {
-  kicker: "Was wir machen",
-  headline: "Wir bauen in Stunden, wofür Agenturen Wochen brauchen.",
-  // Erklärung zum Sternchen hinter "Stunden" (Sternchen und Text stehen in IntroTypewriter.tsx), steht klein unter dem Text.
-  fussnote: "* Gilt nur bei sehr einfachen Projekten und ist kein Versprechen.",
-  text: "Mit modernster KI entwickeln wir maßgeschneiderte digitale Lösungen für kleine und mittlere Unternehmen – schnell, bezahlbar und auf neuestem Stand. Du bekommst Technik, die sonst großen Firmen vorbehalten ist.",
 };
 
 export type Service = {
@@ -96,39 +77,6 @@ export const services: Service[] = [
     points: ["Analyse deiner Prozesse", "Priorisierte Roadmap", "Konkrete Umsetzungs-Schritte"],
   },
 ];
-
-export const workflow = {
-  kicker: "So arbeiten wir",
-  headline: "In drei Schritten zu deiner Lösung.",
-  steps: [
-    {
-      no: "01",
-      title: "Gespräch & Analyse",
-      text: "Wir hören zu und finden gemeinsam, wo dir KI am meisten Zeit und Umsatz bringt.",
-    },
-    {
-      no: "02",
-      title: "Bau mit KI",
-      text: "Wir entwickeln deine Lösung in Tagen statt Wochen – und halten dich auf dem Laufenden.",
-    },
-    {
-      no: "03",
-      title: "Setup & Betreuung",
-      text: "Wir richten alles startklar ein und betreuen dein System laufend weiter.",
-    },
-  ],
-};
-
-export const why = {
-  kicker: "Warum Agents Gilt",
-  headline: "Großer Anspruch. Persönlich umgesetzt.",
-  items: [
-    { title: "Schnell", text: "Erste Ergebnisse in Tagen, nicht Monaten." },
-    { title: "Modern", text: "Technik auf dem neuesten Stand – wie bei den Großen." },
-    { title: "Persönlich", text: "Ein direkter Ansprechpartner statt Hotline-Warteschleife." },
-    { title: "Planbar", text: "Fairer Setup-Preis plus transparente monatliche Betreuung." },
-  ],
-};
 
 export const credentials = {
   kicker: "Ausbildung & Weiterbildung",
@@ -215,8 +163,3 @@ export const testimonials = {
   ],
 };
 
-export const contact = {
-  kicker: "Kontakt",
-  headline: "Lass uns über dein Projekt sprechen.",
-  text: "Erzähl uns kurz, worum es geht – wir melden uns meist innerhalb eines Werktages.",
-};

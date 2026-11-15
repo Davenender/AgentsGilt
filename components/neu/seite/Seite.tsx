@@ -1,5 +1,5 @@
 import { ausbildung, kontakt } from "@/lib/inhalt-neu";
-import { Ausbildung } from "../Bereiche";
+import { Ausbildung } from "./Ausbildung";
 import { LichtName } from "../kopf/LichtName";
 import { Rahmen } from "../Rahmen";
 import { RechtBlatt } from "../recht/RechtBlatt";
@@ -14,6 +14,8 @@ import { ScrollHinweis } from "./ScrollHinweis";
 import { Uebergang } from "./Uebergang";
 import { Stimmen, Warum } from "./Warum";
 import { Zeiger } from "./Zeiger";
+// Reihenfolge wie bisher: erst das Stylesheet des Kopfbereichs, dann das der Seite.
+import "../kopf/kopf.css";
 import "./seite.css";
 
 /**

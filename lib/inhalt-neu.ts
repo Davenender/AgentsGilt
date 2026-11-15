@@ -36,31 +36,30 @@ export const hero = {
   anrufHinweis: "Am Telefon nimmt unser KI-Assistent ab und macht direkt einen Termin aus.",
 };
 
-// „Was wir machen“: Die Überschrift tippt sich selbst (Tagen → Stunden*).
+// „Was wir machen“: Die Überschrift tippt sich selbst (Wochen → Tagen).
 export const wasWirMachen = {
   vor: "Wir bauen in ",
-  falsch: "Tagen",
-  richtig: "Stunden",
-  nach: ", wofür Agenturen Wochen brauchen.",
+  falsch: "Wochen",
+  richtig: "Tagen",
+  nach: ", wofür Agenturen Monate brauchen.",
   text: "Mit modernster KI entwickeln wir maßgeschneiderte digitale Lösungen für kleine und mittlere Unternehmen – schnell, bezahlbar und auf neuestem Stand. Sie bekommen Technik, die sonst großen Firmen vorbehalten ist.",
-  fussnote: "* Gilt nur bei sehr einfachen Projekten und ist kein Versprechen.",
 };
 
 // Die erste Aussage unter dem Kopfbereich: die Hauptüberschrift der Seite. Sie tippt sich selbst,
-// zuerst mit dem falschen Wort („Tagen“); das zerfällt und rastet als das richtige ein
-// („Stunden“), das golden aufleuchtet. Darunter zeigt ein Wettlauf aus zwei Balken dasselbe als
+// zuerst mit dem falschen Wort („Wochen“); das zerfällt und rastet als das richtige ein
+// („Tagen“), das golden aufleuchtet. Darunter zeigt ein Wettlauf aus zwei Balken dasselbe als
 // Bild (ohne Zahlen), dann folgen drei Glaskarten mit Davids Text in der Sie-Form.
+// Seit dem 15.11.2026 ohne Sternchen und Fußnote (vorher „Stunden*“ statt „Wochen“).
 export const aussage = {
   vor: wasWirMachen.vor.trim(),
   erst: wasWirMachen.falsch,
   gold: wasWirMachen.richtig,
   nach: wasWirMachen.nach,
-  fussnote: wasWirMachen.fussnote,
   lauf: {
     // Für Vorleseprogramme: Der Wettlauf ist ein Bild.
-    beschreibung: "Vergleich: Eine Agentur braucht Wochen, Agents Gilt Stunden (siehe Fußnote).",
-    agentur: { name: "Agentur", zeit: "Wochen" },
-    wir: { name: marke.name, zeit: wasWirMachen.richtig },
+    beschreibung: "Vergleich: Eine Agentur braucht Monate, Agents Gilt Tage.",
+    agentur: { name: "Agentur", zeit: "Monate" },
+    wir: { name: marke.name, zeit: "Tage" },
   },
   karten: [
     {

@@ -1,6 +1,6 @@
 import { Gloock, JetBrains_Mono, Sofia_Sans, Sofia_Sans_Extra_Condensed } from "next/font/google";
 import type { ReactNode } from "react";
-import "@/app/varianten/welt.css";
+import "./welt.css";
 
 // Schriften der neuen Welt (nicht Inter): kräftige schmale Großbuchstaben,
 // eine aufrechte Serife für die goldenen Betonungswörter, eine ruhige Grotesk
@@ -12,11 +12,22 @@ const serife = Gloock({ subsets: ["latin"], weight: "400", variable: "--font-ser
 // Verwürfeln und die kleinen Status-Zeilen.
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono-ag", display: "swap" });
 
+const SCHRIFTEN = `${versal.variable} ${text.variable} ${serife.variable} ${mono.variable}`;
+
 /**
  * Die Hülle der neuen Welt: ihre Schriften und ihr Stylesheet (welt.css gilt nur innerhalb von
- * `.ag-neu`). Sie umschließt die neue Seite (app/varianten/layout.tsx) und, seit dem 14.11.2026,
- * Impressum und Datenschutz.
+ * `.ag-neu`). Sie umschließt die Startseite (app/page.tsx), Impressum und Datenschutz.
  */
 export function Welt({ children }: { children: ReactNode }) {
-  return <div className={`ag-neu ${versal.variable} ${text.variable} ${serife.variable} ${mono.variable}`}>{children}</div>;
+  return <div className={`ag-neu ${SCHRIFTEN}`}>{children}</div>;
+}
+
+/**
+ * Hülle für den Chat der neuen Welt (Kugel und Glasfenster), einmal im Stammlayout für alle Seiten.
+ * Sie bringt nur Schriften und Werte der neuen Welt mit und zeichnet selbst keinen Kasten
+ * (`.ag-neu--chat`: display: contents): Auch auf Seiten im alten Aussehen (Terminseite, „nicht
+ * gefunden“) ändert sie sonst nichts.
+ */
+export function WeltChat({ children }: { children: ReactNode }) {
+  return <div className={`ag-neu ag-neu--chat ${SCHRIFTEN}`}>{children}</div>;
 }

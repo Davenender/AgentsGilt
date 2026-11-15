@@ -54,7 +54,7 @@ export const DATEN_REGEX = /\[DATEN\]([\s\S]*?)\[\/DATEN\]/;
 export const GREETING: Message = {
   role: "assistant",
   content:
-    "Hey! 👋 Ich bin der KI-Assistent von Agents Gilt. Bei Fragen zu unseren Leistungen helfe ich dir gern weiter!",
+    "Hey! Ich bin der KI-Assistent von Agents Gilt. Bei Fragen zu unseren Leistungen helfe ich dir gern weiter!",
 };
 
 // Einstiegsfragen. Vor einem leeren Eingabefeld zu sitzen ist die größte

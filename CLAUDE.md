@@ -29,35 +29,37 @@ npm run lint     # ESLint
 
 ```
 app/
-  layout.tsx          Root-Layout, Schriften (Inter + Sora), Metadaten
-  page.tsx            Startseite (komponiert alle Sektionen)
-  globals.css         Tailwind-Theme: Marken-Farben & Schriften
+  layout.tsx          Root-Layout, Metadaten, JSON-LD, Statistik, Chat für alle Seiten
+  page.tsx            Startseite (die neue Seite, seit 15.11.2026; vorher /varianten/kopf/kern)
+  globals.css         Tailwind-Theme (für die Terminseite im alten Aussehen)
   icon.png            Favicon (Gold-Diamant aus dem Logo)
-  impressum/page.tsx  Impressum (PLATZHALTER – vor Live-Gang ausfüllen!)
-  datenschutz/page.tsx Datenschutz (PLATZHALTER)
-  api/contact/route.ts Kontaktformular-Endpoint (POST → 2 Mails via Resend)
+  impressum/page.tsx  Impressum (neues Design, Wortlaut in components/neu/recht/Rechtstexte.tsx)
+  datenschutz/page.tsx Datenschutz (neues Design, ebenso)
+  termin/[code], t/[code]  Terminseiten aus der SMS
+  api/…               Schnittstellen (Kontakt, Chat, Support, Termine, Discord, …)
 components/
-  Header.tsx          Fixierte Navigation (transparent → solid beim Scrollen)
-  Hero.tsx            Startbereich mit animiertem Diamant
-  DiamondBackground.tsx  Gold-Diamant mit Parallax/Schwebe-Animation (Client)
-  Reveal.tsx          Wiederverwendbare Scroll-Einblendung (Client)
-  Services.tsx        6 Leistungs-Karten (Client, Hover-Animation)
-  Process.tsx         3-Schritte-Ablauf (dunkle Sektion)
-  WhyUs.tsx           4 Vorteile
-  Contact.tsx         Kontaktformular (Client)
-  Footer.tsx          Footer mit Links zu Impressum/Datenschutz
+  neu/                Die neue Welt: Welt.tsx + welt.css (Hülle), Rahmen.tsx (Kopf-/Fußleiste),
+                      kopf/ (Licht, Name aus Zeichen, Startanimation), seite/ (Abschnitte der
+                      Startseite), chat/ (Kugel und Glasfenster, ChatUeberall.tsx), recht/
+  chat/               Die Chat-Logik (useChat.ts, ChatAnbieter.tsx), einmal für alle Seiten
+  TerminAntwort.tsx   Antwort-Formular der Terminseite
 lib/
-  content.ts          ALLE Texte zentral – hier Inhalte ändern, nicht im Code
+  inhalt-neu.ts       ALLE Texte der Startseite – hier Inhalte ändern, nicht im Code
+  content.ts          Kontaktdaten, Leistungstitel (Schnittstellenwerte), Zertifikate
+  neue-seite.ts       Adresse der neuen Seite ("/")
   mail.ts             Resend-Wrapper (degradet sauber ohne API-Key)
 public/
   logo-full.png       Wortmarke (dunkler Text + Diamant)
   logo-mark.png       Nur der Gold-Diamant
 ```
 
+Die früheren Arbeitsstände unter `/varianten` gibt es nicht mehr; ihre Adressen leiten
+dauerhaft auf `/` weiter (`next.config.ts`). Funktionsliste: `docs/funktionen.md`.
+
 ## Konventionen
 
-- **Texte ändern** → in `lib/content.ts`, nicht in den Komponenten.
-- **Farben** → in `app/globals.css` im `@theme`-Block (gold / ink / cream / line).
+- **Texte ändern** → in `lib/inhalt-neu.ts` (Startseite) bzw. `lib/content.ts`, nicht in den Komponenten.
+- **Farben** → neue Welt in `components/neu/welt.css` (Variablen an `.ag-neu`); `app/globals.css` (`@theme`) nur für die Terminseite.
 - Komponenten mit Animationen oder State brauchen `"use client"` ganz oben.
 - Server-Komponenten dürfen Client-Komponenten importieren (nicht umgekehrt).
 
@@ -65,5 +67,4 @@ public/
 
 - ✅ Keys nur in `.env.local` (steht in `.gitignore`), niemals committen.
 - ✅ Vor dem Deploy `npm run build` laufen lassen.
-- ⚠️ **Impressum & Datenschutz sind Platzhalter** – echte Daten vor dem Live-Gang
-  einsetzen und rechtlich prüfen lassen.
+- ⚠️ Impressum & Datenschutz bleiben wortgleich (Text in `components/neu/recht/Rechtstexte.tsx`).
