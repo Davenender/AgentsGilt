@@ -20,6 +20,8 @@
 //     380 + (1 − Abstand/34) × 520 + 0–260 ms wieder ein.
 // „Pro Bild“ gilt für 60 Bilder je Sekunde; alles läuft auf jedem Bildschirm gleich schnell.
 
+import { HANDY } from "../umgebung";
+
 /** Die Zeichen. Die beiden Block-Zeichen werden als Punktraster gezeichnet (wie im Namen). */
 const ZEICHEN = ["▓", "#", "%", "=", "▒", "*", "+", "/", ":", ".", "·", "-"];
 const Z = { dicht: 0, raute: 1, prozent: 2, gleich: 3, mittel: 4, stern: 5, plus: 6, schraeg: 7, doppel: 8, punkt: 9, mitte: 10, strich: 11 };
@@ -108,6 +110,8 @@ export function erzeugeZeichenbild(leinwand: HTMLCanvasElement, wahl: Zeichenbil
   let letzte = 0;
   let imBild = true;
   let vorbei = false;
+  // Am Handy (Touch ohne Maus) zeichnet die Leinwand in gröberem Takt.
+  const sparTakt = window.matchMedia(HANDY).matches ? 1000 / 30 : 0;
 
   /** Formen in Zellen zerlegen. */
   const zerlegen = (maler: FormMaler): Zelle[] => {
@@ -238,6 +242,12 @@ export function erzeugeZeichenbild(leinwand: HTMLCanvasElement, wahl: Zeichenbil
   const bild = (jetzt: number) => {
     rahmen = 0;
     if (vorbei || !n) return;
+    // Sparstufe am Handy (ohne Maus): höchstens 30 Bilder je Sekunde (kleine Toleranz, damit bei
+    // 60 Bildern je Sekunde jedes zweite zählt). Der Flug ist an die Zeit gebunden, nur gröber.
+    if (sparTakt && letzte && jetzt - letzte < sparTakt - 4) {
+      rahmen = requestAnimationFrame(bild);
+      return;
+    }
     const dt = letzte ? Math.min(100, jetzt - letzte) : 16.7;
     letzte = jetzt;
     const bilder = dt / (1000 / 60);

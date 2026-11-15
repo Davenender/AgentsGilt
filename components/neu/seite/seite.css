@@ -33,6 +33,10 @@
 .ag-wuerfel--satz .ag-wuerfel__spiel span {
   overflow: visible;
 }
+/* Weit weg vom Bild wird die Ebene der Zeichen nicht gezeichnet (Entschluesselt.tsx: data-fern). */
+.ag-wuerfel[data-fern] .ag-wuerfel__spiel {
+  visibility: hidden;
+}
 
 /* ───────────── Lichtleiste (Lichtleiste.tsx): Scroll-Hinweis im Kopfbereich, Abschluss im Fuß ─────────────
    Wie Sonnenlicht, das von unten in den Raum fällt: am Rand am hellsten, nach oben weich aus. */
@@ -67,7 +71,7 @@
   text-align: center;
   /* Der Kopfbereich darüber ist rein schwarz: ohne harte Linie in den Grund der Seite übergehen. */
   background: linear-gradient(180deg, #000 0%, var(--nacht) min(72%, 460px));
-  /* Die Strahlen der Glaskarten ragen über die Karten hinaus: Sie machen die Seite nicht breiter. */
+  /* Nichts darf die Seite breiter machen (der Lichtschein hinter den Glaskarten reicht über die Reihe hinaus). */
   overflow-x: clip;
 }
 .ag-aussage__innen {
@@ -258,12 +262,12 @@
    Lichtschein hinter der Reihe), hat oben eine feine helle Lichtkante, am Rand einen dünnen
    Goldschimmer und darunter einen weichen Schatten. Alle drei sind gleich hoch.
 
-   Aufbau je Karte, von hinten nach vorn: das Glas mit Lichtkante und Rand, der Stern in der Mitte
-   mit seinen Strahlen bis zum Rand, der Saum der Lichtbrechung am Rand, die Strahlen außerhalb
-   der Karte, der Inhalt. Stern und Strahlen liegen über dem Glas (so muss der Browser die
-   Unschärfe des Glases nie neu rechnen) und sind reines Stylesheet: nur Verschieben, Drehen und
-   Deckkraft. glaskarten.ts schaltet nur ein und aus (data-an, am Handy danach data-steht) und
-   setzt je Wort --h (Mauslicht). Der Rand glimmt unter der Maus (glimmrand.ts: --gx, --gy, --gn).
+   Aufbau je Karte, von hinten nach vorn: das Glas mit Lichtkante und Rand, der weiche Stern in der
+   Mitte mit dem Milchglas-Schleier darüber, der Inhalt. Stern und Schleier liegen über dem Glas
+   (so muss der Browser die Unschärfe des Glases nie neu rechnen) und sind reines Stylesheet: nur
+   Verschieben, Drehen und Deckkraft. glaskarten.ts schaltet nur, welche Karte hervorgehoben ist
+   (data-an), und setzt je Wort --h (Mauslicht, heller Text). Der Rand glimmt unter der Maus
+   (glimmrand.ts: --gx, --gy, --gn).
 
    Eingeblendet werden Glas und Inhalt einzeln, nicht die ganze Karte: Eine durchscheinende Karte
    wäre für ihr Glas eine eigene Welt, und das Glas sähe erst nach dem Einblenden, was hinter der
@@ -297,8 +301,8 @@
   position: relative;
   display: flex;
 }
-/* Die Karte, deren Stern leuchtet, liegt über ihren Nachbarn: Ihre Strahlen dürfen sie anstrahlen. */
-.ag-gk:is([data-an], [data-steht]) {
+/* Die hervorgehobene Karte liegt über ihren Nachbarn (sie hebt sich leicht an). */
+.ag-gk[data-an] {
   z-index: 1;
 }
 .ag-gk__karte {
@@ -328,14 +332,6 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.022),
     0 26px 54px -28px rgba(0, 0, 0, 0.82),
     0 10px 22px -16px rgba(0, 0, 0, 0.55);
-  transition: box-shadow 0.7s var(--weich);
-}
-.ag-gk[data-an] .ag-gk__glas {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
-    0 38px 70px -30px rgba(0, 0, 0, 0.86),
-    0 14px 28px -16px rgba(0, 0, 0, 0.6);
 }
 /* Der Rand: 1 px. Oben die helle Lichtkante, darunter ein dünner Goldschimmer. Dazu der Glimmrand:
    Der Rand glimmt dort auf, wo die Maus in der Nähe ist (--gx, --gy, --gn vom Teil mit data-glimm). */
@@ -360,11 +356,13 @@
   pointer-events: none;
 }
 
-/* ── Der Stern in der Glaskarte. Fährt die Maus auf die Karte, taucht er in ihrer Mitte hinter
-   dem Text auf (weich, er wächst dabei leicht, 0,4 s) und folgt der Maus nicht. Es ist derselbe
-   Stern wie im Wörter-Feld darunter (Leuchtstern.tsx, durchsichtige Fassung), nur deutlich kleiner:
-   Er dreht und wiegt sich leicht, seine Strahlen schimmern, feiner Goldstaub tanzt. Verlässt die
-   Maus die Karte, blendet er weich aus und ruht. Bewegt wird nur mit Drehen, Größe und Deckkraft. */
+/* ── Die hervorgehobene Karte: Fährt die Maus auf sie (am Handy: steht sie in der Mitte des
+   Bildschirms, glaskarten.ts), erscheint in ihrer Mitte hinter Milchglas der kleine Stern, weich,
+   aber gut zu erkennen (derselbe Stern wie im Wörter-Feld darunter: Leuchtstern.tsx, Fassung
+   `milchig`; die Unschärfe steckt fest in seinen Bildern). Er blendet weich ein und wächst dabei
+   leicht (0,4 s), dreht und wiegt sich leicht und folgt der Maus nicht. Über ihm liegt ein
+   milchiger Schleier, der auch die ganze Glasfläche eine Spur heller macht. Bewegt wird nur mit
+   Verschieben, Drehen und Deckkraft. Verlässt die Maus die Karte, blendet alles weich aus. */
 .ag-gk__licht {
   position: absolute;
   inset: 0;
@@ -372,6 +370,23 @@
   border-radius: inherit;
   pointer-events: none;
 }
+/* Der Schleier: Milchglas über dem Stern, und die Glasfläche wird heller. */
+.ag-gk__licht::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(closest-side, rgba(255, 248, 232, 0.07), rgba(255, 248, 232, 0) 72%) 50% 50% / 62% 92% no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075) 0%, rgba(232, 238, 255, 0.04) 100%);
+  opacity: 0;
+  transition: opacity 0.5s var(--weich);
+}
+.ag-gk[data-an] .ag-gk__licht::after {
+  opacity: 1;
+  transition-duration: 0.4s;
+}
+/* In der Mitte, ohne Verschieben über `translate` (der Stern bliebe sonst als eigene Ebene stehen). */
 .ag-gk__stern {
   --stern: clamp(100px, 9.2vw, 132px);
   position: absolute;
@@ -387,202 +402,26 @@
     opacity 0.5s var(--weich),
     scale 0.6s var(--weich);
 }
-/* Sichtbar ist er, solange er leuchtet (data-an), noch ausblendet (data-geht, 0,65 s nach dem
-   Verlassen: glaskarten.ts) oder am Handy stehen bleibt (data-steht). */
-.ag-gk:is([data-an], [data-geht], [data-steht]) .ag-gk__stern {
+/* Sichtbar ist er, solange die Karte hervorgehoben ist (data-an) oder noch ausblendet (data-geht,
+   0,65 s nach dem Verlassen: glaskarten.ts). */
+.ag-gk:is([data-an], [data-geht]) .ag-gk__stern {
   visibility: visible;
 }
-.ag-gk:is([data-an], [data-steht]) .ag-gk__stern {
-  opacity: 1;
+.ag-gk[data-an] .ag-gk__stern {
+  opacity: 0.9;
   scale: 1;
   transition-duration: 0.4s;
 }
 /* In Ruhe hat der Stern keine Animationen und keine eigenen Ebenen: Auch angehaltene Animationen
-   hielte der Browser als Ebenen bereit (hier wären es mit den Strahlen rund 80), und jede kostet
-   in jedem Bild der Seite etwas Zeit. Blendet er aus oder steht er am Handy, ruhen sie nur. */
-.ag-gk:not([data-an], [data-geht], [data-steht]) .ag-gk__stern *,
-.ag-gk:not([data-an], [data-geht], [data-steht]) .ag-gk__stern *::before {
+   hielte der Browser als Ebenen bereit, und jede kostet in jedem Bild der Seite etwas Zeit.
+   Blendet er aus, ruhen sie nur. */
+.ag-gk:not([data-an], [data-geht]) .ag-gk__stern *,
+.ag-gk:not([data-an], [data-geht]) .ag-gk__stern *::before {
   animation: none !important;
   will-change: auto !important;
 }
-.ag-gk:is([data-geht], [data-steht]):not([data-an]) .ag-gk__stern *,
-.ag-gk:is([data-geht], [data-steht]):not([data-an]) .ag-gk__stern *::before {
+.ag-gk[data-geht]:not([data-an]) .ag-gk__stern * {
   animation-play-state: paused !important;
-}
-/* Am Handy steht der Stern nach seinem kurzen Strahlen ruhig da, deutlich leiser (der Text
-   davor bleibt gut lesbar) und ohne Strahlen. */
-.ag-gk[data-steht]:not([data-an]) .ag-gk__stern {
-  opacity: 0.55;
-  transition-duration: 1.1s;
-}
-
-/* ── Die Strahlen. Je Karte ein „Rad“: Alle Strahlen gehen von der Mitte der Karte aus, jeder in
-   seinem festen Winkel (--w, je Karte andere: Aussage.tsx). Das Rad schwenkt als Ganzes langsam
-   hin und her (je Karte in eigenem Takt); die Strahlen sind unterschiedlich hell. Ein Strahl ist
-   ein schmaler Lichtkeil: am Stern haarfein, nach außen breiter und weicher. Dasselbe Rad liegt dreimal
-   übereinander, jedes Mal anders ausgeschnitten:
-   1. in der Karte (bis zum Rand, vom Kartenrand abgeschnitten),
-   2. im 3 px feinen Ring um die Karte: Dort bricht sich das Licht am Glasrand, ein heller Saum
-      genau an der Stelle, wo ein Strahl die Kante trifft, auf der einen Seite ein Hauch kühl, auf
-      der anderen ein Hauch warm,
-   3. außerhalb der Karte: Genau an der Kante knickt der Strahl ab (von der Kante weg, wie Licht,
-      das aus Glas austritt: --d ist der Weg bis zur Kante, --k der Knick, beides einmal gemessen
-      von glaskarten.ts) und strahlt auf die Seite hinaus; dabei darf er auch die Nachbarkarten
-      leicht anstrahlen.
-   Alles sind vorbereitete Verläufe, bewegt nur mit Drehen und Deckkraft; nichts rechnet je Bild. */
-.ag-gk__rad {
-  --schwenk: 4deg;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  opacity: 0;
-  /* In Ruhe gibt es die Strahlen für den Browser gar nicht: unsichtbar und ohne Animation. */
-  visibility: hidden;
-  transition: opacity 0.55s var(--weich);
-}
-/* Die Animationen gibt es nur, solange die Karte leuchtet oder gerade ausblendet (dann ruhen sie). */
-.ag-gk:is([data-an], [data-geht]) .ag-gk__rad {
-  visibility: visible;
-  animation: ag-gk-schwenk var(--takt, 9s) cubic-bezier(0.37, 0, 0.63, 1) infinite alternate;
-  animation-play-state: paused;
-}
-.ag-gk[data-an] .ag-gk__rad {
-  opacity: 1;
-  transition-duration: 0.45s;
-  animation-play-state: running;
-}
-@keyframes ag-gk-schwenk {
-  from {
-    transform: rotate(calc(var(--schwenk) * -1));
-  }
-  to {
-    transform: rotate(var(--schwenk));
-  }
-}
-/* Je Karte ein eigener Takt und eine eigene Schwenkweite. */
-.ag-gk[data-bild="0"] {
-  --takt: 8.6s;
-}
-.ag-gk[data-bild="0"] .ag-gk__rad {
-  --schwenk: 4.5deg;
-}
-.ag-gk[data-bild="1"] {
-  --takt: 11.2s;
-}
-.ag-gk[data-bild="1"] .ag-gk__rad {
-  --schwenk: -3.6deg;
-}
-.ag-gk[data-bild="2"] {
-  --takt: 9.8s;
-}
-.ag-gk[data-bild="2"] .ag-gk__rad {
-  --schwenk: 5.2deg;
-}
-/* Ein Strahl: von der Mitte nach außen, im Winkel --w. */
-.ag-gk__rad i {
-  position: absolute;
-  top: -14px;
-  left: 0;
-  width: 560px;
-  height: 28px;
-  transform: rotate(var(--w));
-  transform-origin: 0 50%;
-}
-/* Der Lichtkeil (in der Karte): am Stern haarfein, zum Rand hin breiter; quer weich auslaufend. */
-.ag-gk__rad i::before,
-.ag-gk__rad b::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 50%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 50%, transparent 100%);
-}
-/* Die Strahlen sind unterschiedlich hell (fest, je Strahl): So wirkt das Bild lebendig, ohne dass
-   jeder Strahl eine eigene Animation braucht. Bewegt wird nur das Rad als Ganzes. */
-.ag-gk__rad i:nth-child(3n + 2) {
-  opacity: 0.7;
-}
-.ag-gk__rad i:nth-child(3n) {
-  opacity: 0.84;
-}
-.ag-gk__rad i::before {
-  background: linear-gradient(90deg, rgba(255, 238, 196, 0) 0%, rgba(255, 238, 196, 0) 4%, rgba(255, 234, 184, 0.5) 11%, rgba(255, 224, 160, 0.36) 30%, rgba(250, 208, 130, 0.34) 100%);
-  clip-path: polygon(0 calc(50% - 0.7px), 100% 0, 100% 100%, 0 calc(50% + 0.7px));
-}
-/* 2. Die Brechung am Glasrand: Sichtbar ist nur der feine Ring um die Karte. */
-.ag-gk__saum {
-  position: absolute;
-  inset: -2px;
-  padding: 3px;
-  border-radius: 24px;
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box exclude,
-    linear-gradient(#000 0 0);
-  pointer-events: none;
-}
-/* Im Ring ist der Keil breiter und hell, mit einem Hauch kühler Farbe auf der einen und warmer
-   auf der anderen Seite (ganz dezent, kein Regenbogen). */
-.ag-gk__rad--saum i {
-  top: -30px;
-  height: 60px;
-}
-.ag-gk__rad--saum i::before {
-  background: linear-gradient(180deg, rgba(150, 188, 255, 0) 12%, rgba(164, 198, 255, 0.8) 30%, #fffaf0 43%, #fffaf0 57%, rgba(255, 188, 100, 0.88) 70%, rgba(255, 188, 100, 0) 88%);
-  clip-path: polygon(0 calc(50% - 2px), 100% 0, 100% 100%, 0 calc(50% + 2px));
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-/* 3. Außerhalb der Karte: Die Fläche reicht 340 px über die Karte hinaus (sie verschiebt nichts;
-   so weit kommt kein Strahl, es gibt also kein abgeschnittenes Ende), die Karte selbst ist ausgespart. */
-.ag-gk__aussen {
-  /* Nach unten verlieren sich die Strahlen schon 70 px unter der Karte: Dort endet der Abschnitt. */
-  --grund: linear-gradient(180deg, #000 0, #000 calc(100% - 332px), transparent calc(100% - 270px));
-  position: absolute;
-  inset: -340px;
-  padding: 339px;
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    var(--grund);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box exclude,
-    var(--grund);
-  pointer-events: none;
-}
-/* Hier trägt der Strahl selbst kein Licht: Er führt nur bis zur Kante. Dort beginnt das abgeknickte
-   Stück (ein paar Pixel davor, damit beim Schwenken keine Lücke entsteht; die Karte ist ohnehin
-   ausgespart). */
-.ag-gk__rad--aussen i::before {
-  content: none;
-}
-.ag-gk__rad--aussen b {
-  position: absolute;
-  top: calc(50% - 19px);
-  left: calc(var(--d, 190px) - 16px);
-  width: 330px;
-  height: 38px;
-  transform: rotate(var(--k, 3.4deg));
-  transform-origin: 0 50%;
-}
-.ag-gk__rad--aussen b::before {
-  background: linear-gradient(90deg, rgba(255, 228, 168, 0.44) 0%, rgba(255, 224, 158, 0.28) 14%, rgba(252, 212, 138, 0.13) 42%, rgba(248, 204, 124, 0.04) 72%, rgba(248, 204, 124, 0) 96%);
-  clip-path: polygon(0 calc(50% - 4.5px), 100% 0, 100% 100%, 0 calc(50% + 4.5px));
-}
-/* Am Handy (ohne Maus) ist das Strahlen ruhiger: vier statt sechs Strahlen je Karte, und außerhalb
-   der Karte nur kurze Stücke (die Karten stehen dicht untereinander). */
-.ag-gk__reihe[data-licht="finger"] .ag-gk__rad i:nth-child(3n) {
-  display: none;
-}
-.ag-gk__reihe[data-licht="finger"] .ag-gk__rad--aussen b {
-  top: calc(50% - 13px);
-  width: 130px;
-  height: 26px;
 }
 .ag-gk__inhalt {
   position: relative;
@@ -685,16 +524,27 @@
   }
 }
 
-/* Überschriften, die sich entschlüsseln (Entschluesselt.tsx): Die Zeichen gleiten an ihren Platz,
-   wenn das Zwischenwort („Tagen“) dem echten Wort weicht. Ist die Überschrift fertig, leuchtet
-   das goldene Schlüsselwort einmal auf und kommt dann in seinem gewohnten Schein zur Ruhe. */
-.ag-wuerfel--satz .ag-wuerfel__spiel span {
-  transition:
-    left 0.32s var(--weich),
-    width 0.32s var(--weich);
-}
+/* Überschriften, die sich entschlüsseln (Entschluesselt.tsx): Jedes Zeichen steht die ganze Zeit
+   am Platz seines Buchstabens im fertigen Text, nichts gleitet und nichts rückt (auch das
+   Zwischenwort „Tagen“ steht im Platz von „Stunden“). Ist die Überschrift fertig, leuchtet das
+   goldene Schlüsselwort einmal auf und kommt dann in seinem gewohnten Schein zur Ruhe. */
 .ag-wuerfel[data-fertig] .ag-gold {
   animation: ag-gold-auf 1.6s var(--weich) both;
+}
+/* Sparstufe am Handy: Das Aufleuchten hat kleinere Leuchtkreise (ein Schein von 120 px muss bei
+   jedem Bild neu weichgezeichnet werden). Es leuchtet trotzdem deutlich auf. */
+@media (hover: none), (pointer: coarse) {
+  .ag-wuerfel[data-fertig] .ag-gold {
+    animation-name: ag-gold-auf-handy;
+  }
+}
+@keyframes ag-gold-auf-handy {
+  0% {
+    color: #fff6dc;
+    text-shadow:
+      0 0 10px rgba(255, 238, 190, 0.95),
+      0 0 34px rgba(246, 196, 104, 0.85);
+  }
 }
 @keyframes ag-gold-auf {
   0% {
@@ -873,6 +723,85 @@
   font-style: normal;
   text-align: center;
 }
+/* Am Handy (ohne Maus): Die Wörter schweben ganz langsam von selbst, jedes auf seinem eigenen
+   ruhigen Weg (nur Verschieben und Drehen, kein Skript je Bild). Nur solange das Feld im Bild ist
+   (Uebergang.tsx setzt data-treibt); auf den Finger reagieren sie nicht. */
+@media ((hover: none) or (pointer: coarse)) and (prefers-reduced-motion: no-preference) {
+  .ag-ueber[data-da][data-treibt] .ag-wf__wort {
+    animation: ag-wf-treiben var(--td, 13s) cubic-bezier(0.45, 0, 0.55, 1) var(--tv, 0s) infinite;
+  }
+  .ag-wf__wort:nth-child(1) {
+    --td: 14s;
+    --ax: 11px;
+    --ay: -8px;
+    --ar: 1.4deg;
+    --bx: -6px;
+    --by: 7px;
+    --br: -0.8deg;
+  }
+  .ag-wf__wort:nth-child(2) {
+    --td: 12.5s;
+    --tv: -3s;
+    --ax: -10px;
+    --ay: 7px;
+    --ar: -1.2deg;
+    --bx: 8px;
+    --by: -6px;
+    --br: 1deg;
+  }
+  .ag-wf__wort:nth-child(3) {
+    --td: 15.5s;
+    --tv: -6s;
+    --ax: 9px;
+    --ay: 9px;
+    --ar: -1.5deg;
+    --bx: -8px;
+    --by: -5px;
+    --br: 0.9deg;
+  }
+  .ag-wf__wort:nth-child(4) {
+    --td: 13.5s;
+    --tv: -2s;
+    --ax: -12px;
+    --ay: -6px;
+    --ar: 1.1deg;
+    --bx: 6px;
+    --by: 8px;
+    --br: -1.3deg;
+  }
+  .ag-wf__wort:nth-child(5) {
+    --td: 16s;
+    --tv: -8s;
+    --ax: 8px;
+    --ay: -10px;
+    --ar: -0.9deg;
+    --bx: 10px;
+    --by: 6px;
+    --br: 1.2deg;
+  }
+  .ag-wf__wort:nth-child(6) {
+    --td: 12s;
+    --tv: -5s;
+    --ax: -9px;
+    --ay: 10px;
+    --ar: 1.3deg;
+    --bx: -7px;
+    --by: -8px;
+    --br: -1deg;
+  }
+}
+@keyframes ag-wf-treiben {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  33% {
+    transform: translate3d(var(--ax), var(--ay), 0) rotate(var(--ar));
+  }
+  67% {
+    transform: translate3d(var(--bx), var(--by), 0) rotate(var(--br));
+  }
+}
 /* Verbuggt: Zufallszeichen in JetBrains Mono wie beim Namen, golden. */
 .ag-wf__wort i[data-wirr] {
   font-family: var(--font-mono-ag), ui-monospace, monospace;
@@ -961,6 +890,17 @@
   .ag-lk:hover {
     transform: translateY(-6px);
     box-shadow: 0 34px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+}
+/* Am Handy hebt sich die Karte, die in der Mitte des Bildschirms steht (ihre Szene spielt). Jede
+   Karte hat dort eine feste eigene Ebene: Sonst würde sie bei jedem Wechsel neu gerastert
+   (gemessen beim Scrollen mit 4-fach gebremstem Prozessor: das kostete rund 4 Bilder je Sekunde). */
+@media ((hover: none) or (pointer: coarse)) and (prefers-reduced-motion: no-preference) {
+  .ag-lk {
+    will-change: transform;
+  }
+  .ag-lk[data-an] {
+    transform: translateY(-6px);
   }
 }
 .ag-sz {
@@ -1361,31 +1301,6 @@
   }
 }
 
-/* ───────────── Überschriften am Handy: ruhig einblenden ─────────────
-   Ohne Maus (am Gerät entschieden) gibt es keine Zufallszeichen: Eine Überschrift blendet beim
-   Hinscrollen weich ein und steht dann (Entschluesselt.tsx setzt data-ruhig; die Hauptüberschrift
-   der ersten Aussage: Aussage.tsx). */
-.ag-neu [data-ruhig] {
-  transition:
-    opacity 0.8s var(--weich),
-    translate 0.8s var(--weich);
-}
-.ag-neu [data-ruhig="wartet"] {
-  opacity: 0;
-  translate: 0 14px;
-}
-.ag-aussage[data-an][data-ruhig] .ag-aussage__satz {
-  opacity: 0;
-  translate: 0 14px;
-  transition:
-    opacity 0.8s var(--weich),
-    translate 0.8s var(--weich);
-}
-.ag-aussage[data-an][data-ruhig][data-lauf] .ag-aussage__satz {
-  opacity: 1;
-  translate: none;
-}
-
 /* ───────────── So läuft es ab: Zeichen-Nummern ───────────── */
 .ag-abn__innen {
   display: grid;
@@ -1509,35 +1424,14 @@
     max-width: 380px;
   }
 }
-/* Am Handy (ohne Maus, am Gerät entschieden, nicht an der Breite): keine große Nummer. Es bleiben
-   die drei Schritte, alle gleich hell; sie blenden beim Hinscrollen ruhig nacheinander ein
-   (AblaufNummern.tsx setzt data-handy). Ein Tipp hebt keinen Schritt hervor. */
+/* Am Handy (ohne Maus, am Gerät entschieden, nicht an der Breite): keine große Nummer. Der Lauf
+   durch die drei Schritte (Balken in der Überschrift, Hervorhebung) ist derselbe wie am Computer. */
 @media (hover: none), (pointer: coarse) {
   .ag-abn__bild {
     display: none;
   }
   .ag-abn__innen {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .ag-abn__liste button {
-    cursor: default;
-  }
-}
-.ag-abn__innen[data-handy] .ag-abn__liste li {
-  transition:
-    opacity 0.7s var(--weich),
-    translate 0.7s var(--weich);
-  transition-delay: calc(var(--i, 0) * 140ms);
-}
-.ag-abn__innen[data-handy="wartet"] .ag-abn__liste li {
-  opacity: 0;
-  translate: 0 16px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .ag-abn__innen[data-handy] .ag-abn__liste li {
-    opacity: 1;
-    translate: none;
-    transition: none;
   }
 }
 

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MITTE_EREIGNIS } from "../mitte";
 import { istVorschau } from "../umgebung";
 import { erzeugeZeichenbild } from "./zeichenbild";
 
 /**
  * Eine Nummer (01–06) als kleines Zeichen-Bild (Technik: zeichenbild.ts). Kommt sie ins Bild, setzt
- * sie sich aus Staub zusammen. Fährt die Maus auf die Karte, zerfällt sie kurz zu Staub und setzt
- * sich nach 260 ms neu zusammen. Für Vorleseprogramme ist sie Schmuck (die Reihenfolge der Liste
+ * sie sich aus Staub zusammen. Fährt die Maus auf die Karte (am Handy: kommt die Leistungskarte in
+ * die Mitte des Bildschirms), zerfällt sie kurz zu Staub und setzt sich nach 260 ms neu zusammen. Für Vorleseprogramme ist sie Schmuck (die Reihenfolge der Liste
  * sagt dasselbe).
  */
 export function ZeichenNummer({ text, className }: { text: string; className?: string }) {
@@ -80,6 +81,15 @@ export function ZeichenNummer({ text, className }: { text: string; className?: s
       zurueck = window.setTimeout(() => bild.zeige(0), 260);
     };
     karte?.addEventListener("pointerenter", rein);
+    // Am Handy: Kommt die Karte in die Mitte des Bildschirms, ist es wie die Maus, die auf sie fährt.
+    const mitte = (ev: Event) => {
+      if ((ev as CustomEvent<boolean>).detail !== true || still || !imBild) return;
+      window.clearTimeout(zurueck);
+      bild.zerfalle();
+      zurueck = window.setTimeout(() => bild.zeige(0), 260);
+    };
+    const leistung = leinwand.closest<HTMLElement>(".ag-lk");
+    leistung?.addEventListener(MITTE_EREIGNIS, mitte);
     return () => {
       vorbei = true;
       window.clearTimeout(uhr);
@@ -87,6 +97,7 @@ export function ZeichenNummer({ text, className }: { text: string; className?: s
       groesse.disconnect();
       waechter.disconnect();
       karte?.removeEventListener("pointerenter", rein);
+      leistung?.removeEventListener(MITTE_EREIGNIS, mitte);
       bild.ende();
     };
   }, [text]);

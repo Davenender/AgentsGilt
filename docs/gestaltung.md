@@ -1012,6 +1012,46 @@ Davids Auftrag (Prompt 12). Ersetzt aus 4p, Abschnitt 3 und 6: den goldenen Sche
 ### 7 · Nicht angefasst
 Alles am Computer außer Abschnitt 1, alle Texte, die alte Startseite. `voice-agent-prompt.md`, `vapi-prompt.txt` und `AGENTS.md` (fremde Dateien).
 
+## 4r. Neunte Runde vom 15.11.2026: Glaskarten nur mit Stern hinter Milchglas, Handy wieder voll animiert
+
+Davids Auftrag (Prompt 13). Ersetzt aus 4p, Abschnitt „Stern in den Glaskarten“ und 4o: Strahlen, Brechung am Glasrand, Licht auf den Nachbarkarten. Ersetzt aus 4q, Abschnitt 4 und 5: die beruhigten Überschriften, das stehende Wörter-Feld, „In drei Schritten“ ohne Lauf, und die erste Lesart in 4q, Abschnitt 6. Die Regel für „Handy“ bleibt: erkannt am Gerät (`HANDY`, Touch ohne Maus), die Breite entscheidet nur das Layout.
+
+### 1 · Glaskarten unter „Wir bauen in Stunden …“
+- **Weg:** die Strahlen, die Brechung am Rand und das Licht, das aus der Karte auf die Seite fiel (Code in `glaskarten.ts` und `Aussage.tsx`, die Stile und die Bilder `kern-klar`, `strahlen-1-klar`, `strahlen-3-klar`).
+- **Nur der Stern:** Unter der Maus erscheint in der Mitte hinter der Karte der kleine Stern (Größe wie bisher, 100 bis 132 px) **hinter leichtem Milchglas**: weich, aber gut als Stern zu erkennen; er wiegt und dreht sich leicht und blendet weich ein und aus (0,65 s). Die Unschärfe steckt fest in drei vorbereiteten, weichen Bildern (`kern-milch`, `strahlen-1-milch`, `strahlen-3-milch`, aus denselben Aufnahmen wie der Stern errechnet); der Browser rechnet keine Unschärfe je Bild. Bewegt wird nur mit Verschieben, Drehen und Deckkraft. Ruht die Karte, hat der Stern weder Animationen noch eigene Ebenen.
+- **Die Karte hebt sich hervor:** Titel und Text werden deutlich heller (fast weiß, warm), die Glasfläche eine Spur heller (ein heller Schleier, nur über Deckkraft). Heben und Glimmrand bleiben.
+- **Fehler behoben:** Beim schnellen Scrollen erschien der Stern, bevor die Karten eingeschwebt waren. Jetzt leuchtet eine Karte erst, wenn sie ganz eingeschwebt ist (1 s Einschweben, je Karte 120 ms später), auch wenn die Maus schon darauf liegt. Gemessen: vorher nach 0,12 s mit 30 px Versatz und unsichtbarem Glas, jetzt erst, wenn die Karte steht.
+- **Am Handy:** Dieselbe Hervorhebung bekommt die Karte in der Mitte des Bildschirms (ein schmaler Bereich von 12 % der Bildhöhe um die Mitte, immer höchstens eine Karte; im Spalt zwischen zwei Karten keine). Scrollt man weiter, blendet sie weich aus und die nächste leuchtet auf (`components/neu/mitte.ts`).
+
+### 2 · Handy: „AGENTS GILT“ springt nicht
+- Der kleine Sprung nach dem Bilden des Namens war die Welle durch die Mitte (Hinweis, dass man ihn anklicken kann). Sie kommt nur noch mit Maus; am Handy bildet sich der Name und steht still. Am Computer bleibt sie.
+
+### 3 · Überschriften: wieder animiert, ohne Springen
+- Am Handy bauen sich alle Überschriften wieder wie am Computer auf (Tippen, Zufallszeichen, Entschlüsseln, das goldene Wort leuchtet auf). Weg bleibt nur das Verbuggen unter dem Finger.
+- **Nichts springt (auch am Computer):** Jedes Zeichen steht die ganze Zeit am Platz seines Buchstabens im fertigen Text. Das Zwischenwort „Tagen,“ steht mittig im Platz von „Stunden*,“; der Rest der Zeile rückt nicht mehr zusammen und gleitet nicht zurück. Gemessen am Handy, Bild für Bild: Höhe und Zeilen jeder Überschrift bleiben gleich (Hauptüberschrift 174 px, 4 Zeilen; die anderen ebenso), kein Zeichen ändert seinen Platz, außer beim Wechsel von „Tagen“ zu „Stunden“ innerhalb des Wortes.
+- **Sparstufen (Bildrate):** Am Handy bekommen die Zeichen höchstens alle 50 ms ein neues Bild (20-mal je Sekunde), sonst ist der Ablauf derselbe. Auf allen Geräten wird die Ebene mit den Zeichen nicht gezeichnet, solange die Überschrift mehr als eine Bildhöhe entfernt ist (unsichtbar ist sie dort ohnehin), und Zeichen werden geändert statt ersetzt. Das einmalige Aufleuchten des goldenen Worts hat am Handy kleinere Leuchtkreise.
+
+### 4 · Handy: was beim Scrollen passiert, wieder wie am Computer
+- Die zwei Balken „Agenturen“ und „Agents Gilt“ füllen sich, die Karten schweben ein, der Stern im Wörter-Feld bewegt sich und die sechs Wörter treiben wieder (nur ohne Reaktion auf den Finger; das Treiben macht am Handy das Stylesheet, ohne Rechnen je Bild).
+
+### 5 · Handy: „Alles, was Ihr Geschäft digital braucht“
+- Es spielt nur die Karte in der Mitte des Bildschirms (derselbe schmale Bereich, höchstens eine Karte), mit Szene, Zahlen, Zeichen-Nummer und leichtem Heben. Scrollt man weiter, springt die alte zurück in die Ruhe-Lage und die neue spielt; kommt man zurück, startet sie von vorn. Wie mit der Maus von Karte zu Karte.
+- Die Karten haben am Handy eine feste eigene Ebene (sonst würde beim Heben jedes Mal die ganze Karte neu gerastert). Die Zeichen-Nummer zeichnet am Handy höchstens 30-mal je Sekunde.
+
+### 6 · Handy: „In drei Schritten zu Ihrer Lösung“
+- Der Fortschrittsbalken läuft wieder (6 s je Schritt), „Gespräch und Analyse“, „Bau mit KI“ und „Setup und Betreuung“ werden nacheinander hervorgehoben. Die großen Zahlen bleiben am Handy weg.
+
+### 7 · Was am Handy weg bleibt
+- Verbuggen beim Antippen, Mauslicht der Wörter, Magnet, Glimmrand, der dem Finger folgt, Hover-Stile, die nach dem Tippen hängen bleiben, der Daumen-Knopf.
+
+### 8 · Geprüft (fertiger Build, Port 3200; Vergleich mit Prompt 12 auf Port 3300)
+- Alles mit nachgestelltem Netz (0 echte Anfragen an `/api`).
+- **Bildraten am Handy** (375 × 812, Pixeldichte 3, Prozessor 4-fach gebremst, abwechselnd neu und alt, je drei Runden). Neu gemessen auf 60 Hz bezogen (wie viele 60-Hz-Takte ein neues Bild bekommen), weil der Bildschirm des Testrechners zeitweise mit 120 Hz läuft und die Rohwerte dann nicht vergleichbar sind. Während der Messungen lief auf dem Rechner starke Fremdlast (ein Playwright-Browser einer anderen Sitzung mit 100 bis 360 % Prozessor, dazu fileproviderd); die Werte liegen deshalb für beide Fassungen unter denen aus 4q. Scrollen durch die ganze Seite: alt 48 bis 51, **neu 44 bis 46**; Glaskarten (Karte in der Mitte leuchtet): alt 46 bis 49, **neu 54 bis 55**; Chat öffnen alt 37 bis 47, neu 42 bis 48; Chat schließen alt 48 bis 53, neu 50 bis 55. Ohne die Sparstufen aus Abschnitt 3 und 5 lag das Scrollen neu bei 39 bis 44.
+- **Offen:** Das Ziel „Scrollen mindestens 50“ ist unter dieser Fremdlast nicht erreicht (die alte Fassung erreicht es dabei auch nur knapp). Eine Messung ohne Fremdlast steht aus.
+
+### 9 · Nicht angefasst
+Chat-Fenster, Startanimation (außer Abschnitt 2), Texte, die alte Startseite. `voice-agent-prompt.md`, `vapi-prompt.txt` und `AGENTS.md` (fremde Dateien).
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
@@ -1068,3 +1108,4 @@ Alles am Computer außer Abschnitt 1, alle Texte, die alte Startseite. `voice-ag
 29. **Sechste Runde (14.11.2026, Abschnitt 4o):** Das Chat-Fenster wird beim Öffnen und Schließen zur Kugel des Chat-Knopfs (kein Abschneiden mehr). Im Kopf steht unser Logo. Beim Nachdenken drei goldene Punkte, die Antwort erscheint erst ganz und entschlüsselt sich als ruhige Welle (0,6 s Zeichen je Wort, höchstens 3,5 s). Was der Assistent anbietet, steht unter der Nachricht: Anruf-Karte bei `[ANRUFEN]`, „Mit einem Mitarbeiter schreiben“ bei `[MITARBEITER]`; keine Telefonnummer mehr im Text bei Terminen. Das Formular füllt die Nachricht mit einer KI-Zusammenfassung des Chats. Schein und Glimmrand folgen der Maus ohne Verzögerung; der Glimmrand ist an allen Karten. Der Stern hinter den Glaskarten bricht sich im Glas (Lichtkreuz, klares Glas, Brechung an der Kante, Licht auf den Nachbarkarten).
 30. **Siebte Runde (14.11.2026, Abschnitt 4p):** Ein Logo überall: flach und golden in Kopfleiste, Chat-Kugel und Chat-Kopf; leuchten darf nur noch das große in der Mitte. Kein weißes Licht mehr beim Öffnen des Chats, und die Kugel-Bewegung läuft jetzt ganz auf der Grafikkarte (sieben verschobene Teile statt Eckenradius, Glas-Unschärfe erst am Ende). Die Sprechblase kommt bei jedem Laden wieder. Bei Terminen bietet der Chat immer beide Wege an und duzt überall; das Mitarbeiter-Formular ist immer zu, das Kontaktformular öffnet sich nur mit Angaben aus dem Chat. Der Stern in den Glaskarten ist neu und einfacher: fest in der Mitte der Karte, Strahlen brechen sich am Glasrand und strahlen hinaus, reines Stylesheet. Der Schein des Mauszeigers gehört jetzt zum Zeiger-Bild des Systems. Im Kontakt weist eine Glaszeile mit „Jetzt chatten“ auf den Chat hin. Impressum und Datenschutz haben das neue Design und öffnen sich von der neuen Seite aus als Blatt, damit „Zurück“ an genau dieselbe Stelle führt.
 31. **Achte Runde (15.11.2026, Abschnitt 4q):** Beim Öffnen und Schließen des Chats bewegt sich kein Licht mehr (der Schein in der Form ist weg, das Logo der Kugel blendet nur aus, der Glimmrand kommt erst nach dem Öffnen). Am Handy (am Gerät erkannt, nicht an der Breite): Das Logo am Anfang wackelt nicht und reagiert nicht auf Tippen, der Anrufen-Knopf unten ist weg, „So läuft es ab“ hat keine großen Zahlen, und alles, was für die Maus gedacht ist, fällt weg.
+32. **Neunte Runde (15.11.2026, Abschnitt 4r):** Die Glaskarten zeigen nur noch den kleinen Stern hinter Milchglas (weiche, vorbereitete Bilder), die Schrift der hervorgehobenen Karte wird deutlich heller; Strahlen und Licht auf der Seite sind entfernt. Eine Karte leuchtet erst, wenn sie ganz eingeschwebt ist. Am Handy leuchtet die Karte in der Mitte des Bildschirms, und dort ist wieder alles animiert wie am Computer (Überschriften, Wettlauf, Wörter-Feld, „In drei Schritten“, Leistungen nur die Karte in der Mitte, mit Neustart); weg bleibt nur, was Maus oder Finger auf der Fläche braucht, und der Sprung des Namens. Überschriften springen nirgends mehr (Zwischenwort im Platz des echten Wortes). Am Handy greifen Sparstufen (gröberer Takt der Zeichen, feste Ebenen der Leistungs-Karten).

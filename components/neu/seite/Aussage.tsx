@@ -3,7 +3,7 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { ScrollTrigger } from "@/lib/gsap";
 import { aussage } from "@/lib/inhalt-neu";
-import { HANDY, istVorschau } from "../umgebung";
+import { istVorschau } from "../umgebung";
 import { useBewegungsWechsel } from "./einstellung";
 import { erzeugeSpiel } from "./Entschluesselt";
 import { richteGlaskartenEin } from "./glaskarten";
@@ -14,28 +14,6 @@ const TIPP_ABSTAND = 45;
 const TIPP_FLACKERN = 250;
 // So lange nach dem Start des Wettlaufs schweben die Karten ein (Millisekunden, wie im Stylesheet).
 const KARTEN_AB = 650;
-
-// Je Karte ein eigenes, festes Strahlenbild: die Winkel der Strahlen (Grad, im Uhrzeigersinn ab
-// „nach rechts“). Den Takt je Karte gibt das Stylesheet vor (seite.css: .ag-gk[data-bild]).
-const STRAHLEN = [
-  [-158, -117, -28, 21, 62, 143],
-  [-171, -66, -14, 38, 109, 156],
-  [-139, -43, 8, 74, 127, 168],
-];
-
-/** Ein Strahlenrad: die Strahlen einer Karte, alle von der Mitte aus. Es schwenkt als Ganzes langsam hin und her. */
-function Rad({ winkel, art }: { winkel: number[]; art?: "saum" | "aussen" }) {
-  return (
-    <span className={`ag-gk__rad${art ? ` ag-gk__rad--${art}` : ""}`}>
-      {winkel.map((w, n) => (
-        <i key={w} style={{ "--w": `${w}deg`, "--n": n } as CSSProperties} data-w={w}>
-          {/* Außerhalb der Karte: das abgeknickte Stück ab der Glaskante. */}
-          {art === "aussen" && <b />}
-        </i>
-      ))}
-    </span>
-  );
-}
 
 // Die Symbole der Karten: feine Goldlinien (Strichstärke im Stylesheet).
 const SYMBOLE: Record<string, ReactNode> = {
@@ -92,15 +70,14 @@ function Woerter({ text }: { text: string }) {
  *    kriecht und ist nach 4 s erst zu einem Drittel voll („Wochen“); „Agents Gilt“ in Gold ist nach
  *    0,8 s voll und leuchtet kurz auf („Stunden*“). Keine Zahlen. Darunter steht die Fußnote.
  * 2. Drei Glaskarten schweben nacheinander ein (je 120 ms versetzt). Fährt die Maus auf eine
- *    Karte, taucht in ihrer Mitte hinter dem Glas ein kleiner Stern auf (derselbe wie im
- *    Wörter-Feld darunter); er dreht und wiegt sich leicht, folgt der Maus aber nicht. Seine
- *    Strahlen laufen zum Rand der Karte, brechen sich dort am Glas (ein heller Saum mit einem Hauch
- *    kühler und warmer Farbe) und strahlen leicht abgeknickt hinaus auf die Seite. Jede Karte hat
- *    ihr eigenes, festes Strahlenbild; alles ist reines Stylesheet (nur Verschieben, Drehen,
- *    Deckkraft). Der Text leuchtet unter der Maus warm auf (glaskarten.ts).
+ *    Karte (am Handy: steht sie in der Mitte des Bildschirms), wird sie hervorgehoben: In ihrer
+ *    Mitte erscheint hinter Milchglas ein kleiner Stern (derselbe wie im Wörter-Feld darunter, weich
+ *    und doch gut zu erkennen); er dreht und wiegt sich leicht. Die Glasfläche wird eine Spur
+ *    heller, die Karte hebt sich, ihr Text wird hell. Das geht erst, wenn die Karte ganz
+ *    eingeschwebt ist. Alles reines Stylesheet (nur Verschieben, Drehen, Deckkraft); welches die
+ *    Karte ist, sagt glaskarten.ts. Mit Maus leuchtet der Text auch in ihrer Nähe warm auf.
  *
- * Am Handy (ohne Maus, entschieden am Gerät) tippt sich die Überschrift nicht: Sie blendet beim
- * Hinscrollen ruhig ein, gleich mit „Stunden“, ohne Zufallszeichen; Balken und Karten folgen wie sonst.
+ * Am Handy läuft dasselbe wie am Computer; nur das Verbuggen unter der Maus gibt es dort nicht.
  *
  * Alles nur einmal je Seitenaufruf. Der echte Text steht die ganze Zeit im Dokument. Ohne Skript,
  * bei „weniger Bewegung“ und in der Vorschau steht alles sofort da: der goldene Balken voll, der
@@ -125,35 +102,6 @@ export function Aussage() {
       return;
     }
     const karten = richteGlaskartenEin(reihe);
-    if (window.matchMedia(HANDY).matches) {
-      // Am Handy (ohne Maus): keine Zufallszeichen, kein Tippen. Die Überschrift blendet beim
-      // Hinscrollen ruhig ein (gleich mit „Stunden“), dann laufen die Balken, und die Karten
-      // schweben ein. Auf Antippen reagiert sie nicht.
-      if (lief.current || satz.getBoundingClientRect().bottom < 0) {
-        lief.current = true;
-        karten.zeigen();
-        return () => karten.ende();
-      }
-      el.dataset.an = "1";
-      el.dataset.ruhig = "1";
-      const ruhigWaechter = ScrollTrigger.create({
-        trigger: satz,
-        start: "top 84%",
-        once: true,
-        onEnter: () => {
-          lief.current = true;
-          el.dataset.lauf = "1";
-          karten.zeigen(KARTEN_AB);
-        },
-      });
-      return () => {
-        ruhigWaechter.kill();
-        karten.ende();
-        delete el.dataset.an;
-        delete el.dataset.ruhig;
-        delete el.dataset.lauf;
-      };
-    }
     // Die Überschrift steht: Der Wettlauf läuft los, kurz danach schweben die Karten ein.
     const titel = erzeugeSpiel(satz, () => {
       el.dataset.lauf = "1";
@@ -165,7 +113,7 @@ export function Aussage() {
     if (lief.current || satz.getBoundingClientRect().bottom < 0) {
       lief.current = true;
       titel.stehen();
-      karten.zeigen();
+      karten.zeigen(0, true);
     } else {
       el.dataset.an = "1";
       titel.leeren();
@@ -234,7 +182,7 @@ export function Aussage() {
         </div>
         <p className="ag-fussnote ag-aussage__fussnote">{aussage.fussnote}</p>
 
-        {/* Drei Glaskarten: Hinter jeder wartet unsichtbar ein goldener Stern. */}
+        {/* Drei Glaskarten: Hinter jeder wartet unsichtbar ein goldener Stern hinter Milchglas. */}
         <ul className="ag-gk__reihe">
           {aussage.karten.map((karte, i) => (
             <li key={karte.titel} className="ag-gk" style={{ "--i": i } as CSSProperties} data-bild={i}>
@@ -242,20 +190,11 @@ export function Aussage() {
                 {/* Lichtkante und Rand. Der Rand glimmt unter der Maus (glimmrand.ts); die Werte hängen an
                     diesem Teil ohne Kinder, damit der Browser je Bild nur den Rand neu rechnet. */}
                 <span className="ag-gk__glas" aria-hidden="true" data-glimm />
-                {/* Der Stern in der Mitte der Karte und seine Strahlen bis zum Rand. */}
+                {/* Der Stern in der Mitte der Karte, hinter Milchglas (weich, aber gut zu erkennen). */}
                 <span className="ag-gk__licht" aria-hidden="true">
-                  <Rad winkel={STRAHLEN[i % STRAHLEN.length]} />
                   <span className="ag-gk__stern">
-                    <Leuchtstern klar />
+                    <Leuchtstern milchig />
                   </span>
-                </span>
-                {/* Die Brechung am Glasrand: ein heller Saum genau dort, wo ein Strahl die Kante trifft. */}
-                <span className="ag-gk__saum" aria-hidden="true">
-                  <Rad winkel={STRAHLEN[i % STRAHLEN.length]} art="saum" />
-                </span>
-                {/* Die Strahlen außerhalb der Karte: leicht abgeknickt, auf die Seite hinaus. */}
-                <span className="ag-gk__aussen" aria-hidden="true">
-                  <Rad winkel={STRAHLEN[i % STRAHLEN.length]} art="aussen" />
                 </span>
                 <div className="ag-gk__inhalt">
                   <svg className="ag-gk__symbol" viewBox="0 0 48 48" aria-hidden="true">

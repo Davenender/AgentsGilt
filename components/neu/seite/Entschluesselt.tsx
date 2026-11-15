@@ -8,8 +8,26 @@ import { useBewegungsWechsel } from "./einstellung";
 const ZEICHEN = ["#", "+", "=", "-", ":", ".", "*", "/", "%", "·"];
 // Unter der Maus verbuggen die Buchstaben in diesem Umkreis (Pixel).
 const STOER_UMKREIS = 46;
+/**
+ * Sparstufe am Handy: Die Zeichen bekommen höchstens alle 50 ms ein neues Bild (20-mal je
+ * Sekunde), dazwischen bleibt die Ebene unverändert und kostet nichts. Der Ablauf ist derselbe wie
+ * am Computer (Tippen, Flackern, Einrasten, Zwischenwort), nur in gröberem Takt. Gemessen beim
+ * Scrollen mit 4-fach gebremstem Prozessor: Das Neuzeichnen der Zeichen in jedem Bild kostete
+ * rund ein Viertel der Bildrate.
+ */
+export const SPAR_TAKT_MS = 50;
 
 const zufall = () => ZEICHEN[Math.floor(Math.random() * ZEICHEN.length)];
+
+/**
+ * Setzt den Text eines Zeichens. Steht schon ein Text darin, wird nur dessen Inhalt geändert (statt
+ * ihn zu ersetzen): Dann fügt der Browser keinen neuen Knoten ein und muss weniger neu berechnen.
+ */
+const setzeText = (el: HTMLElement, text: string) => {
+  const knoten = el.firstChild;
+  if (knoten && knoten.nodeType === Node.TEXT_NODE && !knoten.nextSibling) (knoten as Text).data = text;
+  else el.textContent = text;
+};
 
 type Ort = { l: number; t: number; b: number; h: number };
 
@@ -102,6 +120,8 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
   let vorbei = false;
   const uhren: number[] = [];
   const spaeter = (ms: number, was: () => void) => uhren.push(window.setTimeout(was, ms));
+  // Am Handy (ohne Maus) die Sparstufe: ein neues Bild der Zeichen höchstens alle SPAR_TAKT_MS.
+  const takt = window.matchMedia(HANDY).matches ? SPAR_TAKT_MS : 0;
 
   const setzeOrt = (f: Feld, o: Ort) => {
     f.el.style.left = `${o.l}px`;
@@ -121,7 +141,7 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     f.el.style.fontStyle = "";
     f.el.style.textTransform = "";
     f.el.style.color = (zwischen && grundStil ? grundStil : f.stil).color;
-    f.el.textContent = zufall();
+    setzeText(f.el, zufall());
   };
   const zeigeFest = (f: Feld, als: "echt" | "erst") => {
     f.wirr = false;
@@ -137,7 +157,7 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     f.el.style.fontStyle = stil.fontStyle;
     f.el.style.textTransform = stil.textTransform;
     f.el.style.color = stil.color;
-    f.el.textContent = zwischen ? (f.erst ?? "") : f.zeichen;
+    setzeText(f.el, zwischen ? (f.erst ?? "") : f.zeichen);
   };
 
   const abbauen = () => {
@@ -202,8 +222,11 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
       }
     }
     if (!felder.length) return false;
-    // Zwischenwort: Seine Buchstaben stehen in der Schrift des Satzes dicht an dicht, vom linken
-    // Rand der Gruppe an, auf der Zeile des Satzes (gemessen an einem unsichtbaren Probetext).
+    // Zwischenwort: Seine Buchstaben stehen in der Schrift des Satzes dicht an dicht, mittig im
+    // Platz des echten Wortes, auf der Zeile des Satzes (gemessen an einem unsichtbaren Probetext).
+    // Nichts anderes rückt dafür: Jeder übrige Buchstabe bleibt die ganze Zeit an seinem Platz im
+    // fertigen Text (seit dem 15.11.2026; vorher rückte der Rest der Zeile um den Unterschied
+    // zusammen und glitt danach zurück).
     for (const gruppe of gruppen.keys()) {
       const zellen = felder.filter((f) => zuGruppe.get(f) === gruppe);
       const text = (gruppe as HTMLElement).dataset.erst ?? "";
@@ -216,14 +239,10 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
       huelle.append(probe);
       const knoten = probe.firstChild as Text;
       const probeBreite = probe.getBoundingClientRect().width;
-      // Das Zwischenwort ist kürzer oder länger als das echte: Um den Unterschied rückt der Rest
-      // der Zeile zusammen. In mittig gesetztem Text bleibt die Zeile so mittig (alles davor rückt
-      // um die Hälfte nach rechts, alles danach um die Hälfte nach links), sonst rückt nur der Rest nach.
+      // Ist das Zwischenwort kürzer oder länger als das echte, steht es mittig in dessen Platz.
       const letzte = zellen[zellen.length - 1];
       const luecke = letzte.ort.l + letzte.ort.b - zellen[0].ort.l - probeBreite;
-      const mittig = grundStil?.textAlign === "center";
-      const davor = mittig ? luecke / 2 : 0;
-      const danach = mittig ? -luecke / 2 : -luecke;
+      const davor = luecke / 2;
       let stelle = 0;
       let links = 0;
       Array.from(text).forEach((zeichen, nr) => {
@@ -236,11 +255,6 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
         if (zelle) zelle.erstOrt = { l: zellen[0].ort.l + davor + (b.left - links), t: zeile.ort.t, b: b.width, h: zeile.ort.h };
       });
       probe.remove();
-      // Die übrigen Buchstaben derselben Zeile.
-      for (const f of felder) {
-        if (zuGruppe.has(f) || Math.abs(f.y - zeile.y) > zeile.ort.h * 0.5) continue;
-        f.erstOrt = { ...f.ort, l: f.ort.l + (f.x < zellen[0].ort.l ? davor : danach) };
-      }
     }
     orte = felder.map((f) => ({ x: f.x, y: f.y }));
     huelle.append(neu);
@@ -256,6 +270,12 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
   const bild = (jetzt: number) => {
     rahmen = 0;
     if (vorbei || !ebene) return;
+    // Sparstufe: Noch nicht dran, dann bleibt dieses Bild unverändert (kleine Toleranz, damit bei
+    // 60 Bildern je Sekunde jedes dritte Bild zählt).
+    if (takt && zuletzt && jetzt - zuletzt < takt - 4) {
+      rahmen = requestAnimationFrame(bild);
+      return;
+    }
     const dt = zuletzt ? jetzt - zuletzt : 1000 / 60;
     zuletzt = jetzt;
     // Wie oft ein Zufallszeichen wechselt (je Bild, auf 60 Bilder je Sekunde bezogen): beim
@@ -279,7 +299,7 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
         continue;
       }
       offen = true;
-      if (Math.random() < wechsel) f.el.textContent = zufall();
+      if (Math.random() < wechsel) setzeText(f.el, zufall());
     }
     if (!offen) {
       zuletzt = 0;
@@ -308,6 +328,17 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     if (imBild) wecken();
   });
   waechter.observe(huelle);
+  // Weit weg vom Bild (mehr als eine Bildhöhe) wird die Ebene gar nicht erst gezeichnet. Zu sehen
+  // ist sie dort ohnehin nicht, aber die verhüllten Überschriften weiter unten kosteten sonst bei
+  // jedem Bild Zeichenzeit (gemessen am Handy beim Scrollen: rund ein Fünftel der Bildrate).
+  const ferne = new IntersectionObserver(
+    (eintraege) => {
+      if (eintraege[eintraege.length - 1].isIntersecting) delete huelle.dataset.fern;
+      else huelle.dataset.fern = "1";
+    },
+    { rootMargin: "100% 0px" },
+  );
+  ferne.observe(huelle);
   // Ändert sich die Größe (Fensterbreite, nachgeladene Schrift), stimmen die Plätze nicht mehr.
   let breiteZuletzt = huelle.offsetWidth;
   let hoeheZuletzt = huelle.offsetHeight;
@@ -355,8 +386,6 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
     spaeter(dauer + 550, () => {
       if (vorbei) return;
       const zerfall = performance.now();
-      // Der Rest der Zeile gleitet an seinen echten Platz zurück.
-      for (const f of felder) if (f.erst === null && f.erstOrt) setzeOrt(f, f.ort);
       gruppe.forEach((f, i) =>
         spaeter(i * 50, () => {
           if (vorbei || !ebene) return;
@@ -459,9 +488,11 @@ export function erzeugeSpiel(huelle: HTMLElement, beiFertig?: () => void): Buchs
       vorbei = true;
       uhren.forEach((u) => window.clearTimeout(u));
       waechter.disconnect();
+      ferne.disconnect();
       groesse.disconnect();
       abbauen();
       delete huelle.dataset.fertig;
+      delete huelle.dataset.fern;
     },
   };
 }
@@ -480,8 +511,9 @@ type Props = {
  * auch wenn man wieder wegscrollt. Das goldene Schlüsselwort leuchtet danach kurz auf. Fährt die
  * Maus über die Überschrift, verbuggen die Buchstaben in der Nähe kurz und rasten wieder ein.
  * Ohne Skript, bei „weniger Bewegung“ und in der Vorschau steht sie einfach da.
- * Am Handy (ohne Maus, entschieden am Gerät) gibt es keine Zufallszeichen: Die Überschrift blendet
- * beim Hinscrollen ruhig ein und reagiert nicht auf Antippen.
+ * Am Handy läuft dasselbe, in der Sparstufe (neue Zeichen höchstens 20-mal je Sekunde,
+ * SPAR_TAKT_MS); nur das Verbuggen unter der Maus gibt es dort nicht (ein Finger, der tippt, löst
+ * nichts aus).
  */
 export function Entschluesselt({ als: Tag = "h2", className, children, dauer = 900 }: Props) {
   const ref = useRef<HTMLElement>(null);
@@ -498,28 +530,6 @@ export function Entschluesselt({ als: Tag = "h2", className, children, dauer = 9
       // „Weniger Bewegung“: Die Überschrift steht einfach da.
       stand.current = true;
       return;
-    }
-    if (window.matchMedia(HANDY).matches) {
-      // Am Handy (ohne Maus): keine Zufallszeichen. Die Überschrift blendet beim Hinscrollen ruhig
-      // ein (Stylesheet, data-ruhig), einmal je Seitenaufruf, und reagiert nicht auf Antippen.
-      if (stand.current || huelle.getBoundingClientRect().top < window.innerHeight * 0.84) {
-        stand.current = true;
-        return;
-      }
-      el.dataset.ruhig = "wartet";
-      const ruhigWaechter = ScrollTrigger.create({
-        trigger: huelle,
-        start: "top 84%",
-        once: true,
-        onEnter: () => {
-          stand.current = true;
-          el.dataset.ruhig = "da";
-        },
-      });
-      return () => {
-        ruhigWaechter.kill();
-        delete el.dataset.ruhig;
-      };
     }
     const spiel = erzeugeSpiel(huelle, () => {
       stand.current = true;

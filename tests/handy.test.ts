@@ -59,14 +59,42 @@ test("das große Logo am Anfang: wackelt am Handy nicht und reagiert nicht auf A
   assert.match(ohneKommentare(lies("components/neu/seite/FussSchluss.tsx")), /if \(!maus\.matches \|\|/);
 });
 
-test("am Handy: Wörter-Feld ohne Schubs, Ablauf ohne große Zahlen, Überschriften ohne Zufallszeichen", () => {
+test("am Handy ist alles animiert wie am Computer; weg bleibt nur, was Maus oder Finger braucht", () => {
+  // Wörter-Feld: Die Wörter schweben von selbst (Stylesheet), reagieren aber nicht auf den Finger.
   const feld = ohneKommentare(lies("components/neu/seite/Uebergang.tsx"));
-  assert.match(feld, /if \(ruhig\.matches \|\| !fein\.matches\) return;/);
   assert.ok(!feld.includes("pointerdown"));
+  assert.match(feld, /el\.dataset\.treibt = "1"/);
+  const stil = lies("components/neu/seite/seite.css");
+  assert.match(stil, /\.ag-ueber\[data-da\]\[data-treibt\] \.ag-wf__wort \{\s*animation: ag-wf-treiben/);
+  // Ablauf: Lauf und Hervorhebung wie am Computer, nur ohne die große Zahl.
   const ablauf = lies("components/neu/seite/AblaufNummern.tsx");
   assert.match(ablauf, /\{!handy && \(\s*<div className="ag-abn__bild"/);
-  assert.match(lies("components/neu/seite/seite.css"), /@media \(hover: none\), \(pointer: coarse\) \{\s*\.ag-abn__bild \{\s*display: none;/);
-  for (const datei of ["components/neu/seite/Entschluesselt.tsx", "components/neu/seite/Aussage.tsx"]) {
-    assert.match(lies(datei), /window\.matchMedia\(HANDY\)\.matches/, datei);
-  }
+  assert.match(ablauf, /if \(still \|\| !imBild\) return;/);
+  assert.ok(!ablauf.includes("data-handy"));
+  assert.match(stil, /@media \(hover: none\), \(pointer: coarse\) \{\s*\.ag-abn__bild \{\s*display: none;/);
+  // Überschriften: kein Sonderweg mehr am Handy (sie entschlüsseln und tippen sich wie am Computer).
+  // Einziger Unterschied ist die Sparstufe: neue Zeichen höchstens alle 50 ms, sonst derselbe Ablauf.
+  assert.ok(!lies("components/neu/seite/Aussage.tsx").includes("HANDY"));
+  const spielCode = ohneKommentare(lies("components/neu/seite/Entschluesselt.tsx"));
+  assert.match(spielCode, /export const SPAR_TAKT_MS = 50;/);
+  assert.match(spielCode, /const takt = window\.matchMedia\(HANDY\)\.matches \? SPAR_TAKT_MS : 0;/);
+  assert.equal(spielCode.match(/HANDY/g)?.length, 2, "HANDY nur im Import und für den Takt");
+  assert.match(spielCode, /if \(takt && zuletzt && jetzt - zuletzt < takt - 4\) \{\s*rahmen = requestAnimationFrame\(bild\);\s*return;/);
+  assert.ok(!stil.includes("data-ruhig"));
+  // Das Verbuggen unter der Maus bleibt nur mit Maus.
+  assert.match(ohneKommentare(lies("components/neu/seite/Entschluesselt.tsx")), /ev\.pointerType === "mouse"\) spiel\.stoeren/);
+  // Der Name oben bildet sich am Handy ohne den kleinen Sprung danach.
+  assert.match(ohneKommentare(lies("components/neu/kopf/LichtName.tsx")), /if \(maus\) spaeter\.push\(gsap\.delayedCall\(0\.25, feld\.welleMitte\)\);/);
+  // Leistungen: Am Handy spielt die Karte in der Mitte, immer höchstens eine, mit Zurücksetzen.
+  const leistungen = lies("components/neu/seite/Leistungen.tsx");
+  assert.match(leistungen, /meldeMitte\(/);
+  assert.ok(!leistungen.includes("waechter.disconnect();\n        schalte(true)"));
+});
+
+test("Überschriften: Das Zwischenwort steht im Platz des echten Wortes, nichts rückt oder gleitet", () => {
+  const spiel = ohneKommentare(lies("components/neu/seite/Entschluesselt.tsx"));
+  assert.ok(!spiel.includes("danach"), "der Rest der Zeile rückt nicht mehr");
+  assert.ok(!/f\.erstOrt = \{ \.\.\.f\.ort/.test(spiel));
+  const stil = lies("components/neu/seite/seite.css");
+  assert.ok(!/\.ag-wuerfel--satz \.ag-wuerfel__spiel span \{\s*transition:/.test(stil), "die Zeichen gleiten nicht");
 });

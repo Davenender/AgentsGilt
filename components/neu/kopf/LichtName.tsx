@@ -727,10 +727,12 @@ export function LichtName() {
       fliegt = true;
       performance.mark("ag-start:flug");
       // 250 ms nach dem Ende des Flugs läuft einmal von selbst eine Welle aus der Mitte des Namens:
-      // der Hinweis, dass man klicken kann. (War der Kopfbereich beim Start nicht zu sehen, fliegen
-      // die Zeichen erst ein, wenn er ins Bild kommt.)
+      // der Hinweis, dass man klicken kann. Nur mit Maus: Am Handy reagiert der Name nicht auf
+      // Tippen, also gibt es auch den Hinweis nicht; der Name bildet sich und steht dann still
+      // (seit dem 15.11.2026). Die Zeiten des Starts bleiben dieselben. (War der Kopfbereich beim
+      // Start nicht zu sehen, fliegen die Zeichen erst ein, wenn er ins Bild kommt.)
       feld.starten(() => {
-        spaeter.push(gsap.delayedCall(0.25, feld.welleMitte));
+        if (maus) spaeter.push(gsap.delayedCall(0.25, feld.welleMitte));
         // Ist die Welle durch (0,25 s Pause + 1,3 s), ist die Startanimation vorbei: Scrollen ist frei.
         spaeter.push(gsap.delayedCall(WELLE_ENDE, freigeben));
         // Wenn alles steht, wartet das Licht 1 s und dreht sich dann langsam zur Maus.

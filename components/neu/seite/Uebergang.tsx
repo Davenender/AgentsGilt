@@ -50,8 +50,8 @@ type Wort = {
  * gut 150 px), wird weich gebremst und dreht sich leicht (höchstens 6°); die
  * Buchstaben nahe der Maus werden kurz zu Zufallszeichen. Am Rand des Feldes prallen die Wörter
  * weich ab; 8 s nach dem letzten Schubs treiben sie an ihren Platz zurück. Am Handy (ohne Maus)
- * stehen sie nach ihrem Auftritt still und reagieren nicht auf Antippen. Bei „weniger Bewegung“
- * steht alles still.
+ * schweben sie nach ihrem Auftritt ganz langsam von selbst (Stylesheet) und reagieren nicht auf
+ * Antippen. Bei „weniger Bewegung“ steht alles still.
  */
 export function Uebergang() {
   const wurzel = useRef<HTMLElement>(null);
@@ -96,9 +96,21 @@ export function Uebergang() {
     if (!el || istVorschau()) return;
     const ruhig = window.matchMedia("(prefers-reduced-motion: reduce)");
     const fein = window.matchMedia("(hover: hover) and (pointer: fine)");
-    // Am Handy (ohne Maus) stehen die Wörter nach ihrem Auftritt einfach still: kein Treiben, kein
-    // Schubs und keine Zufallszeichen beim Antippen, keine Rechnung je Bild (seit dem 15.11.2026).
-    if (ruhig.matches || !fein.matches) return;
+    if (ruhig.matches) return;
+    if (!fein.matches) {
+      // Am Handy (ohne Maus) schweben die Wörter von selbst, ganz langsam (Stylesheet: je Wort ein
+      // eigener, ruhiger Weg; nur Verschieben und Drehen). Auf den Finger reagieren sie nicht.
+      // Geschwebt wird nur, solange das Feld im Bild ist; es rechnet dafür kein Skript je Bild.
+      const sicht = new IntersectionObserver((eintraege) => {
+        if (eintraege[eintraege.length - 1].isIntersecting) el.dataset.treibt = "1";
+        else delete el.dataset.treibt;
+      });
+      sicht.observe(el);
+      return () => {
+        sicht.disconnect();
+        delete el.dataset.treibt;
+      };
+    }
     const liste = Array.from(el.querySelectorAll<HTMLElement>(".ag-wf__wort"));
     let breite = 1;
     let hoehe = 1;

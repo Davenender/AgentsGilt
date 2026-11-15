@@ -2,19 +2,19 @@
 
 import Image from "next/image";
 import { useEffect, useRef } from "react";
-import kernKlar from "@/public/stern/kern-klar.webp";
+import kernMilch from "@/public/stern/kern-milch.webp";
 import kernBild from "@/public/stern/kern.webp";
-import strahlenKlar1 from "@/public/stern/strahlen-1-klar.webp";
+import strahlenMilch1 from "@/public/stern/strahlen-1-milch.webp";
 import strahlen1 from "@/public/stern/strahlen-1.webp";
 import strahlen2 from "@/public/stern/strahlen-2.webp";
-import strahlenKlar3 from "@/public/stern/strahlen-3-klar.webp";
+import strahlenMilch3 from "@/public/stern/strahlen-3-milch.webp";
 import strahlen3 from "@/public/stern/strahlen-3.webp";
 import strahlen4 from "@/public/stern/strahlen-4.webp";
 import "./leuchtstern.css";
 
 const STRAHLEN = [strahlen1, strahlen2, strahlen3, strahlen4];
-// Die durchsichtigen Fassungen (für den kleinen Stern in den Glaskarten): der Stern und zwei Muster.
-const STRAHLEN_KLAR = [strahlenKlar1, strahlenKlar3];
+// Die weichen Fassungen (für den kleinen Stern hinter Milchglas in den Glaskarten): der Stern und zwei Muster.
+const STRAHLEN_MILCH = [strahlenMilch1, strahlenMilch3];
 // Kantenlänge der Korn-Kachel in Bildpunkten des Bildschirms.
 const KORN_KACHEL = 256;
 
@@ -51,37 +51,6 @@ function kornKachel(): Promise<string | null> {
   return kornAdresse;
 }
 
-let kornKlarAdresse: Promise<string | null> | undefined;
-/**
- * Die Korn-Kachel der durchsichtigen Fassung: feiner Goldstaub mit eigener Deckkraft (rund jeder
- * sechste Bildpunkt blitzt, unterschiedlich hell). Sie wird gewöhnlich über den Stern gelegt, ohne
- * Mischart.
- */
-function kornKachelKlar(): Promise<string | null> {
-  kornKlarAdresse ??= new Promise((fertig) => {
-    try {
-      const flaeche = document.createElement("canvas");
-      flaeche.width = flaeche.height = KORN_KACHEL;
-      const stift = flaeche.getContext("2d");
-      if (!stift) return fertig(null);
-      const bild = stift.createImageData(KORN_KACHEL, KORN_KACHEL);
-      for (let i = 0; i < bild.data.length; i += 4) {
-        const u = Math.random();
-        const t = u < 0.83 ? 0 : (u - 0.83) / 0.17;
-        bild.data[i] = 255;
-        bild.data[i + 1] = 233;
-        bild.data[i + 2] = 180;
-        bild.data[i + 3] = Math.round(255 * t * t);
-      }
-      stift.putImageData(bild, 0, 0);
-      flaeche.toBlob((blob) => fertig(blob ? URL.createObjectURL(blob) : null), "image/png");
-    } catch {
-      fertig(null);
-    }
-  });
-  return kornKlarAdresse;
-}
-
 /**
  * Der leichte Stern (Wörter-Feld und Fuß): Er sieht aus wie der Stern des Logos im Licht, kostet
  * aber fast nichts. Keine Licht-Szene, sondern fünf Bilder, die von der eigenen Szene aufgenommen
@@ -99,12 +68,13 @@ function kornKachelKlar(): Promise<string | null> {
  * Bewegung“ steht der Stern still (mit Korn). Der Platz des Sterns ist das umgebende Element; der
  * Stern füllt die Hälfte davon, die Strahlen reichen bis zum Doppelten.
  *
- * `klar`: die durchsichtige Fassung für den kleinen Stern in den Glaskarten. Derselbe Stern, aber
- * aus Bildern mit eigener Deckkraft (aus denselben Aufnahmen errechnet), ohne schwarzes Feld und
- * ohne Mischart: Auf dem halb durchsichtigen Glas einer Karte stünde das schwarze Feld sonst als
- * dunkle Scheibe da. Zwei Strahlenmuster blenden ineinander, der Goldstaub hat eine eigene Kachel.
+ * `milchig`: die Fassung für den kleinen Stern hinter Milchglas in den Glaskarten. Derselbe Stern,
+ * aber weich (die Unschärfe steckt fest in den Bildern, aus denselben Aufnahmen errechnet; der
+ * Browser rechnet sie nicht je Bild), mit eigener Deckkraft, ohne schwarzes Feld und ohne Mischart
+ * (auf dem halb durchsichtigen Glas stünde das schwarze Feld sonst als dunkle Scheibe da). Zwei
+ * Strahlenmuster blenden ineinander; Goldstaub gibt es hinter Milchglas nicht.
  */
-export function Leuchtstern({ className = "", klar = false }: { className?: string; klar?: boolean }) {
+export function Leuchtstern({ className = "", milchig = false }: { className?: string; milchig?: boolean }) {
   const wurzel = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -112,12 +82,15 @@ export function Leuchtstern({ className = "", klar = false }: { className?: stri
     if (!el) return;
     let vorbei = false;
     // Die Kachel hat die Bildpunkte des Bildschirms: Das Korn ist auf jedem Bildschirm gleich fein.
+    // (Hinter Milchglas gibt es kein Korn.)
     const dichte = () => el.style.setProperty("--korn-mass", `${(KORN_KACHEL / Math.max(1, window.devicePixelRatio || 1)).toFixed(3)}px`);
-    dichte();
-    (klar ? kornKachelKlar() : kornKachel()).then((adresse) => {
-      if (!vorbei && adresse) el.style.setProperty("--korn-bild", `url("${adresse}")`);
-    });
-    window.addEventListener("resize", dichte);
+    if (!milchig) {
+      dichte();
+      kornKachel().then((adresse) => {
+        if (!vorbei && adresse) el.style.setProperty("--korn-bild", `url("${adresse}")`);
+      });
+      window.addEventListener("resize", dichte);
+    }
     // Nur im Bild bewegt sich etwas.
     const sicht = new IntersectionObserver(
       (eintraege) => {
@@ -133,28 +106,30 @@ export function Leuchtstern({ className = "", klar = false }: { className?: stri
       sicht.disconnect();
       delete el.dataset.ruht;
     };
-  }, [klar]);
+  }, [milchig]);
 
-  // Die durchsichtige Fassung lädt erst, wenn sie in die Nähe des Bildes kommt (sie liegt weiter unten).
-  const laden = klar ? "lazy" : "eager";
+  // Die weiche Fassung lädt erst, wenn sie in die Nähe des Bildes kommt (sie liegt weiter unten).
+  const laden = milchig ? "lazy" : "eager";
   return (
-    <span ref={wurzel} className={`ag-stern ${klar ? "ag-stern--klar" : ""} ${className}`.replace(/\s+/g, " ").trim()} aria-hidden="true">
+    <span ref={wurzel} className={`ag-stern ${milchig ? "ag-stern--milchig" : ""} ${className}`.replace(/\s+/g, " ").trim()} aria-hidden="true">
       <span className="ag-stern__feld">
         <span className="ag-stern__dreh">
           <span className="ag-stern__auf">
             <span className="ag-stern__strahlen">
-              {(klar ? STRAHLEN_KLAR : STRAHLEN).map((bild, i) => (
+              {(milchig ? STRAHLEN_MILCH : STRAHLEN).map((bild, i) => (
                 <Image key={i} className="ag-stern__strahl" src={bild} alt="" unoptimized loading={laden} fetchPriority="low" decoding="async" draggable={false} />
               ))}
             </span>
           </span>
           <span className="ag-stern__mitte">
-            <Image className="ag-stern__kern" src={klar ? kernKlar : kernBild} alt="" unoptimized loading={laden} fetchPriority="low" decoding="async" draggable={false} />
+            <Image className="ag-stern__kern" src={milchig ? kernMilch : kernBild} alt="" unoptimized loading={laden} fetchPriority="low" decoding="async" draggable={false} />
           </span>
         </span>
-        <span className="ag-stern__korn">
-          <span className="ag-stern__kachel" />
-        </span>
+        {!milchig && (
+          <span className="ag-stern__korn">
+            <span className="ag-stern__kachel" />
+          </span>
+        )}
       </span>
     </span>
   );

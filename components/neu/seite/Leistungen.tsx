@@ -4,6 +4,7 @@ import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { gsap } from "@/lib/gsap";
 import { leistungen, leistungenKopf, szeneZu, szenen, type Leistung, type SzenenArt } from "@/lib/inhalt-neu";
 import { richteGlimmrandEin } from "../glimmrand";
+import { MITTE_EREIGNIS, meldeMitte } from "../mitte";
 import { AuswahlKnopf, LeistungsZeichen } from "../Leistungsteile";
 import { Zeilen } from "../Zeilen";
 import { istVorschau } from "../umgebung";
@@ -241,18 +242,13 @@ function Karte({ l }: { l: Leistung }) {
         schalte(false, true);
       };
     }
-    // Handy: Die Szene spielt einmal ab, wenn die Karte ins Bild kommt.
-    const waechter = new IntersectionObserver(
-      (eintraege) => {
-        if (!eintraege.some((e) => e.isIntersecting)) return;
-        waechter.disconnect();
-        schalte(true);
-      },
-      { threshold: 0.55 },
-    );
-    waechter.observe(el);
+    // Handy: Die Szene spielt, solange die Karte in der Mitte des Bildschirms steht (immer höchstens
+    // eine Karte, Leistungen meldet es über MITTE_EREIGNIS). Scrollt man weiter, springt sie zurück in
+    // die Ruhe-Lage; kommt man zurück, spielt sie von vorn. Wie mit der Maus von Karte zu Karte.
+    const mitte = (ev: Event) => schalte((ev as CustomEvent<boolean>).detail === true);
+    el.addEventListener(MITTE_EREIGNIS, mitte);
     return () => {
-      waechter.disconnect();
+      el.removeEventListener(MITTE_EREIGNIS, mitte);
       schalte(false, true);
     };
   }, []);
@@ -280,8 +276,8 @@ function Karte({ l }: { l: Leistung }) {
 
 /**
  * Leistungen als sechs Karten. Jede hat oben eine gezeichnete Szene aus mehreren Ebenen, die beim
- * Drüberfahren federnd in ihre zweite Lage springen (am Handy einmal, wenn die Karte ins Bild
- * kommt); Zahlen zählen dabei hoch. Die Nummer der Karte ist ein kleines Zeichen-Bild. Beim
+ * Drüberfahren federnd in ihre zweite Lage springen (am Handy, solange die Karte in der Mitte des
+ * Bildschirms steht); Zahlen zählen dabei hoch. Die Nummer der Karte ist ein kleines Zeichen-Bild. Beim
  * Drüberfahren hebt sich die Karte leicht, und ihr Goldrand glimmt nahe der Maus.
  */
 export function Leistungen() {
@@ -290,6 +286,12 @@ export function Leistungen() {
   useEffect(() => {
     if (!liste.current) return;
     return richteGlimmrandEin(liste.current);
+  }, []);
+  // Handy (ohne Maus): Die Karte in der Mitte des Bildschirms spielt ihre Szene (mitte.ts).
+  useEffect(() => {
+    const el = liste.current;
+    if (!el || istVorschau() || window.matchMedia("(hover: hover) and (pointer: fine)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    return meldeMitte(Array.from(el.querySelectorAll<HTMLElement>(":scope > .ag-lk")));
   }, []);
 
   return (
