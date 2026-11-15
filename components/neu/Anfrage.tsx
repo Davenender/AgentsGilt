@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { services } from "@/lib/content";
-import { PREFILL_CONTACT, type PrefillContactDetail } from "@/lib/events";
+import { uebernimm, type AnfrageFelder } from "@/lib/anfrage-uebernahme";
+import { PREFILL_CONTACT, PREFILL_SPEICHER, type PrefillContactDetail } from "@/lib/events";
 import { kontakt } from "@/lib/inhalt-neu";
 import { antwortAuswerten, NETZ_FEHLER } from "@/lib/kontakt-ablauf";
 import { fehlSatz, istPflichtfeld, meldungGilt, type Pflichtfeld } from "./anfrage-fehlt";
@@ -20,8 +21,13 @@ const SONSTIGES = "Sonstiges";
  * dieselbe Übernahme aus dem Chat und dieselbe Vorauswahl über die Leistungen.
  * Neu ist nur, dass das Formular eingeklappt ist und sich öffnet, sobald eine
  * Leistung gewählt oder etwas aus dem Chat übernommen wird.
+ *
+ * `ausSitzung` (Glaskarte der neuen Seite): Hat der Chat in dieser Sitzung schon Angaben
+ * herausgelesen, stehen sie auch nach einem Neuladen wieder im Formular. Geöffnet wird in beiden
+ * Fällen nur, wenn dabei mindestens ein Feld wirklich gefüllt wurde; hat der Chat nichts
+ * herausgelesen (oder kommt eine leere Übergabe), bleibt das Formular zu.
  */
-function useAnfrage() {
+function useAnfrage(ausSitzung = false) {
   const [offen, setOffen] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
@@ -46,26 +52,45 @@ function useAnfrage() {
     return () => window.removeEventListener("ag:select-service", onSelect as EventListener);
   }, []);
 
-  // Angaben aus dem Chat übernehmen. Nur leere Felder füllen.
+  // Angaben aus dem Chat übernehmen. Nur leere Felder füllen; geöffnet wird nur, wenn dabei
+  // mindestens ein Feld wirklich einen Wert bekommen hat (lib/anfrage-uebernahme.ts).
+  const felder = useRef<AnfrageFelder>({ name, email, company, service, message });
   useEffect(() => {
-    const onPrefill = (e: Event) => {
-      const d = (e as CustomEvent<PrefillContactDetail>).detail;
-      if (!d) return;
-      if (d.name) setName((v) => v || d.name!);
-      if (d.email) setEmail((v) => v || d.email!);
-      if (d.company) setCompany((v) => v || d.company!);
-      if (d.message) setMessage((v) => v || d.message!);
-      // Nur übernehmen, wenn der Wert wirklich in der Auswahl existiert.
-      if (d.service) {
-        const erlaubt = [...services.map((s) => s.title), SONSTIGES];
-        if (erlaubt.includes(d.service)) setService((v) => v || d.service!);
-      }
+    felder.current = { name, email, company, service, message };
+  }, [name, email, company, service, message]);
+  useEffect(() => {
+    const leistungen = [...services.map((s) => s.title), SONSTIGES];
+    const uebernehmen = (angaben: PrefillContactDetail | null | undefined) => {
+      const ergebnis = uebernimm(felder.current, angaben, leistungen);
+      if (!ergebnis.gefuellt) return;
+      felder.current = ergebnis.felder;
+      setName(ergebnis.felder.name);
+      setEmail(ergebnis.felder.email);
+      setCompany(ergebnis.felder.company);
+      setMessage(ergebnis.felder.message);
+      setService(ergebnis.felder.service);
       setPrefilled(true);
       setOffen(true);
     };
+    const onPrefill = (e: Event) => uebernehmen((e as CustomEvent<PrefillContactDetail>).detail);
     window.addEventListener(PREFILL_CONTACT, onPrefill as EventListener);
-    return () => window.removeEventListener(PREFILL_CONTACT, onPrefill as EventListener);
-  }, []);
+    // Was der Chat in dieser Sitzung schon herausgelesen hat, steht auch nach dem Neuladen wieder da.
+    let uhr = 0;
+    if (ausSitzung) {
+      uhr = window.setTimeout(() => {
+        try {
+          const roh = sessionStorage.getItem(PREFILL_SPEICHER);
+          if (roh) uebernehmen(JSON.parse(roh) as PrefillContactDetail);
+        } catch {
+          /* kaputter Eintrag oder Speicher gesperrt: dann eben ohne */
+        }
+      }, 0);
+    }
+    return () => {
+      window.clearTimeout(uhr);
+      window.removeEventListener(PREFILL_CONTACT, onPrefill as EventListener);
+    };
+  }, [ausSitzung]);
 
   async function absenden(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -193,7 +218,7 @@ function useFehlende(an: boolean) {
  * Felder, Prüfung und Senden sind in beiden Fassungen dieselben.
  */
 export function Anfrage({ glas = false }: { glas?: boolean }) {
-  const a = useAnfrage();
+  const a = useAnfrage(glas);
   const id = useId();
   const t = kontakt.formular;
   const sonstiges = a.service === SONSTIGES;

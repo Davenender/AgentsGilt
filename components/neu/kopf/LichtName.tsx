@@ -16,6 +16,7 @@ import {
   START_FERTIG_KLASSE,
   START_FREI,
   START_FREI_KLASSE,
+  VORSTART_KLASSE,
   istVorschau,
   scrollSperre,
   scrollZiel,
@@ -187,6 +188,23 @@ export function LichtName() {
     // früheren Besuch der Seite gilt nicht.
     const KLASSEN = [INTRO_FERTIG_KLASSE, LADEN_FERTIG_KLASSE, START_FERTIG_KLASSE, START_FREI_KLASSE];
     wurzel.classList.remove(...KLASSEN);
+    // Der Stand des Starts (`data-start`, `data-skript`) steht am Kopfbereich und, gleichlautend, an
+    // Kopfleiste, Chat-Knopf und Daumen-Knopf: Das Stylesheet liest ihn dort direkt ab. Früher
+    // suchte es ihn mit `:has()` vom Rand der Seite aus, und der Browser musste dafür bei jedem
+    // wechselnden Zeichen die Seite absuchen. Gesetzt wird nur, wenn sich der Stand ändert.
+    const mitlaeufer = Array.from(document.querySelectorAll<HTMLElement>(".ag-kopf, .ag-chat, .ag-daumen"));
+    const setzeStart = (stand: string) => {
+      held.dataset.start = stand;
+      for (const teil of mitlaeufer) teil.dataset.start = stand;
+    };
+    const setzeSkript = (an: boolean) => {
+      for (const teil of [held, ...mitlaeufer]) {
+        if (an) teil.dataset.skript = "1";
+        else delete teil.dataset.skript;
+      }
+      // Das Skript hat übernommen: Die Sperre des Stylesheets für die Zeit davor gilt nicht mehr.
+      if (an) wurzel.classList.remove(VORSTART_KLASSE);
+    };
     const melden = (ereignis: string, klasse: string) => {
       wurzel.classList.add(klasse);
       window.dispatchEvent(new Event(ereignis));
@@ -203,14 +221,14 @@ export function LichtName() {
     if (!feld) {
       // Die Zeichen lassen sich nicht zeichnen: Dann steht der gewöhnliche Schriftzug da, und alles ist sofort frei.
       held.dataset.ln = "ersatz";
-      held.dataset.start = "fertig";
+      setzeStart("fertig");
       held.dataset.licht = "bild";
       allesGemeldet();
       melden(START_FREI, START_FREI_KLASSE);
       return () => {
         delete held.dataset.ln;
         delete held.dataset.licht;
-        held.dataset.start = "warten";
+        setzeStart("warten");
         wurzel.classList.remove(...KLASSEN);
       };
     }
@@ -690,7 +708,7 @@ export function LichtName() {
       startGelaufen.current = true;
       // Kommt die Szene gar nicht mehr, steht spätestens jetzt das ruhige Bild.
       if (!szene && ohneSzene) bildNachholen();
-      held.dataset.start = "fertig";
+      setzeStart("fertig");
       allesGemeldet();
     };
     // Das Licht ist ganz an: 0,7 s später fliegen die Zeichen los (einmal je Start, gleich womit
@@ -722,7 +740,7 @@ export function LichtName() {
       // Während die Zeichen landen, erscheinen Kopfleiste, „Anrufen“ und Chat-Knopf.
       spaeter.push(
         gsap.delayedCall(LEISTE_NACH, () => {
-          if (!fertig) held.dataset.start = "landen";
+          if (!fertig) setzeStart("landen");
         }),
       );
     };
@@ -797,7 +815,7 @@ export function LichtName() {
       probeAus?.();
       melden(INTRO_FERTIG, INTRO_FERTIG_KLASSE);
       melden(LADEN_FERTIG, LADEN_FERTIG_KLASSE);
-      held.dataset.start = "licht";
+      setzeStart("licht");
       const quelle = lichtQuelle(!!szene, bildBereit());
       if (quelle === "szene") return lichtAuftritt();
       // Kein Licht aus der Szene (kein WebGL, das Laden ist gescheitert, oder sie ist auch nach der
@@ -904,9 +922,9 @@ export function LichtName() {
       stehen();
       freigeben();
     } else {
-      held.dataset.start = "warten";
+      setzeStart("warten");
       // Das Skript läuft: Das Sicherheitsnetz des Stylesheets (Kopfleiste nach 8 s von selbst) gilt nicht mehr.
-      held.dataset.skript = "1";
+      setzeSkript(true);
       held.addEventListener("click", klick);
       if (maus) {
         window.addEventListener("pointermove", zeigerBewegt, { passive: true });
@@ -1000,7 +1018,7 @@ export function LichtName() {
       feld.ende();
       wurzel.classList.remove(...KLASSEN);
       held.style.removeProperty("--licht-deck");
-      held.dataset.start = "warten";
+      setzeStart("warten");
       delete held.dataset.ln;
       delete held.dataset.licht;
       delete held.dataset.lichtwechsel;
@@ -1010,7 +1028,7 @@ export function LichtName() {
       } catch {
         /* dann eben ohne */
       }
-      delete held.dataset.skript;
+      setzeSkript(false);
       delete held.dataset.bildvor;
       delete held.dataset.bildstufen;
       standbild?.style.removeProperty("--bild-r");

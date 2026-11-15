@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { useGSAP } from "@gsap/react";
+import { useRouter } from "next/navigation";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { hero, marke, navigation } from "@/lib/inhalt-neu";
 import { richteGlimmrandEin } from "./glimmrand";
 import { Knopf } from "./Knoepfe";
 import { richteMagnetEin } from "./magnet";
+import { GoldMarke } from "./Marke";
 import { scrollZiel } from "./umgebung";
 import { richteVerwuerfelnEin } from "./verwuerfeln";
 
@@ -16,8 +18,8 @@ gsap.registerPlugin(useGSAP);
  * Schwebende Kopfleiste aus Glas (überall dasselbe: dunkle, fast durchsichtige
  * Fläche, Unschärfe, oben eine helle Lichtkante, weicher Schatten).
  *
- * - Links das kleine Logo, das selbst leuchtet (ein vorgerendertes Bild des
- *   großen Lichts), daneben der Name in Grau.
+ * - Links das kleine Logo, flach und golden (dasselbe wie in der Chat-Kugel und im
+ *   Kopf des Chat-Fensters: GoldMarke), daneben der Name in Grau.
  * - In der Mitte die Navigation: Der feine Goldrand glimmt nur dort auf, wo die
  *   Maus in der Nähe ist (glimmrand.ts). Die Menüpunkte stehen in der Schrift
  *   des Namens. Hinter dem Glas liegt Licht: unter der Maus ein weiches goldenes
@@ -40,7 +42,10 @@ gsap.registerPlugin(useGSAP);
  * springt auf den ersten Menüpunkt, bleibt mit Tab im Menü und kehrt beim
  * Schließen zum Menü-Knopf zurück. Escape schließt.
  */
-export function Kopfleiste() {
+export function Kopfleiste({ basis = "", start }: { basis?: string; start?: string }) {
+  // `start`: Auf Seiten mit Startanimation trägt die Leiste von Anfang an deren Stand (kopf.css).
+  // `basis`: Auf einer Unterseite (Impressum, Datenschutz) die Adresse der neuen Seite. Dann führen
+  // Logo und Menüpunkte dorthin (zu ihren Abschnitten) statt zu Stellen auf dieser Seite.
   const [offen, setOffen] = useState(false);
   const kopf = useRef<HTMLElement>(null);
   const knopf = useRef<HTMLButtonElement>(null);
@@ -118,7 +123,9 @@ export function Kopfleiste() {
     };
     // Aktiv ist der Abschnitt, der gerade die Lesehöhe (55 % des Bildschirms) kreuzt.
     const spuren = links.map((link) => {
-      const abschnitt = document.querySelector<HTMLElement>(link.getAttribute("href") ?? "#-");
+      // Nur Sprungziele auf dieser Seite haben einen Abschnitt (auf Unterseiten keiner).
+      const ziel = link.getAttribute("href") ?? "";
+      const abschnitt = ziel.startsWith("#") ? document.querySelector<HTMLElement>(ziel) : null;
       if (!abschnitt) return null;
       return ScrollTrigger.create({
         trigger: abschnitt,
@@ -288,9 +295,9 @@ export function Kopfleiste() {
 
   return (
     <>
-      <header ref={kopf} className="ag-kopf" data-los="false">
-        <a className="ag-kopf__marke" href="#top" aria-label={`${marke.name}, zum Seitenanfang`} data-wuerfel>
-          <span className="ag-minilicht" aria-hidden="true" />
+      <header ref={kopf} className="ag-kopf" data-los="false" data-start={start}>
+        <a className="ag-kopf__marke" href={basis || "#top"} aria-label={basis ? `${marke.name}, zur Startseite` : `${marke.name}, zum Seitenanfang`} data-wuerfel>
+          <GoldMarke className="ag-kopf__logo" />
           <span className="ag-wuerfel">
             <span className="ag-wuerfel__echt">{marke.name}</span>
           </span>
@@ -300,7 +307,7 @@ export function Kopfleiste() {
         <span className="ag-kopf__licht" aria-hidden="true" />
         <nav ref={leiste} className="ag-kopf__kachel ag-glas ag-glimm" aria-label="Hauptnavigation" data-glimm>
           {navigation.map((n) => (
-            <a key={n.href} href={n.href} data-wuerfel>
+            <a key={n.href} href={`${basis}${n.href}`} data-wuerfel>
               <span className="ag-wuerfel">
                 <span className="ag-wuerfel__echt">{n.label}</span>
               </span>
@@ -308,7 +315,7 @@ export function Kopfleiste() {
           ))}
         </nav>
         <div className="ag-kopf__rechts">
-          <Anruf />
+          <Anruf basis={basis} />
           <button
             ref={knopf}
             type="button"
@@ -329,11 +336,11 @@ export function Kopfleiste() {
         {/* Eigene Kopfzeile, deckungsgleich mit der Kopfleiste: So gehört der Schließen-Knopf zum Dialog. */}
         <div className="ag-menue__kopf">
           <span className="ag-kopf__marke" aria-hidden="true">
-            <span className="ag-minilicht" />
+            <GoldMarke className="ag-kopf__logo" />
             {marke.name}
           </span>
           <div className="ag-kopf__rechts">
-            <Anruf />
+            <Anruf basis={basis} />
             <button type="button" className="ag-kopf__menue ag-menue__zu" aria-label="Menü schließen" onClick={() => schliessen(true)}>
               <span />
               <span />
@@ -345,7 +352,7 @@ export function Kopfleiste() {
             key={n.href}
             className="ag-versal ag-menue__punkt"
             style={{ "--i": i } as CSSProperties}
-            href={n.href}
+            href={`${basis}${n.href}`}
             onClick={() => schliessen(false)}
           >
             {n.label}
@@ -363,12 +370,19 @@ export function Kopfleiste() {
  * Am Computer (Maus) scrollt ein Klick stattdessen weich nach unten zum Kontakt-Bereich
  * („Sprechen wir über Ihr Projekt“), wenn die Seite einen hat; dort stehen Nummer und Formular.
  */
-function Anruf() {
+function Anruf({ basis = "" }: { basis?: string }) {
+  const router = useRouter();
   const zumKontakt = (ev: MouseEvent<HTMLAnchorElement>) => {
     if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
     const ziel = document.getElementById("kontakt");
-    if (!ziel) return;
+    if (!ziel) {
+      // Auf einer Unterseite: zum Kontakt-Bereich der neuen Seite.
+      if (!basis) return;
+      ev.preventDefault();
+      router.push(`${basis}#kontakt`);
+      return;
+    }
     ev.preventDefault();
     scrollZiel.zu(ziel);
   };

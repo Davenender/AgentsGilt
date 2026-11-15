@@ -16,7 +16,7 @@ export type KontaktDienste = {
 
 export type KontaktAntwort = { status: 200; body: { ok: true } } | { status: 502; body: { error: string } };
 
-export const ZUSTELL_FEHLER = "Deine Anfrage konnte gerade nicht zugestellt werden. Bitte ruf uns kurz an oder schreib uns per WhatsApp.";
+export const ZUSTELL_FEHLER = "Deine Anfrage konnte gerade nicht zugestellt werden. Bitte ruf uns kurz an.";
 export const UNBEKANNTER_FEHLER = "Etwas ist schiefgelaufen. Bitte versuch es erneut.";
 export const NETZ_FEHLER = "Verbindung fehlgeschlagen. Bitte versuch es später erneut.";
 

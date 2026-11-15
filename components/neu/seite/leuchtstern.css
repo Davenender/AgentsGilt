@@ -328,6 +328,43 @@
     translate: 25px 24px;
   }
 }
+/* ── Die durchsichtige Fassung (Leuchtstern mit `klar`, in den Glaskarten): Bilder mit eigener
+   Deckkraft, gewöhnlich übereinandergelegt. Kein schwarzes Feld, keine Mischart: Der Stern steht so
+   auch auf halb durchsichtigem Glas richtig da. */
+.ag-stern--klar .ag-stern__feld {
+  background: none;
+  isolation: auto;
+  mix-blend-mode: normal;
+}
+.ag-stern--klar .ag-stern__mitte {
+  mix-blend-mode: normal;
+}
+/* Zwei Strahlenmuster blenden langsam ineinander. */
+.ag-stern--klar .ag-stern__strahl:nth-child(2) {
+  animation: ag-leuchtstern-schimmer-klar 5.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes ag-leuchtstern-schimmer-klar {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Der kleine Stern kommt mit wenigen Animationen aus (jede laufende kostet in jedem Bild der Seite
+   etwas): Der Kern atmet nicht für sich, und der Goldstaub springt in einer Folge statt in zweien. */
+.ag-stern--klar .ag-stern__kern,
+.ag-stern--klar .ag-stern__kachel::before {
+  animation: none;
+}
+/* Der Goldstaub: am Stern dicht, nach außen auslaufend. */
+.ag-stern--klar .ag-stern__korn {
+  opacity: 0.7;
+  mix-blend-mode: normal;
+  -webkit-mask-image: radial-gradient(closest-side, #000 0%, rgba(0, 0, 0, 0.62) 11%, rgba(0, 0, 0, 0.26) 25%, rgba(0, 0, 0, 0.07) 42%, transparent 60%);
+  mask-image: radial-gradient(closest-side, #000 0%, rgba(0, 0, 0, 0.62) 11%, rgba(0, 0, 0, 0.26) 25%, rgba(0, 0, 0, 0.07) 42%, transparent 60%);
+}
+
 /* Nicht im Bild: Alles ruht. */
 .ag-stern[data-ruht] *,
 .ag-stern[data-ruht] *::before {

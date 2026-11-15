@@ -392,19 +392,20 @@
    Daumen verborgen; dann erscheinen sie weich. Sicherheitsnetz: Startet das Skript nicht,
    sind sie nach 8 Sekunden von selbst da. Läuft das Skript (data-skript), gilt das Netz nicht:
    Dann kann der Stern auch länger pulsieren, bis alles bereit ist. */
-.ag-neu:has(.ag-kopf5) :is(.ag-kopf, .ag-chat, .ag-daumen) {
+/* Den Stand des Starts tragen die drei Teile selbst (`data-start`, `data-skript`: von Anfang an
+   aus dem Rahmen, danach von LichtName.tsx gleichlautend zum Kopfbereich gesetzt). Früher suchte
+   das Stylesheet ihn mit `:has()` am Kopfbereich; dafür musste der Browser bei jedem wechselnden
+   Zeichen die ganze Seite absuchen. (`.ag-neu.ag-neu`: dasselbe Gewicht wie die früheren Regeln.) */
+.ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen)[data-start] {
   transition: opacity 0.9s var(--weich);
 }
-.ag-neu:has(.ag-kopf5:is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) {
+.ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen):is([data-start="warten"], [data-start="licht"]) {
   opacity: 0;
   /* Solange sie verborgen sind, nehmen ihre Teile keine Klicks an (welt.css: „pointer-events:
-     var(--ag-klick, auto)“). Der Wert wird hier nur an den drei Behältern gesetzt und vererbt sich.
-     Früher stand an dieser Stelle eine Regel für „alle Kinder“ (> *): Mit ihr rechnete der
-     Browser bei jedem Zeichen, das irgendwo auf der Seite wechselte, alle Elemente der Seite neu
-     (gemessen beim Scrollen: rund ein Drittel der Stil-Arbeit). */
+     var(--ag-klick, auto)“). Der Wert wird hier nur an den drei Behältern gesetzt und vererbt sich. */
   --ag-klick: none;
 }
-.ag-neu:has(.ag-kopf5:not([data-skript]):is([data-start="warten"], [data-start="licht"])) :is(.ag-kopf, .ag-chat, .ag-daumen) {
+.ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen):is([data-start="warten"], [data-start="licht"]):not([data-skript]) {
   animation: ag-start-netz 0.6s 8s forwards;
 }
 @keyframes ag-start-netz {
@@ -413,7 +414,7 @@
   }
 }
 @media (scripting: none) {
-  .ag-neu:has(.ag-kopf5) :is(.ag-kopf, .ag-chat, .ag-daumen) {
+  .ag-neu.ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen)[data-start] {
     opacity: 1;
     animation: none;
   }
@@ -426,7 +427,7 @@
   .ag-ln__stern {
     display: none;
   }
-  .ag-neu:has(.ag-kopf5) :is(.ag-kopf, .ag-chat, .ag-daumen) {
+  .ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen)[data-start] {
     transition-duration: 0.6s !important;
   }
 }

@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useEffect, useRef, type ReactNode } from "react";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
 import { fuss, hero, marke, navigation } from "@/lib/inhalt-neu";
+import { FUSS_ANKER } from "@/lib/neue-seite";
 import { Knopf } from "./Knoepfe";
 import { Kopfleiste } from "./Kopfleiste";
 import { ChatFenster } from "./chat/ChatFenster";
 import { ChatKnopf } from "./ChatKnopf";
 import { Ladebildschirm } from "./Ladebildschirm";
-import { Marke } from "./Marke";
-import { istVorschau, scrollSperre, scrollZiel, willWenigerBewegung } from "./umgebung";
+import { GoldVerlauf, Marke } from "./Marke";
+import { istVorschau, scrollRuhe, scrollSperre, scrollZiel, willWenigerBewegung } from "./umgebung";
 
 /**
  * Weiches Scrollen mit Lenis, im Takt von GSAP, damit ScrollTrigger und Lenis
@@ -76,7 +77,11 @@ function WeichesScrollen() {
       lenis.start();
       ScrollTrigger.refresh();
     });
+    // Liegt ein Blatt über der Seite (Impressum, Datenschutz), ruht das weiche Scrollen so lange:
+    // Die Seite darunter bleibt genau stehen, wo sie ist.
+    scrollRuhe.melde((an) => (an ? lenis.stop() : lenis.start()));
     return () => {
+      scrollRuhe.melde(undefined);
       scrollSperre.melde(undefined);
       scrollZiel.melde(undefined);
       zielAb?.();
@@ -91,8 +96,10 @@ function WeichesScrollen() {
 /**
  * Anrufen-Knopf am Daumen (nur Handy): erscheint, sobald weder eine Anruf-Leiste
  * noch der textfreie Kopfbereich im Bild ist. So bleibt Anrufen immer erreichbar, ohne doppelt zu stehen.
+ * Er blendet aus, solange ein Formular offen ist oder in ein Feld getippt wird (die Tastatur ist
+ * da): Dann verdeckt er nichts.
  */
-function DaumenLeiste() {
+function DaumenLeiste({ start }: { start?: string }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -108,19 +115,48 @@ function DaumenLeiste() {
     });
     // Im textfreien Kopfbereich steht „Anrufen“ in der Kopfleiste: Dort bleibt der Daumen-Knopf weg.
     document.querySelectorAll("main .ag-anruf, .ag-fuss, #top.ag-kopf5").forEach((leiste) => waechter.observe(leiste));
-    return () => waechter.disconnect();
+
+    // Der Knopf weicht, solange er etwas verdecken würde: ein offenes Formular (das
+    // Anfrage-Formular im Kontakt) oder ein Feld, in das gerade getippt wird (dann ist am Handy
+    // die Tastatur da).
+    const tippt = () => !!document.activeElement?.matches?.("input:not([type='checkbox'], [type='radio'], [type='button'], [type='submit']), textarea, select, [contenteditable='true']");
+    const formularOffen = () => !!document.querySelector(".ag-anfrage[data-offen='true']");
+    const sicht = window.visualViewport;
+    const tastatur = () => !!sicht && window.innerHeight - sicht.height > 140;
+    const pruefen = () => {
+      if (tippt() || formularOffen() || tastatur()) el.dataset.weg = "1";
+      else delete el.dataset.weg;
+    };
+    const formulare = new MutationObserver(pruefen);
+    document.querySelectorAll(".ag-anfrage").forEach((f) => formulare.observe(f, { attributes: true, attributeFilter: ["data-offen"] }));
+    document.addEventListener("focusin", pruefen);
+    document.addEventListener("focusout", pruefen);
+    sicht?.addEventListener("resize", pruefen);
+    pruefen();
+    return () => {
+      waechter.disconnect();
+      formulare.disconnect();
+      document.removeEventListener("focusin", pruefen);
+      document.removeEventListener("focusout", pruefen);
+      sicht?.removeEventListener("resize", pruefen);
+    };
   }, []);
 
   return (
-    <div ref={ref} className="ag-daumen" data-da="false">
+    <div ref={ref} className="ag-daumen" data-da="false" data-start={start}>
       <Knopf href={`tel:${marke.telefon}`}>{hero.anrufen}</Knopf>
     </div>
   );
 }
 
-function Fusszeile({ schluss }: { schluss?: ReactNode }) {
+/**
+ * Die Fußleiste. `basis`: Auf einer Unterseite (Impressum, Datenschutz) die Adresse der neuen
+ * Seite; dann führen die Menüpunkte zu ihren Abschnitten dort. `anker`: Das Sprungziel „fuss“
+ * (dorthin führt „Zurück“ von Impressum und Datenschutz) trägt nur die Fußleiste der Seite selbst.
+ */
+export function Fusszeile({ schluss, basis = "", anker = true }: { schluss?: ReactNode; basis?: string; anker?: boolean }) {
   return (
-    <footer className={`ag-fuss ${schluss ? "ag-fuss--schluss" : ""}`}>
+    <footer id={anker ? FUSS_ANKER : undefined} className={`ag-fuss ${schluss ? "ag-fuss--schluss" : ""}`}>
       <div className="ag-wrap ag-fuss__oben">
         <div>
           <div className="ag-fuss__marke">
@@ -132,7 +168,7 @@ function Fusszeile({ schluss }: { schluss?: ReactNode }) {
         <ul className="ag-fuss__spalte" aria-label="Navigation">
           {navigation.map((n) => (
             <li key={n.href}>
-              <a href={n.href}>{n.label}</a>
+              <a href={`${basis}${n.href}`}>{n.label}</a>
             </li>
           ))}
         </ul>
@@ -180,19 +216,43 @@ export function Wortmarke({ className }: { className?: string }) {
  *
  * `start="licht"`: Die Seite hat die neue Startanimation des Kopfbereichs (Stern im Dunkeln, dann
  * Licht, dann Zeichen; kopf/LichtName.tsx). Der alte Ladebildschirm mit den Balken entfällt dann.
+ * Kopfleiste, Chat-Knopf und Daumen-Knopf tragen dann von Anfang an den Stand des Starts
+ * (`data-start="warten"`): Sie bleiben verborgen, bis die Zeichen landen (kopf.css).
+ * `start="ohne"`: keine Startanimation, kein Ladebildschirm (Impressum, Datenschutz).
  * `fussSchluss` ersetzt in der Fußleiste den Riesenschriftzug (die neue Seite endet mit Stern,
  * Namen aus Zeichen und Lichtleiste: seite/FussSchluss.tsx).
+ * `basis`: Unterseiten (Impressum, Datenschutz) nennen hier die Adresse der neuen Seite; Kopf- und
+ * Fußleiste führen dann zu deren Abschnitten.
+ * `daumen={false}`: kein Anrufen-Knopf am Daumen (Impressum, Datenschutz: Dort soll nichts den
+ * Text verdecken; „Anrufen“ steht in der Kopfleiste).
  */
-export function Rahmen({ children, klasse, start = "balken", fussSchluss }: { children: ReactNode; klasse?: string; start?: "balken" | "licht"; fussSchluss?: ReactNode }) {
+export function Rahmen({
+  children,
+  klasse,
+  start = "balken",
+  fussSchluss,
+  basis = "",
+  daumen = true,
+}: {
+  children: ReactNode;
+  klasse?: string;
+  start?: "balken" | "licht" | "ohne";
+  fussSchluss?: ReactNode;
+  basis?: string;
+  daumen?: boolean;
+}) {
+  // Mit der Startanimation beginnen Kopfleiste, Chat-Knopf und Daumen-Knopf im Stand „warten“.
+  const stand = start === "licht" ? "warten" : undefined;
   return (
     <>
       {start === "balken" && <Ladebildschirm />}
+      <GoldVerlauf />
       <WeichesScrollen />
-      <Kopfleiste />
+      <Kopfleiste basis={basis} start={stand} />
       <main className={klasse}>{children}</main>
-      <Fusszeile schluss={fussSchluss} />
-      <DaumenLeiste />
-      <ChatKnopf />
+      <Fusszeile schluss={fussSchluss} basis={basis} />
+      {daumen && <DaumenLeiste start={stand} />}
+      <ChatKnopf start={stand} />
       <ChatFenster />
     </>
   );

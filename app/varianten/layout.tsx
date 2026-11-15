@@ -1,16 +1,5 @@
 import type { Metadata } from "next";
-import { Gloock, JetBrains_Mono, Sofia_Sans, Sofia_Sans_Extra_Condensed } from "next/font/google";
-import "./welt.css";
-
-// Schriften der neuen Welt (nicht Inter): kräftige schmale Großbuchstaben,
-// eine aufrechte Serife für die goldenen Betonungswörter, eine ruhige Grotesk
-// für Fließtext und eine Schreibmaschinen-Schrift nur für Status und Nummern.
-const versal = Sofia_Sans_Extra_Condensed({ subsets: ["latin"], weight: ["800"], variable: "--font-versal", display: "swap" });
-const text = Sofia_Sans({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-text", display: "swap" });
-const serife = Gloock({ subsets: ["latin"], weight: "400", variable: "--font-serife", display: "swap" });
-// JetBrains Mono (ersetzt Cutive Mono): für den Namen aus Zeichen, die fliegenden Zeichen, das
-// Verwürfeln und die kleinen Status-Zeilen.
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono-ag", display: "swap" });
+import { Welt } from "@/components/neu/Welt";
 
 // Die Varianten sind Arbeitsstände zum Vergleichen: nicht für Suchmaschinen.
 export const metadata: Metadata = {
@@ -20,12 +9,13 @@ export const metadata: Metadata = {
 
 export default function VariantenLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`ag-neu ${versal.variable} ${text.variable} ${serife.variable} ${mono.variable}`}>
+    // Schriften und Stylesheet der neuen Welt: components/neu/Welt.tsx.
+    <Welt>
       {/* Ohne JavaScript gibt es keinen Ladebildschirm: Die Seite ist sofort da. */}
       <noscript>
         <style>{".ag-lade{display:none}.ag-ln__standbild{display:block}.ag-ln__stern{display:none}.ag-kopf,.ag-chat,.ag-daumen{opacity:1!important;animation:none!important}.ag-wf__innen{opacity:1!important;transform:none!important;filter:none!important}.ag-schluss .ag-wortmarke{opacity:1!important}.ag-stern__auf{opacity:1!important;scale:1!important}.ag-stern__mitte{scale:1!important}"}</style>
       </noscript>
       {children}
-    </div>
+    </Welt>
   );
 }

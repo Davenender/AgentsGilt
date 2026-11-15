@@ -15,6 +15,11 @@ const FLUG_DAUER = 1.5;
 // Solange die Fußleiste oben unter der Kopfleiste liegt, tritt der Name der Kopfleiste zurück
 // (die Fußleiste nennt ihn selbst): So überlappt ganz unten nichts.
 const FUSS_OBEN = "ag-fuss-oben";
+// Es kann zwei Fußleisten geben: die der Seite und, über ihr, die im Blatt von Impressum und
+// Datenschutz (recht/RechtBlatt.tsx). Es zählt die zuletzt gezeigte; schließt das Blatt, gilt
+// wieder die der Seite.
+const fuesse: { oben: boolean }[] = [];
+const fussObenAnwenden = () => document.documentElement.classList.toggle(FUSS_OBEN, fuesse[fuesse.length - 1]?.oben ?? false);
 
 /**
  * Der Schluss der Seite: Sie endet, wie sie beginnt. Im Dunkeln steht wieder der Stern des Logos
@@ -41,7 +46,8 @@ export function FussSchluss() {
   useEffect(() => {
     const fuss = wurzel.current?.closest<HTMLElement>(".ag-fuss");
     if (!fuss) return;
-    const html = document.documentElement;
+    const ich = { oben: false };
+    fuesse.push(ich);
     let waechter: IntersectionObserver | undefined;
     let hoehe = 0;
     // Beobachtet wird nur der oberste Streifen des Bildes. Sein unterer Rand steht in Pixeln (nicht
@@ -50,9 +56,13 @@ export function FussSchluss() {
       if (window.innerHeight === hoehe) return;
       hoehe = window.innerHeight;
       waechter?.disconnect();
-      waechter = new IntersectionObserver((eintraege) => html.classList.toggle(FUSS_OBEN, eintraege[eintraege.length - 1].isIntersecting), {
-        rootMargin: `0px 0px -${Math.max(0, hoehe - 120)}px 0px`,
-      });
+      waechter = new IntersectionObserver(
+        (eintraege) => {
+          ich.oben = eintraege[eintraege.length - 1].isIntersecting;
+          fussObenAnwenden();
+        },
+        { rootMargin: `0px 0px -${Math.max(0, hoehe - 120)}px 0px` },
+      );
       waechter.observe(fuss);
     };
     anlegen();
@@ -60,7 +70,8 @@ export function FussSchluss() {
     return () => {
       window.removeEventListener("resize", anlegen);
       waechter?.disconnect();
-      html.classList.remove(FUSS_OBEN);
+      fuesse.splice(fuesse.indexOf(ich), 1);
+      fussObenAnwenden();
     };
   }, []);
 

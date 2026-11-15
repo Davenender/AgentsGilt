@@ -293,3 +293,51 @@ test("nach einem Stufenwechsel zählen 30 Messungen nicht, höchstens aber 1,2 s
   assert.equal(schonfristVorbei(3, 1100), false);
   assert.equal(schonfristVorbei(3, 1200), true);
 });
+
+// ── Ruhe: Ein Blatt liegt über der Seite (Impressum, Datenschutz).
+import { scrollRuhe } from "../components/neu/umgebung.ts";
+
+test("liegt ein Blatt über der Seite, ruht das weiche Scrollen, und ein Sprungziel schließt erst das Blatt", () => {
+  const stand: boolean[] = [];
+  const gescrollt: unknown[] = [];
+  const anDasBlatt: unknown[] = [];
+  scrollRuhe.melde((an) => stand.push(an));
+  scrollZiel.melde((ziel) => gescrollt.push(ziel));
+  const kontakt = { isConnected: true, id: "kontakt" } as HTMLElement;
+  try {
+    scrollRuhe.setze(true);
+    scrollRuhe.setze(true);
+    assert.deepEqual(stand, [true], "einmal angehalten, nicht doppelt");
+    // Ohne Blatt, das sich darum kümmert, scrollt die Seite wie gewohnt.
+    scrollZiel.zu(kontakt);
+    assert.deepEqual(gescrollt, [kontakt]);
+    // Das Blatt meldet sich an: Jetzt geht das Ziel an das Blatt (es schließt sich und scrollt danach).
+    scrollRuhe.beiZiel((ziel) => anDasBlatt.push(ziel));
+    scrollZiel.zu(kontakt);
+    assert.deepEqual(anDasBlatt, [kontakt]);
+    assert.equal(gescrollt.length, 1, "die Seite darunter bewegt sich nicht");
+    scrollRuhe.setze(false);
+    assert.deepEqual(stand, [true, false]);
+    // Nach der Ruhe scrollt die Seite wieder selbst.
+    scrollZiel.zu(kontakt);
+    assert.equal(gescrollt.length, 2);
+    assert.equal(anDasBlatt.length, 1);
+  } finally {
+    scrollRuhe.setze(false);
+    scrollRuhe.beiZiel(undefined);
+    scrollRuhe.melde(undefined);
+    scrollZiel.melde(undefined);
+  }
+});
+
+test("wer sich während der Ruhe anmeldet, erfährt sofort davon", () => {
+  const stand: boolean[] = [];
+  try {
+    scrollRuhe.setze(true);
+    scrollRuhe.melde((an) => stand.push(an));
+    assert.deepEqual(stand, [true]);
+  } finally {
+    scrollRuhe.setze(false);
+    scrollRuhe.melde(undefined);
+  }
+});

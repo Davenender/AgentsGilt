@@ -1,12 +1,12 @@
 /* ───────────── Chat-Fenster der neuen Seite (ChatFenster.tsx) ─────────────
    Dunkles Milchglas wie die Kopfleiste, feine Goldkante, weicher Schatten; dahinter ganz schwach
-   der Logo-Stern als Lichtschein. Bewegt wird nur mit Verschieben, Größe, Eckenradius und
-   Deckkraft; nichts läuft, solange das Fenster zu ist.
+   der Logo-Stern als Lichtschein. Nichts läuft, solange das Fenster zu ist.
 
-   Öffnen und Schließen: Das Fenster wird zur Kugel des Chat-Knopfs und wieder zurück. Die Form
-   (.ag-cf__form: Glas und Goldrand) wird dafür verschoben, verkleinert und an den Ecken immer
-   runder, bis sie genau der Chat-Knopf ist; nichts wird abgeschnitten. ChatFenster.tsx setzt die
-   Werte je Bild; Rand, Lichtkante und Unschärfe gleichen die Verkleinerung aus (--rx, --ry). */
+   Öffnen und Schließen: Das Fenster wird zur Kugel des Chat-Knopfs und wieder zurück. Während der
+   Bewegung zeichnet der Browser nichts neu: Die Form (.ag-cf__teile) besteht aus Rechtecken und
+   Kreisen, die nur verschoben und skaliert werden (kugel.ts; Animationen des Browsers auf
+   „transform“ und „opacity“). Das echte Glas mit seiner Unschärfe (.ag-cf__fenster) steht still
+   und blendet erst ein, wenn die Form ihre Größe hat. */
 
 .ag-cf {
   position: fixed;
@@ -35,11 +35,6 @@
 html.ag-menue-offen .ag-cf {
   visibility: hidden;
 }
-/* Solange das Fenster nicht ganz zu ist, zeigt seine Kugel den Chat-Knopf. Der echte Knopf bleibt
-   an seinem Platz (für Fokus und Klick), ist aber durchsichtig. */
-html.ag-cf-an .ag-chat__kugel {
-  opacity: 0;
-}
 .ag-cf__dunkel {
   display: none;
 }
@@ -48,93 +43,76 @@ html.ag-cf-an .ag-chat__kugel {
   inset: 0;
 }
 
-/* ── Die Form: offen das Glasviereck des Fensters, zu die Kugel auf dem Chat-Knopf. */
-.ag-cf__form {
-  --rx: 1;
-  --ry: 1;
-  --fw: 1;
-  --fs: 1;
-  --kd: 64px;
+/* ── Die Form in Bewegung: je sieben Teile für den Goldrand und für die Fläche (drei Rechtecke,
+   vier Kreise). In Ruhe (Fenster offen) ist sie unsichtbar; dann steht das echte Glas da. */
+.ag-cf__teile {
   position: absolute;
   inset: 0;
-  border-radius: 26px;
-  -webkit-backdrop-filter: blur(var(--cf-blur, 18px)) saturate(1.35);
-  backdrop-filter: blur(var(--cf-blur, 18px)) saturate(1.35);
+  opacity: 0;
 }
-/* Mitten in der Bewegung nimmt die Form den Klick an: Er lässt sie zurücklaufen. */
-.ag-cf[data-lauf] .ag-cf__form {
-  cursor: pointer;
-  pointer-events: auto;
+.ag-cf__teil {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100px;
+  height: 100px;
+  /* Das Glas des Fensters über dem dunklen Grund der Seite, als ruhige Fläche. */
+  background: #0a0e1c;
+  transform-origin: 0 0;
   will-change: transform;
 }
-/* Das Glas der Kugel: genau das des Chat-Knopfs (oben fällt mehr Licht ein). */
-.ag-cf__form::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    radial-gradient(ellipse calc(var(--kd) * 0.4775 * var(--rx)) calc(var(--kd) * 0.4775 * var(--ry)) at 50% 14%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 100%),
-    rgba(0, 0, 0, 0.35);
-  opacity: calc(1 - var(--fw));
+.ag-cf__teil--rund {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
 }
-/* Das Glas des Fensters. */
-.ag-cf__glas {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(15, 20, 40, 0.74) 0%, rgba(7, 10, 21, 0.82) 100%);
-  opacity: var(--fw);
+/* Der Goldrand: dieselben Teile, rundum 1 px größer, hinter der Fläche. */
+.ag-cf__teil--rand {
+  background: #57461f;
 }
-/* Der Schatten des Fensters: Er wächst mit der Form. */
-.ag-cf__schatten {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow:
-    0 34px 80px rgba(0, 0, 0, 0.62),
-    0 8px 22px rgba(0, 0, 0, 0.42);
-  opacity: var(--fs);
+/* Mitten in der Bewegung nimmt die Form den Klick an: Er lässt sie zurücklaufen. */
+.ag-cf:is([data-lauf="auf"], [data-lauf="zu"]) .ag-cf__teil {
+  cursor: pointer;
+  pointer-events: auto;
 }
 /* Der goldene Schein, in den sich der Inhalt auflöst und aus dem er wieder wächst. */
 .ag-cf__glut {
   position: absolute;
-  inset: 6%;
+  top: 0;
+  left: 0;
+  width: 200px;
+  height: 200px;
   border-radius: 50%;
   background: radial-gradient(closest-side, rgba(255, 238, 196, 0.5) 0%, rgba(243, 210, 122, 0.28) 30%, rgba(212, 162, 60, 0.1) 62%, rgba(212, 162, 60, 0) 100%);
   opacity: 0;
+  transform-origin: 0 0;
+  will-change: transform, opacity;
 }
-/* Die helle Lichtkante oben. */
-.ag-cf__kante {
+
+/* ── Das ruhende Fenster: echtes Milchglas. Es steht still (nur seine Deckkraft ändert sich). */
+.ag-cf__fenster {
   position: absolute;
   inset: 0;
-  border-top: calc(1px * var(--ry)) solid rgba(255, 255, 255, 0.17);
-  border-radius: inherit;
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(15, 20, 40, 0.74) 0%, rgba(7, 10, 21, 0.82) 100%);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 34px 80px rgba(0, 0, 0, 0.62),
+    0 8px 22px rgba(0, 0, 0, 0.42);
 }
-/* Feine Goldkante, 1 px, auch wenn die Form verkleinert ist: beim Fenster oben links und unten
-   rechts etwas kräftiger, bei der Kugel gleichmäßig wie am Chat-Knopf. Gleitet die Maus um das
-   Fenster, glimmt der Rand dort auf, wo sie am nächsten ist (glimmrand.ts: --gx, --gy, --gn). */
-.ag-cf__form::after {
+/* Feine Goldkante: oben links und unten rechts etwas kräftiger. Gleitet die Maus um das Fenster,
+   glimmt der Rand dort auf, wo sie am nächsten ist (glimmrand.ts: --gx, --gy, --gn). */
+.ag-cf__fenster::after {
   content: "";
   position: absolute;
   inset: 0;
-  padding: calc(1px * var(--ry)) calc(1px * var(--rx));
+  padding: 1px;
   border-radius: inherit;
   background:
-    radial-gradient(
-      ellipse calc(60px * var(--rx)) calc(60px * var(--ry)) at calc(var(--gx, 50%) * var(--rx)) calc(var(--gy, 0px) * var(--ry)),
-      rgba(243, 210, 122, calc(var(--gn, 0) * 0.95)) 0%,
-      rgba(212, 162, 60, calc(var(--gn, 0) * 0.4)) 55%,
-      rgba(212, 162, 60, 0) 100%
-    ),
-    linear-gradient(
-      155deg,
-      rgba(243, 210, 122, calc(0.6 * var(--fw))) 0%,
-      rgba(212, 162, 60, calc(0.14 * var(--fw))) 34%,
-      rgba(212, 162, 60, calc(0.1 * var(--fw))) 64%,
-      rgba(243, 210, 122, calc(0.4 * var(--fw))) 100%
-    ),
-    linear-gradient(rgba(212, 162, 60, calc(0.3 * (1 - var(--fw)))), rgba(212, 162, 60, calc(0.3 * (1 - var(--fw)))));
+    radial-gradient(60px circle at var(--gx, 50%) var(--gy, 0px), rgba(243, 210, 122, calc(var(--gn, 0) * 0.95)) 0%, rgba(212, 162, 60, calc(var(--gn, 0) * 0.4)) 55%, rgba(212, 162, 60, 0) 100%),
+    linear-gradient(155deg, rgba(243, 210, 122, 0.6) 0%, rgba(212, 162, 60, 0.14) 34%, rgba(212, 162, 60, 0.1) 64%, rgba(243, 210, 122, 0.4) 100%);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -145,90 +123,47 @@ html.ag-cf-an .ag-chat__kugel {
   mask-composite: exclude;
   pointer-events: none;
 }
-html.ag-sparsam .ag-cf__glas {
+html.ag-sparsam .ag-cf__fenster {
   background: rgba(6, 9, 18, 0.95);
 }
-html.ag-sparsam .ag-cf__form::before {
-  background: rgba(6, 9, 18, 0.86);
-}
 
-/* ── Was nur zur Kugel gehört: ihr Schatten und ihr Logo. Beides sitzt auf der Mitte der Form. */
-.ag-cf__kugelschatten,
-.ag-cf__kugellogo,
-.ag-cf__punkt {
+/* ── Das Logo in der Kugel: dasselbe flache goldene Logo wie im Chat-Knopf, an derselben Stelle.
+   In Ruhe unsichtbar; während der Bewegung führt es die Zeitleiste (erst der Stern, dann die Balken). */
+.ag-cf__kugellogo {
   position: absolute;
   top: 0;
   left: 0;
+  width: 64px;
+  height: 64px;
+  opacity: 0;
   pointer-events: none;
 }
-.ag-cf__kugelschatten {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
-}
-/* Das Logo in der Kugel. --l läuft von 0 bis 1: erst der Stern, dann die vier Balken nacheinander,
-   zuletzt wird daraus das Licht des Chat-Knopfs (dasselbe Bild, an derselben Stelle). --k: Beim
-   Öffnen zieht sich das Logo zu einem hellen Punkt zusammen. */
-.ag-cf__kugellogo {
-  --l: 1;
-  --k: 0;
-  --licht: clamp(0, calc((var(--l) - 0.72) / 0.28), 1);
-  width: 64px;
-  height: 64px;
-}
-.ag-cf__kugellicht {
-  position: absolute;
-  inset: 7px;
-  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
-  opacity: calc(var(--licht) * 0.92 * (1 - var(--k) * var(--k)));
-  scale: calc(1 - 0.8 * var(--k));
+.ag-cf:is([data-lauf="auf"], [data-lauf="zu"], [data-lauf="da"]) .ag-cf__kugellogo {
+  opacity: 1;
 }
 .ag-cf__kugellogo svg {
   position: absolute;
-  inset: 15px;
+  top: 15px;
+  left: 15px;
   width: 34px;
   height: 34px;
-  opacity: calc((1 - var(--licht)) * (1 - var(--k) * var(--k)));
-  scale: calc(1 - 0.8 * var(--k));
-  filter: drop-shadow(0 0 5px rgba(243, 210, 122, 0.75));
 }
-.ag-cf__kugellogo path {
-  opacity: clamp(0, calc(var(--l) / 0.26), 1);
-}
-.ag-cf__kugellogo polygon:nth-of-type(1) {
-  opacity: clamp(0, calc((var(--l) - 0.22) / 0.14), 1);
-}
-.ag-cf__kugellogo polygon:nth-of-type(2) {
-  opacity: clamp(0, calc((var(--l) - 0.32) / 0.14), 1);
-}
-.ag-cf__kugellogo polygon:nth-of-type(3) {
-  opacity: clamp(0, calc((var(--l) - 0.42) / 0.14), 1);
-}
-.ag-cf__kugellogo polygon:nth-of-type(4) {
-  opacity: clamp(0, calc((var(--l) - 0.52) / 0.14), 1);
-}
-/* Der Lichtpunkt: Aus ihm wächst beim Öffnen das Fenster, er wandert zur Begrüßung und vergeht. */
-.ag-cf__punkt {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(255, 250, 232, 0.95) 0%, rgba(255, 232, 170, 0.6) 14%, rgba(243, 210, 122, 0.22) 40%, rgba(212, 162, 60, 0) 100%);
-  opacity: 0;
-  mix-blend-mode: screen;
+.ag-cf__kugellogo :is(path, polygon) {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
 }
 
-/* Hinter dem Inhalt: ganz schwach der Logo-Stern als Lichtschein. */
+/* Hinter dem Glas: ganz schwach der Logo-Stern als Lichtschein. */
 .ag-cf__schein {
   position: absolute;
   inset: -8% -16%;
   background: url("/kopf/licht-mini.webp") 50% 40% / 92% auto no-repeat;
-  opacity: 0;
+  opacity: 0.42;
   pointer-events: none;
 }
 
-/* Der Inhalt des Fensters (das Glas dahinter ist die Form). Beim Schließen zieht er sich zur
-   Mitte zusammen, wird kleiner und leicht unscharf (ChatFenster.tsx). */
+/* Der Inhalt des Fensters (das Glas dahinter ist .ag-cf__fenster). Beim Schließen zieht er sich
+   zur Mitte zusammen, wird kleiner und leicht unscharf (Zeitleiste in ChatFenster.tsx). */
 .ag-cf__blatt {
   position: absolute;
   inset: 0;
@@ -241,7 +176,7 @@ html.ag-sparsam .ag-cf__form::before {
   pointer-events: auto;
 }
 .ag-cf[data-offen="false"] .ag-cf__blatt,
-.ag-cf[data-lauf] .ag-cf__blatt {
+.ag-cf:is([data-lauf="auf"], [data-lauf="zu"]) .ag-cf__blatt {
   pointer-events: none;
 }
 
@@ -275,8 +210,6 @@ html.ag-sparsam .ag-cf__form::before {
 .ag-cf__logo svg {
   width: 30px;
   height: 30px;
-  overflow: visible;
-  filter: drop-shadow(0 0 5px rgba(243, 210, 122, 0.5));
 }
 .ag-cf__logo :is(path, polygon) {
   transform-box: fill-box;
@@ -1219,8 +1152,8 @@ html.ag-sparsam .ag-cf__form::before {
     inset: -4% -30% auto;
     height: 60%;
   }
-  /* Offen ist das Blatt unten eckig (ChatFenster.tsx rundet es beim Schließen zur Kugel). */
-  .ag-cf__form,
+  /* Offen ist das Blatt unten eckig (beim Schließen rundet es sich zur Kugel: kugel.ts). */
+  .ag-cf__fenster,
   .ag-cf__blatt {
     border-radius: 26px 26px 0 0;
   }
@@ -1278,9 +1211,8 @@ html.ag-sparsam .ag-cf__form::before {
   .ag-cf__dunkel {
     transition: none !important;
   }
-  .ag-cf__kugelschatten,
-  .ag-cf__kugellogo,
-  .ag-cf__punkt {
+  .ag-cf__teile,
+  .ag-cf__kugellogo {
     display: none;
   }
   .ag-cf *,

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useChatZugang } from "@/components/chat/ChatAnbieter";
 import { site } from "@/lib/content";
-import { gsap } from "@/lib/gsap";
 import { hero, kontakt, marke } from "@/lib/inhalt-neu";
 import { Anfrage } from "../Anfrage";
 import { Knopf } from "../Knoepfe";
+import { GoldMarke } from "../Marke";
 import { istVorschau } from "../umgebung";
 import { useBewegungsWechsel } from "./einstellung";
 
@@ -19,9 +20,10 @@ const WINK_KLASSE = "ag-chat-wink";
  * - Hauptsatz, darunter die Anruf-Karte aus Glas: „KI-Assistent bereit“ mit einem grünen Punkt,
  *   der sanft atmet wie ein Statuslicht, daneben die Nummer und der Knopf „Jetzt anrufen“. Hinter
  *   der Karte liegt ein schwacher goldener Schein; unter der Maus wird er etwas heller.
- * - Klein darunter der Hinweis auf den Chat. Fährt die Maus über den Satz, läuft ein feiner
- *   goldener Lichtpunkt zum Chat-Knopf unten rechts, und der leuchtet kurz auf. Der Chat selbst
- *   wird dabei nicht angefasst (nur eine Klasse am <html>, die das Stylesheet auswertet).
+ * - Darunter der Hinweis auf den Chat als schmale Glaszeile: links unser kleines Logo, daneben
+ *   der Satz, rechts der Glasknopf „Jetzt chatten“. Fährt die Maus über den Knopf, leuchtet die
+ *   Chat-Kugel unten rechts kurz auf (nur eine Klasse am <html>, die das Stylesheet auswertet);
+ *   ein Klick öffnet den Chat mit seiner gewöhnlichen Kugel-Animation.
  * - Ganz unten, am kleinsten: „Lieber schreiben?“ als Glaskarte. Ein Klick öffnet das Formular
  *   (Anfrage.tsx; Felder, Prüfung und Senden sind unverändert).
  * - „Per WhatsApp schreiben“ gibt es nur, wenn der Schalter in lib/content.ts an ist (Standard aus).
@@ -38,11 +40,12 @@ export function KontaktBereich({ titel }: { titel: ReactNode }) {
   const rest = teile.join(": ");
   const war = useRef(false);
 
+  const { chat } = useChatZugang();
+  const winkUhr = useRef(0);
+
   useEffect(() => {
     const el = wurzel.current;
-    const satz = el?.querySelector<HTMLElement>(".ag-kon__chat");
-    const funke = el?.querySelector<HTMLElement>(".ag-kon__funke");
-    if (!el || !satz || !funke || istVorschau()) return;
+    if (!el || istVorschau()) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       war.current = true;
       return;
@@ -63,51 +66,30 @@ export function KontaktBereich({ titel }: { titel: ReactNode }) {
       const karten = el.querySelector(".ag-kon__karten");
       if (karten) waechter.observe(karten);
     } else war.current = true;
-
-    // ── Der Lichtpunkt zum Chat-Knopf: nur mit Maus.
-    const html = document.documentElement;
-    let lauf: gsap.core.Timeline | undefined;
-    let uhr = 0;
-    const winken = (ev: PointerEvent) => {
-      if (ev.pointerType !== "mouse" || lauf?.isActive()) return;
-      const knopf = document.querySelector<HTMLElement>(".ag-chat__kugel");
-      const k = knopf?.getBoundingClientRect();
-      // Ist der Chat offen oder der Knopf nicht zu sehen, gibt es nichts zu zeigen.
-      if (!knopf || !k || k.width === 0 || getComputedStyle(knopf).visibility === "hidden") return;
-      const s = satz.getBoundingClientRect();
-      const von = { x: Math.min(s.right, window.innerWidth - 40), y: s.top + s.height / 2 };
-      const zu = { x: k.left + k.width / 2, y: k.top + k.height / 2 };
-      const dauer = Math.min(1.1, Math.max(0.55, Math.hypot(zu.x - von.x, zu.y - von.y) / 1500));
-      lauf = gsap
-        .timeline()
-        .set(funke, { x: von.x, y: von.y, opacity: 0, scale: 0.6 })
-        .to(funke, { opacity: 1, scale: 1, duration: 0.16, ease: "power1.out" }, 0)
-        // Waagerecht gleichmäßig, senkrecht erst spät: ein flacher Bogen zum Knopf.
-        .to(funke, { x: zu.x, duration: dauer, ease: "power1.inOut" }, 0)
-        .to(funke, { y: zu.y, duration: dauer, ease: "power2.in" }, 0)
-        .to(funke, { opacity: 0, scale: 0.4, duration: 0.18, ease: "power1.in" }, dauer - 0.1)
-        .call(
-          () => {
-            html.classList.add(WINK_KLASSE);
-            window.clearTimeout(uhr);
-            uhr = window.setTimeout(() => html.classList.remove(WINK_KLASSE), WINK_DAUER);
-          },
-          undefined,
-          dauer - 0.12,
-        );
-    };
-    satz.addEventListener("pointerenter", winken);
     return () => {
       waechter?.disconnect();
-      satz.removeEventListener("pointerenter", winken);
-      lauf?.kill();
-      window.clearTimeout(uhr);
-      html.classList.remove(WINK_KLASSE);
-      gsap.set(funke, { clearProps: "all" });
       delete el.dataset.an;
       delete el.dataset.da;
     };
   }, [wechsel]);
+  // Der Zeitgeber fürs Aufleuchten endet mit dem Baustein.
+  useEffect(
+    () => () => {
+      window.clearTimeout(winkUhr.current);
+      document.documentElement.classList.remove(WINK_KLASSE);
+    },
+    [],
+  );
+
+  // Die Maus fährt über „Jetzt chatten“: Die Chat-Kugel unten rechts leuchtet kurz auf.
+  const winken = (ev: ReactPointerEvent<HTMLButtonElement>) => {
+    if (ev.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const html = document.documentElement;
+    if (html.classList.contains(WINK_KLASSE)) return;
+    html.classList.add(WINK_KLASSE);
+    window.clearTimeout(winkUhr.current);
+    winkUhr.current = window.setTimeout(() => html.classList.remove(WINK_KLASSE), WINK_DAUER);
+  };
 
   return (
     <div ref={wurzel} className="ag-wrap ag-abschnitt ag-kon">
@@ -145,16 +127,27 @@ export function KontaktBereich({ titel }: { titel: ReactNode }) {
           </div>
         )}
 
-        <p className="ag-kon__teil ag-kon__chat">{kontakt.chatHinweis}</p>
+        {/* Der Hinweis auf den Chat: eine schmale Glaszeile mit Knopf. Ihr Rand glimmt unter der Maus. */}
+        <div className="ag-kon__teil ag-kon__zeile">
+          <span className="ag-kon__glas" aria-hidden="true" data-glimm />
+          <div className="ag-kon__zeile-innen">
+            <GoldMarke className="ag-kon__zeile-logo" />
+            <p className="ag-kon__zeile-text">{kontakt.chatHinweis}</p>
+            <button type="button" className="ag-kon__chatknopf" onClick={chat.openChat} onPointerEnter={winken}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 11.5a7.5 7.5 0 0 1-10.9 6.7L4.5 19.5l1.4-4.2A7.5 7.5 0 1 1 20 11.5Z" />
+                <path d="M9 10.5h6M9 13.5h3.5" />
+              </svg>
+              {kontakt.chatKnopf}
+            </button>
+          </div>
+        </div>
 
         {/* „Lieber schreiben?“: klein, als Glaskarte; ein Klick öffnet das Formular. */}
         <div className="ag-kon__teil ag-kon__schreiben">
           <Anfrage glas />
         </div>
       </div>
-
-      {/* Der Lichtpunkt, der zum Chat-Knopf läuft. */}
-      <span className="ag-kon__funke" aria-hidden="true" />
     </div>
   );
 }

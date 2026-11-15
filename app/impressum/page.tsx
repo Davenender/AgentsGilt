@@ -1,87 +1,18 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { RechtSeite } from "@/components/neu/recht/RechtSeite";
+import { Welt } from "@/components/neu/Welt";
 
 export const metadata: Metadata = {
   title: "Impressum – Agents Gilt",
   robots: { index: false },
 };
 
+// Im Design der neuen Seite (seit 14.11.2026). Der Wortlaut steht unverändert in
+// components/neu/recht/Rechtstexte.tsx.
 export default function ImpressumPage() {
   return (
-    <main className="mx-auto max-w-2xl px-6 py-28">
-      <Link href="/" className="text-sm font-medium text-gold-dark hover:underline">
-        ← Zurück zur Startseite
-      </Link>
-      <h1 className="mt-6 hyphens-auto break-words font-display text-3xl font-extrabold text-ink sm:text-4xl">
-        Impressum
-      </h1>
-
-      <div className="mt-8 space-y-6 text-sm leading-relaxed text-ink-soft">
-        <div>
-          <h2 className="font-display text-lg font-bold text-ink">
-            Angaben gemäß § 5 DDG (Digitale-Dienste-Gesetz)
-          </h2>
-          <p className="mt-3">
-            David Hesse
-            <br />
-            Agents Gilt (Einzelunternehmen)
-            <br />
-            Lämmerspieler Straße 100
-            <br />
-            63165 Mühlheim am Main
-            <br />
-            Deutschland
-          </p>
-        </div>
-
-        <div>
-          <h2 className="font-display text-lg font-bold text-ink">Kontakt</h2>
-          <p className="mt-3">
-            E-Mail: kontakt@agentsgilt.com
-            <br />
-            Telefon: +49 6108 9694027
-          </p>
-        </div>
-
-        <div>
-          <h2 className="font-display text-lg font-bold text-ink">Umsatzsteuer</h2>
-          <p className="mt-3">
-            Als Kleinunternehmer im Sinne von § 19 UStG wird keine Umsatzsteuer
-            ausgewiesen.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="font-display text-lg font-bold text-ink">
-            Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV
-          </h2>
-          <p className="mt-3">
-            David Hesse (Anschrift wie oben)
-          </p>
-        </div>
-
-        <div>
-          <h2 className="font-display text-lg font-bold text-ink">
-            Verbraucherstreitbeilegung
-          </h2>
-          <p className="mt-3">
-            Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren
-            vor einer Verbraucherschlichtungsstelle teilzunehmen.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="font-display text-lg font-bold text-ink">Haftung für Inhalte</h2>
-          <p className="mt-3">
-            Als Diensteanbieter sind wir für eigene Inhalte auf diesen Seiten nach
-            den allgemeinen Gesetzen verantwortlich. Wir sind jedoch nicht
-            verpflichtet, übermittelte oder gespeicherte fremde Informationen zu
-            überwachen. Verpflichtungen zur Entfernung oder Sperrung der Nutzung
-            von Informationen nach den allgemeinen Gesetzen bleiben hiervon
-            unberührt.
-          </p>
-        </div>
-      </div>
-    </main>
+    <Welt>
+      <RechtSeite art="impressum" />
+    </Welt>
   );
 }

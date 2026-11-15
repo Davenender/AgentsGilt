@@ -218,7 +218,9 @@ export const kontakt = {
   // Die neue Seite (seite/KontaktBereich.tsx): Anrufen steht klar im Mittelpunkt.
   haupt: "Rufen Sie uns an: Unser KI-Assistent nimmt sofort ab und macht direkt einen Termin mit Ihnen aus.",
   anrufStatus: "KI-Assistent bereit",
-  chatHinweis: "Kurze Frage? Unser KI-Chat unten rechts antwortet sofort.",
+  // Die schmale Glaszeile über dem Formular: Satz und Knopf (öffnet den Chat).
+  chatHinweis: "Kurze Frage? Unser KI-Chat antwortet sofort, rund um die Uhr.",
+  chatKnopf: "Jetzt chatten",
   whatsapp: "Per WhatsApp schreiben",
   formular: {
     frage: "Lieber schreiben?",
@@ -292,8 +294,8 @@ export const chat = {
     senden: "Senden",
     istKi: "Agents Gilt ist eine KI",
     mitarbeiter: "Mit einem Mitarbeiter schreiben",
-    // Die kleine Zeile zwischen Anruf-Karte und Mitarbeiter-Knopf, wenn der Assistent beides anbietet.
-    weitereFragen: "Für weitere Fragen verbinden wir Sie gern mit einem Mitarbeiter.",
+    // Die kleine Zeile zwischen Anruf-Karte und Mitarbeiter-Knopf (der Chat duzt überall).
+    weitereFragen: "Lieber vorher noch ein paar Fragen klären? Dann verbinden wir dich gern mit einem Mitarbeiter.",
     denkt: "Der Assistent denkt nach",
     mitTeam: "Du schreibst mit unserem Team · Antworten erscheinen hier im Chat",
     anrufen: "Jetzt anrufen",

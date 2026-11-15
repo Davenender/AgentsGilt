@@ -39,6 +39,13 @@ export const START_FERTIG_KLASSE = "ag-start-fertig";
 export const START_FREI = "ag:start-frei";
 export const START_FREI_KLASSE = "ag-start-frei";
 
+/**
+ * „Vor dem Start“: Die Seite hat die Startanimation, ihr Skript läuft aber noch nicht. Die Klasse
+ * setzt ein winziges Skript ganz am Anfang der Seite (app/layout.tsx, nur auf der neuen Seite);
+ * das Stylesheet hält die Seite damit oben, bis das Skript der Startanimation übernimmt (welt.css).
+ */
+export const VORSTART_KLASSE = "ag-vorstart";
+
 /** Gleichbleibende Zufallszahlen, damit Server und Browser dasselbe zeichnen. */
 export function zufall(saat: number) {
   let a = saat >>> 0;
@@ -70,6 +77,8 @@ export const scrollZiel = {
       gemerkt = ziel;
       return;
     }
+    // Liegt ein Blatt über der Seite, schließt es sich erst und scrollt dann dorthin (scrollRuhe).
+    if (ruht && zielInRuhe) return zielInRuhe(ziel);
     if (weichZu) weichZu(ziel);
     else ziel.scrollIntoView({ behavior: willWenigerBewegung() ? "auto" : "smooth", block: "start" });
   },
@@ -123,5 +132,40 @@ export const scrollSperre = {
     if (!ziel.isConnected) return false;
     scrollZiel.zu(ziel);
     return true;
+  },
+};
+
+/**
+ * Ruhe: Über der Seite liegt ein Blatt (Impressum, Datenschutz: recht/RechtBlatt.tsx). Die Seite
+ * darunter scrollt so lange nicht und bleibt genau dort stehen, wo sie ist; anders als bei der
+ * Sperre der Startanimation springt beim Freigeben nichts. Das Stylesheet nimmt ihr den
+ * Scrollbalken und hält sie dabei genau so breit wie zuvor (dafür wird seine Breite hier gemessen
+ * und als --rollbalken mitgegeben: recht.css), das weiche Scrollen (Lenis) meldet sich hier an und
+ * hält so lange an.
+ */
+const RUHE_KLASSE = "ag-seite-ruht";
+let ruht = false;
+let beiRuhe: ((an: boolean) => void) | undefined;
+let zielInRuhe: ((ziel: HTMLElement) => void) | undefined;
+export const scrollRuhe = {
+  /** Was geschieht, wenn in der Ruhe jemand zu einem Ziel der Seite will (das Blatt meldet sich hier an). */
+  beiZiel: (wie: ((ziel: HTMLElement) => void) | undefined) => {
+    zielInRuhe = wie;
+  },
+  melde: (wie: ((an: boolean) => void) | undefined) => {
+    beiRuhe = wie;
+    if (ruht) wie?.(true);
+  },
+  setze: (an: boolean) => {
+    if (an === ruht) return;
+    ruht = an;
+    if (typeof document !== "undefined") {
+      const html = document.documentElement;
+      // So breit ist der Scrollbalken der Seite (0, wo er über dem Inhalt schwebt: Handy, Mac).
+      if (an && typeof window !== "undefined") html.style.setProperty("--rollbalken", `${Math.max(0, window.innerWidth - html.clientWidth)}px`);
+      html.classList.toggle(RUHE_KLASSE, an);
+      if (!an) html.style.removeProperty("--rollbalken");
+    }
+    beiRuhe?.(an);
   },
 };

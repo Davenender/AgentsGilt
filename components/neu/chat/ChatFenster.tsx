@@ -1,44 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useChatZugang } from "@/components/chat/ChatAnbieter";
 import type { ChatZustand } from "@/components/chat/useChat";
 import { holeZusammenfassung } from "@/components/chat/zusammenfassung";
 import { CHAT_ZEICHEN, STARTER_QUESTIONS, ZEICHEN_WECHSEL, reichTeile, wellenPlan, woerter, type Message } from "@/lib/chat-text";
-import { gsap } from "@/lib/gsap";
 import { chat as chatTexte, kontakt, marke } from "@/lib/inhalt-neu";
 import { glimme } from "../glimmrand";
-import { LogoFormen } from "../Marke";
+import { GoldMarke } from "../Marke";
 import { LADEN_FERTIG, LADEN_FERTIG_KLASSE } from "../umgebung";
 import { enthuelleText, richteVerwuerfelnEin } from "../verwuerfeln";
+import { DAUER, KUGEL, PHASEN, SCHLIESSEN, zeitleiste, type Bild, type Masse } from "./kugel";
 import "./chat.css";
 
 const t = chatTexte.fenster;
 const zufall = () => CHAT_ZEICHEN[Math.floor(Math.random() * CHAT_ZEICHEN.length)];
 const klemme = (x: number, von = 0, bis = 1) => Math.min(bis, Math.max(von, x));
-const weich = (x: number) => {
-  const k = klemme(x);
-  return k * k * (3 - 2 * k);
-};
 
-/** Klasse am <html>, solange das Fenster nicht ganz zu ist: Dann zeigt die Kugel des Fensters den Chat-Knopf. */
-const FENSTER_AN = "ag-cf-an";
-/** Eckenradius des offenen Fensters und Durchmesser des Chat-Knopfs (wie im Stylesheet). */
-const ECKE = 26;
-const KUGEL = 64;
+/** Klasse am <html>, solange das Fenster offen steht: Dann ruht der Chat-Knopf (welt.css). */
+const OFFEN_KLASSE = "ag-cf-offen";
 /** So lange leuchtet ein eingerastetes Wort nach, bevor die Antwort gewöhnlicher Text wird (ms). */
 const NACHLEUCHTEN = 520;
 /** So lange wächst die Blase von den drei Punkten auf ihre endgültige Größe (ms). */
 const WACHSEN = 400;
-
-/**
- * Wie weit Öffnen und Schließen gerade sind. Jede Größe läuft für sich von 0 bis 1:
- * f = Form (0 Kugel auf dem Chat-Knopf, 1 Fenster), i = Inhalt (0 aufgelöst, 1 da),
- * l = Logo in der Kugel (0 leer, bis 1 erst der Stern, dann die Balken, zuletzt das Licht des Knopfs),
- * k = das Logo zieht sich zum Lichtpunkt zusammen, p = Helligkeit des Lichtpunkts,
- * q = der Lichtpunkt wandert dorthin, wo die Begrüßung beginnt, h = die Kugel hebt sich an.
- */
-type Lage = { f: number; i: number; l: number; k: number; p: number; q: number; h: number };
 
 /**
  * Das Chat-Fenster der neuen Seite: dunkles Glas, Gold, Zeichen-Effekte.
@@ -51,10 +35,12 @@ type Lage = { f: number; i: number; l: number; k: number; p: number; q: number; 
  * - Öffnen und Schließen: Das Fenster wird zur Kugel und wieder zurück. Beim Schließen verdichtet
  *   sich der Inhalt zu einem goldenen Schein, das Glasviereck schrumpft zur Kugel in der Größe des
  *   Chat-Knopfs (die Ecken werden immer runder, der Goldrand bleibt sichtbar), in der Kugel baut
- *   sich das Logo auf, dann ist sie wieder der Knopf. Öffnen läuft rückwärts: Die Kugel hebt sich,
- *   das Logo wird zum Lichtpunkt, die Kugel dehnt sich zum Fenster, der Inhalt baut sich auf.
- *   Geformt wird nur mit Verschieben, Größe und Eckenradius, nichts wird abgeschnitten. Ein Klick
- *   mitten in der Bewegung lässt sie von der aktuellen Stelle aus zurücklaufen.
+ *   sich das Logo auf, dann ist sie wieder der Knopf. Öffnen ist dieselbe Zeitleiste vorwärts: Die
+ *   Kugel hebt sich, ihr Logo löst sich auf, sie dehnt sich zum Fenster, der Inhalt baut sich auf.
+ *   Während der Bewegung zeichnet der Browser nichts neu: Die Form besteht aus Rechtecken und
+ *   Kreisen, die nur verschoben und skaliert werden (kugel.ts); das echte Glas mit seiner
+ *   Unschärfe blendet erst ein, wenn das Fenster seine Größe hat. Ein Klick mitten in der Bewegung
+ *   dreht nur die Richtung um.
  * - Nachdenken: drei goldene Punkte in einer kleinen Glasblase, solange der Assistent nachdenkt
  *   und solange die Antwort ankommt (man sieht nie halbe Sätze). Ist sie ganz da, wächst die
  *   Blase auf ihre Größe, die Punkte fliegen auseinander und gehen in die Zeichen über.
@@ -97,12 +83,11 @@ export function ChatFenster() {
 
   const wurzel = useRef<HTMLDivElement>(null);
   const rahmen = useRef<HTMLDivElement>(null);
-  const form = useRef<HTMLDivElement>(null);
+  const teile = useRef<HTMLDivElement>(null);
+  const fenster = useRef<HTMLDivElement>(null);
   const glut = useRef<HTMLSpanElement>(null);
   const schein = useRef<HTMLSpanElement>(null);
-  const kugelSchatten = useRef<HTMLSpanElement>(null);
   const kugelLogo = useRef<HTMLSpanElement>(null);
-  const punkt = useRef<HTMLSpanElement>(null);
   const blatt = useRef<HTMLDivElement>(null);
   const liste = useRef<HTMLDivElement>(null);
   const eingabe = useRef<HTMLTextAreaElement>(null);
@@ -128,114 +113,161 @@ export function ChatFenster() {
   const zeigeVorschlaege = alt !== null && chat.messages.length === 1 && !chat.streaming;
 
   // ───────────── Öffnen und Schließen: das Fenster wird zur Kugel ─────────────
-  const lage = useRef<Lage>({ f: 0, i: 0, l: 1, k: 0, p: 0, q: 0, h: 0 });
-  const lauf = useRef<gsap.core.Timeline | null>(null);
+  // Eine Zeitleiste (kugel.ts), vorwärts zum Öffnen (1,1 s), rückwärts zum Schließen (0,6 s). Sie
+  // läuft als Animationen des Browsers auf „transform“ und „opacity“: Je Bild rechnet hier kein
+  // Skript, und der Browser zeichnet nichts neu.
+  const lauf = useRef<Animation[]>([]);
   const warOffen = useRef(false);
-  const knopf = useRef<HTMLElement | null>(null);
-  const handy = useRef(false);
   const uhr = useRef(0);
-  // Was `male` zuletzt gesetzt hat (je Teil und Eigenschaft).
-  const gemalt = useRef<Record<string, string>>({});
-
-  /** Zeichnet den Stand von `lage`: erst messen (Rahmen und Chat-Knopf), dann alles setzen. */
-  const male = useCallback(() => {
-    const r = rahmen.current;
-    const fo = form.current;
-    const bl = blatt.current;
-    if (!r || !fo || !bl) return;
-    const s = lage.current;
-    const R = r.getBoundingClientRect();
-    const K = knopf.current?.getBoundingClientRect();
-    const B = Math.max(1, R.width);
-    const H = Math.max(1, R.height);
-    const da = !!K && K.width > 0;
-    // Mitte und Größe des Chat-Knopfs, bezogen auf den Rahmen des Fensters.
-    const d0 = da ? K.width : KUGEL;
-    const kx = da ? K.left + K.width / 2 - R.left : B - 40;
-    const ky = da ? K.top + K.height / 2 - R.top : H - 40;
-
-    const f = s.f;
-    const f01 = klemme(f);
-    // Die Kugel hebt sich beim Öffnen leicht an und wird eine Spur größer.
-    const hebt = s.h * (1 - f01);
-    const d = d0 * (1 + 0.07 * hebt);
-    const breit = d + (B - d) * f;
-    const hoch = d + (H - d) * f;
-    const sx = breit / B;
-    const sy = hoch / H;
-    // Die Mitte wandert von der Mitte des Fensters zur Mitte des Knopfs.
-    const mx = (kx - B / 2) * (1 - f);
-    const my = (ky - 6 * hebt - H / 2) * (1 - f);
-    // Die Ecken werden immer runder: vom Radius des Fensters bis zum Kreis.
-    const ecke = (Math.min(breit, hoch) / 2) * (1 - (1 - ECKE / (Math.min(B, H) / 2)) * f01);
-    // Am Handy ist das offene Blatt unten eckig.
-    const unten = handy.current ? ecke * (1 - weich(f01)) : ecke;
-    const rx = (wert: number) => `${(wert / sx).toFixed(2)}px`;
-    const ry = (wert: number) => `${(wert / sy).toFixed(2)}px`;
-    // Geschrieben wird nur, was sich geändert hat: So rechnet der Browser je Bild nur die Teile
-    // neu, die sich in dieser Phase wirklich bewegen.
-    const alt = gemalt.current;
-    const stil = (el: HTMLElement | null, name: string, wert: string) => {
-      const schluessel = `${el?.className}|${name}`;
-      if (!el || alt[schluessel] === wert) return;
-      alt[schluessel] = wert;
-      if (name.startsWith("--")) el.style.setProperty(name, wert);
-      else el.style[name as "transform" | "borderRadius" | "opacity" | "filter" | "visibility"] = wert;
+  // Rahmen und Chat-Knopf werden gemessen, bevor React das Dokument für das Öffnen oder Schließen
+  // ändert (zu diesem Zeitpunkt muss der Browser dafür nichts neu rechnen). Danach, mit den
+  // Änderungen, wäre dieselbe Messung teuer: Der Browser rechnete den ganzen Chat sofort durch,
+  // mitten im Klick, und die Bewegung begänne später.
+  const vorab = useRef<{ zeit: number; rahmen: DOMRect | null; knopf: DOMRect | null; zugX: number; zugY: number; handy: boolean } | null>(null);
+  useInsertionEffect(() => {
+    const knopf = document.querySelector<HTMLElement>(".ag-chat__kugel");
+    vorab.current = {
+      zeit: performance.now(),
+      rahmen: document.querySelector(".ag-cf__rahmen")?.getBoundingClientRect() ?? null,
+      knopf: knopf?.getBoundingClientRect() ?? null,
+      zugX: parseFloat(knopf?.style.getPropertyValue("--mx") ?? "") || 0,
+      zugY: parseFloat(knopf?.style.getPropertyValue("--my") ?? "") || 0,
+      handy: window.matchMedia("(max-width: 767px)").matches,
     };
-    stil(fo, "transform", `translate3d(${mx.toFixed(2)}px, ${my.toFixed(2)}px, 0) scale(${sx.toFixed(5)}, ${sy.toFixed(5)})`);
-    stil(fo, "borderRadius", `${rx(ecke)} ${rx(ecke)} ${rx(unten)} ${rx(unten)} / ${ry(ecke)} ${ry(ecke)} ${ry(unten)} ${ry(unten)}`);
-    // Rand, Lichtkante und Unschärfe gleichen die Verkleinerung aus: Der Goldrand bleibt 1 px fein.
-    stil(fo, "--rx", (1 / sx).toFixed(4));
-    stil(fo, "--ry", (1 / sy).toFixed(4));
-    stil(fo, "--kd", `${d.toFixed(2)}px`);
-    stil(fo, "--fw", klemme(f * 3).toFixed(3));
-    stil(fo, "--fs", (f01 * f01).toFixed(3));
-    stil(fo, "--cf-blur", `${Math.min(170, (16 + 2 * f01) / Math.sqrt(sx * sy)).toFixed(1)}px`);
-    stil(glut.current, "opacity", ((1 - s.i) * Math.pow(f01, 1.5) * 0.9).toFixed(3));
-
-    // Der Inhalt verdichtet sich zur Mitte, wird kleiner und leicht unscharf.
-    // (Bewusst nur die Deckkraft, nicht „visibility“: Die vererbt sich und ließe den Browser bei
-    // jedem Umschalten den ganzen Inhalt neu durchrechnen. Bedienbar ist der Inhalt ohnehin erst,
-    // wenn er sich aufbaut: Stylesheet, `data-lauf`.)
-    const i = klemme(s.i);
-    stil(bl, "opacity", i.toFixed(3));
-    stil(bl, "transform", i < 0.999 ? `scale(${(0.84 + 0.16 * i).toFixed(4)})` : "");
-    stil(bl, "filter", i > 0.001 && i < 0.999 ? `blur(${((1 - i) * 5).toFixed(2)}px)` : "");
-    stil(schein.current, "opacity", (0.42 * i).toFixed(3));
-
-    // Was nur zur Kugel gehört (ihr Schatten, ihr Logo), sitzt auf der Mitte der Form. Ist die Form
-    // schon ein Stück gewachsen, sind beide unsichtbar und werden nicht mehr mitbewegt.
-    const cx = B / 2 + mx;
-    const cy = H / 2 + my;
-    const anKugel = `translate3d(${(cx - KUGEL / 2).toFixed(2)}px, ${(cy - KUGEL / 2).toFixed(2)}px, 0) scale(${(d / KUGEL).toFixed(4)})`;
-    const schatten = 1 - klemme(f * 4);
-    stil(kugelSchatten.current, "opacity", schatten.toFixed(3));
-    if (schatten > 0) stil(kugelSchatten.current, "transform", anKugel);
-    const logo = 1 - klemme(f * 5);
-    stil(kugelLogo.current, "visibility", logo > 0 ? "" : "hidden");
-    if (logo > 0) {
-      stil(kugelLogo.current, "opacity", logo.toFixed(3));
-      stil(kugelLogo.current, "transform", anKugel);
-      stil(kugelLogo.current, "--l", klemme(s.l).toFixed(3));
-      stil(kugelLogo.current, "--k", klemme(s.k).toFixed(3));
-    }
-    // Der Lichtpunkt wandert von der Kugel dorthin, wo die Begrüßung beginnt.
-    const hell = klemme(s.p);
-    stil(punkt.current, "opacity", hell.toFixed(3));
-    if (hell > 0) {
-      const px = cx + (46 - cx) * s.q;
-      const py = cy + (112 - cy) * s.q;
-      stil(punkt.current, "transform", `translate3d(${(px - 60).toFixed(2)}px, ${(py - 60).toFixed(2)}px, 0) scale(${(0.3 + 0.7 * s.p).toFixed(3)})`);
-    }
-  }, []);
+  }, [offen]);
 
   /** Der Inhalt baut sich auf: Ab jetzt ist das Fenster bedienbar. */
   const aufbau = useCallback(() => {
     const el = wurzel.current;
     if (!el) return;
-    delete el.dataset.lauf;
+    if (el.dataset.lauf) el.dataset.lauf = "da";
     el.dataset.auf = "1";
     setAufNr((n) => n + 1);
+  }, []);
+
+  // Für welche Maße die Zeitleiste angelegt ist, und ob sie nur bereitliegt (siehe `baue`).
+  const angelegt = useRef<{ fuer: string; bereit: boolean } | null>(null);
+  const leerlauf = useRef(0);
+
+  /**
+   * Legt die Zeitleiste neu an: misst dafür einmal den Rahmen und den Chat-Knopf.
+   *
+   * `nurBereit`: Die Zeitleiste liegt nur bereit (sie wirkt noch nicht und hält nichts fest). So wird
+   * sie in einer ruhigen Sekunde angelegt, während das Fenster offen steht; der Klick zum Schließen
+   * muss sie dann nur noch starten. Passen die Maße beim Klick nicht mehr (Fenstergröße geändert,
+   * der Magnet zieht den Knopf), wird sie dort neu angelegt.
+   */
+  const baue = useCallback((nurBereit = false): boolean => {
+    for (const a of lauf.current) a.cancel();
+    lauf.current = [];
+    angelegt.current = null;
+    const r = rahmen.current;
+    const huelle = teile.current;
+    const fe = fenster.current;
+    const bl = blatt.current;
+    if (!r || !huelle || !fe || !bl || typeof bl.animate !== "function") return false;
+    const knopf = document.querySelector<HTMLElement>(".ag-chat__kugel");
+    // Die Maße von eben (vor den Änderungen dieses Klicks gemessen); nur wenn es sie nicht gibt, wird jetzt gemessen.
+    const v = vorab.current && performance.now() - vorab.current.zeit < 250 && vorab.current.rahmen && vorab.current.rahmen.width > 0 ? vorab.current : null;
+    const R = v?.rahmen ?? r.getBoundingClientRect();
+    const K = v ? v.knopf : knopf?.getBoundingClientRect();
+    const da = !!K && K.width > 0;
+    const m: Masse = {
+      b: Math.max(1, R.width),
+      h: Math.max(1, R.height),
+      d: da ? K.width : KUGEL,
+      kx: da ? K.left + K.width / 2 - R.left : R.width - 40,
+      ky: da ? K.top + K.height / 2 - R.top : R.height - 40,
+      handy: v ? v.handy : window.matchMedia("(max-width: 767px)").matches,
+    };
+    // Zieht der Magnet den Knopf gerade zur Maus, sitzt sein Logo etwas versetzt: Das Logo der Kugel beginnt genau dort.
+    const zug = v
+      ? { x: 0.4 * v.zugX, y: 0.4 * v.zugY }
+      : { x: 0.4 * (parseFloat(knopf?.style.getPropertyValue("--mx") ?? "") || 0), y: 0.4 * (parseFloat(knopf?.style.getPropertyValue("--my") ?? "") || 0) };
+    const z = zeitleiste(m, zug);
+    const wahl: KeyframeAnimationOptions = { duration: DAUER, fill: nurBereit ? "none" : "both", easing: "linear" };
+    const neu: Animation[] = [];
+    const spiele = (el: Element | null | undefined, bilder: Bild[] | Keyframe[]) => {
+      if (el) neu.push(el.animate(bilder as Keyframe[], wahl));
+    };
+    const P = PHASEN;
+    // Die Form: sieben Teile für den Goldrand, sieben für die Fläche. Sie deckt erst den Knopf zu
+    // und weicht am Ende dem echten Glas.
+    spiele(huelle, [
+      { offset: 0, opacity: 0 },
+      { offset: P.decken[1], opacity: 1 },
+      { offset: P.teileWeg[0], opacity: 1 },
+      { offset: P.teileWeg[1], opacity: 0 },
+      { offset: 1, opacity: 0 },
+    ]);
+    Array.from(huelle.querySelectorAll<HTMLElement>(".ag-cf__teil")).forEach((el, i) => spiele(el, i < 7 ? z.rand[i] : z.flaeche[i - 7]));
+    spiele(glut.current, z.glut);
+    // Der echte Chat-Knopf: Sobald die Kugel ihn deckt, ist er weg; rückwärts kommt er wieder, bevor sie vergeht.
+    spiele(knopf, [
+      { offset: 0, opacity: 1 },
+      { offset: P.knopfWeg, opacity: 1 },
+      { offset: P.knopfWeg + 0.001, opacity: 0 },
+      { offset: 1, opacity: 0 },
+    ]);
+    // Das Logo in der Kugel: erst gehen die vier Balken nacheinander, dann zieht sich der Stern
+    // zusammen (rückwärts: erst der Stern, dann die vier Balken).
+    const logo = kugelLogo.current;
+    spiele(logo, z.logo);
+    const balken = Array.from(logo?.querySelectorAll("polygon") ?? []);
+    const schritt = (P.balken[1] - P.balken[0] - 0.04) / Math.max(1, balken.length - 1);
+    balken.forEach((el, i) =>
+      spiele(el, [
+        { offset: 0, opacity: 1 },
+        { offset: P.balken[0] + i * schritt, opacity: 1 },
+        { offset: P.balken[0] + i * schritt + 0.04, opacity: 0 },
+        { offset: 1, opacity: 0 },
+      ]),
+    );
+    spiele(logo?.querySelector("path"), [
+      { offset: 0, opacity: 1, transform: "scale(1)" },
+      { offset: P.stern[0], opacity: 1, transform: "scale(1)" },
+      { offset: P.stern[1], opacity: 0, transform: "scale(0.25)" },
+      { offset: 1, opacity: 0, transform: "scale(0.25)" },
+    ]);
+    // Das echte Glas blendet ein, sobald die Form ihre Größe hat: Erst dann rechnet der Browser die Unschärfe.
+    spiele(fe, [
+      { offset: 0, opacity: 0 },
+      { offset: P.glas[0], opacity: 0 },
+      { offset: P.glas[1], opacity: 1 },
+      { offset: 1, opacity: 1 },
+    ]);
+    // Der Inhalt: rückwärts zieht er sich zur Mitte zusammen, wird kleiner und leicht unscharf.
+    spiele(bl, [
+      { offset: 0, opacity: 0, transform: "scale(0.84)", filter: "blur(5px)" },
+      { offset: P.inhalt[0], opacity: 0, transform: "scale(0.84)", filter: "blur(5px)", easing: "cubic-bezier(0.3, 0, 0.3, 1)" },
+      { offset: P.inhalt[1], opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
+      { offset: 1, opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
+    ]);
+    spiele(schein.current, [
+      { offset: 0, opacity: 0 },
+      { offset: P.schein[0], opacity: 0 },
+      { offset: P.schein[1], opacity: 0.42 },
+      { offset: 1, opacity: 0.42 },
+    ]);
+    for (const a of neu) {
+      a.pause();
+      // Nur bereit: hinter dem Ende geparkt, ohne Wirkung auf das stehende Fenster.
+      if (nurBereit) a.currentTime = DAUER + 100;
+    }
+    lauf.current = neu;
+    angelegt.current = { fuer: masseSchluessel(m, zug), bereit: nurBereit };
+    return neu.length > 0;
+  }, []);
+
+  /** Passt die bereitliegende Zeitleiste zu den Maßen von eben (vor diesem Klick gemessen)? */
+  const bereitFuerJetzt = useCallback((): boolean => {
+    const v = vorab.current;
+    const a = angelegt.current;
+    if (!a?.bereit || !lauf.current.length || !v?.rahmen || !v.knopf || performance.now() - v.zeit > 250) return false;
+    const R = v.rahmen;
+    const K = v.knopf;
+    const m: Masse = { b: Math.max(1, R.width), h: Math.max(1, R.height), d: K.width, kx: K.left + K.width / 2 - R.left, ky: K.top + K.height / 2 - R.top, handy: v.handy };
+    return K.width > 0 && masseSchluessel(m, { x: 0.4 * v.zugX, y: 0.4 * v.zugY }) === a.fuer;
   }, []);
 
   useLayoutEffect(() => {
@@ -243,97 +275,95 @@ export function ChatFenster() {
     if (!el || offen === warOffen.current) return;
     warOffen.current = offen;
     const html = document.documentElement;
-    const s = lage.current;
-    knopf.current = document.querySelector<HTMLElement>(".ag-chat__kugel");
-    handy.current = window.matchMedia("(max-width: 767px)").matches;
-    lauf.current?.kill();
-    lauf.current = null;
     window.clearTimeout(uhr.current);
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const leerlaufAus = () => {
+      if (typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(leerlauf.current);
+      window.clearTimeout(leerlauf.current);
+    };
+    leerlaufAus();
+    const loesen = () => {
+      for (const a of lauf.current) a.cancel();
+      lauf.current = [];
+      angelegt.current = null;
+    };
+    // Ganz zu: Das Fenster ist weg, der Chat-Knopf ist wieder er selbst.
     const ganzZu = () => {
+      loesen();
       delete el.dataset.da;
       delete el.dataset.lauf;
-      html.classList.remove(FENSTER_AN);
+      html.classList.remove(OFFEN_KLASSE);
       if (rahmen.current) rahmen.current.style.transform = "";
     };
-
-    if (offen) {
-      delete el.dataset.warm;
-      el.dataset.da = "1";
-      html.classList.add(FENSTER_AN);
-      if (still) {
-        // „Weniger Bewegung“: Das Fenster blendet nur weich ein (Stylesheet), alles steht da.
-        Object.assign(s, { f: 1, i: 1, l: 0, k: 0, p: 0, q: 1, h: 0 });
-        male();
+    // Ganz auf: Ab jetzt gilt das ruhende Fenster des Stylesheets (echtes Glas, Inhalt da).
+    const ganzAuf = () => {
+      html.classList.add(OFFEN_KLASSE);
+      delete el.dataset.lauf;
+      loesen();
+      // In einer ruhigen Sekunde liegt die Zeitleiste für das Schließen schon bereit.
+      const vorbereiten = () => {
+        if (warOffen.current && !lauf.current.length && !el.dataset.lauf) baue(true);
+      };
+      leerlauf.current = typeof window.requestIdleCallback === "function" ? window.requestIdleCallback(vorbereiten, { timeout: 2500 }) : window.setTimeout(vorbereiten, 900);
+    };
+    delete el.dataset.warm;
+    const laeuft = lauf.current.length > 0 && !!el.dataset.lauf;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Liegt die Zeitleiste für das Schließen schon bereit und passen ihre Maße, wird sie nur scharf gestellt.
+    const bereit = !laeuft && !still && !offen && bereitFuerJetzt();
+    if (bereit) {
+      for (const a of lauf.current) a.effect?.updateTiming({ fill: "both" });
+      if (angelegt.current) angelegt.current.bereit = false;
+    }
+    if (!laeuft && !bereit && (still || !baue())) {
+      // „Weniger Bewegung“ (oder ein Browser ohne diese Animationen): Das Fenster blendet nur
+      // weich ein und aus (Stylesheet), alles steht da.
+      loesen();
+      if (offen) {
+        el.dataset.da = "1";
+        html.classList.add(OFFEN_KLASSE);
         uhr.current = window.setTimeout(aufbau, 0);
-        return;
+      } else {
+        delete el.dataset.auf;
+        // Der Chat-Knopf ist sofort wieder da (er bekommt gleich den Fokus zurück), das Fenster blendet aus.
+        html.classList.remove(OFFEN_KLASSE);
+        uhr.current = window.setTimeout(ganzZu, 220);
       }
-      el.dataset.lauf = "auf";
-      // Die Kugel des Fensters sitzt im selben Bild auf dem Chat-Knopf, in dem der verschwindet.
-      male();
-      const tl = gsap.timeline({ onUpdate: male });
-      // 1. Kugel wird Licht: Sie hebt sich leicht, das Logo zieht sich zum hellen Punkt zusammen.
-      tl.to(s, { k: 1, p: 1, h: 1, duration: 0.2 * (1 - s.k) + 0.001, ease: "power2.in" }, 0);
-      tl.set(s, { l: 0 });
-      // 2. Kugel wird Viereck: weich auslaufend, mit einer leichten Feder am Ende.
-      tl.to(s, { f: 1, duration: 0.5 * (0.35 + 0.65 * (1 - klemme(s.f))), ease: "back.out(0.9)" }, ">-0.05");
-      tl.to(s, { h: 0, duration: 0.3, ease: "power1.out" }, "<");
-      tl.to(s, { q: 1, duration: 0.42, ease: "power2.inOut" }, "<0.04");
-      // 3. Der Inhalt baut sich auf (die einzelnen Teile nacheinander: Stylesheet).
-      tl.call(aufbau, undefined, ">-0.06");
-      tl.to(s, { i: 1, duration: 0.3 * (1 - s.i) + 0.001, ease: "power2.out" }, "<");
-      tl.to(s, { p: 0, duration: 0.34, ease: "power1.in" }, "<0.06");
-      lauf.current = tl;
       return;
     }
-
-    delete el.dataset.auf;
-    if (still) {
-      uhr.current = window.setTimeout(() => {
-        Object.assign(s, { f: 0, i: 0, l: 1, k: 0, p: 0, q: 0, h: 0 });
-        ganzZu();
-      }, 220);
-      return;
+    // Frisch angelegt, beginnt die Zeitleiste am passenden Ende; läuft sie schon (ein Klick mitten
+    // in der Bewegung), dreht sie nur um und läuft von der aktuellen Stelle zurück.
+    el.dataset.da = "1";
+    el.dataset.lauf = offen ? "auf" : "zu";
+    if (!offen) {
+      delete el.dataset.auf;
+      html.classList.remove(OFFEN_KLASSE);
     }
-    el.dataset.lauf = "zu";
-    const tl = gsap.timeline({ onUpdate: male, onComplete: ganzZu });
-    // 1. Der Inhalt verdichtet sich und löst sich in einen goldenen Schein auf.
-    const weg = 0.25 * s.i;
-    tl.to(s, { i: 0, duration: weg + 0.001, ease: "power2.in" }, 0);
-    tl.to(s, { k: 0, p: 0, h: 0, q: 0, duration: 0.14, ease: "power1.out" }, 0);
-    // 2. Der Rahmen wird zur Kugel: Er schrumpft von allen Seiten zum Chat-Knopf hin.
-    tl.to(s, { f: 0, duration: 0.36 * (0.3 + 0.7 * klemme(s.f)), ease: "power2.inOut" }, Math.max(0, weg - 0.07));
-    // 3. In der Kugel erscheint das Logo: erst der Stern, dann die vier Balken, dann ist sie der Knopf.
-    tl.to(s, { l: 1, duration: 0.26 * (1 - klemme(s.l)) + 0.001, ease: "none" }, ">-0.2");
-    lauf.current = tl;
-  }, [offen, male, aufbau]);
+    spieleAb(lauf.current, laeuft ? null : offen ? 0 : DAUER, offen ? 1 : -DAUER / SCHLIESSEN);
+    const haupt = lauf.current[0];
+    haupt.onfinish = () => {
+      if (lauf.current[0] !== haupt) return;
+      if (warOffen.current) ganzAuf();
+      else ganzZu();
+    };
+    if (offen) {
+      // Der Inhalt baut sich auf, sobald die Zeitleiste dort ankommt.
+      const bis = PHASEN.inhalt[0] * DAUER - (Number(haupt.currentTime) || 0);
+      if (bis <= 0) aufbau();
+      else uhr.current = window.setTimeout(aufbau, bis);
+    }
+  }, [offen, baue, aufbau, bereitFuerJetzt]);
   // Vorzeichnen: Nach dem Start der Seite, in einer ruhigen Sekunde, steht das Fenster zwei Bilder
   // lang fertig da, aber praktisch unsichtbar (1 % Deckkraft, nicht bedienbar). So hat der Browser
   // Glas, Schatten und Bilder schon einmal gezeichnet, und das erste Öffnen stockt nicht.
   useEffect(() => {
     const el = wurzel.current;
     if (!gebaut || !el || warOffen.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const s = lage.current;
     let leer = 0;
     let bild1 = 0;
     let bild2 = 0;
-    let warm = false;
-    const zurueck = () => {
-      if (!warm) return;
-      warm = false;
-      delete el.dataset.warm;
-      // Hat der Besucher inzwischen geöffnet, gehört die Form schon dem Öffnen.
-      if (warOffen.current || el.dataset.da) return;
-      Object.assign(s, { f: 0, i: 0, l: 1, k: 0, p: 0, q: 0, h: 0 });
-      male();
-    };
+    const zurueck = () => delete el.dataset.warm;
     const zeichnen = () => {
       if (warOffen.current || el.dataset.da) return;
-      warm = true;
-      knopf.current = document.querySelector<HTMLElement>(".ag-chat__kugel");
-      handy.current = window.matchMedia("(max-width: 767px)").matches;
-      Object.assign(s, { f: 1, i: 1, l: 0.5, k: 0, p: 0.6, q: 1, h: 0 });
-      male();
       el.dataset.warm = "1";
       bild1 = requestAnimationFrame(() => (bild2 = requestAnimationFrame(zurueck)));
     };
@@ -350,22 +380,15 @@ export function ChatFenster() {
       cancelAnimationFrame(bild2);
       zurueck();
     };
-  }, [gebaut, male]);
-  // Ändert sich die Größe des Fensters, während es offen ruht, sitzt die Form wieder richtig.
-  useEffect(() => {
-    if (!offen) return;
-    const neu = () => {
-      handy.current = window.matchMedia("(max-width: 767px)").matches;
-      if (!lauf.current?.isActive()) male();
-    };
-    window.addEventListener("resize", neu);
-    return () => window.removeEventListener("resize", neu);
-  }, [offen, male]);
+  }, [gebaut]);
   useEffect(
     () => () => {
-      lauf.current?.kill();
+      for (const a of lauf.current) a.cancel();
+      lauf.current = [];
+      if (typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(leerlauf.current);
+      window.clearTimeout(leerlauf.current);
       window.clearTimeout(uhr.current);
-      document.documentElement.classList.remove(FENSTER_AN);
+      document.documentElement.classList.remove(OFFEN_KLASSE);
     },
     [],
   );
@@ -374,10 +397,20 @@ export function ChatFenster() {
   // nachträglich wächst (die Blase wächst, unter einer Antwort erscheinen Knöpfe, im Ticket ein
   // Hinweis). Hat der Besucher selbst hochgescrollt, bleibt die Liste, wo er sie hingestellt hat.
   const amEnde = useRef(true);
+  const offenZuletzt = useRef(offen);
   useEffect(() => {
     const el = liste.current;
     if (!el) return;
     amEnde.current = true;
+    // Im Klick, der das Fenster öffnet oder schließt, wird nichts gemessen (das hielte die Bewegung
+    // auf): Die Liste rückt im nächsten Bild ans Ende, dort rechnet der Browser ohnehin.
+    if (offenZuletzt.current !== offen) {
+      offenZuletzt.current = offen;
+      const bild = requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+      return () => cancelAnimationFrame(bild);
+    }
     el.scrollTop = el.scrollHeight;
   }, [chat.messages, chat.streaming, chat.handoff, chat.error, offen, begruessungSteht]);
   useEffect(() => {
@@ -401,8 +434,14 @@ export function ChatFenster() {
   // Der Inhalt baut sich auf: Name und Rolle setzen sich aus Zeichen zusammen; am Computer bekommt
   // das Eingabefeld den Fokus (am Handy nicht: Dort schöbe die Tastatur sofort Begrüßung und
   // Vorschläge weg).
+  // Das geschieht nicht schon im Klick (dann ist der Inhalt noch gar nicht zu sehen, und die Arbeit
+  // hielte die Bewegung auf), sondern wenn der Inhalt sich aufbaut (`aufNr` zählt weiter) oder das
+  // Team übernimmt.
+  const kopfStand = useRef({ aufNr: 0, mitTeam });
   useEffect(() => {
     if (!offen || !aufNr) return;
+    if (kopfStand.current.aufNr === aufNr && kopfStand.current.mitTeam === mitTeam) return;
+    kopfStand.current = { aufNr, mitTeam };
     const abbruch: (() => void)[] = [];
     wurzel.current?.querySelectorAll<HTMLElement>(".ag-cf__kopf .ag-wuerfel").forEach((el) => abbruch.push(enthuelleText(el, 520)));
     if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) eingabe.current?.focus({ preventScroll: true });
@@ -412,6 +451,9 @@ export function ChatFenster() {
   // Schließen: Esc, und der Fokus geht zurück zum Chat-Knopf.
   const schliessen = useCallback(() => {
     chat.setOpen(false);
+    // Das Mitarbeiter-Formular ist beim nächsten Öffnen wieder zu: Es geht nur auf, wenn man auf
+    // „Mit einem Mitarbeiter schreiben“ drückt.
+    chat.setHandoff(false);
     window.setTimeout(() => document.querySelector<HTMLElement>(".ag-chat__kugel")?.focus({ preventScroll: true }), 60);
   }, [chat]);
   useEffect(() => {
@@ -424,7 +466,8 @@ export function ChatFenster() {
   }, [offen, schliessen]);
   // Ein Klick mitten in der Bewegung lässt sie von der aktuellen Stelle aus zurücklaufen.
   const umkehren = () => {
-    if (!wurzel.current?.dataset.lauf) return;
+    const stand = wurzel.current?.dataset.lauf;
+    if (stand !== "auf" && stand !== "zu") return;
     if (chat.open) schliessen();
     else chat.openChat();
   };
@@ -437,8 +480,8 @@ export function ChatFenster() {
 
   // Der Rand des Fensters glimmt, wenn die Maus drumherum gleitet (gemeinsame Schleife: glimmrand.ts).
   useEffect(() => {
-    if (!form.current) return;
-    return glimme(form.current);
+    if (!fenster.current) return;
+    return glimme(fenster.current);
   }, []);
 
   // Handy: Das Blatt bleibt im sichtbaren Teil des Bildschirms, also immer über der Tastatur.
@@ -567,24 +610,23 @@ export function ChatFenster() {
     <div ref={wurzel} className="ag-cf" data-offen={offen} data-team={mitTeam} data-lenis-prevent>
       <button type="button" className="ag-cf__dunkel" tabIndex={-1} aria-hidden="true" onClick={schliessen} />
       <div ref={rahmen} className="ag-cf__rahmen">
-        {/* Der Schatten der Kugel (wie der des Chat-Knopfs). */}
-        <span ref={kugelSchatten} className="ag-cf__kugelschatten" aria-hidden="true" />
         {/* Hinter dem Glas: ganz schwach der Logo-Stern als Lichtschein. */}
         <span ref={schein} className="ag-cf__schein" aria-hidden="true" />
-        {/* Die Form: Glas und Goldrand. Sie ist offen das Fenster und zu die Kugel auf dem Chat-Knopf. */}
-        <div ref={form} className="ag-cf__form" data-glimm onClick={umkehren} aria-hidden="true">
-          <span className="ag-cf__schatten" />
-          <span className="ag-cf__glas" />
+        {/* Die Form in Bewegung: Kugel auf dem Chat-Knopf, Fenster und alles dazwischen. Je sieben Teile
+            (drei Rechtecke, vier Kreise) für den Goldrand und für die Fläche; sie werden nur verschoben
+            und skaliert (kugel.ts). In der Mitte der goldene Schein, in den sich der Inhalt auflöst. */}
+        <div ref={teile} className="ag-cf__teile" onClick={umkehren} aria-hidden="true">
+          {TEILE.map((klasse, i) => (
+            <i key={i} className={klasse} />
+          ))}
           <span ref={glut} className="ag-cf__glut" />
-          <span className="ag-cf__kante" />
         </div>
-        {/* In der Kugel: unser Logo (erst der Stern, dann die vier Balken), zuletzt das Licht des Knopfs. */}
+        {/* Das ruhende Fenster: echtes Glas mit Unschärfe, Lichtkante, Goldrand und Schatten. */}
+        <div ref={fenster} className="ag-cf__fenster" data-glimm aria-hidden="true" />
+        {/* In der Kugel: unser Logo, dasselbe wie im Chat-Knopf. */}
         <span ref={kugelLogo} className="ag-cf__kugellogo" aria-hidden="true">
-          <i className="ag-cf__kugellicht" />
-          <GoldLogo kennung="ag-cf-gold-kugel" />
+          <GoldMarke />
         </span>
-        {/* Der Lichtpunkt, zu dem sich das Logo beim Öffnen zusammenzieht. */}
-        <span ref={punkt} className="ag-cf__punkt" aria-hidden="true" />
         <div ref={blatt} className="ag-cf__blatt" role="dialog" aria-label={t.titel} aria-hidden={!offen} inert={!offen}>
           {gebaut && (
             <>
@@ -592,7 +634,7 @@ export function ChatFenster() {
                 <span className="ag-cf__griff" aria-hidden="true" />
                 {/* Unser Logo: der vierzackige Stern mit den vier schrägen Balken, in Gold. */}
                 <span className="ag-cf__logo" aria-hidden="true">
-                  <GoldLogo kennung="ag-cf-gold-kopf" />
+                  <GoldMarke />
                 </span>
                 <span className="ag-cf__wer">
                   <span className="ag-cf__name">
@@ -637,7 +679,8 @@ export function ChatFenster() {
                           setStand((n) => n + 1);
                         }}
                       >
-                        {(m.anrufen || (m.mitarbeiter && mitarbeiterMoeglich)) && <Angebot anrufen={!!m.anrufen} mitarbeiter={!!m.mitarbeiter && mitarbeiterMoeglich} beiMitarbeiter={oeffneTicket} />}
+                        {/* Bei [ANRUFEN] bietet die Anzeige selbst immer beide Wege an, auch wenn der Assistent [MITARBEITER] vergisst. */}
+                        {(m.anrufen || (m.mitarbeiter && mitarbeiterMoeglich)) && <Angebot anrufen={!!m.anrufen} mitarbeiter={(!!m.mitarbeiter || !!m.anrufen) && mitarbeiterMoeglich} beiMitarbeiter={oeffneTicket} />}
                       </AntwortZeile>
                     ),
                   )}
@@ -708,21 +751,25 @@ export function ChatFenster() {
   );
 }
 
-/** Unser Logo in Gold: der vierzackige Stern mit den vier schrägen Balken (Marke.tsx). */
-function GoldLogo({ kennung }: { kennung: string }) {
-  return (
-    <svg viewBox="-50 -50 100 100" fill={`url(#${kennung})`} aria-hidden="true">
-      <defs>
-        <linearGradient id={kennung} gradientUnits="userSpaceOnUse" x1="-46" y1="-46" x2="46" y2="46">
-          <stop offset="0" stopColor="#fff1c4" />
-          <stop offset="0.45" stopColor="#f3d27a" />
-          <stop offset="1" stopColor="#d4a23c" />
-        </linearGradient>
-      </defs>
-      <LogoFormen />
-    </svg>
-  );
+/** Kennzeichnet die Maße, für die eine Zeitleiste angelegt ist (auf halbe Pixel genau). */
+function masseSchluessel(m: Masse, zug: { x: number; y: number }): string {
+  return [m.b, m.h, m.d, m.kx, m.ky, zug.x, zug.y].map((x) => Math.round(x * 2) / 2).join("|") + (m.handy ? "|h" : "");
 }
+
+/**
+ * Spielt die Zeitleiste: ab der Stelle `ab` (Millisekunden) oder, mit `null`, von dort weiter, wo
+ * sie gerade ist; `tempo` 1 heißt vorwärts (öffnen), negativ rückwärts (schließen).
+ */
+function spieleAb(animationen: Animation[], ab: number | null, tempo: number) {
+  for (const a of animationen) {
+    if (ab !== null) a.currentTime = ab;
+    a.playbackRate = tempo;
+    a.play();
+  }
+}
+
+// Die vierzehn Teile der Form (Stylesheet): je drei Rechtecke und vier Kreise, erst der Goldrand, dann die Fläche.
+const TEILE = ["--rand", ""].flatMap((art) => ["", "", "", "--rund", "--rund", "--rund", "--rund"].map((form) => `ag-cf__teil${art ? ` ag-cf__teil${art}` : ""}${form ? ` ag-cf__teil${form}` : ""}`));
 
 /** „Mit einem Mitarbeiter schreiben“: Glasknopf mit Sprechblase. Er führt zum Support-Ticket. */
 function MitarbeiterKnopf({ beiKlick, klein = false, stil }: { beiKlick: () => void; klein?: boolean; stil?: CSSProperties }) {
@@ -770,9 +817,10 @@ function AnrufKarte({ stil }: { stil?: CSSProperties }) {
 }
 
 /**
- * Was der Assistent unter einer Antwort anbietet. Bei [ANRUFEN] die Anruf-Karte, bei [MITARBEITER]
- * der Glasknopf; bei beiden erst die Karte, dann eine kleine Zeile und der Knopf. Es blendet weich
- * ein, nacheinander.
+ * Was unter einer Antwort angeboten wird. Bei [ANRUFEN] die Anruf-Karte und darunter immer die
+ * Zeile „Lieber vorher noch ein paar Fragen klären? …“ mit dem Knopf „Mit einem Mitarbeiter
+ * schreiben“ (einmal, auch wenn der Assistent zusätzlich [MITARBEITER] setzt); bei [MITARBEITER]
+ * allein nur der Knopf. Es blendet weich ein, nacheinander.
  */
 function Angebot({ anrufen, mitarbeiter, beiMitarbeiter }: { anrufen: boolean; mitarbeiter: boolean; beiMitarbeiter: () => void }) {
   const nr = (n: number) => ({ "--n": n }) as CSSProperties;
@@ -1094,8 +1142,11 @@ function Platzhalter({ texte, laeuft }: { texte: readonly string[]; laeuft: bool
     const takt = window.setInterval(() => setNr((n) => n + 1), 3600);
     return () => window.clearInterval(takt);
   }, [laeuft, viele]);
+  // Verbuggt wird nur, wenn die Frage wirklich wechselt (nicht schon im Klick, der das Fenster öffnet).
+  const gezeigt = useRef(0);
   useEffect(() => {
-    if (!laeuft || !viele || nr === 0 || !huelle.current) return;
+    if (!laeuft || !viele || nr === gezeigt.current || !huelle.current) return;
+    gezeigt.current = nr;
     return enthuelleText(huelle.current, 380);
   }, [nr, laeuft, viele]);
   return (

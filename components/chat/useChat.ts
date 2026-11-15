@@ -6,6 +6,7 @@ import {
   INTRO_TYPING_DONE,
   INTRO_TYPING_STARTED,
   PREFILL_CONTACT,
+  PREFILL_SPEICHER,
   type PrefillContactDetail,
 } from "@/lib/events";
 import {
@@ -37,7 +38,7 @@ const STORAGE_DISMISSED = "ag-assistant-dismissed";
 // versehentliches Neuladen. Bewusst sessionStorage: Beim Schließen des Tabs
 // soll nichts zurückbleiben.
 const STORAGE_MESSAGES = "ag-assistant-messages";
-const STORAGE_PREFILL = "ag-assistant-prefill";
+const STORAGE_PREFILL = PREFILL_SPEICHER;
 const MAX_STORED_MESSAGES = 30;
 
 function loadMessages(): Message[] {

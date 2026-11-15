@@ -5,31 +5,34 @@ import { chat } from "@/lib/inhalt-neu";
 import { useChatZugang } from "../chat/ChatAnbieter";
 import { richteGlimmrandEin } from "./glimmrand";
 import { richteMagnetEin } from "./magnet";
+import { GoldMarke } from "./Marke";
 import { LADEN_FERTIG, LADEN_FERTIG_KLASSE } from "./umgebung";
 import { enthuelleText } from "./verwuerfeln";
 
-// Merkt sich für diese Sitzung, dass die Sprechblase geschlossen oder (am Handy) gezeigt wurde.
-const MERKER = "ag-neu-blase-zu";
-// Setzt der Chat selbst, sobald er geöffnet oder sein eigener Hinweis geschlossen wurde. Wird hier nur gelesen.
-const MERKER_CHAT = "ag-assistant-dismissed";
+// Die Sprechblase kommt bei jedem Laden der Seite wieder. Wurde sie weggeklickt, der Chat geöffnet
+// oder (am Handy) einmal gezeigt, bleibt sie bis zum nächsten Neuladen weg: gemerkt nur hier im
+// Speicher der Seite, nicht mehr im Browser.
+let blaseWeg = false;
 
 /**
- * Chat-Knopf unten rechts, neu gestaltet: eine runde Glas-Kugel mit einem kleinen goldenen
- * Licht in Logo-Form.
+ * Chat-Knopf unten rechts, neu gestaltet: eine runde Glas-Kugel mit unserem Logo, flach und
+ * golden (dasselbe wie in der Kopfleiste und im Kopf des Chat-Fensters).
  *
  * - Magnetisch: Ist die Maus näher als 160 px, zieht es die Kugel zu ihr hin (bis zu 35 % des
- *   Abstands, höchstens 28 px, je näher desto stärker); das innere Licht bewegt sich 40 % mehr
+ *   Abstands, höchstens 28 px, je näher desto stärker); das Logo darin bewegt sich 40 % mehr
  *   mit, die Kugel wächst bis 1,08. Entfernt sich die Maus, federt sie zurück.
  * - Sprechblase: etwa 6 s nach dem Laden (oder beim Drüberfahren) wächst sie federnd aus dem
  *   Knopf. Ihr Text besteht zuerst aus Zufallszeichen und rastet von links nach rechts ein.
- *   Sie lässt sich wegklicken und kommt in dieser Sitzung nicht wieder. Am Handy erscheint sie
- *   einmal für 4 s und verschwindet von selbst.
+ *   Sie lässt sich wegklicken und bleibt dann bis zum nächsten Neuladen der Seite weg (egal wie
+ *   viel man scrollt); beim nächsten Laden kommt sie wieder. Am Handy erscheint sie einmal für 4 s
+ *   und verschwindet von selbst.
  *
  * Klick auf Kugel oder Sprechblase öffnet den Chat (derselbe Chat wie überall, components/chat;
  * auf der neuen Seite zeigt ihn das Glasfenster components/neu/chat/ChatFenster.tsx). Ist er
  * offen, ruht der Knopf.
  */
-export function ChatKnopf() {
+export function ChatKnopf({ start }: { start?: string }) {
+  // `start`: Auf Seiten mit Startanimation trägt der Knopf von Anfang an deren Stand (kopf.css).
   const wurzel = useRef<HTMLDivElement>(null);
   const kugel = useRef<HTMLButtonElement>(null);
   const [blase, setBlase] = useState(false);
@@ -42,15 +45,9 @@ export function ChatKnopf() {
     offenJetzt.current = chatOffen;
   }, [chatOffen]);
 
-  // Sprechblase: 6 s nach „Laden fertig“ oder beim Drüberfahren, einmal je Sitzung.
+  // Sprechblase: 6 s nach „Laden fertig“ oder beim Drüberfahren, einmal je Laden der Seite.
   useEffect(() => {
-    const zu = () => {
-      try {
-        return !!(sessionStorage.getItem(MERKER) || sessionStorage.getItem(MERKER_CHAT));
-      } catch {
-        return false;
-      }
-    };
+    const zu = () => blaseWeg;
     if (zu()) return;
     const maus = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     const uhren: number[] = [];
@@ -116,7 +113,7 @@ export function ChatKnopf() {
   };
 
   return (
-    <div ref={wurzel} className="ag-chat" data-offen={chatOffen}>
+    <div ref={wurzel} className="ag-chat" data-offen={chatOffen} data-start={start}>
       {blase && !chatOffen && (
         <div className="ag-chat__blase ag-glas ag-glimm" data-glimm>
           <button type="button" className="ag-chat__text" onClick={oeffnen}>
@@ -132,7 +129,7 @@ export function ChatKnopf() {
         </div>
       )}
       <button ref={kugel} type="button" className="ag-chat__kugel ag-glas ag-glimm" data-glimm aria-label={chat.oeffnen} onClick={oeffnen}>
-        <span className="ag-chat__licht" aria-hidden="true" />
+        <GoldMarke className="ag-chat__logo" />
         {ungelesen && <span className="ag-chat__neu" aria-hidden="true" />}
       </button>
     </div>
@@ -140,9 +137,5 @@ export function ChatKnopf() {
 }
 
 function merken() {
-  try {
-    sessionStorage.setItem(MERKER, "1");
-  } catch {
-    /* Speicher gesperrt: Dann kommt die Sprechblase beim nächsten Seitenaufruf eben noch einmal. */
-  }
+  blaseWeg = true;
 }

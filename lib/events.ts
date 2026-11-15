@@ -40,6 +40,13 @@ export const INTRO_TYPING_DONE = "ag:intro-typing-done";
  */
 export const PREFILL_CONTACT = "ag:prefill-contact";
 
+/**
+ * Unter diesem Namen merkt sich der Chat die Angaben für die Sitzung (sessionStorage). Das
+ * Kontaktformular der neuen Seite liest sie beim Laden: So ist es nach einem Neuladen wieder
+ * ausgefüllt.
+ */
+export const PREFILL_SPEICHER = "ag-assistant-prefill";
+
 export interface PrefillContactDetail {
   name?: string;
   email?: string;

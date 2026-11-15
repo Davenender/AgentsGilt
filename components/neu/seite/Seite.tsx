@@ -2,6 +2,7 @@ import { ausbildung, kontakt } from "@/lib/inhalt-neu";
 import { Ausbildung } from "../Bereiche";
 import { LichtName } from "../kopf/LichtName";
 import { Rahmen } from "../Rahmen";
+import { RechtBlatt } from "../recht/RechtBlatt";
 import { AblaufNummern } from "./AblaufNummern";
 import { Aussage } from "./Aussage";
 import { Entschluesselt } from "./Entschluesselt";
@@ -42,6 +43,8 @@ export function Seite() {
     <Rahmen start="licht" klasse="ag-seite" fussSchluss={<FussSchluss />}>
       <Zeiger />
       <GlimmAlle />
+      {/* Impressum und Datenschutz öffnen sich als Blatt über der Seite: „Zurück“ landet an derselben Stelle. */}
+      <RechtBlatt />
       <Kopf />
       <Aussage />
       <Uebergang />

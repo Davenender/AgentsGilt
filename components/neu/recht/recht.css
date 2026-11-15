@@ -1,0 +1,186 @@
+/* ───────────── Impressum und Datenschutz im Design der neuen Seite ─────────────
+   Dunkler Grund, Gold, die Schriften der Seite. Gut lesbar: angenehme Zeilenbreite, klare
+   Überschriften, ruhige Abstände. Keine Startanimation, keine schweren Effekte.
+   Gezeigt als eigene Seite (RechtSeite.tsx) und als Blatt über der neuen Seite (RechtBlatt.tsx). */
+.ag-recht {
+  padding: clamp(128px, 19vh, 190px) 0 clamp(72px, 11vh, 130px);
+  color: #c7cad6;
+}
+.ag-recht__innen {
+  width: min(100% - 48px, 720px);
+  margin-inline: auto;
+}
+/* „Zurück“: ein kleiner goldener Verweis mit Pfeil. */
+.ag-recht__zurueck {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gold-hell);
+  font: inherit;
+  font-family: var(--font-mono-ag), ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.ag-recht__zurueck svg {
+  width: 18px;
+  height: 18px;
+  transition: translate 0.35s var(--weich);
+}
+.ag-recht__zurueck:focus-visible {
+  outline: 2px solid var(--gold-hell);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-recht__zurueck:hover svg {
+    translate: -4px 0;
+  }
+}
+.ag-recht__titel {
+  margin-top: clamp(18px, 3vh, 30px);
+  color: var(--elfenbein);
+  font-size: clamp(2.7rem, 7vw, 4.6rem);
+  line-height: 0.98;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.ag-recht__text {
+  display: grid;
+  gap: clamp(30px, 4.4vh, 44px);
+  margin-top: clamp(36px, 6vh, 60px);
+  font-size: 17px;
+  line-height: 1.72;
+}
+/* Abschnitts-Überschriften: hell, mit einer feinen Goldlinie davor. */
+.ag-recht__text h2 {
+  position: relative;
+  padding-top: 18px;
+  color: var(--elfenbein);
+  font-size: clamp(1.22rem, 1.6vw, 1.4rem);
+  font-weight: 500;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.ag-recht__text h2::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold-hell), rgba(212, 162, 60, 0));
+}
+.ag-recht__text p {
+  margin-top: 12px;
+  max-width: 68ch;
+  text-wrap: pretty;
+}
+.ag-recht__text a {
+  padding-bottom: 1px;
+  background: linear-gradient(rgba(243, 210, 122, 0.45), rgba(243, 210, 122, 0.45)) 0 100% / 100% 1px no-repeat;
+  color: var(--gold-hell);
+  text-decoration: none;
+}
+.ag-recht__text a:hover,
+.ag-recht__text a:focus-visible {
+  background-image: linear-gradient(var(--gold-hell), var(--gold-hell));
+}
+/* Der Hinweis am Ende der Datenschutzerklärung: ein ruhiger Kasten. */
+.ag-recht__text .ag-recht__hinweis {
+  margin-top: 0;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.2);
+  color: var(--nebel);
+  font-size: 15px;
+  line-height: 1.6;
+}
+@media (max-width: 599px) {
+  .ag-recht__innen {
+    width: min(100% - 40px, 720px);
+  }
+  .ag-recht__text {
+    font-size: 16px;
+    line-height: 1.68;
+  }
+}
+
+/* ── Als Blatt über der neuen Seite: Es füllt das Fenster und scrollt für sich; die Seite darunter
+   bleibt genau so stehen, wie sie war. Kopfleiste, Chat-Knopf und Mauspunkt der Seite liegen darüber. */
+.ag-rechtblatt {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #070b16;
+  /* Ein schmaler goldener Scrollbalken, wie im Chat-Fenster. */
+  scrollbar-color: rgba(212, 162, 60, 0.4) transparent;
+  scrollbar-width: thin;
+  animation: ag-rechtblatt-auf 0.45s var(--weich) both;
+}
+/* Die Seite darunter ruht (umgebung.ts: scrollRuhe): kein eigener Scrollbalken, solange das Blatt
+   offen ist (der schmale des Blatts sitzt an seiner Stelle). Dabei darf sich an der Seite nichts
+   verschieben, sonst stünde sie nach „Zurück“ nicht mehr an derselben Stelle: Sie bleibt genau so
+   breit wie mit Scrollbalken (--rollbalken: seine gemessene Breite; am Handy und am Mac 0), und
+   Kopfleiste und Chat-Knopf bleiben stehen. (Mit `scrollbar-gutter: stable` ginge das nicht: Dann
+   rechnet der Browser die Einheit vw ohne den Scrollbalken, Schriften würden kleiner und die
+   Seite kürzer.) */
+html.ag-seite-ruht {
+  overflow: hidden;
+}
+html.ag-seite-ruht body {
+  padding-right: var(--rollbalken, 0px);
+}
+html.ag-seite-ruht :is(.ag-kopf, .ag-chat, .ag-cf) {
+  margin-right: var(--rollbalken, 0px);
+}
+/* Die Kopfleiste über dem Blatt: wie oben auf einer Seite. Das Menü ist da, kein Menüpunkt ist als
+   „aktiv“ markiert. Beim Hinunterscrollen im Blatt gleitet das Menü weg, beim Hochscrollen kommt
+   es wieder. (Der Name oben links richtet sich nach der Fußleiste des Blatts: FussSchluss.tsx.) */
+html.ag-recht-offen:not(.ag-recht-unten) .ag-kopf .ag-kopf__kachel[data-weg] {
+  --weg: 0px;
+  opacity: 1;
+  pointer-events: auto;
+}
+html.ag-recht-offen.ag-recht-unten .ag-kopf .ag-kopf__kachel:not(:focus-within) {
+  --weg: -120px;
+  opacity: 0;
+  pointer-events: none;
+}
+html.ag-recht-offen .ag-kopf .ag-kopf__kachel a[aria-current]:not(:hover) {
+  color: var(--nebel);
+}
+html.ag-recht-offen .ag-kopf .ag-kopf__schein {
+  opacity: 0;
+}
+/* Ein offenes Chat-Fenster tritt zurück, solange das Blatt offen ist (man kam aus dem Chat zum
+   Datenschutz); nach „Zurück“ ist es wieder da, wie es war. */
+html.ag-recht-offen.ag-recht-offen .ag-cf {
+  visibility: hidden;
+}
+.ag-rechtblatt:focus {
+  outline: none;
+}
+@keyframes ag-rechtblatt-auf {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ag-rechtblatt {
+    animation: none;
+  }
+  .ag-recht__zurueck svg {
+    transition: none;
+  }
+}

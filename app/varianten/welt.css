@@ -352,25 +352,25 @@ html.lenis body {
   font-weight: 500;
   text-transform: none;
 }
-/* Das kleine Logo leuchtet selbst, mit demselben Licht wie das große: ein einmal aus der eigenen
-   Licht-Szene vorgerendertes Bild (Schein und feine Speichen in Logo-Form), kein zweites WebGL.
-   Es atmet im Takt des großen Lichts. */
-.ag-minilicht {
-  flex: none;
-  width: 46px;
-  height: 46px;
-  margin: -6px -4px -6px -8px;
-  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
-  animation: ag-atem var(--atem) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+/* Das eine Logo für alle kleinen Stellen (Marke.tsx: GoldMarke): der Stern mit den vier Balken,
+   flach und golden, mit einem leichten Schein. Leuchten darf nur das große Logo in der Mitte. */
+.ag-goldverlauf {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
-@keyframes ag-atem {
-  0%,
-  100% {
-    opacity: 0.84;
-  }
-  50% {
-    opacity: 1;
-  }
+.ag-goldmarke {
+  display: block;
+  flex: none;
+  overflow: visible;
+  filter: drop-shadow(0 0 5px rgba(243, 210, 122, 0.5));
+}
+/* In der Kopfleiste. */
+.ag-kopf__logo {
+  width: 30px;
+  height: 30px;
+  margin: 2px 2px 2px -1px;
 }
 /* Nach dem Scrollen bekommt die Marke eine Glasfläche und bleibt lesbar. */
 .ag-kopf[data-los="true"] .ag-kopf__marke {
@@ -786,10 +786,10 @@ html.ag-menue-offen body > :not(.ag-neu) {
     box-shadow: none;
     font-size: 20px;
   }
-  .ag-minilicht {
-    width: 38px;
-    height: 38px;
-    margin: -6px -4px -6px -6px;
+  .ag-kopf__logo {
+    width: 26px;
+    height: 26px;
+    margin: 0 2px 0 0;
   }
   /* „Anrufen“ in der Kachel: ohne eigene Glasfläche (die Kachel ist schon Glas), etwas kleiner. */
   .ag-ruf {
@@ -841,8 +841,9 @@ body:has(.ag-chat) > button:has(> span[role="button"][aria-label="Schließen"]) 
 .ag-chat > * {
   pointer-events: var(--ag-klick, auto);
 }
-/* Ist der Chat offen oder das Menü, ruht der Knopf. */
-.ag-chat[data-offen="true"],
+/* Steht das Chat-Fenster offen (es meldet das am <html>: chat/ChatFenster.tsx) oder ist das Menü
+   offen, ruht der Knopf. Während das Fenster zur Kugel wird, blendet es den Knopf selbst aus und ein. */
+html.ag-cf-offen .ag-chat,
 html.ag-menue-offen .ag-chat {
   visibility: hidden;
 }
@@ -864,13 +865,14 @@ html.ag-menue-offen .ag-chat {
 .ag-chat__kugel.ag-glimm {
   --grundrand: 0.3;
 }
-/* Das innere Licht bewegt sich 40 % mehr mit als die Kugel (Tiefenwirkung) und atmet langsam. */
-.ag-chat__licht {
+/* Unser Logo in der Kugel: flach und golden. Es bewegt sich 40 % mehr mit als die Kugel (Tiefenwirkung). */
+.ag-chat__logo {
   position: absolute;
-  inset: 7px;
-  background: url("/kopf/licht-mini.webp") center / contain no-repeat;
+  top: 15px;
+  left: 15px;
+  width: 34px;
+  height: 34px;
   transform: translate(calc(var(--mx, 0px) * 0.4), calc(var(--my, 0px) * 0.4));
-  animation: ag-atem var(--atem) cubic-bezier(0.45, 0, 0.55, 1) infinite;
   pointer-events: none;
 }
 /* Ungelesene Antwort im Chat: kleiner goldener Punkt. */
@@ -2310,11 +2312,15 @@ html.ag-zurueck body {
    es nie (Skript nicht geladen), geben diese Regeln das Scrollen nach 14 s von selbst frei. Ohne
    Skript und bei „weniger Bewegung“ gelten sie nicht. */
 @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
-  html:has(.ag-kopf5[data-start="warten"]:not([data-skript])):not(.ag-start-frei) {
+  /* „ag-vorstart“ setzt ein winziges Skript ganz am Anfang der Seite (app/layout.tsx, nur auf der
+     neuen Seite); das Skript der Startanimation nimmt die Klasse weg, sobald es übernimmt. Früher
+     stand hier „html:has(.ag-kopf5[data-start="warten"]:not([data-skript]))“: Dafür suchte der
+     Browser bei jeder Änderung die ganze Seite ab. */
+  html.ag-vorstart:not(.ag-start-frei) {
     scrollbar-gutter: stable;
     animation: ag-start-sperre 14s step-end both;
   }
-  html:has(.ag-kopf5[data-start="warten"]:not([data-skript])):not(.ag-start-frei) body {
+  html.ag-vorstart:not(.ag-start-frei) body {
     animation: ag-start-fest 14s step-end both;
   }
 }
@@ -2357,6 +2363,12 @@ html.ag-zurueck body {
   opacity: 1;
   transform: none;
   pointer-events: var(--ag-klick, auto);
+}
+/* Ein Formular ist offen oder es wird getippt (Tastatur): Der Knopf weicht, er verdeckt nichts. */
+.ag-daumen[data-da="true"][data-weg] {
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
 }
 .ag-daumen .ag-knopf {
   width: 100%;

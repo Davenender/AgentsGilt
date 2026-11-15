@@ -5,11 +5,13 @@ import { zeiger } from "@/lib/inhalt-neu";
 import { istVorschau } from "../umgebung";
 
 const KLASSE = "ag-maus-an";
-const DRUCK = "ag-maus-druck";
+// Der gedrückte Punkt (etwas kleiner) gilt nur für das Teil unter der Maus, und nur, wenn es klein
+// ist: So rechnet der Browser bei einem Klick nicht die ganze Seite neu.
+const DRUCK_HOECHSTENS = 60;
 
 /**
  * Mauszeiger der neuen Seite (nur bei echter Maus, nicht bei „weniger Bewegung“):
- *   - Normal: ein kleiner goldener Punkt mit einem dezenten goldenen Schein, der genau auf der Maus sitzt.
+ *   - Normal: ein kleiner goldener Punkt mit einem dezenten goldenen Schein, beide genau auf der Maus.
  *   - Über Links und Knöpfen: Der Punkt wird zu einem feinen Ring.
  *   - Über einem Zertifikat (`data-zeiger="ansehen"`, nur dort, wo ein Klick etwas öffnet): eine
  *     kleine Glasblase mit „Ansehen“.
@@ -18,13 +20,15 @@ const DRUCK = "ag-maus-druck";
  *     Browser das kann), heller Lichtkante oben und feinem Goldschimmer.
  * In Eingabefeldern und über dem Chat-Fenster gilt der gewöhnliche Zeiger.
  *
- * Der Punkt hängt nie hinter der Maus her: Er ist der echte Mauszeiger des Systems (ein kleines
- * Goldpunkt-Bild, Stylesheet). Das System zeichnet ihn sofort, ohne auf das nächste Bild der Seite
- * zu warten. Was die Seite selbst zeichnet (Ring, Glasblase), sitzt ohne Nachziehen auf der Maus:
- * Die Stelle wird direkt gesetzt, in `pointermove` und, wo der Browser es kann, schon in
+ * Punkt und Schein hängen nie hinter der Maus her: Beide sind der echte Mauszeiger des Systems
+ * (ein kleines Bild: Goldpunkt mit Goldschein, Stylesheet). Das System zeichnet ihn sofort, ohne auf
+ * das nächste Bild der Seite zu warten, bei jeder Bildrate. (Bis zum 14.11.2026 zeichnete die Seite
+ * den Schein: Er kam immer mindestens ein Bild nach dem Punkt, bei schnellen Bewegungen sichtbar.)
+ * Was die Seite selbst zeichnet (Ring mit seinem Schein, Glasblase), sitzt ohne Nachziehen auf der
+ * Maus: Die Stelle wird direkt gesetzt, in `pointermove` und, wo der Browser es kann, schon in
  * `pointerrawupdate` (jede Meldung der Maus, nicht erst zum nächsten Bild). Dieser Handler setzt
- * nur die Stelle: die des Kerns (Ring, Glasblase) und die des weichen Scheins. Seit dem 14.11.2026
- * zieht auch der Schein nicht mehr nach. Alles andere (welche Art Zeiger) läuft einmal je Bild.
+ * nur die Stelle; es gibt dafür keine Übergangszeit und kein Nachziehen. Alles andere (welche Art
+ * Zeiger) läuft einmal je Bild.
  */
 export function Zeiger() {
   const wurzel = useRef<HTMLDivElement>(null);
@@ -65,9 +69,9 @@ export function Zeiger() {
 
     const aus = () => {
       da = false;
-      html.classList.remove(KLASSE, DRUCK);
+      html.classList.remove(KLASSE);
       delete el.dataset.da;
-      delete el.dataset.druck;
+      loslassen();
       cancelAnimationFrame(rahmen);
       rahmen = 0;
     };
@@ -98,15 +102,28 @@ export function Zeiger() {
         html.classList.toggle(KLASSE, art !== "fremd");
       }
     };
-    const runter = () => {
+    // Gedrückt: Ring und Glasblase werden kurz kleiner (am Zeiger selbst, `data-druck`). Der Punkt
+    // des Systems wird kleiner, indem das Teil unter der Maus für die Dauer des Klicks das kleinere
+    // Zeiger-Bild bekommt (Stylesheet: --zeiger-druck). Früher stand dafür eine Klasse am <html>,
+    // und der Browser rechnete bei jedem Klick zweimal die ganze Seite neu.
+    const stil = getComputedStyle(el);
+    const fein2 = stil.getPropertyValue("--zeiger-druck").trim();
+    const druckBild = fein2 && CSS.supports("cursor", fein2) ? fein2 : stil.getPropertyValue("--zeiger-druck-einfach").trim();
+    let gedrueckt: HTMLElement | null = null;
+    const loslassen = () => {
+      delete el.dataset.druck;
+      gedrueckt?.style.removeProperty("cursor");
+      gedrueckt = null;
+    };
+    const runter = (ev: PointerEvent) => {
       if (!da) return;
       el.dataset.druck = "1";
-      html.classList.add(DRUCK);
+      const unter = ev.target instanceof HTMLElement ? ev.target : null;
+      if (!unter || !druckBild || el.dataset.art !== "punkt" || unter.getElementsByTagName("*").length > DRUCK_HOECHSTENS) return;
+      gedrueckt = unter;
+      unter.style.setProperty("cursor", druckBild, "important");
     };
-    const hoch = () => {
-      delete el.dataset.druck;
-      html.classList.remove(DRUCK);
-    };
+    const hoch = () => loslassen();
     const umstellen = () => {
       erlaubt = fein.matches && !ruhig.matches;
       if (!erlaubt) aus();

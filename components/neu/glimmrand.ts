@@ -21,9 +21,6 @@ const BEREICH = 200;
 /** So schnell blendet der Rand auf und ab (Zeitkonstante in Sekunden: Nach rund 0,15 s steht er). */
 const BLENDE = 0.05;
 
-/** Ein zweites Licht für den Rand (der Stern hinter einer Nachbarkarte): Stelle am Teil und Stärke. */
-export type GlimmLicht = { x: number; y: number; n: number };
-
 type Teil = {
   el: HTMLElement;
   /** So viele Bausteine haben das Teil angemeldet. */
@@ -32,7 +29,6 @@ type Teil = {
   n: number;
   /** Im Bild oder knapp daneben? */
   imBild: boolean;
-  licht: GlimmLicht | null;
   gx: string;
   gy: string;
   gn: string;
@@ -54,7 +50,7 @@ function bild(jetzt: number) {
   let weiter = false;
   // Erst messen (eine Durchrechnung der Seite für alle zusammen) …
   const dran: Teil[] = [];
-  for (const t of teile.values()) if (t.imBild || t.n > 0 || t.licht) dran.push(t);
+  for (const t of teile.values()) if (t.imBild || t.n > 0) dran.push(t);
   const flaechen = dran.map((t) => t.el.getBoundingClientRect());
   // … dann rechnen und setzen.
   for (let i = 0; i < dran.length; i++) {
@@ -69,12 +65,6 @@ function bild(jetzt: number) {
       // Die Stelle am Element, die der Maus am nächsten ist.
       zx = Math.max(0, Math.min(r.width, maus.x - r.left));
       zy = Math.max(0, Math.min(r.height, maus.y - r.top));
-    }
-    // Scheint ein zweites Licht stärker auf den Rand (der Stern hinter der Nachbarkarte), gilt seine Stelle.
-    if (t.licht && t.licht.n > zn) {
-      zn = Math.min(1, t.licht.n);
-      zx = Math.max(0, Math.min(r.width, t.licht.x));
-      zy = Math.max(0, Math.min(r.height, t.licht.y));
     }
     // Fern der Maus und schon dunkel: nichts zu tun.
     if (zn === 0 && t.n === 0) continue;
@@ -172,7 +162,7 @@ export function glimme(el: HTMLElement): () => void {
   let t = teile.get(el);
   if (t) t.zahl += 1;
   else {
-    t = { el, zahl: 1, n: 0, imBild: true, licht: null, gx: "", gy: "", gn: "" };
+    t = { el, zahl: 1, n: 0, imBild: true, gx: "", gy: "", gn: "" };
     teile.set(el, t);
     starten();
     sicht?.observe(el);
@@ -198,20 +188,4 @@ export function glimme(el: HTMLElement): () => void {
 export function richteGlimmrandEin(wurzel: ParentNode): () => void {
   const ab = Array.from(wurzel.querySelectorAll<HTMLElement>("[data-glimm]")).map(glimme);
   return () => ab.forEach((f) => f());
-}
-
-/**
- * Lässt ein zweites Licht auf den Rand eines angemeldeten Teils scheinen (der Stern hinter der
- * Nachbarkarte, seite/glaskarten.ts): Stelle am Teil in Pixeln und Stärke 0 bis 1. `null` löscht
- * es. Der Rand zeigt das stärkere der beiden Lichter (Maus oder dieses), über dieselben Werte
- * --gx, --gy und --gn. Ohne echte Maus und bei „weniger Bewegung“ geschieht nichts, außer `immer`
- * ist gesetzt (der Durchzug des Sterns am Handy).
- */
-export function glimmLicht(el: HTMLElement, licht: GlimmLicht | null, immer = false): void {
-  const t = teile.get(el);
-  if (!t) return;
-  if (licht && !immer && !erlaubt()) return;
-  if (!licht && !t.licht) return;
-  t.licht = licht && licht.n > 0.004 ? licht : null;
-  wecken();
 }

@@ -1,20 +1,41 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { ScrollTrigger } from "@/lib/gsap";
 import { aussage } from "@/lib/inhalt-neu";
-import sternBild from "@/public/stern/stern-glas.webp";
 import { istVorschau } from "../umgebung";
 import { useBewegungsWechsel } from "./einstellung";
 import { erzeugeSpiel } from "./Entschluesselt";
 import { richteGlaskartenEin } from "./glaskarten";
+import { Leuchtstern } from "./Leuchtstern";
 
 // Tippen: alle 45 ms ein neuer Platz, jeder flackert 250 ms durch Zufallszeichen.
 const TIPP_ABSTAND = 45;
 const TIPP_FLACKERN = 250;
 // So lange nach dem Start des Wettlaufs schweben die Karten ein (Millisekunden, wie im Stylesheet).
 const KARTEN_AB = 650;
+
+// Je Karte ein eigenes, festes Strahlenbild: die Winkel der Strahlen (Grad, im Uhrzeigersinn ab
+// „nach rechts“). Den Takt je Karte gibt das Stylesheet vor (seite.css: .ag-gk[data-bild]).
+const STRAHLEN = [
+  [-158, -117, -28, 21, 62, 143],
+  [-171, -66, -14, 38, 109, 156],
+  [-139, -43, 8, 74, 127, 168],
+];
+
+/** Ein Strahlenrad: die Strahlen einer Karte, alle von der Mitte aus. Es schwenkt als Ganzes langsam hin und her. */
+function Rad({ winkel, art }: { winkel: number[]; art?: "saum" | "aussen" }) {
+  return (
+    <span className={`ag-gk__rad${art ? ` ag-gk__rad--${art}` : ""}`}>
+      {winkel.map((w, n) => (
+        <i key={w} style={{ "--w": `${w}deg`, "--n": n } as CSSProperties} data-w={w}>
+          {/* Außerhalb der Karte: das abgeknickte Stück ab der Glaskante. */}
+          {art === "aussen" && <b />}
+        </i>
+      ))}
+    </span>
+  );
+}
 
 // Die Symbole der Karten: feine Goldlinien (Strichstärke im Stylesheet).
 const SYMBOLE: Record<string, ReactNode> = {
@@ -70,10 +91,13 @@ function Woerter({ text }: { text: string }) {
  * 1. Der Wettlauf zeigt die Überschrift als Bild. Zwei schmale Balken laufen los: „Agentur“ in Grau
  *    kriecht und ist nach 4 s erst zu einem Drittel voll („Wochen“); „Agents Gilt“ in Gold ist nach
  *    0,8 s voll und leuchtet kurz auf („Stunden*“). Keine Zahlen. Darunter steht die Fußnote.
- * 2. Drei Glaskarten schweben nacheinander ein (je 120 ms versetzt). Hinter jeder wartet ein
- *    goldener Stern, der unter der Maus hinter das Glas gleitet, und der Text leuchtet unter der
- *    Maus warm auf. Der Stern bricht sich im Glas: Lichtkreuz, klares Glas um den Stern, Brechung
- *    an der Kante, und sein Licht fällt auf den Rand der Nachbarkarte (glaskarten.ts).
+ * 2. Drei Glaskarten schweben nacheinander ein (je 120 ms versetzt). Fährt die Maus auf eine
+ *    Karte, taucht in ihrer Mitte hinter dem Glas ein kleiner Stern auf (derselbe wie im
+ *    Wörter-Feld darunter); er dreht und wiegt sich leicht, folgt der Maus aber nicht. Seine
+ *    Strahlen laufen zum Rand der Karte, brechen sich dort am Glas (ein heller Saum mit einem Hauch
+ *    kühler und warmer Farbe) und strahlen leicht abgeknickt hinaus auf die Seite. Jede Karte hat
+ *    ihr eigenes, festes Strahlenbild; alles ist reines Stylesheet (nur Verschieben, Drehen,
+ *    Deckkraft). Der Text leuchtet unter der Maus warm auf (glaskarten.ts).
  *
  * Alles nur einmal je Seitenaufruf. Der echte Text steht die ganze Zeit im Dokument. Ohne Skript,
  * bei „weniger Bewegung“ und in der Vorschau steht alles sofort da: der goldene Balken voll, der
@@ -181,30 +205,25 @@ export function Aussage() {
         {/* Drei Glaskarten: Hinter jeder wartet unsichtbar ein goldener Stern. */}
         <ul className="ag-gk__reihe">
           {aussage.karten.map((karte, i) => (
-            <li key={karte.titel} className="ag-gk" style={{ "--i": i } as CSSProperties}>
+            <li key={karte.titel} className="ag-gk" style={{ "--i": i } as CSSProperties} data-bild={i}>
               <div className="ag-gk__karte">
-                <span className="ag-gk__hinten" aria-hidden="true">
-                  <span className="ag-gk__stern">
-                    {/* Gleich laden, aber mit niedrigem Rang: Der Stern liegt verdeckt neben der Karte, ein
-                        „bei Bedarf“ geladenes Bild käme erst, wenn die Maus schon da ist. */}
-                    <Image src={sternBild} alt="" unoptimized loading="eager" fetchPriority="low" decoding="async" draggable={false} />
-                  </span>
-                  {/* Das Lichtkreuz: vier dünne Lichtstreifen aus dem Stern, zwischen Stern und Glas. */}
-                  <span className="ag-gk__kreuz" />
-                </span>
-                {/* Das matte Glas und, nur um den Stern, das klarere Glas. */}
-                <span className="ag-gk__matt" aria-hidden="true" />
-                <span className="ag-gk__klar" aria-hidden="true" />
-                {/* Lichtkante und Rand. Der Rand glimmt unter der Maus (glimmrand.ts) und dort, wo das Licht des
-                    Sterns der Nachbarkarte hinfällt. Die Werte hängen an diesem Teil ohne Kinder: So rechnet der
-                    Browser je Bild nur den Rand neu, nicht jedes Wort der Karte. */}
+                {/* Lichtkante und Rand. Der Rand glimmt unter der Maus (glimmrand.ts); die Werte hängen an
+                    diesem Teil ohne Kinder, damit der Browser je Bild nur den Rand neu rechnet. */}
                 <span className="ag-gk__glas" aria-hidden="true" data-glimm />
-                {/* Die Lichtbrechung an der Kante: je Kante ein heller Saum, der mit dem Stern wandert. */}
+                {/* Der Stern in der Mitte der Karte und seine Strahlen bis zum Rand. */}
+                <span className="ag-gk__licht" aria-hidden="true">
+                  <Rad winkel={STRAHLEN[i % STRAHLEN.length]} />
+                  <span className="ag-gk__stern">
+                    <Leuchtstern klar />
+                  </span>
+                </span>
+                {/* Die Brechung am Glasrand: ein heller Saum genau dort, wo ein Strahl die Kante trifft. */}
                 <span className="ag-gk__saum" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                  <i />
+                  <Rad winkel={STRAHLEN[i % STRAHLEN.length]} art="saum" />
+                </span>
+                {/* Die Strahlen außerhalb der Karte: leicht abgeknickt, auf die Seite hinaus. */}
+                <span className="ag-gk__aussen" aria-hidden="true">
+                  <Rad winkel={STRAHLEN[i % STRAHLEN.length]} art="aussen" />
                 </span>
                 <div className="ag-gk__inhalt">
                   <svg className="ag-gk__symbol" viewBox="0 0 48 48" aria-hidden="true">

@@ -4,6 +4,12 @@ import "./globals.css";
 import { ChatAnbieter } from "@/components/chat/ChatAnbieter";
 import { ChatWidget } from "@/components/ChatWidget";
 import { Analytics } from "@vercel/analytics/next";
+import { NEUE_SEITE } from "@/lib/neue-seite";
+
+// Läuft ganz am Anfang der Seite, noch bevor ihr Inhalt da ist, und nur auf der neuen Seite: Es
+// setzt „ag-vorstart“ am <html>. Damit hält das Stylesheet die Seite oben, bis das Skript der
+// Startanimation übernimmt (welt.css). Früher fand das Stylesheet den Kopfbereich mit `:has()`.
+const VORSTART = `try{if(location.pathname.replace(/\\/+$/,"")===${JSON.stringify(NEUE_SEITE.replace(/\/+$/, ""))})document.documentElement.classList.add("ag-vorstart")}catch(e){}`;
 
 const inter = Inter({
   variable: "--font-body",
@@ -114,6 +120,7 @@ export default function RootLayout({
       className={`${inter.variable} ${sora.variable} antialiased`}
     >
       <body className="bg-cream text-ink font-sans">
+        <script dangerouslySetInnerHTML={{ __html: VORSTART }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
