@@ -62,6 +62,24 @@ test("sehr schmale Handys: Die Kopfleiste passt (unter 375 px etwas kleiner geze
   }
 });
 
+test("„In drei Schritten“: Die nicht aktiven Schritte sind gedimmt, aber mit genug Kontrast (WCAG AA)", () => {
+  const stil = ohneKommentare(lies("components/neu/seite/seite.css"));
+  const m = stil.match(/\.ag-abn__liste li\[data-gewaehlt="false"\] \{\s*opacity: ([\d.]+);/);
+  assert.ok(m, "Regel gefunden");
+  const deck = Number(m[1]);
+  // Nummer #9aa0b5 und Text #a9adbd auf dem Grund #070b16, mit der Deckkraft gemischt.
+  const lum = (c: number[]) => {
+    const f = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+  };
+  const grund = [7, 11, 22];
+  for (const farbe of [[154, 160, 181], [169, 173, 189]]) {
+    const gemischt = farbe.map((v, i) => v * deck + grund[i] * (1 - deck));
+    const kontrast = (lum(gemischt) + 0.05) / (lum(grund) + 0.05);
+    assert.ok(kontrast >= 4.5, `Kontrast ${kontrast.toFixed(2)}`);
+  }
+});
+
 test("das große Logo am Anfang: wackelt am Handy nicht und reagiert nicht auf Antippen", () => {
   const szene = ohneKommentare(lies("components/neu/kopf/lichtszene.ts"));
   // Die Wand wiegt sich nur mit Maus; ohne Maus steht sie still.

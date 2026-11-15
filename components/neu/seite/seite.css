@@ -1336,8 +1336,10 @@
   border-top: 1px solid var(--linie);
   transition: opacity 0.4s var(--weich);
 }
+/* Die gerade nicht aktiven Schritte sind gedimmt, aber gut lesbar: Bei 0,75 hat die Nummer 4,65:1,
+   der Text 5,3:1 Kontrast (WCAG AA; bis 15.11.2026 war es 0,62 mit 3,5:1 und 3,9:1). */
 .ag-abn__liste li[data-gewaehlt="false"] {
-  opacity: 0.62;
+  opacity: 0.75;
 }
 /* „Weniger Bewegung“: Alle Schritte stehen gleich hell da. */
 .ag-abn__liste li[data-voll="true"] {
