@@ -29,6 +29,10 @@ import {
   stimmeTelefon,
   LAGE_MARKE,
   MAILBOX,
+  istMailbox,
+  teamAnrufAssistent,
+  teamAnrufZeit,
+  teamMitgliedFuer,
   kundenText,
   type KundeFuerLuca,
   assistentUeberblick,
@@ -431,10 +435,50 @@ export async function setzePrompts(speaker: string, reasoner: string) {
   const a = await vapi<VapiAssistent>(`/assistant/${id}`);
   const m = a.model as (VapiAssistent["model"] & { speaker?: Record<string, unknown>; reasoner?: Record<string, unknown> }) | undefined;
   if (!m?.speaker || !m.reasoner) throw new Error("Luca läuft nicht auf GPT Live");
-  if (!speaker.includes("{{lage}}") || !reasoner.includes("{{lage}}")) throw new Error("In beiden Prompts muss {{lage}} stehen");
+  // Seit Fassung 6 heißt das Wissen {{wissen}} (Schule, Termine, Ort eigene Variablen); ältere Fassungen nutzen {{lage}}
+  const wissen = (p: string) => p.includes("{{lage}}") || p.includes("{{wissen}}");
+  if (!wissen(speaker) || !wissen(reasoner)) throw new Error("In beiden Prompts muss {{wissen}} oder {{lage}} stehen");
   const model = { ...m, speaker: { ...m.speaker, instructions: speaker }, reasoner: { ...m.reasoner, instructions: reasoner } };
   const neu = await vapi<VapiAssistent>(`/assistant/${id}`, { method: "PATCH", body: JSON.stringify({ model }) });
   return assistentUeberblick(neu as Parameters<typeof assistentUeberblick>[0]);
+}
+
+/**
+ * Etappe 7: Luca ruft ein Teammitglied an (Davids Regel 13.11.: nur Team, nur nach seinem Ja, Kundeninfos nur freigegeben).
+ * Nummern nur aus dem Team-Register (Status „team“) oder den Rufgruppen-Einstellungen, nur 8–21 Uhr. Der Anruf zählt nicht
+ * als Gespräch mit David (kein Assistent mit Lucas Kennung, keine Werkzeuge außer Auflegen).
+ */
+export async function rufeTeamAn(wer: string, worum: string, kundeninfo?: string): Promise<{ ok: boolean; id?: string; grund?: string }> {
+  if (!process.env.VAPI_API_KEY?.trim()) return { ok: false, grund: "VAPI_API_KEY fehlt." };
+  if (!teamAnrufZeit(new Date())) return { ok: false, grund: "Teammitglieder ruft Luca nur zwischen 8 und 21 Uhr an." };
+  const { ladeTeam } = await import("@/lib/team-daten");
+  const team = await ladeTeam(process.env.DISCORD_BOT_TOKEN);
+  const roh = `${process.env.RUFGRUPPE_NUMMERN ?? ""},${process.env.RUFGRUPPE_NUMMERN_2 ?? ""}`;
+  const m = teamMitgliedFuer(team, roh, wer);
+  if (!m) return { ok: false, grund: `${wer} steht nicht als aktives Teammitglied mit Nummer im Team-Register.` };
+  const vorlage = await lucaBeiVapi();
+  if (!vorlage) return { ok: false, grund: "Lucas Einstellungen bei Vapi sind nicht lesbar." };
+  try {
+    const call = await vapi<{ id?: string }>("/call", {
+      method: "POST",
+      body: JSON.stringify({ assistant: teamAnrufAssistent(vorlage, { name: m.name, worum, kundeninfo }), phoneNumberId: NUMBER_ID, customer: { number: m.nummer } }),
+    });
+    const kanal = await lucaKanal();
+    if (kanal) after(() => poste(kanal, `📞 Luca ruft ${m.name} aus dem Team an: ${worum.slice(0, 200)}${kundeninfo ? " (mit freigegebenen Kundeninfos)" : ""}`).then(() => undefined).catch(() => undefined));
+    return { ok: true, ...(call?.id ? { id: call.id } : {}) };
+  } catch (err) {
+    console.error("[luca] Team-Anruf:", err);
+    return { ok: false, grund: "Vapi hat den Anruf abgelehnt." };
+  }
+}
+
+/** Die Prompts, die gerade bei Vapi stehen (zum Sichern vor dem Ersetzen). */
+export async function lesePrompts(): Promise<{ speaker: string; reasoner: string }> {
+  const id = lucaAssistent();
+  if (!id) throw new Error("LUCA_ASSISTANT fehlt");
+  const a = await vapi<VapiAssistent>(`/assistant/${id}`);
+  const m = a.model as { speaker?: { instructions?: string }; reasoner?: { instructions?: string } } | undefined;
+  return { speaker: m?.speaker?.instructions ?? "", reasoner: m?.reasoner?.instructions ?? "" };
 }
 
 /** Für die Prüfung von der Zentrale aus: Was ist bei Luca gerade eingestellt? */
@@ -512,7 +556,10 @@ export async function assistentFuerEingang() {
 }
 
 /** Luca ruft David an – nur Davids Nummer, nie 2–6 Uhr (keine Grenze pro Tag). */
-export async function rufeDavidAn(grund: string, test: boolean, info?: string): Promise<{ ok: true; id?: string } | { ok: false; grund: string }> {
+/** Fester Satz für Davids Mailbox, wenn die Zentrale keinen mitschickt (13.11.: Luca sprach dort „als David“). */
+export const MAILBOX_SATZ = "Hey Chef, Luca hier. Ruf mich einfach zurück, wenn du kurz Zeit hast. Bis später!";
+
+export async function rufeDavidAn(grund: string, test: boolean, info?: string, mailbox?: string): Promise<{ ok: true; id?: string } | { ok: false; grund: string }> {
   if (!lucaAn()) return { ok: false, grund: "Luca am Telefon ist noch nicht eingerichtet." };
   if (!process.env.VAPI_API_KEY?.trim()) return { ok: false, grund: "VAPI_API_KEY fehlt." };
   const kanal = await lucaKanal();
@@ -531,10 +578,12 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
         customer: { number: lucaNummer() },
         assistantOverrides: {
           firstMessage: ersterSatzAusgehend(grund),
-          variableValues: variablen(lage, grund, info, notiz, gedaechtnisAus(frueher), kunden, standort),
+          // 13.11.: Erst zuhören, dann reden – sonst spricht Luca über die Mailbox-Ansage. David meldet sich mit „Ja?“, dann legt Luca los.
+          firstMessageMode: "assistant-waits-for-user",
+          variableValues: { ...variablen(lage, grund, info, notiz, gedaechtnisAus(frueher), kunden, standort), mailbox: (mailbox ?? MAILBOX_SATZ).slice(0, 400) },
           metadata: { luca: true, test, grund: grund.slice(0, 200) },
           ...(stimme ? { voice: stimme } : {}),
-          ...(mitMailbox ? MAILBOX : {}),
+          ...(mitMailbox ? { ...MAILBOX, voicemailMessage: (mailbox ?? MAILBOX_SATZ).slice(0, 400) } : {}),
         },
       }),
     });
@@ -561,12 +610,14 @@ export async function rufeDavidAn(grund: string, test: boolean, info?: string): 
 }
 
 /** Wie ist der Anruf ausgegangen? Die Zentrale hakt eine Erinnerung erst ab, wenn David abgenommen hat. Nur Lucas eigene Anrufe. */
-export async function anrufStand(id: string): Promise<{ status?: string; endedReason?: string; sekunden?: number } | null> {
+export async function anrufStand(id: string): Promise<{ status?: string; endedReason?: string; sekunden?: number; mailbox?: boolean } | null> {
   if (!/^[0-9a-f-]{20,60}$/i.test(id)) return null;
-  const c = await vapi<{ status?: string; endedReason?: string; assistantId?: string; startedAt?: string; endedAt?: string }>(`/call/${id}`);
+  const c = await vapi<{ status?: string; endedReason?: string; assistantId?: string; startedAt?: string; endedAt?: string; artifact?: { transcript?: string }; transcript?: string }>(`/call/${id}`);
   if (c.assistantId !== lucaAssistent()) return null;
   const sekunden = c.startedAt && c.endedAt ? Math.round((Date.parse(c.endedAt) - Date.parse(c.startedAt)) / 1000) : undefined;
-  return { status: c.status, endedReason: c.endedReason, ...(sekunden !== undefined ? { sekunden } : {}) };
+  // 13.11.: War nur die Mailbox dran? (an der Ansage in der Mitschrift)
+  const mailbox = c.status === "ended" && istMailbox(c.artifact?.transcript ?? c.transcript ?? "");
+  return { status: c.status, endedReason: c.endedReason, ...(sekunden !== undefined ? { sekunden } : {}), ...(mailbox ? { mailbox: true } : {}) };
 }
 
 type VapiAssistent = { id: string; name?: string; model?: Record<string, unknown>; voice?: Record<string, unknown>; transcriber?: Record<string, unknown> };
