@@ -46,6 +46,22 @@ test("den Anrufen-Knopf am unteren Rand (Daumen-Knopf) gibt es nicht mehr", () =
   assert.ok(!lies("components/neu/Rahmen.tsx").includes("DaumenLeiste"));
 });
 
+test("sehr schmale Handys: Die Kopfleiste passt (unter 375 px etwas kleiner gezeichnet, ab 375 px unverändert)", () => {
+  // Name, „Anrufen“ und Menü-Knopf brauchen in der Kachel rund 376 px. Jede Stufe darf höchstens
+  // so stark verkleinern, dass es bis zur nächst kleineren Stufe passt (Verkleinerung × 376 ≤ Breite).
+  const stil = ohneKommentare(lies("app/varianten/welt.css"));
+  const stufen = [...stil.matchAll(/@media \(max-width: (\d+)px\) \{\s*\.ag-kopf,\s*\.ag-menue__kopf \{\s*zoom: ([\d.]+);/g)].map((m) => [Number(m[1]), Number(m[2])]);
+  assert.ok(stufen.length >= 3, "es gibt die Stufen");
+  assert.equal(stufen[0][0], 374, "erst unter 375 px");
+  for (let i = 0; i < stufen.length; i++) {
+    const [breite, faktor] = stufen[i];
+    // Die letzte Stufe reicht bis 280 px (äußeres Display gefalteter Handys).
+    const kleinste = i + 1 < stufen.length ? stufen[i + 1][0] + 1 : 280;
+    assert.ok(faktor < 1 && faktor * 376 <= kleinste + 0.5, `Stufe bis ${breite} px: ${faktor} passt ab ${kleinste} px`);
+    if (i > 0) assert.ok(breite < stufen[i - 1][0] && faktor < stufen[i - 1][1]);
+  }
+});
+
 test("das große Logo am Anfang: wackelt am Handy nicht und reagiert nicht auf Antippen", () => {
   const szene = ohneKommentare(lies("components/neu/kopf/lichtszene.ts"));
   // Die Wand wiegt sich nur mit Maus; ohne Maus steht sie still.

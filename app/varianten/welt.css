@@ -131,10 +131,6 @@ html.lenis body {
   max-width: 60ch;
   color: var(--nebel);
 }
-.ag-zeile-mask {
-  padding-bottom: 0.14em;
-  margin-bottom: -0.14em;
-}
 
 /* ───────────── Raster und Abstände ───────────── */
 .ag-wrap {
@@ -824,6 +820,41 @@ html.ag-menue-offen body > :not(.ag-neu) {
     gap: 10px;
     min-height: 44px;
     padding: 4px 4px 4px 14px;
+  }
+}
+/* Sehr schmale Handys (unter 375 px): Name, „Anrufen“ und Menü-Knopf brauchen in der Kachel
+   rund 376 px. Darunter ragte der Menü-Knopf über die Kachel hinaus, bei 320 px war er fast ganz
+   abgeschnitten. Dort wird die ganze Kachel in Stufen etwas kleiner gezeichnet (gleiches Bild,
+   nur kleiner); ab 375 px bleibt alles, wie es ist. Faustregel: Verkleinerung höchstens Breite / 376. */
+@media (max-width: 374px) {
+  .ag-kopf,
+  .ag-menue__kopf {
+    zoom: 0.95;
+  }
+}
+@media (max-width: 357px) {
+  .ag-kopf,
+  .ag-menue__kopf {
+    zoom: 0.9;
+  }
+}
+@media (max-width: 338px) {
+  .ag-kopf,
+  .ag-menue__kopf {
+    zoom: 0.85;
+  }
+}
+@media (max-width: 319px) {
+  .ag-kopf,
+  .ag-menue__kopf {
+    zoom: 0.8;
+  }
+}
+/* Bis 280 px (äußeres Display gefalteter Handys). */
+@media (max-width: 300px) {
+  .ag-kopf,
+  .ag-menue__kopf {
+    zoom: 0.74;
   }
 }
 

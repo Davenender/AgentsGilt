@@ -27,25 +27,25 @@ import {
   twimlZuLuca,
 } from "../lib/luca-logik.ts";
 
-const DAVID = "+4915906430065";
+const DAVID = "+4915112345670";
 
 test("Davids Nummer wird in jeder Schreibweise erkannt, andere nicht", () => {
-  assert.equal(istDavid("+4915906430065", DAVID), true);
-  assert.equal(istDavid("015906430065", DAVID), true);
-  assert.equal(istDavid("0049 159 0643 0065", DAVID), true);
-  assert.equal(istDavid("+4915906430066", DAVID), false);
+  assert.equal(istDavid("+4915112345670", DAVID), true);
+  assert.equal(istDavid("015112345670", DAVID), true);
+  assert.equal(istDavid("0049 151 1234 5670", DAVID), true);
+  assert.equal(istDavid("+4915112345671", DAVID), false);
   assert.equal(istDavid("anonymous", DAVID), false);
   assert.equal(istDavid("", DAVID), false);
   assert.equal(istDavid(DAVID, ""), false);
 });
 
 test("David hat mehrere Handys: alle werden erkannt und keins klingelt bei Kunden", () => {
-  const davids = [DAVID, "+49 160 98427943"];
-  assert.equal(istDavid("+4916098427943", davids), true);
-  assert.equal(istDavid("015906430065", davids), true);
-  assert.equal(istDavid("+491715233279", davids), false);
-  assert.equal(istDavid("+4916098427943", "015906430065, 0160 98427943"), true);
-  const team = teamEintraege("David=+4916098427943,Mijo=+491715233279,Jakob=+491715256337", [DAVID, undefined, "+4916098427943"]);
+  const davids = [DAVID, "+49 160 55501234"];
+  assert.equal(istDavid("+4916055501234", davids), true);
+  assert.equal(istDavid("015112345670", davids), true);
+  assert.equal(istDavid("+491715550001", davids), false);
+  assert.equal(istDavid("+4916055501234", "015112345670, 0160 55501234"), true);
+  const team = teamEintraege("David=+4916055501234,Mijo=+491715550001,Jakob=+491715550002", [DAVID, undefined, "+4916055501234"]);
   assert.deepEqual(team.map((e) => e.name), ["Mijo", "Jakob"]);
 });
 
@@ -77,13 +77,13 @@ test("Zu Luca nur mit SIP-Benutzer und -Passwort, Sonderzeichen werden geschütz
 });
 
 test("Rufgruppe ohne David: seine Nummer fällt raus, Namen werden gelesen", () => {
-  const e = teamEintraege("Mijo=+49 151 1111111, 015906430065; Jakob: 0160 2222222\n+49 170 3333333", DAVID);
+  const e = teamEintraege("Mijo=+49 151 1111111, 015112345670; Jakob: 0160 2222222\n+49 170 3333333", DAVID);
   assert.deepEqual(e.map((x) => x.name), ["Mijo", "Jakob", null]);
-  assert.equal(e.some((x) => x.roh.includes("06430065")), false);
+  assert.equal(e.some((x) => x.roh.includes("12345670")), false);
   assert.equal(nameZu("+491602222222", e), "Jakob");
   assert.equal(nameZu("+491703333333", e), null);
   // ohne LUCA_NUMMER bleibt alles drin
-  assert.equal(teamEintraege("015906430065, 0160 2222222", "").length, 2);
+  assert.equal(teamEintraege("015112345670, 0160 2222222", "").length, 2);
 });
 
 test("Kartenzeile: angenommen mit Name und Minuten, sonst ehrlich nicht angenommen", () => {

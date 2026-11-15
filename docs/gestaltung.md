@@ -1053,6 +1053,34 @@ Davids Auftrag (Prompt 13). Ersetzt aus 4p, Abschnitt „Stern in den Glaskarten
 ### 9 · Nicht angefasst
 Chat-Fenster, Startanimation (außer Abschnitt 2), Texte, die alte Startseite. `voice-agent-prompt.md`, `vapi-prompt.txt` und `AGENTS.md` (fremde Dateien).
 
+## 4s. Prüfung vom 15.11.2026: nur Fehler finden und beheben, das Aussehen bleibt
+
+Davids Auftrag (Prompt 14). Ausgangsstand: Tag `website-zufrieden-2026-11-15`. Am Aussehen und an den Animationen ändert sich nichts; einzige sichtbare Behebung ist die Kopfleiste auf Handys unter 375 px (dort war sie kaputt). Bericht der Technik-Prüfung: `.impeccable/audit/2026-11-15.md` (17/20).
+
+### Behoben
+- **Kopfleiste auf sehr schmalen Handys:** Name, „Anrufen“ und Menü-Knopf brauchen rund 376 px. Darunter ragte der Menü-Knopf über die Glaskachel (360 px: 9 px), bei 320 px war er bis auf 7 px abgeschnitten. Jetzt wird die Kachel unter 375 px in Stufen kleiner gezeichnet (`zoom` 0,95 bis 0,74 bis hinunter zu 280 px); gleiches Bild, nur kleiner. Ab 375 px (also auch bei 390 px und am Computer) ist alles unverändert.
+- **Private Handynummern im öffentlichen Repo:** `tests/luca.test.ts` enthielt Davids Handynummern und die von Mijo und Jakob. Ersetzt durch erfundene Nummern (der Test prüft dasselbe). In der Git-Geschichte stehen sie weiter (siehe offen).
+- **Aufgeräumt:** zwei Stilregeln ohne Element (`.ag-zeile-mask`, `.ag-cf__link--knopf`) und die nie aufgerufene Funktion `istHandy()`. Von Strahlen, Lichtkreuz und Daumen-Knopf war nichts mehr übrig; Bilder und Dateien in `public/` werden alle benutzt; keine Code-Datei ist unerreichbar.
+
+### Würde das Aussehen ändern, David entscheidet
+- **Kontrast der inaktiven Schritte in „So läuft es ab“:** Nummer 3,5:1, Text 3,9:1 (nötig 4,5:1). Vorschlag: Deckkraft 0,75 statt 0,62 (dann 4,65:1 und 5,3:1).
+
+### Geprüft ohne Befund
+- Code: Detektor (nur gewollte federnde Kurven), Lint (0 Fehler, eine alte Warnung in der Standort-Logik), Typen, Build, alle Tests.
+- Seite (Computer und Handy): axe ohne weitere Verstöße, Tastatur mit Fokusring und logischer Reihenfolge, „weniger Bewegung“, keine Bilder ohne Alternativtext, keine kaputten Links, kein Überlauf von 280 bis 2560 px, Tippflächen am Handy mindestens 44 px, keine Fehler in der Konsole (nur `/_vercel/insights` 404, das gibt es nur auf Vercel).
+- Funktionen nach `docs/funktionen.md` mit nachgestelltem Netz (0 echte Anfragen): Sprechblase, Kugel, Chat mit Termin-Karte und Mitarbeiter-Knopf, Übernahme der Chat-Angaben ins Formular, Zusammenfassung, Mitarbeiter-Formular leer (rot, nichts gesendet), Kontaktformular leer und mit falscher Mail (nichts gesendet), „Anfragen“ wählt die Leistung vor, Anrufen-Links, Impressum- und Datenschutz-Blatt mit „Zurück“ an dieselbe Stelle, alte Startseite.
+- Recht: Impressum und Datenschutz Wort für Wort gleich wie auf der Live-Seite (nur der Zurück-Link heißt anders).
+- Alte Adressen: `/`, `/impressum`, `/datenschutz`, `/termin/…`, `/t/…` (leitet weiter), Schnittstellen antworten wie vorher.
+- Sicherheit: keine Schlüssel in committeten Dateien; Schutzregeln aller Schnittstellen da, die neue Zusammenfassung mit Ratenbegrenzung (12 in 5 Minuten je IP), Längengrenzen und Zeitgrenze.
+- Bildvergleich vorher/nachher an 15 festen Stellen (Start, jeder Abschnitt, Chat offen, Impressum- und Datenschutz-Blatt, eigene Rechtsseiten, alte Startseite), Computer 1440 px und Handy 390 px: pixelgleich oder innerhalb der Schwankung, die die Animationen von selbst haben (zweiter Vorher-Durchgang als Maßstab). Zwei Auffälligkeiten (Chat offen, Impressum-Seite) lagen am Zeitpunkt der Aufnahme; direkt geladen ist die Impressum-Seite pixelgleich.
+- Bildraten (Prozessor 4-fach gebremst, beide Fassungen als Kopie ohne Schlüssel, abwechselnd, nur Messungen im 60-Hz-Takt): Computer Scrollen 33 → 34, Glaskarten 38 → 39, Chat öffnen 20 bis 28 → 23, Chat schließen 26 → 27; Handy Scrollen 48 → 47, Chat öffnen 46 → 44. Gleich innerhalb der Schwankung (einzelne Läufe streuen um ±4); keine Änderung greift am Computer oder bei 390 px.
+
+### Offen
+- Die neue Seite steht noch unter `/varianten/kopf/kern` (Titel „Kopfbild …“, `noindex`). Für den Livegang muss sie an `/`; das betrifft Adressen und Metadaten und ist Davids Entscheidung.
+- Die alten Handynummern stehen in der Git-Geschichte des öffentlichen Repos; entfernen ginge nur durch Umschreiben der Geschichte und erzwungenes Hochladen.
+- Unter 320 px Breite (außerhalb der Prüfbreite der WCAG; 320 px passt) ragen im Kontakt die Überschrift „Sprechen wir über Ihr Projekt.“ und die Anruf-Karte um bis zu 24 px über den rechten Rand. Nicht behoben (das ginge nur über kleinere Schrift).
+- Bewertung nach Impeccable (nur zur Info, nichts umgesetzt): 21 von 36 möglichen Punkten (eine Heuristik entfällt), etwa 23 von 40. Mehrere Punkte betreffen bewusste Entscheidungen (Start-Sperre, Chat duzt, kein Daumen-Knopf). Ablage nur lokal in `.impeccable/critique/`.
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.

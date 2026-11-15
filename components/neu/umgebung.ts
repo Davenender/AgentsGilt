@@ -17,9 +17,6 @@ export function istVorschau(): boolean {
  * Schubser beim Antippen). Die Gegenprobe im Code heißt überall „(hover: hover) and (pointer: fine)“.
  */
 export const HANDY = "(hover: none), (pointer: coarse)";
-export function istHandy(): boolean {
-  return typeof window !== "undefined" && window.matchMedia(HANDY).matches;
-}
 
 export function willWenigerBewegung(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
