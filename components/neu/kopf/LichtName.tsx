@@ -451,7 +451,8 @@ export function LichtName() {
             schirm: Math.max(window.innerWidth, window.innerHeight),
             // Beim Scrollen fliegen die Zeichen auseinander: Die Fläche reicht deshalb 90 % der
             // Bildschirmhöhe unter den Kopfbereich hinaus (so weit, wie man dabei scrollt).
-            ueberhang: still ? 0 : Math.round(window.innerHeight * 0.9),
+            // Am Handy fliegt nichts auseinander: dann reicht die Fläche nicht unter den Kopfbereich (spart Rechenzeit).
+            ueberhang: still || !maus ? 0 : Math.round(window.innerHeight * 0.9),
           },
           // Am Handy steht der Schimmer ruhig, auch wenn sich das Licht dort leicht wiegt.
           szene ? (maus ? szene.lage : { ...szene.lage, kippX: 0, kippY: 0 }) : ruhe,
@@ -882,7 +883,9 @@ export function LichtName() {
       // Scroll-Fortschritt 0 bis 1 über 90 % der Bildhöhe. Solange die Seite oben ist (bis 24 px),
       // bleibt er genau 0: Nur dann reagieren die Zeichen auf die Maus (startlogik.ts).
       const s = rollStand(y, hoch);
-      if (gebaut) feld.rollen(s, Math.max(0, y - obenImDokument), hoch);
+      // Am Handy (Touch ohne Maus) bleibt der Name nach dem Einflug stehen (Davids Wunsch 15.11.:
+      // das Auseinanderfliegen lief dort nicht flüssig). Nur am Computer fliegen die Zeichen auseinander.
+      if (gebaut) feld.rollen(maus ? s : 0, Math.max(0, y - obenImDokument), hoch);
       if (s === rollZuletzt) return;
       rollZuletzt = s;
       // Das Licht tritt zurück (bis auf 14 %), je weiter man scrollt.
