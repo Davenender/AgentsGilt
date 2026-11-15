@@ -244,7 +244,7 @@ export function Kopfleiste({ basis = "", start }: { basis?: string; start?: stri
     if (!offen) return;
     const dialog = menue.current;
     if (!dialog) return;
-    // Alles neben dem Dialog ruht: Kopfleiste, Inhalt, Fußleiste, Daumenleiste.
+    // Alles neben dem Dialog ruht: Kopfleiste, Inhalt, Fußleiste.
     const dahinter = Array.from(dialog.parentElement?.children ?? []).filter((el) => el !== dialog);
     dahinter.forEach((el) => el.setAttribute("inert", ""));
     document.documentElement.classList.add("ag-menue-offen");

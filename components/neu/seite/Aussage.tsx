@@ -3,7 +3,7 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { ScrollTrigger } from "@/lib/gsap";
 import { aussage } from "@/lib/inhalt-neu";
-import { istVorschau } from "../umgebung";
+import { HANDY, istVorschau } from "../umgebung";
 import { useBewegungsWechsel } from "./einstellung";
 import { erzeugeSpiel } from "./Entschluesselt";
 import { richteGlaskartenEin } from "./glaskarten";
@@ -99,6 +99,9 @@ function Woerter({ text }: { text: string }) {
  *    ihr eigenes, festes Strahlenbild; alles ist reines Stylesheet (nur Verschieben, Drehen,
  *    Deckkraft). Der Text leuchtet unter der Maus warm auf (glaskarten.ts).
  *
+ * Am Handy (ohne Maus, entschieden am Gerät) tippt sich die Überschrift nicht: Sie blendet beim
+ * Hinscrollen ruhig ein, gleich mit „Stunden“, ohne Zufallszeichen; Balken und Karten folgen wie sonst.
+ *
  * Alles nur einmal je Seitenaufruf. Der echte Text steht die ganze Zeit im Dokument. Ohne Skript,
  * bei „weniger Bewegung“ und in der Vorschau steht alles sofort da: der goldene Balken voll, der
  * graue bei einem Drittel, die Karten an ihrem Platz, der Text hell, kein Stern.
@@ -122,6 +125,35 @@ export function Aussage() {
       return;
     }
     const karten = richteGlaskartenEin(reihe);
+    if (window.matchMedia(HANDY).matches) {
+      // Am Handy (ohne Maus): keine Zufallszeichen, kein Tippen. Die Überschrift blendet beim
+      // Hinscrollen ruhig ein (gleich mit „Stunden“), dann laufen die Balken, und die Karten
+      // schweben ein. Auf Antippen reagiert sie nicht.
+      if (lief.current || satz.getBoundingClientRect().bottom < 0) {
+        lief.current = true;
+        karten.zeigen();
+        return () => karten.ende();
+      }
+      el.dataset.an = "1";
+      el.dataset.ruhig = "1";
+      const ruhigWaechter = ScrollTrigger.create({
+        trigger: satz,
+        start: "top 84%",
+        once: true,
+        onEnter: () => {
+          lief.current = true;
+          el.dataset.lauf = "1";
+          karten.zeigen(KARTEN_AB);
+        },
+      });
+      return () => {
+        ruhigWaechter.kill();
+        karten.ende();
+        delete el.dataset.an;
+        delete el.dataset.ruhig;
+        delete el.dataset.lauf;
+      };
+    }
     // Die Überschrift steht: Der Wettlauf läuft los, kurz danach schweben die Karten ein.
     const titel = erzeugeSpiel(satz, () => {
       el.dataset.lauf = "1";

@@ -978,6 +978,40 @@ Davids Auftrag (Prompt 11). Ersetzt aus 4o: das Licht im Chat-Knopf, das weiße 
 ### 14 · Nicht angefasst
 Startanimation (außer der unsichtbaren Änderung in 11), alle anderen Abschnitte, die alte Startseite. `voice-agent-prompt.md` und `vapi-prompt.txt` (fremde Änderungen).
 
+## 4q. Achte Runde vom 15.11.2026: kein Licht beim Öffnen des Chats, Handy ruhiger
+
+Davids Auftrag (Prompt 12). Ersetzt aus 4p, Abschnitt 3 und 6: den goldenen Schein in der Form und das Logo der Kugel, das zum Punkt schrumpfte. Ersetzt aus 4o, Abschnitt 1: den Aufbau des Logos im Chat-Kopf aus einfliegenden Teilen. Ersetzt aus 4m, Abschnitt 4 und 4p, Abschnitt 11: den Anrufen-Knopf am Daumen. Am Computer bleibt alles andere, wie es war.
+
+### 1 · Chat öffnen und schließen ohne wanderndes Licht
+- **Gefunden** (Öffnen und Schließen Bild für Bild, je 50 ms, jede Ebene einzeln vermessen, dazu Echtzeit-Video mit 25 Bildern je Sekunde): Das Licht, das von unten rechts nach oben links wanderte, war der **goldene Schein in der Mitte der Form** (`ag-cf__glut`). Er saß immer in der Mitte der wachsenden Form, also zog er vom Chat-Knopf zur Mitte des Fensters (bis 44 000 px² helle Fläche, Mitte von 1369/839 nach 1198/541). Dazu: Das Logo der Kugel schrumpfte zu einem Punkt, und der **Glimmrand** des Fensters stand während der ganzen Bewegung auf voller Nähe, weil die Maus auf dem Chat-Knopf lag (sein Lichtfleck saß am Rand der wachsenden Form).
+- **Jetzt:** Den Schein gibt es nicht mehr. Das Logo der Kugel blendet nur aus (erst die vier Balken, dann der Stern), ganz, bevor die Form sich dehnt; es schrumpft nicht und wandert nicht mit. Der Glimmrand ist während der Bewegung aus, blendet erst **nach dem vollständigen Öffnen** weich ein (0,6 s) und ist mit dem ersten Bild des Schließens weg. Der schwache Logo-Schein hinter dem Glas gehört zum Glas und blendet mit ihm ein, er wandert nicht. Im Inhalt bewegt sich ebenfalls kein Licht mehr: Das Logo im Chat-Kopf baut sich nicht mehr aus einfliegenden Teilen auf, die Vorschläge haben keinen Lichtstreif mehr, die goldene Linie unter dem Eingabefeld zieht sich nicht mehr.
+- Form, Glas, Inhalt und Zeiten sind dieselben wie in 4p. Messung nachher: In keinem Schritt gibt es in der Form eine helle Fläche über 200 px² (vorher bis 44 000 px²), und was dort noch hell ist, sind einzelne Punkte am Goldrand der Ecken, die nicht wandern.
+- Nebenbei: Nach einem Klick bestimmt der Mauszeiger neu, was unter ihm liegt (sonst blieb der Ring für Knöpfe stehen, wenn sich unter der ruhenden Maus der Chat-Knopf in das Fenster verwandelte).
+
+### 2 · Handy: Logo am Anfang bleibt ruhig
+- Am Handy wiegte sich das Licht von selbst leicht hin und her (die Wand mit dem Logo kippte langsam), und ein Tipp auf den Kopfbereich schickte eine Welle durch den Namen (mit kurzer Vibration). Beides ist weg: Ohne Maus steht die Wand still, Tippen löst nichts aus, und der Browser zeigt dort auch keinen grauen Tipp-Kasten.
+- Die Startanimation selbst läuft wie bisher (Stern im Dunkeln, Licht, Zeichen).
+
+### 3 · Handy: kein Anrufen-Knopf unten
+- Der goldene Knopf, der am Handy unten klebte (`DaumenLeiste`), ist mit Code und Stilen entfernt. Anrufen steht in der Kopfleiste und im Kontakt-Abschnitt.
+
+### 4 · Handy: die drei Schritte ohne große Zahlen
+- Am Handy gibt es die große Zahl aus Zeichen nicht mehr (sie wird gar nicht erst gezeichnet). Es bleiben die drei Schritte, alle gleich hell und ganz gefüllt, ohne Lauf; sie blenden beim Hinscrollen ruhig nacheinander ein (je 0,14 s versetzt). Am Computer ist der Abschnitt genau wie vorher.
+
+### 5 · Handy: keine Maus-Effekte
+- „Handy“ entscheidet das Gerät: `(hover: none), (pointer: coarse)`, also Touch ohne Maus (`HANDY` in `components/neu/umgebung.ts`), nicht die Breite.
+- Weg am Handy: die Welle im Namen oben und unten beim Antippen; das Treiben und der Schubs der Wörter im Feld mit dem Stern (sie stehen nach ihrem Auftritt still, und es rechnet nichts mehr je Bild); Zufallszeichen in Überschriften, auch beim Hinscrollen (sie blenden ruhig ein, die Hauptüberschrift ebenso, gleich mit „Stunden“); Hover-Stile, die nach dem Tippen hängen blieben (sie gelten jetzt nur bei echter Maus). Verwürfeln, Magnet, Glimmrand, Mauslicht und Zeiger liefen schon vorher nur mit Maus.
+- Unverändert: Startanimation, Chat-Fenster (Kugel, Punkte, Welle), Stern in den Glaskarten, alles, was beim Scrollen kommt (Karten schweben ein, Zeichen-Nummern der Leistungen, Name aus Zeichen im Fuß).
+- **Bildraten am Handy** (Prozessor 4-fach gebremst, Stand Prompt 11 und neu abwechselnd, je zwei Runden): Scrollen durch die Seite 37 bis 40 → **58 bis 62** Bilder je Sekunde, Glaskarten beim Auftauchen der Sterne 47 bis 51 → **55 bis 58**, Chat öffnen 40 bis 45 → 40 bis 45 (gleich), Chat schließen 57 bis 69 → 65 bis 69.
+
+### 6 · Meine Lesarten, zu denen David anders entscheiden kann
+- **Überschriften am Handy auch beim Scrollen ohne Zufallszeichen:** „Was beim Scrollen erscheint, bleibt, aber ruhig und leicht“ habe ich so gelesen, dass die Überschriften dort ruhig einblenden statt sich zu entschlüsseln.
+- **Logo im Chat-Kopf ohne Aufbau:** Es baute sich aus einfliegenden goldenen Teilen auf; das ist auch ein bewegtes Licht. Es steht jetzt einfach da.
+- **Ersatzbild auf sehr schwachen Handys:** Kommt ein Handy mit dem Licht gar nicht mit, wechselt es wie bisher auf das ruhige Bild. Dessen Stern sitzt bis zu 3 px anders als im lebenden Licht; das habe ich nicht angefasst.
+
+### 7 · Nicht angefasst
+Alles am Computer außer Abschnitt 1, alle Texte, die alte Startseite. `voice-agent-prompt.md`, `vapi-prompt.txt` und `AGENTS.md` (fremde Dateien).
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
@@ -1033,3 +1067,4 @@ Startanimation (außer der unsichtbaren Änderung in 11), alle anderen Abschnitt
 28. **Fünfte Runde (14.11.2026, Abschnitt 4n):** Das Chat-Fenster der neuen Seite ist ein Glasfenster im Stil der Seite: Es faltet sich aus dem Stern des Chat-Knopfs aus, Antworten entschlüsseln sich Wort für Wort, Telefonnummern werden zum Chip „Jetzt anrufen“, „Mit einem Mitarbeiter sprechen“ ist ein Glasknopf, der zum bestehenden Support-Ticket führt; am Handy ein Blatt von unten. Die Logik ist unverändert und läuft einmal für beide Fenster; die alte Startseite behält ihr Fenster. Der Assistent verweist für Termine aufs Anrufen, bietet sonst den Mitarbeiter-Chat an und nennt WhatsApp nicht mehr von sich aus.
 29. **Sechste Runde (14.11.2026, Abschnitt 4o):** Das Chat-Fenster wird beim Öffnen und Schließen zur Kugel des Chat-Knopfs (kein Abschneiden mehr). Im Kopf steht unser Logo. Beim Nachdenken drei goldene Punkte, die Antwort erscheint erst ganz und entschlüsselt sich als ruhige Welle (0,6 s Zeichen je Wort, höchstens 3,5 s). Was der Assistent anbietet, steht unter der Nachricht: Anruf-Karte bei `[ANRUFEN]`, „Mit einem Mitarbeiter schreiben“ bei `[MITARBEITER]`; keine Telefonnummer mehr im Text bei Terminen. Das Formular füllt die Nachricht mit einer KI-Zusammenfassung des Chats. Schein und Glimmrand folgen der Maus ohne Verzögerung; der Glimmrand ist an allen Karten. Der Stern hinter den Glaskarten bricht sich im Glas (Lichtkreuz, klares Glas, Brechung an der Kante, Licht auf den Nachbarkarten).
 30. **Siebte Runde (14.11.2026, Abschnitt 4p):** Ein Logo überall: flach und golden in Kopfleiste, Chat-Kugel und Chat-Kopf; leuchten darf nur noch das große in der Mitte. Kein weißes Licht mehr beim Öffnen des Chats, und die Kugel-Bewegung läuft jetzt ganz auf der Grafikkarte (sieben verschobene Teile statt Eckenradius, Glas-Unschärfe erst am Ende). Die Sprechblase kommt bei jedem Laden wieder. Bei Terminen bietet der Chat immer beide Wege an und duzt überall; das Mitarbeiter-Formular ist immer zu, das Kontaktformular öffnet sich nur mit Angaben aus dem Chat. Der Stern in den Glaskarten ist neu und einfacher: fest in der Mitte der Karte, Strahlen brechen sich am Glasrand und strahlen hinaus, reines Stylesheet. Der Schein des Mauszeigers gehört jetzt zum Zeiger-Bild des Systems. Im Kontakt weist eine Glaszeile mit „Jetzt chatten“ auf den Chat hin. Impressum und Datenschutz haben das neue Design und öffnen sich von der neuen Seite aus als Blatt, damit „Zurück“ an genau dieselbe Stelle führt.
+31. **Achte Runde (15.11.2026, Abschnitt 4q):** Beim Öffnen und Schließen des Chats bewegt sich kein Licht mehr (der Schein in der Form ist weg, das Logo der Kugel blendet nur aus, der Glimmrand kommt erst nach dem Öffnen). Am Handy (am Gerät erkannt, nicht an der Breite): Das Logo am Anfang wackelt nicht und reagiert nicht auf Tippen, der Anrufen-Knopf unten ist weg, „So läuft es ab“ hat keine großen Zahlen, und alles, was für die Maus gedacht ist, fällt weg.

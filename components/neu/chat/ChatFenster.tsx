@@ -85,7 +85,6 @@ export function ChatFenster() {
   const rahmen = useRef<HTMLDivElement>(null);
   const teile = useRef<HTMLDivElement>(null);
   const fenster = useRef<HTMLDivElement>(null);
-  const glut = useRef<HTMLSpanElement>(null);
   const schein = useRef<HTMLSpanElement>(null);
   const kugelLogo = useRef<HTMLSpanElement>(null);
   const blatt = useRef<HTMLDivElement>(null);
@@ -201,7 +200,6 @@ export function ChatFenster() {
       { offset: 1, opacity: 0 },
     ]);
     Array.from(huelle.querySelectorAll<HTMLElement>(".ag-cf__teil")).forEach((el, i) => spiele(el, i < 7 ? z.rand[i] : z.flaeche[i - 7]));
-    spiele(glut.current, z.glut);
     // Der echte Chat-Knopf: Sobald die Kugel ihn deckt, ist er weg; rückwärts kommt er wieder, bevor sie vergeht.
     spiele(knopf, [
       { offset: 0, opacity: 1 },
@@ -209,8 +207,9 @@ export function ChatFenster() {
       { offset: P.knopfWeg + 0.001, opacity: 0 },
       { offset: 1, opacity: 0 },
     ]);
-    // Das Logo in der Kugel: erst gehen die vier Balken nacheinander, dann zieht sich der Stern
-    // zusammen (rückwärts: erst der Stern, dann die vier Balken).
+    // Das Logo in der Kugel: erst blenden die vier Balken nacheinander aus, dann der Stern
+    // (rückwärts: erst der Stern, dann die vier Balken). Es blendet nur: kein Schrumpfen zu einem
+    // Punkt, kein Wandern. Es ist ganz weg, bevor die Form sich dehnt.
     const logo = kugelLogo.current;
     spiele(logo, z.logo);
     const balken = Array.from(logo?.querySelectorAll("polygon") ?? []);
@@ -224,10 +223,10 @@ export function ChatFenster() {
       ]),
     );
     spiele(logo?.querySelector("path"), [
-      { offset: 0, opacity: 1, transform: "scale(1)" },
-      { offset: P.stern[0], opacity: 1, transform: "scale(1)" },
-      { offset: P.stern[1], opacity: 0, transform: "scale(0.25)" },
-      { offset: 1, opacity: 0, transform: "scale(0.25)" },
+      { offset: 0, opacity: 1 },
+      { offset: P.stern[0], opacity: 1 },
+      { offset: P.stern[1], opacity: 0 },
+      { offset: 1, opacity: 0 },
     ]);
     // Das echte Glas blendet ein, sobald die Form ihre Größe hat: Erst dann rechnet der Browser die Unschärfe.
     spiele(fe, [
@@ -243,10 +242,12 @@ export function ChatFenster() {
       { offset: P.inhalt[1], opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
       { offset: 1, opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
     ]);
+    // Der schwache Lichtschein hinter dem Glas gehört zum Glas: Er blendet genau mit ihm ein und
+    // aus (kein eigener Auftritt, er steht still).
     spiele(schein.current, [
       { offset: 0, opacity: 0 },
-      { offset: P.schein[0], opacity: 0 },
-      { offset: P.schein[1], opacity: 0.42 },
+      { offset: P.glas[0], opacity: 0 },
+      { offset: P.glas[1], opacity: 0.42 },
       { offset: 1, opacity: 0.42 },
     ]);
     for (const a of neu) {
@@ -619,7 +620,6 @@ export function ChatFenster() {
           {TEILE.map((klasse, i) => (
             <i key={i} className={klasse} />
           ))}
-          <span ref={glut} className="ag-cf__glut" />
         </div>
         {/* Das ruhende Fenster: echtes Glas mit Unschärfe, Lichtkante, Goldrand und Schatten. */}
         <div ref={fenster} className="ag-cf__fenster" data-glimm aria-hidden="true" />

@@ -189,10 +189,10 @@ export function LichtName() {
     const KLASSEN = [INTRO_FERTIG_KLASSE, LADEN_FERTIG_KLASSE, START_FERTIG_KLASSE, START_FREI_KLASSE];
     wurzel.classList.remove(...KLASSEN);
     // Der Stand des Starts (`data-start`, `data-skript`) steht am Kopfbereich und, gleichlautend, an
-    // Kopfleiste, Chat-Knopf und Daumen-Knopf: Das Stylesheet liest ihn dort direkt ab. Früher
+    // Kopfleiste und Chat-Knopf: Das Stylesheet liest ihn dort direkt ab. Früher
     // suchte es ihn mit `:has()` vom Rand der Seite aus, und der Browser musste dafür bei jedem
     // wechselnden Zeichen die Seite absuchen. Gesetzt wird nur, wenn sich der Stand ändert.
-    const mitlaeufer = Array.from(document.querySelectorAll<HTMLElement>(".ag-kopf, .ag-chat, .ag-daumen"));
+    const mitlaeufer = Array.from(document.querySelectorAll<HTMLElement>(".ag-kopf, .ag-chat"));
     const setzeStart = (stand: string) => {
       held.dataset.start = stand;
       for (const teil of mitlaeufer) teil.dataset.start = stand;
@@ -852,16 +852,15 @@ export function LichtName() {
       freigeben();
     };
 
-    // Klick oder Tippen auf den Namen (plus 40 px Rand, nicht auf Knöpfe und Links, nicht im Startflug): eine Welle.
+    // Klick auf den Namen (plus 40 px Rand, nicht auf Knöpfe und Links, nicht im Startflug): eine Welle.
+    // Nur mit echter Maus: Am Handy reagiert der Kopfbereich nicht auf Antippen (keine Welle, keine
+    // Vibration; seit dem 15.11.2026).
     const klick = (ev: MouseEvent) => {
       // Der Klick, der die Startanimation übersprungen hat, löst nicht auch noch eine Welle aus.
       if (!gebaut || !fertig || performance.now() - uebersprungenUm < 400) return;
       if ((ev.target as Element | null)?.closest("a, button, input, select, textarea, label")) return;
       const e = el.getBoundingClientRect();
-      const ausgeloest = feld.welle(ev.clientX - e.left, ev.clientY - e.top);
-      if (!ausgeloest) return;
-      // Am Handy dazu eine kurze Vibration (wo das Gerät es kann).
-      if (!maus) navigator.vibrate?.(6);
+      feld.welle(ev.clientX - e.left, ev.clientY - e.top);
     };
     const zeigerBewegt = (ev: PointerEvent) => {
       if (ev.pointerType !== "mouse") return;
@@ -925,8 +924,8 @@ export function LichtName() {
       setzeStart("warten");
       // Das Skript läuft: Das Sicherheitsnetz des Stylesheets (Kopfleiste nach 8 s von selbst) gilt nicht mehr.
       setzeSkript(true);
-      held.addEventListener("click", klick);
       if (maus) {
+        held.addEventListener("click", klick);
         window.addEventListener("pointermove", zeigerBewegt, { passive: true });
         wurzel.addEventListener("pointerleave", zeigerWeg);
       }

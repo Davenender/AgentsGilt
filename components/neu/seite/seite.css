@@ -1361,6 +1361,31 @@
   }
 }
 
+/* ───────────── Überschriften am Handy: ruhig einblenden ─────────────
+   Ohne Maus (am Gerät entschieden) gibt es keine Zufallszeichen: Eine Überschrift blendet beim
+   Hinscrollen weich ein und steht dann (Entschluesselt.tsx setzt data-ruhig; die Hauptüberschrift
+   der ersten Aussage: Aussage.tsx). */
+.ag-neu [data-ruhig] {
+  transition:
+    opacity 0.8s var(--weich),
+    translate 0.8s var(--weich);
+}
+.ag-neu [data-ruhig="wartet"] {
+  opacity: 0;
+  translate: 0 14px;
+}
+.ag-aussage[data-an][data-ruhig] .ag-aussage__satz {
+  opacity: 0;
+  translate: 0 14px;
+  transition:
+    opacity 0.8s var(--weich),
+    translate 0.8s var(--weich);
+}
+.ag-aussage[data-an][data-ruhig][data-lauf] .ag-aussage__satz {
+  opacity: 1;
+  translate: none;
+}
+
 /* ───────────── So läuft es ab: Zeichen-Nummern ───────────── */
 .ag-abn__innen {
   display: grid;
@@ -1460,8 +1485,10 @@
 .ag-abn__liste li[data-gewaehlt="true"] button .ag-mono {
   color: var(--gold-hell);
 }
-.ag-abn__liste button:hover .ag-abn__titel {
-  filter: brightness(1.18);
+@media (hover: hover) and (pointer: fine) {
+  .ag-abn__liste button:hover .ag-abn__titel {
+    filter: brightness(1.18);
+  }
 }
 .ag-abn__liste p {
   max-width: 46ch;
@@ -1480,6 +1507,37 @@
   }
   .ag-abn__bild {
     max-width: 380px;
+  }
+}
+/* Am Handy (ohne Maus, am Gerät entschieden, nicht an der Breite): keine große Nummer. Es bleiben
+   die drei Schritte, alle gleich hell; sie blenden beim Hinscrollen ruhig nacheinander ein
+   (AblaufNummern.tsx setzt data-handy). Ein Tipp hebt keinen Schritt hervor. */
+@media (hover: none), (pointer: coarse) {
+  .ag-abn__bild {
+    display: none;
+  }
+  .ag-abn__innen {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ag-abn__liste button {
+    cursor: default;
+  }
+}
+.ag-abn__innen[data-handy] .ag-abn__liste li {
+  transition:
+    opacity 0.7s var(--weich),
+    translate 0.7s var(--weich);
+  transition-delay: calc(var(--i, 0) * 140ms);
+}
+.ag-abn__innen[data-handy="wartet"] .ag-abn__liste li {
+  opacity: 0;
+  translate: 0 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ag-abn__innen[data-handy] .ag-abn__liste li {
+    opacity: 1;
+    translate: none;
+    transition: none;
   }
 }
 

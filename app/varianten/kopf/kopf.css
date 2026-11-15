@@ -183,6 +183,11 @@
   /* Rein schwarz: Kopfbereich, Wand und Grund der Licht-Szene haben denselben Ton. */
   background: #000;
 }
+/* Antippen im Kopfbereich zeigt nichts an (kein grauer Kasten des Browsers): Am Handy reagiert
+   das Logo nicht auf Tippen. */
+.ag-kopf5 {
+  -webkit-tap-highlight-color: transparent;
+}
 .ag-kopf5__mitte {
   position: relative;
   /* Über dem Licht, unter den Zeichen: Ohne Skript bleibt der Schriftzug so sichtbar. */
@@ -389,23 +394,23 @@
   animation: ag-ln-atmen 6.5s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite alternate;
 }
 /* Bis die Zeichen landen, bleiben Kopfleiste, „Anrufen“, Chat-Knopf und der Anrufen-Knopf am
-   Daumen verborgen; dann erscheinen sie weich. Sicherheitsnetz: Startet das Skript nicht,
+   verborgen; dann erscheinen sie weich. Sicherheitsnetz: Startet das Skript nicht,
    sind sie nach 8 Sekunden von selbst da. Läuft das Skript (data-skript), gilt das Netz nicht:
    Dann kann der Stern auch länger pulsieren, bis alles bereit ist. */
 /* Den Stand des Starts tragen die drei Teile selbst (`data-start`, `data-skript`: von Anfang an
    aus dem Rahmen, danach von LichtName.tsx gleichlautend zum Kopfbereich gesetzt). Früher suchte
    das Stylesheet ihn mit `:has()` am Kopfbereich; dafür musste der Browser bei jedem wechselnden
    Zeichen die ganze Seite absuchen. (`.ag-neu.ag-neu`: dasselbe Gewicht wie die früheren Regeln.) */
-.ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen)[data-start] {
+.ag-neu.ag-neu :is(.ag-kopf, .ag-chat)[data-start] {
   transition: opacity 0.9s var(--weich);
 }
-.ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen):is([data-start="warten"], [data-start="licht"]) {
+.ag-neu.ag-neu :is(.ag-kopf, .ag-chat):is([data-start="warten"], [data-start="licht"]) {
   opacity: 0;
   /* Solange sie verborgen sind, nehmen ihre Teile keine Klicks an (welt.css: „pointer-events:
      var(--ag-klick, auto)“). Der Wert wird hier nur an den drei Behältern gesetzt und vererbt sich. */
   --ag-klick: none;
 }
-.ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen):is([data-start="warten"], [data-start="licht"]):not([data-skript]) {
+.ag-neu.ag-neu :is(.ag-kopf, .ag-chat):is([data-start="warten"], [data-start="licht"]):not([data-skript]) {
   animation: ag-start-netz 0.6s 8s forwards;
 }
 @keyframes ag-start-netz {
@@ -414,7 +419,7 @@
   }
 }
 @media (scripting: none) {
-  .ag-neu.ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen)[data-start] {
+  .ag-neu.ag-neu.ag-neu :is(.ag-kopf, .ag-chat)[data-start] {
     opacity: 1;
     animation: none;
   }
@@ -427,7 +432,7 @@
   .ag-ln__stern {
     display: none;
   }
-  .ag-neu.ag-neu :is(.ag-kopf, .ag-chat, .ag-daumen)[data-start] {
+  .ag-neu.ag-neu :is(.ag-kopf, .ag-chat)[data-start] {
     transition-duration: 0.6s !important;
   }
 }

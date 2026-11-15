@@ -13,7 +13,7 @@ export default function VariantenLayout({ children }: { children: React.ReactNod
     <Welt>
       {/* Ohne JavaScript gibt es keinen Ladebildschirm: Die Seite ist sofort da. */}
       <noscript>
-        <style>{".ag-lade{display:none}.ag-ln__standbild{display:block}.ag-ln__stern{display:none}.ag-kopf,.ag-chat,.ag-daumen{opacity:1!important;animation:none!important}.ag-wf__innen{opacity:1!important;transform:none!important;filter:none!important}.ag-schluss .ag-wortmarke{opacity:1!important}.ag-stern__auf{opacity:1!important;scale:1!important}.ag-stern__mitte{scale:1!important}"}</style>
+        <style>{".ag-lade{display:none}.ag-ln__standbild{display:block}.ag-ln__stern{display:none}.ag-kopf,.ag-chat{opacity:1!important;animation:none!important}.ag-wf__innen{opacity:1!important;transform:none!important;filter:none!important}.ag-schluss .ag-wortmarke{opacity:1!important}.ag-stern__auf{opacity:1!important;scale:1!important}.ag-stern__mitte{scale:1!important}"}</style>
       </noscript>
       {children}
     </Welt>

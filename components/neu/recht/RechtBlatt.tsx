@@ -96,7 +96,7 @@ export function RechtBlatt() {
     if (!art) return;
     const html = document.documentElement;
     const el = blatt.current;
-    const ruhend = Array.from(document.querySelectorAll<HTMLElement>("main.ag-seite, footer.ag-fuss:not(.ag-rechtblatt footer), .ag-daumen"));
+    const ruhend = Array.from(document.querySelectorAll<HTMLElement>("main.ag-seite, footer.ag-fuss:not(.ag-rechtblatt footer)"));
     ruhend.forEach((teil) => teil.setAttribute("inert", ""));
     // Die Seite darunter scrollt nicht mehr; gemerkt wird, wo sie steht.
     const lage = window.scrollY;

@@ -108,7 +108,7 @@ export type LichtWahl = {
   proben: number;
   /** Farbe der Wand = Farbe des Grundes (schwarz). */
   wand: number;
-  /** Folgt die Wand der Maus? (Am Handy wiegt sie sich nur leicht.) */
+  /** Folgt die Wand der Maus? (Am Handy steht sie still.) */
   maus: boolean;
   /**
    * Auftritt in Stufen (Startanimation): Zuerst leuchtet nur der Stern, so schwach wie das Bild,
@@ -522,7 +522,7 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     neu = true;
   };
 
-  // ── Maus: Die Wand kippt zur Maus; am Handy wiegt sie sich nur leicht.
+  // ── Maus: Die Wand kippt zur Maus; am Handy steht sie still.
   const ziel = { x: 0, y: 0 };
   const ist = { x: 0, y: 0 };
   // Wo die Maus zuletzt war. Solange das Licht ihr nicht folgt (Startanimation), wird das nur gemerkt.
@@ -952,9 +952,11 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
       direkt.godRaysMaterial.exposure = DIREKT_BELICHTUNG;
       korn.blendMode.opacity.value = wahl.aufnahme.korn ? 0.2 : 0;
     }
-    // Ohne Maus wiegt sich die Wand ganz leicht von selbst.
-    const kx = wahl.aufnahme ? 0 : ist.x + Math.sin(zeit * 0.31) * (wahl.maus ? 0.03 : 0.05);
-    const ky = wahl.aufnahme ? 0 : ist.y + Math.sin(zeit * 0.23 + 1.3) * (wahl.maus ? 0.02 : 0.035);
+    // Mit Maus wiegt sich die Wand ganz leicht mit. Ohne Maus (Handy) steht sie still: Das Logo
+    // wackelt dort nicht (seit dem 15.11.2026; vorher wiegte es sich am Handy von selbst), und es
+    // sitzt vom ersten Bild an genau dort, wo vorher der Stern im Dunkeln stand.
+    const kx = wahl.aufnahme || !wahl.maus ? 0 : ist.x + Math.sin(zeit * 0.31) * 0.03;
+    const ky = wahl.aufnahme || !wahl.maus ? 0 : ist.y + Math.sin(zeit * 0.23 + 1.3) * 0.02;
     stelleEin(kx, ky);
     begrenze(strahlen, scheibe);
     begrenze(direkt, direktScheibe);

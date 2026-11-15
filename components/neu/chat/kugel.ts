@@ -30,20 +30,23 @@ export const STUETZEN = 22;
 
 /**
  * Wann was geschieht (Anteile der Zeitleiste, vorwärts gelesen; rückwärts läuft alles umgekehrt):
- * Die Kugel deckt den Knopf, hebt sich leicht, ihr Logo löst sich auf (erst die Balken
- * nacheinander, dann der Stern); die Kugel dehnt sich zum Fenster; das echte Glas blendet ein; der
- * Inhalt baut sich auf.
+ * Die Kugel deckt den Knopf, hebt sich leicht, ihr Logo blendet aus (erst die Balken nacheinander,
+ * dann der Stern); die Kugel dehnt sich zum Fenster; das echte Glas blendet ein; der Inhalt baut
+ * sich auf.
+ *
+ * Kein Licht bewegt sich dabei (seit dem 15.11.2026): Das Logo ist ganz weg, bevor die Form sich
+ * rührt (`stern` endet vor `form`), es schrumpft nicht zu einem Punkt und wandert nicht mit. Den
+ * goldenen Schein in der Mitte der Form, der vom Knopf zur Fenstermitte wanderte, gibt es nicht mehr.
  */
 export const PHASEN = {
   decken: [0, 0.07],
   knopfWeg: 0.08,
-  balken: [0.02, 0.14],
-  stern: [0.1, 0.2],
+  balken: [0.02, 0.11],
+  stern: [0.08, 0.135],
   form: [0.14, 0.6],
   glas: [0.56, 0.68],
   teileWeg: [0.6, 0.72],
   inhalt: [0.5, 0.78],
-  schein: [0.55, 0.85],
 } as const;
 
 /** Maße in Pixeln, bezogen auf den Rahmen des Fensters: seine Größe, Mitte und Durchmesser des Chat-Knopfs. */
@@ -131,35 +134,28 @@ export type Bild = { offset: number; transform?: string; opacity?: number };
 
 /**
  * Die ganze Zeitleiste für die bewegten Teile, in gleichmäßigen Stützstellen:
- * `rand` und `flaeche` je sieben Teile (Goldrand und Fläche), `glut` (der goldene Schein in der
- * Mitte, in den sich der Inhalt auflöst) und `logo` (das Logo in der Kugel: Es sitzt auf der Mitte
- * der Kugel; `zug` ist sein Versatz, solange der Magnet den Knopf zieht).
+ * `rand` und `flaeche` je sieben Teile (Goldrand und Fläche) und `logo` (das Logo in der Kugel: Es
+ * sitzt auf der Mitte der Kugel und bleibt dort; `zug` ist sein Versatz, solange der Magnet den
+ * Knopf zieht). Dehnt sich die Form zum Fenster, ist das Logo schon ausgeblendet und steht still.
  */
-export function zeitleiste(m: Masse, zug = { x: 0, y: 0 }): { rand: Bild[][]; flaeche: Bild[][]; glut: Bild[]; logo: Bild[] } {
+export function zeitleiste(m: Masse, zug = { x: 0, y: 0 }): { rand: Bild[][]; flaeche: Bild[][]; logo: Bild[] } {
   const rand: Bild[][] = Array.from({ length: 7 }, () => []);
   const flaeche: Bild[][] = Array.from({ length: 7 }, () => []);
-  const glut: Bild[] = [];
   const logo: Bild[] = [];
   for (let i = 0; i <= STUETZEN; i++) {
     const offset = i / STUETZEN;
     const k = formBei(offset, m);
     teileVon(k).forEach((transform, n) => rand[n].push({ offset, transform }));
     teileVon(innen(k)).forEach((transform, n) => flaeche[n].push({ offset, transform }));
-    const f01 = klemme(formAnteil(offset));
-    // Der Schein füllt die Mitte der Form; er ist am hellsten, wenn der Inhalt gerade weg ist.
-    const gb = k.b * 0.88;
-    const gh = k.h * 0.88;
-    glut.push({
-      offset,
-      transform: `translate(${zahl(k.x + (k.b - gb) / 2)}px, ${zahl(k.y + (k.h - gh) / 2)}px) scale(${mass(gb / KREIS)}, ${mass(gh / KREIS)})`,
-      opacity: Number(((1 - inhaltAnteil(offset)) * Math.pow(f01, 1.5) * 0.9).toFixed(3)),
-    });
     // Das Logo sitzt auf der Mitte der Kugel und wächst mit ihr, solange sie sich hebt (im
-    // Stylesheet um seine Mitte skaliert).
-    const lx = k.x + k.b / 2 + zug.x * (1 - f01);
-    const ly = k.y + k.h / 2 + zug.y * (1 - f01);
-    const groesse = (m.d / KUGEL) * (1 + 0.07 * hebung(offset) * (1 - f01));
+    // Stylesheet um seine Mitte skaliert). Sobald die Form sich dehnt, bleibt es stehen, wo die
+    // Kugel war (es ist dann unsichtbar): Es wandert nicht mit der Form.
+    const alsKugel = Math.min(offset, PHASEN.form[0]);
+    const kugel = formBei(alsKugel, m);
+    const lx = kugel.x + kugel.b / 2 + zug.x;
+    const ly = kugel.y + kugel.h / 2 + zug.y;
+    const groesse = (m.d / KUGEL) * (1 + 0.07 * hebung(alsKugel));
     logo.push({ offset, transform: `translate(${zahl(lx - KUGEL / 2)}px, ${zahl(ly - KUGEL / 2)}px) scale(${mass(groesse)})` });
   }
-  return { rand, flaeche, glut, logo };
+  return { rand, flaeche, logo };
 }

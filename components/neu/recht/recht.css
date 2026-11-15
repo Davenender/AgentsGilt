@@ -88,9 +88,13 @@
   color: var(--gold-hell);
   text-decoration: none;
 }
-.ag-recht__text a:hover,
 .ag-recht__text a:focus-visible {
   background-image: linear-gradient(var(--gold-hell), var(--gold-hell));
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-recht__text a:hover {
+    background-image: linear-gradient(var(--gold-hell), var(--gold-hell));
+  }
 }
 /* Der Hinweis am Ende der Datenschutzerklärung: ein ruhiger Kasten. */
 .ag-recht__text .ag-recht__hinweis {

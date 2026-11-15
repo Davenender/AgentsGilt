@@ -124,6 +124,24 @@ export function Zeiger() {
       unter.style.setProperty("cursor", druckBild, "important");
     };
     const hoch = () => loslassen();
+    // Nach einem Klick kann sich ändern, was unter der ruhenden Maus liegt (der Chat-Knopf wird zum
+    // Fenster, ein Blatt öffnet sich): Dann wird die Art des Zeigers neu bestimmt. Sonst bliebe
+    // zum Beispiel der Ring für Knöpfe stehen, obwohl dort kein Knopf mehr ist.
+    const nachKlick: number[] = [];
+    const geklickt = () => {
+      if (!da) return;
+      for (const warte of [90, 450, 1250]) {
+        nachKlick.push(
+          window.setTimeout(() => {
+            if (!da) return;
+            ziel = document.elementFromPoint(x, y);
+            bewegt = true;
+            if (!rahmen) rahmen = requestAnimationFrame(bild);
+          }, warte),
+        );
+      }
+      if (nachKlick.length > 12) nachKlick.splice(0, nachKlick.length - 12);
+    };
     const umstellen = () => {
       erlaubt = fein.matches && !ruhig.matches;
       if (!erlaubt) aus();
@@ -134,6 +152,7 @@ export function Zeiger() {
     window.addEventListener("pointermove", setze, { passive: true });
     window.addEventListener("pointerdown", runter, { passive: true });
     window.addEventListener("pointerup", hoch, { passive: true });
+    window.addEventListener("click", geklickt, { passive: true, capture: true });
     html.addEventListener("pointerleave", aus);
     window.addEventListener("blur", aus);
     fein.addEventListener("change", umstellen);
@@ -143,6 +162,8 @@ export function Zeiger() {
       window.removeEventListener("pointermove", setze);
       window.removeEventListener("pointerdown", runter);
       window.removeEventListener("pointerup", hoch);
+      window.removeEventListener("click", geklickt, true);
+      nachKlick.forEach((u) => window.clearTimeout(u));
       html.removeEventListener("pointerleave", aus);
       window.removeEventListener("blur", aus);
       fein.removeEventListener("change", umstellen);

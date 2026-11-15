@@ -184,15 +184,19 @@ html.lenis body {
   background: var(--gold);
   color: var(--nacht);
 }
-.ag-knopf--gold:hover {
-  background: var(--gold-hell);
+@media (hover: hover) and (pointer: fine) {
+  .ag-knopf--gold:hover {
+    background: var(--gold-hell);
+  }
 }
 .ag-knopf--linie {
   border-color: rgba(241, 238, 230, 0.24);
   color: var(--elfenbein);
 }
-.ag-knopf--linie:hover {
-  border-color: rgba(241, 238, 230, 0.55);
+@media (hover: hover) and (pointer: fine) {
+  .ag-knopf--linie:hover {
+    border-color: rgba(241, 238, 230, 0.55);
+  }
 }
 .ag-knopf--rand {
   min-height: 48px;
@@ -228,8 +232,10 @@ html.lenis body {
   background: var(--gold);
   color: var(--nacht);
 }
-.ag-knopf:hover .ag-kreis {
-  transform: translateX(3px);
+@media (hover: hover) and (pointer: fine) {
+  .ag-knopf:hover .ag-kreis {
+    transform: translateX(3px);
+  }
 }
 .ag-link {
   display: inline-flex;
@@ -241,8 +247,10 @@ html.lenis body {
   text-decoration: none;
   transition: color 0.3s var(--weich);
 }
-.ag-link:hover {
-  color: var(--elfenbein);
+@media (hover: hover) and (pointer: fine) {
+  .ag-link:hover {
+    color: var(--elfenbein);
+  }
 }
 
 /* ───────────── Anruf-Leiste ───────────── */
@@ -971,7 +979,7 @@ html.ag-menue-offen .ag-chat {
     bottom: 28px;
   }
 }
-/* Handy: Die Sprechblase steht über dem Knopf (unten liegt der Anrufen-Knopf am Daumen). */
+/* Handy: Die Sprechblase steht über dem Knopf. */
 @media (max-width: 767px) {
   .ag-chat {
     flex-direction: column;
@@ -1976,8 +1984,10 @@ html.ag-menue-offen .ag-chat {
   transform: translateY(calc((var(--i) - 1.5) * (var(--i) - 1.5) * 14px - 20px)) rotate(calc((var(--i) - 1.5) * 1.3deg));
   transition: transform 0.7s var(--weich);
 }
-.ag-zert__karte:hover {
-  transform: translateY(-10px);
+@media (hover: hover) and (pointer: fine) {
+  .ag-zert__karte:hover {
+    transform: translateY(-10px);
+  }
 }
 .ag-zert__bild {
   display: block;
@@ -2027,9 +2037,13 @@ html.ag-menue-offen .ag-chat {
   .ag-zert {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .ag-zert__karte,
-  .ag-zert__karte:hover {
+  .ag-zert__karte {
     transform: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .ag-zert__karte:hover {
+      transform: none;
+    }
   }
 }
 @media (max-width: 599px) {
@@ -2255,8 +2269,10 @@ html.ag-menue-offen .ag-chat {
   text-decoration: none;
   transition: color 0.3s var(--weich);
 }
-.ag-fuss__spalte a:hover {
-  color: var(--elfenbein);
+@media (hover: hover) and (pointer: fine) {
+  .ag-fuss__spalte a:hover {
+    color: var(--elfenbein);
+  }
 }
 .ag-fuss__wort {
   margin-top: clamp(40px, 7vh, 88px);
@@ -2340,42 +2356,6 @@ html.ag-zurueck body {
   to {
     height: auto;
     overflow: visible;
-  }
-}
-
-/* ───────────── Anrufen am Daumen (Handy) ───────────── */
-.ag-daumen {
-  position: fixed;
-  /* rechts bleibt Platz für die Chat-Kugel (64 px) */
-  right: 96px;
-  bottom: 20px;
-  left: 16px;
-  z-index: 30;
-  display: none;
-  opacity: 0;
-  transform: translateY(16px);
-  pointer-events: none;
-  transition:
-    opacity 0.45s var(--weich),
-    transform 0.45s var(--weich);
-}
-.ag-daumen[data-da="true"] {
-  opacity: 1;
-  transform: none;
-  pointer-events: var(--ag-klick, auto);
-}
-/* Ein Formular ist offen oder es wird getippt (Tastatur): Der Knopf weicht, er verdeckt nichts. */
-.ag-daumen[data-da="true"][data-weg] {
-  opacity: 0;
-  transform: translateY(16px);
-  pointer-events: none;
-}
-.ag-daumen .ag-knopf {
-  width: 100%;
-}
-@media (max-width: 767px) {
-  .ag-daumen {
-    display: block;
   }
 }
 

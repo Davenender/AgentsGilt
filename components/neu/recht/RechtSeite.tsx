@@ -13,8 +13,7 @@ import "./recht.css";
 /**
  * Impressum und Datenschutz als eigene Seite (/impressum, /datenschutz), im Design der neuen Seite:
  * ihre Kopfleiste, ihre Fußleiste (mit ihrem Schluss: Stern, Name aus Zeichen, Lichtleiste), ihr
- * Mauspunkt, ihr Chat. Keine Startanimation, kein großer Stern, keine schweren Effekte, kein
- * Anrufen-Knopf am Daumen (er läge über dem Text).
+ * Mauspunkt, ihr Chat. Keine Startanimation, kein großer Stern, keine schweren Effekte.
  *
  * „Zurück“ führt dorthin, wo man herkam, an genau dieselbe Stelle (der Browser stellt sie wieder
  * her). Kam man von außen direkt auf die Seite, führt es auf die neue Seite, ganz nach unten zum
@@ -29,7 +28,7 @@ export function RechtSeite({ art }: { art: RechtArt }) {
     window.history.back();
   };
   return (
-    <Rahmen start="ohne" klasse="ag-seite ag-rechtseite" basis={NEUE_SEITE} fussSchluss={<FussSchluss />} daumen={false}>
+    <Rahmen start="ohne" klasse="ag-seite ag-rechtseite" basis={NEUE_SEITE} fussSchluss={<FussSchluss />}>
       <Zeiger />
       <Rechtsseite
         art={art}

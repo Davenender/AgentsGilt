@@ -9,6 +9,18 @@ export function istVorschau(): boolean {
   return typeof window !== "undefined" && new URLSearchParams(window.location.search).has("vorschau");
 }
 
+/**
+ * „Handy“: ein Gerät, das man mit dem Finger bedient, ohne Maus. Entschieden wird am Gerät (kein
+ * Drüberfahren möglich oder ein grober Zeiger), nicht an der Breite des Fensters: Ein schmales
+ * Fenster am Computer ist kein Handy, ein großes Tablet schon. Dort fällt alles weg, was für die
+ * Maus gedacht ist (Zufallszeichen beim Drüberfahren, Magnet, Mauslicht, Glimmrand, Wellen und
+ * Schubser beim Antippen). Die Gegenprobe im Code heißt überall „(hover: hover) and (pointer: fine)“.
+ */
+export const HANDY = "(hover: none), (pointer: coarse)";
+export function istHandy(): boolean {
+  return typeof window !== "undefined" && window.matchMedia(HANDY).matches;
+}
+
 export function willWenigerBewegung(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }

@@ -75,19 +75,6 @@ html.ag-menue-offen .ag-cf {
   cursor: pointer;
   pointer-events: auto;
 }
-/* Der goldene Schein, in den sich der Inhalt auflöst und aus dem er wieder wächst. */
-.ag-cf__glut {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(255, 238, 196, 0.5) 0%, rgba(243, 210, 122, 0.28) 30%, rgba(212, 162, 60, 0.1) 62%, rgba(212, 162, 60, 0) 100%);
-  opacity: 0;
-  transform-origin: 0 0;
-  will-change: transform, opacity;
-}
 
 /* ── Das ruhende Fenster: echtes Milchglas. Es steht still (nur seine Deckkraft ändert sich). */
 .ag-cf__fenster {
@@ -102,17 +89,20 @@ html.ag-menue-offen .ag-cf {
     0 34px 80px rgba(0, 0, 0, 0.62),
     0 8px 22px rgba(0, 0, 0, 0.42);
 }
-/* Feine Goldkante: oben links und unten rechts etwas kräftiger. Gleitet die Maus um das Fenster,
-   glimmt der Rand dort auf, wo sie am nächsten ist (glimmrand.ts: --gx, --gy, --gn). */
+/* Feine Goldkante: oben links und unten rechts etwas kräftiger (::after). Darüber der Glimmrand
+   (::before): Gleitet die Maus um das Fenster, glimmt der Rand dort auf, wo sie am nächsten ist
+   (glimmrand.ts: --gx, --gy, --gn).
+   Der Glimmrand ist aus, solange das Fenster sich öffnet oder schließt: Sein Lichtfleck säße sonst
+   am Rand der wachsenden Form und wanderte mit. Er blendet erst weich ein, wenn das Fenster ganz
+   offen steht (html.ag-cf-offen, gesetzt am Ende des Öffnens), und ist mit dem ersten Bild des
+   Schließens sofort weg. */
+.ag-cf__fenster::before,
 .ag-cf__fenster::after {
   content: "";
   position: absolute;
   inset: 0;
   padding: 1px;
   border-radius: inherit;
-  background:
-    radial-gradient(60px circle at var(--gx, 50%) var(--gy, 0px), rgba(243, 210, 122, calc(var(--gn, 0) * 0.95)) 0%, rgba(212, 162, 60, calc(var(--gn, 0) * 0.4)) 55%, rgba(212, 162, 60, 0) 100%),
-    linear-gradient(155deg, rgba(243, 210, 122, 0.6) 0%, rgba(212, 162, 60, 0.14) 34%, rgba(212, 162, 60, 0.1) 64%, rgba(243, 210, 122, 0.4) 100%);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -122,6 +112,18 @@ html.ag-menue-offen .ag-cf {
     linear-gradient(#000 0 0);
   mask-composite: exclude;
   pointer-events: none;
+}
+.ag-cf__fenster::before {
+  z-index: 1;
+  background: radial-gradient(60px circle at var(--gx, 50%) var(--gy, 0px), rgba(243, 210, 122, calc(var(--gn, 0) * 0.95)) 0%, rgba(212, 162, 60, calc(var(--gn, 0) * 0.4)) 55%, rgba(212, 162, 60, 0) 100%);
+  opacity: 0;
+}
+html.ag-cf-offen .ag-cf:not([data-lauf]) .ag-cf__fenster::before {
+  opacity: 1;
+  transition: opacity 0.6s var(--weich) 0.15s;
+}
+.ag-cf__fenster::after {
+  background: linear-gradient(155deg, rgba(243, 210, 122, 0.6) 0%, rgba(212, 162, 60, 0.14) 34%, rgba(212, 162, 60, 0.1) 64%, rgba(243, 210, 122, 0.4) 100%);
 }
 html.ag-sparsam .ag-cf__fenster {
   background: rgba(6, 9, 18, 0.95);
@@ -211,51 +213,8 @@ html.ag-sparsam .ag-cf__fenster {
   width: 30px;
   height: 30px;
 }
-.ag-cf__logo :is(path, polygon) {
-  transform-box: fill-box;
-  transform-origin: 50% 50%;
-}
-/* Beim Öffnen baut es sich auf: erst der Stern, dann die vier Balken nacheinander (jeder kommt
-   von außen an seinen Platz), kurz und ruhig. */
-.ag-cf[data-auf] .ag-cf__logo path {
-  animation: ag-cf-stern 0.38s var(--weich) both;
-}
-.ag-cf[data-auf] .ag-cf__logo polygon {
-  animation: ag-cf-balken 0.34s var(--weich) both;
-  animation-delay: calc(0.16s + var(--b) * 0.07s);
-}
-.ag-cf__logo polygon:nth-of-type(1) {
-  --b: 0;
-  --bx: -7px;
-  --by: -7px;
-}
-.ag-cf__logo polygon:nth-of-type(2) {
-  --b: 1;
-  --bx: 7px;
-  --by: -7px;
-}
-.ag-cf__logo polygon:nth-of-type(3) {
-  --b: 2;
-  --bx: -7px;
-  --by: 7px;
-}
-.ag-cf__logo polygon:nth-of-type(4) {
-  --b: 3;
-  --bx: 7px;
-  --by: 7px;
-}
-@keyframes ag-cf-stern {
-  from {
-    opacity: 0;
-    transform: scale(0.2) rotate(-40deg);
-  }
-}
-@keyframes ag-cf-balken {
-  from {
-    opacity: 0;
-    transform: translate(var(--bx), var(--by));
-  }
-}
+/* Das Logo steht einfach da und kommt mit dem Inhalt (seit dem 15.11.2026: kein Aufbau aus
+   einfliegenden Teilen mehr; beim Öffnen bewegt sich kein Licht). */
 .ag-cf__wer {
   display: grid;
   flex: 1;
@@ -343,11 +302,13 @@ html.ag-sparsam .ag-cf__fenster {
     transform: rotate(-120deg) scale(0.5);
   }
 }
-.ag-cf__zu:hover {
-  box-shadow:
-    inset 0 0 0 1px rgba(243, 210, 122, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  color: var(--gold-hell);
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__zu:hover {
+    box-shadow:
+      inset 0 0 0 1px rgba(243, 210, 122, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    color: var(--gold-hell);
+  }
 }
 
 /* ── Verlauf ── */
@@ -547,11 +508,17 @@ html.ag-sparsam .ag-cf__fenster {
   text-decoration: none;
   transition: background-size 0.4s var(--weich);
 }
-.ag-cf__link:hover,
 .ag-cf__link:focus-visible {
   background-size:
     100% 1px,
     100% 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__link:hover {
+    background-size:
+      100% 1px,
+      100% 1px;
+  }
 }
 .ag-cf__link--knopf {
   border: 0;
@@ -639,8 +606,10 @@ html.ag-sparsam .ag-cf__fenster {
   white-space: nowrap;
   transition: color 0.3s var(--weich);
 }
-.ag-cf__anruf-nummer:hover {
-  color: var(--gold-hell);
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__anruf-nummer:hover {
+    color: var(--gold-hell);
+  }
 }
 .ag-cf__anruf-knopf {
   display: inline-flex;
@@ -663,11 +632,13 @@ html.ag-sparsam .ag-cf__fenster {
   width: 15px;
   height: 15px;
 }
-.ag-cf__anruf-knopf:hover {
-  translate: 0 -1px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 10px 26px -8px rgba(243, 190, 90, 0.8);
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__anruf-knopf:hover {
+    translate: 0 -1px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 10px 26px -8px rgba(243, 190, 90, 0.8);
+  }
 }
 /* Die kleine Zeile zwischen Karte und Mitarbeiter-Knopf. */
 .ag-cf__weiter {
@@ -717,33 +688,15 @@ html.ag-sparsam .ag-cf__fenster {
     translate: 0 0;
   }
 }
-/* Jeder mit einem kurzen Lichtstreif. */
-.ag-cf__vorschlag::after {
-  content: "";
-  position: absolute;
-  inset: 0 -30%;
-  background: linear-gradient(105deg, rgba(255, 240, 204, 0) 38%, rgba(255, 240, 204, 0.42) 50%, rgba(255, 240, 204, 0) 62%);
-  opacity: 0;
-  pointer-events: none;
-}
-.ag-cf__vorschlaege[data-da="true"] .ag-cf__vorschlag::after {
-  animation: ag-cf-streif 0.7s cubic-bezier(0.3, 0, 0.2, 1) both;
-  animation-delay: calc(0.12s + var(--i, 0) * 140ms);
-}
-@keyframes ag-cf-streif {
-  0% {
-    opacity: 1;
-    transform: translate3d(-70%, 0, 0);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(70%, 0, 0);
-  }
-}
-.ag-cf__vorschlag:hover,
 .ag-cf__vorschlag:focus-visible {
   box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.5);
   color: var(--elfenbein);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__vorschlag:hover {
+    box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.5);
+    color: var(--elfenbein);
+  }
 }
 /* Ein gewählter Vorschlag fliegt ins Eingabefeld. */
 .ag-cf__flug {
@@ -789,13 +742,21 @@ html.ag-sparsam .ag-cf__fenster {
   height: 19px;
   color: var(--gold-hell);
 }
-.ag-cf__mensch:hover,
 .ag-cf__mensch:focus-visible {
   box-shadow:
     inset 0 0 0 1px rgba(243, 210, 122, 0.8),
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 10px 22px rgba(0, 0, 0, 0.3),
     0 0 22px rgba(243, 210, 122, 0.2);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__mensch:hover {
+    box-shadow:
+      inset 0 0 0 1px rgba(243, 210, 122, 0.8),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 10px 22px rgba(0, 0, 0, 0.3),
+      0 0 22px rgba(243, 210, 122, 0.2);
+  }
 }
 .ag-cf__mensch--klein {
   gap: 7px;
@@ -969,9 +930,11 @@ html.ag-sparsam .ag-cf__fenster {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
   color: var(--nebel);
 }
-.ag-cf__leise:hover {
-  box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.5);
-  color: var(--elfenbein);
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__leise:hover {
+    box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.5);
+    color: var(--elfenbein);
+  }
 }
 
 /* ── Eingabe ── */
@@ -1081,22 +1044,13 @@ html.ag-sparsam .ag-cf__fenster {
   transform-origin: 50% 100%;
   pointer-events: none;
 }
-/* Die goldene Linie unter dem Eingabefeld: Beim Öffnen zieht sie sich von links nach rechts. */
+/* Die goldene Linie unter dem Eingabefeld. Sie steht einfach da und kommt mit dem Inhalt (sie
+   zieht sich nicht mehr von links nach rechts). */
 .ag-cf__linie {
   display: block;
   height: 1px;
   margin: 10px 4px 0;
   background: linear-gradient(90deg, rgba(243, 210, 122, 0.75) 0%, rgba(212, 162, 60, 0.3) 52%, rgba(212, 162, 60, 0) 100%);
-  transform-origin: 0 50%;
-}
-.ag-cf[data-auf] .ag-cf__linie {
-  animation: ag-cf-linie 0.7s var(--weich) 0.12s both;
-}
-@keyframes ag-cf-linie {
-  from {
-    opacity: 0;
-    transform: scaleX(0);
-  }
 }
 .ag-cf__fuss {
   display: flex;

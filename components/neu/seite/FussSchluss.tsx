@@ -27,7 +27,8 @@ const fussObenAnwenden = () => document.documentElement.classList.toggle(FUSS_OB
  * schimmern und über dem feines Korn tanzt. Darunter „AGENTS GILT“ aus denselben Zeichen
  * wie der Name oben (dieselbe Technik, dasselbe Raster: kopf/zeichenname.ts). Kommt man unten an,
  * fliegen die Zeichen vom Rand herein und setzen sich zusammen (1,5 s, einmal je Seitenaufruf).
- * Danach weichen sie der Maus aus, und ein Klick auf den Namen schickt eine Welle hindurch.
+ * Danach weichen sie der Maus aus, und ein Klick auf den Namen schickt eine Welle hindurch (nur
+ * mit echter Maus; am Handy reagiert der Name nicht auf Antippen).
  * Ganz unten am Rand liegt die Lichtleiste, hier ruhig, wie ein Sonnenaufgang zum Abschluss.
  *
  * Bei „weniger Bewegung“ steht alles sofort. Ohne Skript steht der gewöhnliche Schriftzug da.
@@ -188,9 +189,10 @@ export function FussSchluss() {
       feld.zeiger(ev.clientX - e.left, ev.clientY - e.top, true);
     };
     const zeigerWeg = () => feld.zeiger(-9999, -9999, false);
-    // Klick oder Tippen auf den Namen (nicht auf Links): eine Welle.
+    // Klick auf den Namen (nicht auf Links): eine Welle. Nur mit echter Maus, am Handy reagiert der Name nicht auf Antippen.
+    const maus = window.matchMedia("(hover: hover) and (pointer: fine)");
     const klick = (ev: MouseEvent) => {
-      if ((ev.target as Element | null)?.closest("a, button")) return;
+      if (!maus.matches || (ev.target as Element | null)?.closest("a, button")) return;
       const e = vorn.getBoundingClientRect();
       feld.welle(ev.clientX - e.left, ev.clientY - e.top);
     };

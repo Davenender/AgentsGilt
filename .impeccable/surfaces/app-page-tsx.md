@@ -43,6 +43,8 @@ CHAT (Stand 14.11.2026, siebte Runde): Das Glasfenster wird beim Schließen zur 
 
 LIGHT ON EDGES (Stand 14.11.2026): Der Glimmrand sitzt ohne Verzögerung an der Stelle des Randes, die der Maus am nächsten ist, an allen Karten (Glaskarten, Versprechen, Zertifikate, Kontakt, Chat). Der Stern der drei Glaskarten (siebte Runde): fest in der Mitte der Karte, erscheint unter der Maus, derselbe Stern wie im Wörter-Feld in klein; seine Strahlen brechen sich am Glasrand (heller Saum mit einem Hauch kühl und warm, Knick an der Kante) und strahlen auf die Seite hinaus. Reines Stylesheet, je Karte ein eigenes Strahlenbild. Der Schein des Mauszeigers gehört zum Zeiger-Bild des Systems.
 
+HANDY (Stand 15.11.2026): Ohne Maus (am Gerät erkannt) keine Maus-Effekte: kein Glitch, kein Schubs, keine Welle, kein Hover; Logo am Anfang steht still; kein Anrufen-Knopf am unteren Rand; „So läuft es ab“ ohne große Zahlen. Beim Öffnen und Schließen des Chats bewegt sich kein Licht.
+
 LEGAL (Stand 14.11.2026): Impressum und Datenschutz im Design der Seite (dunkler Grund, Versal-Überschrift, Goldlinien, höchstens 68 Zeichen je Zeile), von der Seite aus als Blatt über ihr, damit „Zurück“ an dieselbe Stelle führt.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ablauf } from "@/lib/inhalt-neu";
-import { istVorschau } from "../umgebung";
+import { HANDY, istVorschau } from "../umgebung";
 import { Entschluesselt } from "./Entschluesselt";
 import { erzeugeZeichenbild, type Zeichenbild } from "./zeichenbild";
 
@@ -31,6 +31,10 @@ const PAUSE_NACH_KLICK_MS = 6000;
  * Ist das Zeichen-Feld zu 60 % im Bild, setzt sich die Nummer aus Staub zusammen; scrollt sie
  * nach oben aus dem Bild, zerfällt sie wieder. Unter der Maus verwürfeln sich die Zeichen kurz.
  * Alle drei Schritte sind immer zu lesen.
+ *
+ * Am Handy (ohne Maus, entschieden am Gerät) gibt es die große Nummer nicht (seit dem 15.11.2026):
+ * Es bleiben nur die drei Schritte. Sie stehen alle gleich hell und ganz gefüllt da (kein Lauf) und
+ * blenden beim Hinscrollen ruhig nacheinander ein.
  */
 export function AblaufNummern() {
   const leinwand = useRef<HTMLCanvasElement>(null);
@@ -44,18 +48,29 @@ export function AblaufNummern() {
   const [imBild, setImBild] = useState(false);
   // „Weniger Bewegung“ oder Vorschau: alles gefüllt, nichts läuft.
   const [still, setStill] = useState(false);
+  // Am Handy: keine große Nummer, kein Lauf; die Schritte blenden ruhig ein.
+  const [handy, setHandy] = useState(false);
+  const [warDa, setWarDa] = useState(false);
 
   // Läuft überhaupt etwas, und ist der Ablauf im Bild?
   useEffect(() => {
     const el = innen.current;
     if (!el) return;
     const ruhig = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const stelle = () => setStill(ruhig.matches || istVorschau());
+    const ohneMaus = window.matchMedia(HANDY);
+    const stelle = () => {
+      setStill(ruhig.matches || istVorschau());
+      setHandy(ohneMaus.matches && !ruhig.matches && !istVorschau());
+      // Steht der Abschnitt beim Laden schon im Bild (oder darüber), stehen die Schritte einfach da.
+      if (el.getBoundingClientRect().top < window.innerHeight * 0.85) setWarDa(true);
+    };
     stelle();
     ruhig.addEventListener("change", stelle);
+    ohneMaus.addEventListener("change", stelle);
     const waechter = new IntersectionObserver(
       (eintraege) => {
         const da = eintraege[eintraege.length - 1].intersectionRatio >= 0.35;
+        if (da) setWarDa(true);
         setImBild((vorher) => {
           // Wieder im Bild: Der aktive Schritt beginnt von vorn.
           if (da && !vorher) setRunde((r) => r + 1);
@@ -67,13 +82,14 @@ export function AblaufNummern() {
     waechter.observe(el);
     return () => {
       ruhig.removeEventListener("change", stelle);
+      ohneMaus.removeEventListener("change", stelle);
       waechter.disconnect();
     };
   }, []);
 
   // Der Lauf: 6 s füllen, 0,5 s voll stehen, dann der nächste Schritt (nach einem Klick nach 6 s).
   useEffect(() => {
-    if (still || !imBild) return;
+    if (still || handy || !imBild) return;
     const uhr = window.setTimeout(
       () => {
         setGeklickt(false);
@@ -83,7 +99,7 @@ export function AblaufNummern() {
       geklickt ? PAUSE_NACH_KLICK_MS : FUELLEN_MS + VOLL_MS,
     );
     return () => window.clearTimeout(uhr);
-  }, [still, imBild, geklickt, runde]);
+  }, [still, handy, imBild, geklickt, runde]);
 
   // Die große Nummer fliegt zur Nummer des aktiven Schritts um.
   useEffect(() => {
@@ -93,7 +109,8 @@ export function AblaufNummern() {
 
   useEffect(() => {
     const flaeche = leinwand.current;
-    if (!flaeche) return;
+    // Am Handy gibt es die große Nummer nicht: Dann wird auch nichts gezeichnet und nichts gerechnet.
+    if (!flaeche || handy || window.matchMedia(HANDY).matches) return;
     const stil = getComputedStyle(flaeche);
     const still = istVorschau() || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const b = erzeugeZeichenbild(flaeche, { zelle: [7, 11], mono: stil.getPropertyValue("--font-mono-ag").trim() || "monospace", still });
@@ -165,10 +182,12 @@ export function AblaufNummern() {
       bild.current = null;
     };
     // „still“ wechselt, wenn der Besucher „weniger Bewegung“ umstellt: Dann richtet sich das Zeichen-Bild neu ein.
-  }, [still]);
+  }, [still, handy]);
 
   // Klick: Dieser Schritt ist aktiv und sofort ganz gefüllt, der Lauf pausiert.
   const waehle = (nr: number) => {
+    // Am Handy stehen alle Schritte gleich da: Ein Tipp hebt keinen hervor.
+    if (handy) return;
     setGewaehlt(nr);
     setGeklickt(true);
     setRunde((r) => r + 1);
@@ -181,15 +200,18 @@ export function AblaufNummern() {
           {ablauf.vor} <em className="ag-gold ag-leuchtet">{ablauf.gold}</em>
         </Entschluesselt>
       </header>
-      <div ref={innen} className="ag-abn__innen">
-        <div className="ag-abn__bild" aria-hidden="true">
-          <canvas ref={leinwand} className="ag-abn__zeichen" />
-          <span className="ag-mono ag-abn__von">/ {String(ablauf.schritte.length).padStart(2, "0")}</span>
-        </div>
+      <div ref={innen} className="ag-abn__innen" data-handy={handy ? (warDa ? "da" : "wartet") : undefined}>
+        {/* Die große Nummer: am Handy gar nicht (das Stylesheet blendet sie dort schon vor dem Skript aus). */}
+        {!handy && (
+          <div className="ag-abn__bild" aria-hidden="true">
+            <canvas ref={leinwand} className="ag-abn__zeichen" />
+            <span className="ag-mono ag-abn__von">/ {String(ablauf.schritte.length).padStart(2, "0")}</span>
+          </div>
+        )}
         <ol className="ag-abn__liste">
           {ablauf.schritte.map((s, i) => (
-            <li key={s.nr} data-gewaehlt={i === gewaehlt} data-voll={still || (i === gewaehlt && (geklickt || !imBild))}>
-              <button type="button" aria-pressed={i === gewaehlt} onClick={() => waehle(i)}>
+            <li key={s.nr} data-gewaehlt={!handy && i === gewaehlt} data-voll={still || handy || (i === gewaehlt && (geklickt || !imBild))} style={handy ? ({ "--i": i } as CSSProperties) : undefined}>
+              <button type="button" aria-pressed={handy ? undefined : i === gewaehlt} onClick={() => waehle(i)}>
                 <span className="ag-mono">{s.nr}</span>
                 {/* Der Schlüssel wechselt mit jeder Runde: So beginnt der Ladebalken von vorn. */}
                 <span key={i === gewaehlt ? `an-${runde}` : "aus"} className="ag-versal ag-abn__titel">

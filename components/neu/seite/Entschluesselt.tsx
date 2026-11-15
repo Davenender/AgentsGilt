@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { ScrollTrigger } from "@/lib/gsap";
-import { istVorschau } from "../umgebung";
+import { HANDY, istVorschau } from "../umgebung";
 import { useBewegungsWechsel } from "./einstellung";
 
 const ZEICHEN = ["#", "+", "=", "-", ":", ".", "*", "/", "%", "·"];
@@ -480,6 +480,8 @@ type Props = {
  * auch wenn man wieder wegscrollt. Das goldene Schlüsselwort leuchtet danach kurz auf. Fährt die
  * Maus über die Überschrift, verbuggen die Buchstaben in der Nähe kurz und rasten wieder ein.
  * Ohne Skript, bei „weniger Bewegung“ und in der Vorschau steht sie einfach da.
+ * Am Handy (ohne Maus, entschieden am Gerät) gibt es keine Zufallszeichen: Die Überschrift blendet
+ * beim Hinscrollen ruhig ein und reagiert nicht auf Antippen.
  */
 export function Entschluesselt({ als: Tag = "h2", className, children, dauer = 900 }: Props) {
   const ref = useRef<HTMLElement>(null);
@@ -496,6 +498,28 @@ export function Entschluesselt({ als: Tag = "h2", className, children, dauer = 9
       // „Weniger Bewegung“: Die Überschrift steht einfach da.
       stand.current = true;
       return;
+    }
+    if (window.matchMedia(HANDY).matches) {
+      // Am Handy (ohne Maus): keine Zufallszeichen. Die Überschrift blendet beim Hinscrollen ruhig
+      // ein (Stylesheet, data-ruhig), einmal je Seitenaufruf, und reagiert nicht auf Antippen.
+      if (stand.current || huelle.getBoundingClientRect().top < window.innerHeight * 0.84) {
+        stand.current = true;
+        return;
+      }
+      el.dataset.ruhig = "wartet";
+      const ruhigWaechter = ScrollTrigger.create({
+        trigger: huelle,
+        start: "top 84%",
+        once: true,
+        onEnter: () => {
+          stand.current = true;
+          el.dataset.ruhig = "da";
+        },
+      });
+      return () => {
+        ruhigWaechter.kill();
+        delete el.dataset.ruhig;
+      };
     }
     const spiel = erzeugeSpiel(huelle, () => {
       stand.current = true;

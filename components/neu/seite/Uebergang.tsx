@@ -49,8 +49,9 @@ type Wort = {
  * und Nähe, Umkreis 90 px; höchstens rund 140 px je Sekunde), treibt weiter (insgesamt höchstens
  * gut 150 px), wird weich gebremst und dreht sich leicht (höchstens 6°); die
  * Buchstaben nahe der Maus werden kurz zu Zufallszeichen. Am Rand des Feldes prallen die Wörter
- * weich ab; 8 s nach dem letzten Schubs treiben sie an ihren Platz zurück. Am Handy treiben sie
- * ganz langsam von selbst und reagieren auf Antippen. Bei „weniger Bewegung“ steht alles still.
+ * weich ab; 8 s nach dem letzten Schubs treiben sie an ihren Platz zurück. Am Handy (ohne Maus)
+ * stehen sie nach ihrem Auftritt still und reagieren nicht auf Antippen. Bei „weniger Bewegung“
+ * steht alles still.
  */
 export function Uebergang() {
   const wurzel = useRef<HTMLElement>(null);
@@ -95,7 +96,9 @@ export function Uebergang() {
     if (!el || istVorschau()) return;
     const ruhig = window.matchMedia("(prefers-reduced-motion: reduce)");
     const fein = window.matchMedia("(hover: hover) and (pointer: fine)");
-    if (ruhig.matches) return;
+    // Am Handy (ohne Maus) stehen die Wörter nach ihrem Auftritt einfach still: kein Treiben, kein
+    // Schubs und keine Zufallszeichen beim Antippen, keine Rechnung je Bild (seit dem 15.11.2026).
+    if (ruhig.matches || !fein.matches) return;
     const liste = Array.from(el.querySelectorAll<HTMLElement>(".ag-wf__wort"));
     let breite = 1;
     let hoehe = 1;
@@ -191,10 +194,6 @@ export function Uebergang() {
             w.schubs = sek;
             verbugge(w, jetzt, maus.x, maus.y, WIRR_UMKREIS);
           }
-        } else if (!fein.matches) {
-          // Handy: Die Wörter treiben ganz langsam von selbst.
-          w.vx += Math.sin(sek * 0.21 + w.hx) * 1.6 * dt;
-          w.vy += Math.cos(sek * 0.17 + w.hy) * 1.6 * dt;
         }
         // 8 s nach dem letzten Schubs treibt das Wort langsam an seinen Platz zurück.
         if (sek - w.schubs > HEIMWEG_NACH) {
@@ -249,8 +248,8 @@ export function Uebergang() {
         }
         if (Math.abs(w.vx) + Math.abs(w.vy) > 0.4 || Math.abs(w.va) > 0.002 || (sek - w.schubs > HEIMWEG_NACH && Math.abs(w.x) + Math.abs(w.y) > 0.5)) lebt = true;
       }
-      // Am Handy treiben sie immer; am Computer ruht die Rechnung, wenn alles steht und die Maus weg ist.
-      if (lebt || maus.da || !fein.matches) rahmen = requestAnimationFrame(bild);
+      // Die Rechnung ruht, wenn alles steht und die Maus weg ist.
+      if (lebt || maus.da) rahmen = requestAnimationFrame(bild);
       else {
         letzte = 0;
         // Zum Heimweg wieder melden.
@@ -285,27 +284,6 @@ export function Uebergang() {
       maus.vx = 0;
       maus.vy = 0;
     };
-    // Handy: Antippen gibt dem nächsten Wort einen Schubs vom Finger weg und verbuggt es.
-    const getippt = (ev: PointerEvent) => {
-      if (ev.pointerType === "mouse") return;
-      const r = el.getBoundingClientRect();
-      const x = ev.clientX - r.left;
-      const y = ev.clientY - r.top;
-      const jetzt = performance.now();
-      for (const w of woerter) {
-        const cx = w.hx + w.x;
-        const cy = w.hy + w.y;
-        const d = Math.hypot(Math.max(Math.abs(x - cx) - w.b / 2, 0), Math.max(Math.abs(y - cy) - w.h / 2, 0));
-        if (d > SCHUBS_UMKREIS) continue;
-        const l = Math.hypot(cx - x, cy - y) || 1;
-        w.vx += ((cx - x) / l) * 70;
-        w.vy += ((cy - y) / l) * 70;
-        w.va += (Math.random() - 0.5) * 0.5;
-        w.schubs = jetzt / 1000;
-        verbugge(w, jetzt, x, y, 400);
-      }
-      wecken();
-    };
     vermessen();
     const groesse = new ResizeObserver(() => {
       vermessen();
@@ -329,7 +307,6 @@ export function Uebergang() {
     waechter.observe(el);
     el.addEventListener("pointermove", bewegt, { passive: true });
     el.addEventListener("pointerleave", weg);
-    el.addEventListener("pointerdown", getippt, { passive: true });
     return () => {
       vorbei = true;
       cancelAnimationFrame(rahmen);
@@ -338,7 +315,6 @@ export function Uebergang() {
       waechter.disconnect();
       el.removeEventListener("pointermove", bewegt);
       el.removeEventListener("pointerleave", weg);
-      el.removeEventListener("pointerdown", getippt);
       for (const w of woerter) {
         w.el.style.transform = "";
         for (const bu of w.buchstaben) {

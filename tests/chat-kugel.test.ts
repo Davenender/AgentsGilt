@@ -74,6 +74,24 @@ test("der Inhalt kommt erst, wenn die Form fast steht; das echte Glas blendet er
   assert.ok(PHASEN.decken[1] < PHASEN.knopfWeg);
   // Rückwärts gelesen: erst der Stern, dann die Balken.
   assert.ok(PHASEN.stern[1] > PHASEN.balken[1]);
+  // Kein Licht wandert: Das Logo der Kugel ist ganz ausgeblendet, bevor die Form sich dehnt.
+  assert.ok(PHASEN.stern[1] <= PHASEN.form[0]);
+  assert.ok(PHASEN.balken[1] <= PHASEN.form[0]);
+});
+
+test("das Logo der Kugel bleibt stehen, wo die Kugel war: Es wandert nicht mit der Form", () => {
+  const z = zeitleiste(RECHNER);
+  const ort = (i: number) => maße(z.logo[i].transform ?? "");
+  const amStart = ort(0);
+  const letzte = ort(STUETZEN);
+  // Nur das leichte Anheben der Kugel (höchstens 6 px, eine Spur größer), kein Weg zur Fenstermitte.
+  for (let i = 0; i <= STUETZEN; i++) {
+    const o = ort(i);
+    assert.ok(Math.abs(o.x - amStart.x) < 4 && Math.abs(o.y - amStart.y) < 10, `Stützstelle ${i}: ${JSON.stringify(o)}`);
+  }
+  // Ab dem Beginn der Formveränderung steht es ganz still.
+  const ab = Math.ceil(PHASEN.form[0] * STUETZEN);
+  for (let i = ab; i <= STUETZEN; i++) assert.deepEqual(ort(i), letzte);
 });
 
 const maße = (transform: string) => {
@@ -114,16 +132,14 @@ test("die Zeitleiste hat für jedes Teil gleich viele Stützstellen von 0 bis 1"
   const z = zeitleiste(RECHNER);
   assert.equal(z.rand.length, 7);
   assert.equal(z.flaeche.length, 7);
-  for (const reihe of [...z.rand, ...z.flaeche, z.glut, z.logo]) {
+  for (const reihe of [...z.rand, ...z.flaeche, z.logo]) {
     assert.equal(reihe.length, STUETZEN + 1);
     assert.equal(reihe[0].offset, 0);
     assert.equal(reihe[reihe.length - 1].offset, 1);
     for (const bild of reihe) assert.ok(typeof bild.transform === "string" && !/NaN|Infinity/.test(bild.transform), bild.transform);
   }
-  // Der goldene Schein leuchtet nur, während die Form sich ändert: am Anfang und am Ende nicht.
-  assert.equal(z.glut[0].opacity, 0);
-  assert.equal(z.glut[STUETZEN].opacity, 0);
-  assert.ok(Math.max(...z.glut.map((b) => b.opacity ?? 0)) > 0.5);
+  // Kein Licht in der Form: Den goldenen Schein, der mit der Form vom Knopf zur Fenstermitte wanderte, gibt es nicht mehr.
+  assert.ok(!("glut" in z));
   // Das Logo beginnt genau auf dem Knopf (in seiner Größe), auch wenn der Magnet es gerade verschiebt.
   const mitZug = zeitleiste(RECHNER, { x: 4, y: -2 });
   assert.deepEqual(maße(mitZug.logo[0].transform ?? ""), { x: 364 - 32 + 4, y: 620 - 32 - 2, sx: 1, sy: 1 });

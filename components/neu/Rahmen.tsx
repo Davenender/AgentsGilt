@@ -2,11 +2,10 @@
 
 import Lenis from "lenis";
 import Link from "next/link";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
-import { fuss, hero, marke, navigation } from "@/lib/inhalt-neu";
+import { fuss, marke, navigation } from "@/lib/inhalt-neu";
 import { FUSS_ANKER } from "@/lib/neue-seite";
-import { Knopf } from "./Knoepfe";
 import { Kopfleiste } from "./Kopfleiste";
 import { ChatFenster } from "./chat/ChatFenster";
 import { ChatKnopf } from "./ChatKnopf";
@@ -94,62 +93,6 @@ function WeichesScrollen() {
 }
 
 /**
- * Anrufen-Knopf am Daumen (nur Handy): erscheint, sobald weder eine Anruf-Leiste
- * noch der textfreie Kopfbereich im Bild ist. So bleibt Anrufen immer erreichbar, ohne doppelt zu stehen.
- * Er blendet aus, solange ein Formular offen ist oder in ein Feld getippt wird (die Tastatur ist
- * da): Dann verdeckt er nichts.
- */
-function DaumenLeiste({ start }: { start?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const imBild = new Set<Element>();
-    const waechter = new IntersectionObserver((eintraege) => {
-      for (const e of eintraege) {
-        if (e.isIntersecting) imBild.add(e.target);
-        else imBild.delete(e.target);
-      }
-      el.setAttribute("data-da", String(imBild.size === 0));
-    });
-    // Im textfreien Kopfbereich steht „Anrufen“ in der Kopfleiste: Dort bleibt der Daumen-Knopf weg.
-    document.querySelectorAll("main .ag-anruf, .ag-fuss, #top.ag-kopf5").forEach((leiste) => waechter.observe(leiste));
-
-    // Der Knopf weicht, solange er etwas verdecken würde: ein offenes Formular (das
-    // Anfrage-Formular im Kontakt) oder ein Feld, in das gerade getippt wird (dann ist am Handy
-    // die Tastatur da).
-    const tippt = () => !!document.activeElement?.matches?.("input:not([type='checkbox'], [type='radio'], [type='button'], [type='submit']), textarea, select, [contenteditable='true']");
-    const formularOffen = () => !!document.querySelector(".ag-anfrage[data-offen='true']");
-    const sicht = window.visualViewport;
-    const tastatur = () => !!sicht && window.innerHeight - sicht.height > 140;
-    const pruefen = () => {
-      if (tippt() || formularOffen() || tastatur()) el.dataset.weg = "1";
-      else delete el.dataset.weg;
-    };
-    const formulare = new MutationObserver(pruefen);
-    document.querySelectorAll(".ag-anfrage").forEach((f) => formulare.observe(f, { attributes: true, attributeFilter: ["data-offen"] }));
-    document.addEventListener("focusin", pruefen);
-    document.addEventListener("focusout", pruefen);
-    sicht?.addEventListener("resize", pruefen);
-    pruefen();
-    return () => {
-      waechter.disconnect();
-      formulare.disconnect();
-      document.removeEventListener("focusin", pruefen);
-      document.removeEventListener("focusout", pruefen);
-      sicht?.removeEventListener("resize", pruefen);
-    };
-  }, []);
-
-  return (
-    <div ref={ref} className="ag-daumen" data-da="false" data-start={start}>
-      <Knopf href={`tel:${marke.telefon}`}>{hero.anrufen}</Knopf>
-    </div>
-  );
-}
-
-/**
  * Die Fußleiste. `basis`: Auf einer Unterseite (Impressum, Datenschutz) die Adresse der neuen
  * Seite; dann führen die Menüpunkte zu ihren Abschnitten dort. `anker`: Das Sprungziel „fuss“
  * (dorthin führt „Zurück“ von Impressum und Datenschutz) trägt nur die Fußleiste der Seite selbst.
@@ -216,15 +159,16 @@ export function Wortmarke({ className }: { className?: string }) {
  *
  * `start="licht"`: Die Seite hat die neue Startanimation des Kopfbereichs (Stern im Dunkeln, dann
  * Licht, dann Zeichen; kopf/LichtName.tsx). Der alte Ladebildschirm mit den Balken entfällt dann.
- * Kopfleiste, Chat-Knopf und Daumen-Knopf tragen dann von Anfang an den Stand des Starts
+ * Kopfleiste und Chat-Knopf tragen dann von Anfang an den Stand des Starts
  * (`data-start="warten"`): Sie bleiben verborgen, bis die Zeichen landen (kopf.css).
+ *
+ * Den Anrufen-Knopf am unteren Rand (am Handy, „Daumen-Knopf“) gibt es seit dem 15.11.2026 nicht
+ * mehr: Anrufen steht in der Kopfleiste und im Kontakt-Abschnitt.
  * `start="ohne"`: keine Startanimation, kein Ladebildschirm (Impressum, Datenschutz).
  * `fussSchluss` ersetzt in der Fußleiste den Riesenschriftzug (die neue Seite endet mit Stern,
  * Namen aus Zeichen und Lichtleiste: seite/FussSchluss.tsx).
  * `basis`: Unterseiten (Impressum, Datenschutz) nennen hier die Adresse der neuen Seite; Kopf- und
  * Fußleiste führen dann zu deren Abschnitten.
- * `daumen={false}`: kein Anrufen-Knopf am Daumen (Impressum, Datenschutz: Dort soll nichts den
- * Text verdecken; „Anrufen“ steht in der Kopfleiste).
  */
 export function Rahmen({
   children,
@@ -232,16 +176,14 @@ export function Rahmen({
   start = "balken",
   fussSchluss,
   basis = "",
-  daumen = true,
 }: {
   children: ReactNode;
   klasse?: string;
   start?: "balken" | "licht" | "ohne";
   fussSchluss?: ReactNode;
   basis?: string;
-  daumen?: boolean;
 }) {
-  // Mit der Startanimation beginnen Kopfleiste, Chat-Knopf und Daumen-Knopf im Stand „warten“.
+  // Mit der Startanimation beginnen Kopfleiste und Chat-Knopf im Stand „warten“.
   const stand = start === "licht" ? "warten" : undefined;
   return (
     <>
@@ -251,7 +193,6 @@ export function Rahmen({
       <Kopfleiste basis={basis} start={stand} />
       <main className={klasse}>{children}</main>
       <Fusszeile schluss={fussSchluss} basis={basis} />
-      {daumen && <DaumenLeiste start={stand} />}
       <ChatKnopf start={stand} />
       <ChatFenster />
     </>
