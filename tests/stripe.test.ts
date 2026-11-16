@@ -125,12 +125,13 @@ test("Fremder Text löst in Discord keine Erwähnung aus", () => {
 
 const KUNDEN = [{ nr: "KND-003", name: "Relax Fit", email: "Info@Relax-Fit.de", notionUrl: "https://notion.so/abc", status: "Angebot gesendet" }];
 function attrappen(aenderung: Partial<Dienste> = {}) {
-  const log = { status: [] as string[], kundenstatus: [] as string[], felder: [] as string[], karten: [] as { kanal: string; title: string; hinweis: boolean; felder: string }[], mails: [] as string[] };
+  const log = { status: [] as string[], kundenstatus: [] as string[], felder: [] as string[], buchungen: [] as string[], karten: [] as { kanal: string; title: string; hinweis: boolean; felder: string }[], mails: [] as string[] };
   const d: Dienste = {
     kunden: async () => KUNDEN,
     setzeZahlung: async (url, s) => { log.status.push(`${url}:${s}`); return true; },
     setzeStatus: async (url, s) => { log.kundenstatus.push(`${url}:${s}`); return true; },
     setzeFelder: async (url, p) => { log.felder.push(`${url}:${Object.keys(p).join(",")}`); return true; },
+    bucheEinnahme: async (m, k) => { log.buchungen.push(`${m.ereignis}:${k?.nr ?? "-"}:${k?.status ?? "-"}`); return true; },
     kundenKanal: async (nr) => (nr === "KND-003" ? "kanal-003" : null),
     posteingang: async () => "kanal-post",
     schonGemeldet: async () => false,
@@ -254,4 +255,50 @@ test("Status lässt sich nicht setzen: die Karte sagt, was von Hand zu tun ist",
   const { d, log } = attrappen({ setzeStatus: async () => false });
   assert.equal(await verarbeite(einmal(), d), true);
   assert.match(log.karten[0].felder, /von Hand.*Kunde/);
+});
+
+// ---- Finanzen A2: jede Zahlung wird gebucht
+
+test("Meldung bringt Zahltag, Rechnungsnummer und Zahlungskennung mit", () => {
+  const m = meldungAus(rechnung({ number: "AG-0007", payment_intent: "pi_123456789", status_transitions: { paid_at: Date.UTC(2026, 10, 16, 10) / 1000 } }))!;
+  assert.equal(m.bezahltAm, "2026-11-16");
+  assert.equal(m.rechnungsNr, "AG-0007");
+  assert.equal(m.rechnungId, "in_1");
+  assert.equal(m.zahlungId, "pi_123456789");
+  const s = { id: "evt_s", type: "checkout.session.completed", livemode: true, created: Date.UTC(2026, 10, 15, 12) / 1000, data: { object: { mode: "payment", payment_status: "paid", amount_total: 50000, currency: "eur", payment_intent: "pi_9", created: Date.UTC(2026, 10, 15, 12) / 1000, customer_details: { email: "a@b.de" } } } };
+  const c = meldungAus(s)!;
+  assert.equal(c.bezahltAm, "2026-11-15");
+  assert.equal(c.zahlungId, "pi_9");
+  assert.equal(c.rechnungsNr, null);
+});
+
+test("Bezahlt: wird gebucht, mit Kunde und dem Status von vorher", async () => {
+  const { d, log } = attrappen();
+  assert.equal(await verarbeite(einmal(), d), true);
+  assert.deepEqual(log.buchungen, ["evt_r:KND-003:Angebot gesendet"]);
+});
+
+test("Ohne passenden Kunden wird trotzdem gebucht (Einnahme ist Einnahme)", async () => {
+  const { d, log } = attrappen();
+  await verarbeite(einmal({ customer_email: "fremd@x.de" }), d);
+  assert.deepEqual(log.buchungen, ["evt_r:-:-"]);
+});
+
+test("Fehlgeschlagene Zahlung wird nicht gebucht", async () => {
+  const { d, log } = attrappen();
+  await verarbeite(gescheitert(), d);
+  assert.deepEqual(log.buchungen, []);
+});
+
+test("Buchen klappt nicht: Karte kommt trotzdem, aber Stripe soll es noch einmal schicken", async () => {
+  const { d, log } = attrappen({ bucheEinnahme: async () => false });
+  assert.equal(await verarbeite(einmal(), d), false);
+  assert.equal(log.karten.length, 1);
+});
+
+test("Doppelt zugestellt: keine zweite Karte, aber das Buchen wird nachgeholt (es selbst ist doppelt-sicher)", async () => {
+  const { d, log } = attrappen({ schonGemeldet: async () => true });
+  assert.equal(await verarbeite(einmal(), d), true);
+  assert.deepEqual(log.karten, []);
+  assert.equal(log.buchungen.length, 1);
 });

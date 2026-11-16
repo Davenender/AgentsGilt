@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { statusAusBelegen } from "./status-regeln.ts";
+import { datumAusUnix } from "./finanzen-regeln.ts";
 
 // Zahlungsmeldung von Stripe: Signatur prüfen und aus einem Ereignis eine Meldung machen. Rein, ohne Netz.
 // Das Verschicken steht in lib/stripe-handler.ts, die Adresse in app/api/stripe/route.ts.
@@ -43,6 +44,11 @@ export type Meldung = {
   mail: boolean;
   /** Gehört zu einem Abo (Etappe 5: dann „Retainer läuft“, sonst „Anzahlung erhalten“ und „Kunde“). */
   abo: boolean;
+  /** Finanzen A2: Tag der Zahlung (JJJJ-MM-TT, deutsche Zeit), Nummer der Stripe-Rechnung, Kennungen für die Gebühr */
+  bezahltAm: string | null;
+  rechnungsNr: string | null;
+  rechnungId: string | null;
+  zahlungId: string | null;
   letzterVersuch: boolean;
   link: string | null;
   beschreibung: string;
@@ -54,6 +60,7 @@ const textOderNull = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim
 const zahl = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const kleinOderNull = (v: unknown) => textOderNull(v)?.toLowerCase() ?? null;
 
+const datumOder = (sek: number | null) => (sek ? datumAusUnix(sek) : null);
 const rechnungsLink = (o: Obj) => (o.id ? `https://dashboard.stripe.com/invoices/${String(o.id)}` : null);
 
 function ausRechnung(id: string, typ: string, o: Obj): Meldung | null {
@@ -68,6 +75,10 @@ function ausRechnung(id: string, typ: string, o: Obj): Meldung | null {
     kundeNr: kundenNr(meta.kunde ?? alt.kunde ?? obj(o.metadata).kunde),
     link: rechnungsLink(o),
     abo: String(o.billing_reason ?? "").startsWith("subscription") || Boolean(o.subscription) || Boolean(obj(o.parent).subscription_details),
+    bezahltAm: datumOder(zahl(obj(o.status_transitions).paid_at) ?? zahl(o.created)),
+    rechnungsNr: textOderNull(o.number),
+    rechnungId: textOderNull(o.id),
+    zahlungId: textOderNull(o.payment_intent),
   };
   if (typ === "invoice.paid") {
     const betrag = zahl(o.amount_paid) ?? 0;
@@ -119,6 +130,10 @@ export function meldungAus(ereignis: unknown): Meldung | null {
       hinweis: true,
       mail: false,
       abo: false,
+      bezahltAm: datumOder(zahl(o.created) ?? zahl(e.created)),
+      rechnungsNr: null,
+      rechnungId: textOderNull(o.invoice),
+      zahlungId: textOderNull(o.payment_intent),
       letzterVersuch: false,
       link: o.payment_intent ? `https://dashboard.stripe.com/payments/${String(o.payment_intent)}` : null,
       beschreibung: "Einmalzahlung.",
@@ -138,6 +153,10 @@ export function meldungAus(ereignis: unknown): Meldung | null {
       hinweis: true,
       mail: true,
       abo: true,
+      bezahltAm: null,
+      rechnungsNr: null,
+      rechnungId: null,
+      zahlungId: null,
       letzterVersuch: false,
       link: o.id ? `https://dashboard.stripe.com/subscriptions/${String(o.id)}` : null,
       beschreibung: "Das Abo wurde beendet, es wird nichts mehr abgebucht.",
@@ -189,6 +208,8 @@ export type Dienste = {
   /** Kundenstatus (Etappe 5, nur vorwärts über statusAusBelegen) */
   setzeStatus: (notionUrl: string, status: string) => Promise<boolean>;
   setzeFelder: (notionUrl: string, properties: Record<string, unknown>) => Promise<boolean>;
+  /** Finanzen A2: Zahlung in Notion „Rechnungen“ buchen (doppelt-sicher). false = später noch einmal versuchen. */
+  bucheEinnahme: (m: Meldung, kunde: StripeKunde | null) => Promise<boolean>;
   kundenKanal: (nr: string) => Promise<string | null>;
   posteingang: () => Promise<string | null>;
   schonGemeldet: (kanal: string, ereignis: string) => Promise<boolean>;
@@ -206,10 +227,14 @@ export async function verarbeite(m: Meldung, d: Dienste): Promise<boolean> {
   if (!liste) return false;
   const kunde = (m.kundeNr && liste.find((k) => k.nr === m.kundeNr)) || (m.email && liste.find((k) => k.email?.trim().toLowerCase() === m.email)) || null;
 
+  // Finanzen A2: jede Zahlung buchen, mit dem Status von vorher (Anzahlung oder Schlussrechnung). Das Buchen erkennt
+  // doppelte Zustellungen selbst; klappt es nicht, soll Stripe das Ereignis später noch einmal schicken.
+  const gebucht = m.art === "bezahlt" ? await d.bucheEinnahme(m, kunde).catch(() => false) : true;
+
   const kanal = (kunde && (await d.kundenKanal(kunde.nr))) || (await d.posteingang());
   if (!kanal) return false;
   // Stripe kann dasselbe Ereignis mehrmals zustellen.
-  if (await d.schonGemeldet(kanal, m.ereignis)) return true;
+  if (await d.schonGemeldet(kanal, m.ereignis)) return gebucht;
 
   const karte = meldungsKarte(m, kunde ? kunde.name : null);
   if (kunde && m.zahlungsstatus) {
@@ -232,5 +257,5 @@ export async function verarbeite(m: Meldung, d: Dienste): Promise<boolean> {
     // Die Karte steht schon: Scheitert nur die Mail, soll Stripe nicht alles neu schicken.
     await d.schickeMail(karte.title.replace(/[\u200b]/g, ""), text).catch(() => false);
   }
-  return true;
+  return gebucht;
 }

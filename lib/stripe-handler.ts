@@ -4,6 +4,7 @@ import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { listeKunden, setzeFelder, setzeStatus, setzeZahlungsstatus } from "@/lib/notion-api";
 import { kanalName } from "@/lib/notion-kunden";
 import type { Dienste } from "@/lib/stripe-meldung";
+import { bucheEinnahme } from "@/lib/finanzen";
 
 // Verbindet die Zahlungsmeldung (lib/stripe-meldung.ts) mit Notion, Discord und Mail.
 export function stripeDienste(token: string): Dienste {
@@ -12,6 +13,7 @@ export function stripeDienste(token: string): Dienste {
     setzeZahlung: setzeZahlungsstatus,
     setzeStatus: (url, status) => setzeStatus(url, status),
     setzeFelder,
+    bucheEinnahme,
     kundenKanal: (nr) => findChannelId(token, kanalName(nr)),
     posteingang: () => posteingangKanal(token),
     schonGemeldet: async (kanal, ereignis) =>

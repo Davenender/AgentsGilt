@@ -38,11 +38,20 @@ export async function POST(req: Request) {
   const g = github ? await frage("https://api.github.com/repos/Davenender/relaxfit-demo", { Authorization: `Bearer ${github}`, Accept: "application/vnd.github+json", "User-Agent": "agentsgilt-server" }) : null;
   const s = stripe ? await frage("https://api.stripe.com/v1/payment_links?limit=1", { Authorization: `Bearer ${stripe}` }) : null;
 
+  // Finanzen A2: darf der Bot die drei Finanz-Datenbanken lesen? (David verbindet die Integration in Notion)
+  const notion = process.env.NOTION_TOKEN?.trim();
+  const dbs: Record<string, string> = { rechnungen: "8f55e3b1-186d-4e81-855c-75f604512731", ausgaben: "41a03fa2-27fb-81b9-a6cf-f2d6ed303ef9", finanzjahre: "41a03fa2-27fb-8120-a4a7-ed63698a56d4" };
+  const notionLage: Record<string, string> = {};
+  for (const [name, id] of Object.entries(dbs)) {
+    const r = notion ? await frage(`https://api.notion.com/v1/databases/${id}`, { Authorization: `Bearer ${notion}`, "Notion-Version": "2022-06-28" }) : null;
+    notionLage[name] = !notion ? "fehlt" : r?.status === 200 ? "geht" : `HTTP ${r?.status}`;
+  }
   const projekte = ((v?.json as { projects?: { name?: string }[] } | null)?.projects ?? []).map((p) => p.name).filter(Boolean);
   const repoRechte = (g?.json as { permissions?: { admin?: boolean } } | null)?.permissions;
   return NextResponse.json({
     vercel: !vercel ? "fehlt" : v?.status === 200 ? `geht (${projekte.length} Projekte: ${projekte.join(", ")})` : `HTTP ${v?.status}`,
     github: !github ? "fehlt" : g?.status === 200 ? (repoRechte?.admin ? "geht (darf archivieren)" : "liest, darf aber nicht archivieren") : `HTTP ${g?.status}`,
+    notion: notionLage,
     stripe: !stripe ? "fehlt" : s?.status === 200 ? `geht (${stripe.startsWith("rk_live_") ? "eingeschränkt, live" : stripe.startsWith("rk_") ? "eingeschränkt" : "Achtung: kein eingeschränkter Schlüssel"})` : `HTTP ${s?.status}`,
   });
 }

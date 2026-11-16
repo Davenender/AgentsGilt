@@ -39,6 +39,7 @@ import { kanalNameMitPunkt } from "@/lib/notion-kunden";
 import { ausKarte, auswahlMenue, CHEF_ID, darf, gleich, mitZustaendig, NUR_ZUSTAENDIGE, pruefeAuswahl, zustaendigZeile } from "@/lib/zustaendige";
 import { ersetzeIn, team } from "@/lib/team";
 import { checklisteProps, feedbackProps, leseDatum, notionLinkAusKarte, pruefeKontakt, standAusKarte } from "@/lib/kundenkarte-felder";
+import { meldeAnzahlung } from "@/lib/finanzen-handlers";
 
 // Knöpfe an der Kundenkarte im Kundenkanal (knd:):
 //   „👥 Zuständige“, „📝 Gesprächsbogen“, „🧠 Gespräch auswerten“, „⚪ Verloren“ (Grund wählen,
@@ -412,7 +413,17 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
 
   // ---- ✅ Checkliste (Auswahl an der Karte)
   if (id === "check" && karte) {
-    speichere(karte, checklisteProps(i.data?.values ?? []), "✅ Checkliste gespeichert. Die Karte aktualisiert sich gleich.");
+    const neu = i.data?.values ?? [];
+    speichere(karte, checklisteProps(neu), "✅ Checkliste gespeichert. Die Karte aktualisiert sich gleich.");
+    // Finanzen A2: „Anzahlung“ neu abgehakt → David bekommt in #posteingang die Frage nach dem Betrag (Überweisung)
+    if (!standAusKarte(karte).checkliste["Anzahlung erhalten"] && neu.includes("Anzahlung erhalten")) {
+      const titel = karte.title ?? "";
+      after(() =>
+        meldeAnzahlung(token, { nr: nrAusKarte(karte) ?? "", name: titel.split(" · ").slice(1).join(" · ") || titel, kanalId: channelId, notionUrl: notionAusKarte(karte) }).catch((err) =>
+          console.error("[finanzen] Anzahlung melden fehlgeschlagen:", err),
+        ),
+      );
+    }
     return NextResponse.json({ type: 5, data: { flags: 64 } });
   }
 
