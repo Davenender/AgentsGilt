@@ -155,12 +155,14 @@ test("Mitschrift: Kopf mit Grund und Zusammenfassung, Mitschrift in Teilen unter
 
 test("Luca spricht locker: Prompt verlangt kurze, natürliche Antworten und keine Listen", async () => {
   const { LUCA_PROMPT, ERSTER_SATZ_EINGEHEND, ersterSatzAusgehend } = await import("../lib/luca-logik.ts");
-  assert.match(LUCA_PROMPT, /wie ein guter Kumpel/);
+  // Punkt 6, Etappe 2 (16.11.): Davids Wunsch „etwas dazwischen“ – nicht kumpelhaft, nicht steif, beim Namen statt „Chef“
+  assert.match(LUCA_PROMPT, /nicht kumpelhaft/);
+  assert.doesNotMatch(LUCA_PROMPT, /„Chef“/);
   assert.match(LUCA_PROMPT, /Lies nie Listen vor/);
   assert.match(LUCA_PROMPT, /\{\{lage\}\}/);
   assert.match(LUCA_PROMPT, /\{\{grund\}\}/);
-  assert.equal(ERSTER_SATZ_EINGEHEND, "Hey Chef! Was kann ich für dich tun?");
-  assert.equal(ersterSatzAusgehend("Ich hab den Plan fertig."), "Hey Chef, Luca hier! Ich hab den Plan fertig.");
+  assert.equal(ERSTER_SATZ_EINGEHEND, "Hey David, was gibt's?");
+  assert.equal(ersterSatzAusgehend("Ich hab den Plan fertig."), "Hey David, Luca hier. Ich hab den Plan fertig.");
 });
 
 test("Davids Wunsch 05.11.: frei reden, kurz halten, nur auf Nachfrage erklären, Fragen stellen", async () => {

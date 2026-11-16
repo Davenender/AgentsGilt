@@ -557,7 +557,7 @@ export async function assistentFuerEingang() {
 
 /** Luca ruft David an – nur Davids Nummer, nie 2–6 Uhr (keine Grenze pro Tag). */
 /** Fester Satz für Davids Mailbox, wenn die Zentrale keinen mitschickt (13.11.: Luca sprach dort „als David“). */
-export const MAILBOX_SATZ = "Hey Chef, Luca hier. Ruf mich einfach zurück, wenn du kurz Zeit hast. Bis später!";
+export const MAILBOX_SATZ = "Hey, Luca hier. Ruf mich einfach zurück, wenn du kurz Zeit hast. Bis später!";
 
 export async function rufeDavidAn(grund: string, test: boolean, info?: string, mailbox?: string): Promise<{ ok: true; id?: string } | { ok: false; grund: string }> {
   if (!lucaAn()) return { ok: false, grund: "Luca am Telefon ist noch nicht eingerichtet." };
