@@ -186,3 +186,77 @@ export function mailInhalt(text: string, frage: string): { html: string; text: s
     text: f ? `${text.trim()}\n\n— Deine Nachricht —\n${f}` : text.trim(),
   };
 }
+
+// ------------------------------------------------------------------ Knöpfe: wer darf, was steht drin
+
+/** Ticket: wer es übernommen hat (aus dem Feld „Status“: „Übernommen von <@id> um …“). */
+export function ticketBesitzer(karte: EmbedLike | null | undefined): string | null {
+  const s = karte?.fields?.find((f) => f.name === "Status")?.value ?? "";
+  return /^Übernommen/.test(s.trim()) ? (s.match(/<@!?(\d+)>/)?.[1] ?? null) : null;
+}
+
+/**
+ * Darf diese Person dem Kunden mailen? Ticket und Anfrage: wer übernommen hat; Kundenmail und Kunde: die
+ * Zuständigen. David immer. null heißt erlaubt, sonst der Satz für die private Meldung.
+ */
+export function darfMailen(ort: MailOrt, userId: string, berechtigt: string[], davidId: string): string | null {
+  if (userId === davidId || berechtigt.includes(userId)) return null;
+  if (ort === "ticket") return "Nur wer das Ticket übernommen hat, kann dem Kunden mailen.";
+  if (ort === "anfrage") return "Nur wer die Anfrage übernommen hat, kann dem Kunden mailen.";
+  return "Nur die Zuständigen können das.";
+}
+
+/** null, solange die Freigabe offen ist; sonst der Hinweis, dass sie schon erledigt ist. */
+export const pruefeSenden = (e: EmbedLike | null | undefined): string | null =>
+  leseFreigabe(e)?.zustand === "offen" ? null : "Diese Mail ist schon erledigt.";
+
+/** Das bisherige Gespräch im Ticket als Text für den Entwurf: ohne interne Notizen und Bot-Hinweise. */
+export function ticketVerlauf(karte: EmbedLike, nachrichten: { text: string }[]): string {
+  const f = (name: string) => karte.fields?.find((x) => x.name.startsWith(name))?.value ?? "";
+  const zeilen = [`Frage des Kunden: ${f("Frage")}`];
+  const davor = f("Chat davor");
+  if (davor) zeilen.push(`Chat davor mit dem KI-Assistenten:\n${davor}`);
+  for (const n of nachrichten) {
+    const kunde = n.text.match(/^🗨️ \*\*Besucher:\*\* ([\s\S]*)$/);
+    if (kunde) {
+      zeilen.push(`Kunde: ${kunde[1].trim()}`);
+      continue;
+    }
+    const team = n.text.match(/^💬 \*\*([^*]+):\*\* ([\s\S]*)$/);
+    if (team) zeilen.push(`Team (${team[1].trim()}): ${team[2].replace(/\n-# [\s\S]*$/, "").trim()}`);
+  }
+  return zeilen.join("\n");
+}
+
+const E_BETREFF = "Betreff";
+const E_KURZ = "Kurz gesagt";
+
+/** Der private Entwurf fürs Teammitglied (die Felder füllen danach das Fenster „Bearbeiten & senden“). */
+export function entwurfKarte(e: { zusammenfassung: string; betreff: string; text: string } | null, an: string): EmbedLike {
+  if (!e) {
+    return {
+      title: "✍️ Mail an den Kunden",
+      description: "Der Entwurf hat gerade nicht geklappt. Schreib die Mail selbst.",
+      color: 0x6b7280,
+      fields: [{ name: "An", value: clip(an, 200), inline: true }],
+      footer: { text: "mailentwurf|leer" },
+    };
+  }
+  return {
+    title: "✍️ Entwurf für die Mail",
+    description: clip(e.text, 4000),
+    color: 0xd4a23c,
+    fields: [
+      ...(e.zusammenfassung ? [{ name: E_KURZ, value: clip(e.zusammenfassung, 400), inline: false }] : []),
+      { name: "An", value: clip(an, 200), inline: true },
+      { name: E_BETREFF, value: clip(e.betreff || "–", 200), inline: true },
+    ],
+    footer: { text: "mailentwurf|voll" },
+  };
+}
+
+export function leseEntwurfKarte(e: EmbedLike | null | undefined): { betreff: string; text: string } {
+  if (e?.footer?.text !== "mailentwurf|voll") return { betreff: "", text: "" };
+  const b = e.fields?.find((f) => f.name === E_BETREFF)?.value ?? "";
+  return { betreff: b === "–" ? "" : b, text: e.description ?? "" };
+}

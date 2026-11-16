@@ -48,6 +48,7 @@ import { darfHandeln, nameVon } from "@/lib/team";
 import { handleTeamBefehl, handleTeamKnopf, type TeamInteraction, type TeamKnopfInteraction } from "@/lib/team-handler";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 import { ladeTeam } from "@/lib/team-daten";
+import { handleMail } from "@/lib/mail-handlers";
 
 export const runtime = "nodejs";
 // /lead liest Webseiten und lässt sie auswerten, das dauert länger als ein Knopfdruck.
@@ -322,6 +323,7 @@ async function antworte(request: Request) {
   if (customId.startsWith("anf:")) return handleAnfrage(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("pb:")) return handlePosteingang(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("ls:")) return handleSuche(interaction as unknown as SucheInteraction, token);
+  if (customId.startsWith("mail:")) return handleMail(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("ticket:")) return handleTicket(interaction, who, ownerTag, token);
   if (customId.startsWith("knd:")) return handleKundenKnopf(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("stat:")) return handleStatistikKnopf(interaction, token);
