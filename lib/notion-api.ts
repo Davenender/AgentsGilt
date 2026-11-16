@@ -1,6 +1,7 @@
 import type { Analyse } from "@/lib/lead-analyse";
 import { notionPeople } from "@/lib/zustaendige";
 import { bogenBloecke, type RohBlock } from "@/lib/gespraech";
+import { GESPERRT } from "@/lib/notion-sperre";
 
 // Legt einen neuen Lead als Zeile in der Kunden-Datenbank an.
 // Danach löst die bestehende Notion-Automation den Kunden-Kanal in Discord aus.
@@ -111,6 +112,8 @@ export async function legeKundenZeileAn(input: {
             : `Notion hat die Zeile abgelehnt (HTTP ${res.status}).`,
       };
     }
+    // Etappe 6: die neue Zeile gleich als gültigen Stand merken (vor res.json(), merkeFuerSperre liest eine Kopie)
+    await merkeFuerSperre(res, [...GESPERRT]);
     const page = (await res.json()) as {
       url?: string;
       properties?: Record<string, { formula?: { string?: string | null }; unique_id?: { prefix?: string | null; number?: number } }>;
@@ -295,6 +298,8 @@ export async function legeLeadAusAnfrage(input: {
             : `Notion hat die Zeile abgelehnt (HTTP ${res.status}).`,
       };
     }
+    // Etappe 6: die neue Zeile gleich als gültigen Stand merken (vor res.json(), merkeFuerSperre liest eine Kopie)
+    await merkeFuerSperre(res, [...GESPERRT]);
     const page = (await res.json()) as {
       url?: string;
       properties?: Record<string, { formula?: { string?: string | null }; unique_id?: { prefix?: string | null; number?: number } }>;
