@@ -870,6 +870,8 @@ export function kundenText(kunden: KundeFuerLuca[] | null, jetzt: Date): string 
   const heute = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(jetzt);
   const datum = (t: string) => `${t.slice(8, 10)}.${t.slice(5, 7)}.`;
   const zeilen = kunden.slice(0, 15).map((k) => {
+    // Luca-Test 16.11.: Bei „Verloren“ nannte Luca den alten nächsten Schritt und „Demo ist online“. Verloren ist abgeschlossen.
+    if (/^verloren$/i.test((k.status ?? "").trim())) return `- ${k.nr} ${k.name}: verloren (abgeschlossen, nichts mehr zu tun)`;
     const teile = [
       k.status ? `Status: ${k.status}` : "",
       k.angebot ? `Angebot: ${k.angebot}` : "",

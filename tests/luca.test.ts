@@ -306,6 +306,13 @@ test("Luca kennt am Telefon die Kunden aus Notion: Stand, nächster Schritt, üb
   assert.ok(kundenText(Array.from({ length: 50 }, (_, i) => ({ nr: `KND-${i}`, name: "x".repeat(200) })), jetzt).length <= 1800);
 });
 
+test("Verlorene Kunden: nur „verloren“, kein alter nächster Schritt, kein Follow-up, keine „Demo ist online“ (Luca-Test 16.11.)", () => {
+  const jetzt = new Date("2026-11-16T18:00:00Z");
+  const t = kundenText([{ nr: "KND-003", name: "Relax Fit", status: "Verloren", naechsterSchritt: "Auf eine Antwort per Email warten", followUp: "2026-11-10", angebot: "Websites", vercelProjekt: "https://relaxfit-demo.vercel.app" }], jetzt);
+  assert.match(t, /KND-003 Relax Fit: verloren \(abgeschlossen, nichts mehr zu tun\)/);
+  assert.doesNotMatch(t, /nächster Schritt|Follow-up|Demo ist online|Angebot/);
+});
+
 test("Im Gedächtnis heißt Luca Luca, auch wenn die Mitschrift Lukas verstanden hat", () => {
   const g = gedaechtnisAus([{ zeit: "2026-11-05T17:17:00.000Z", text: "**Kurz:** David erlaubt Lukas' neue Bühne. Lukas darf zeigen." }]);
   assert.ok(!/Lukas/.test(g));
