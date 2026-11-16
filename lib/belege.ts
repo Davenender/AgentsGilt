@@ -1,7 +1,7 @@
 // Finanzen A3 (16.11.2026): Belege-Sammler. Eine Rechnungsmail wird eine Zeile in Notion „Ausgaben“ (mit PDF, Euro-Betrag
 // zum EZB-Kurs, Finanzjahr), die Mail bekommt in Gmail das Label „Belege“. Regeln: lib/belege-regeln.ts.
 import Anthropic from "@anthropic-ai/sdk";
-import { ausgabeProps, BELEG_PROMPT, euroCent, postfachAus, pruefeBeleg, type Anhang, type Beleg } from "@/lib/belege-regeln";
+import { anbieterOption, ausgabeProps, BELEG_PROMPT, euroCent, postfachAus, pruefeBeleg, rechnungsMerkmal, type Anhang, type Beleg } from "@/lib/belege-regeln";
 import { DB, jahrSeite, notion } from "@/lib/finanzen";
 import { holeAnhang } from "@/lib/mail-bruecke";
 import { call, posteingangKanal } from "@/lib/leads";
@@ -93,6 +93,17 @@ export async function bucheBeleg(m: BelegMail, mitgegeben?: { name: string; date
   if (!beleg) return { art: "fehler", grund: "KI hat die Rechnung nicht lesen können" };
   if (!beleg.istRechnung) return { art: "keinBeleg" };
   if (beleg.privat) return { art: "privat" };
+
+  // Dieselbe Rechnung kam schon mit einer anderen Mail (Weiterleitung, zweite Mail in der Unterhaltung)?
+  const merkmal = rechnungsMerkmal(beleg.rechnungsnr);
+  if (merkmal) {
+    const gleich = await notion<{ results?: unknown[] }>(`/databases/${DB.ausgaben}/query`, "POST", {
+      filter: { and: [{ property: "Notiz", rich_text: { contains: merkmal } }, { property: "Anbieter", select: { equals: anbieterOption(beleg.anbieter) } }] },
+      page_size: 1,
+    });
+    if (!gleich) return { art: "fehler", grund: "Notion „Ausgaben“ nicht erreichbar" };
+    if (gleich.results?.length) return { art: "schon" };
+  }
 
   const kurs = beleg.waehrung === "USD" ? await kursUsdEur(beleg.datum) : null;
   const cent = euroCent(beleg.betrag, beleg.waehrung, kurs);

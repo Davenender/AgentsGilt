@@ -1,7 +1,7 @@
 // Finanzen A3 (16.11.2026): Belege-Sammler, Rechnungen aus Gmail werden Zeilen in „Ausgaben“. Reine Logik. `npm test`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { anbieterOption, ausgabeProps, BELEG_PROMPT, belegEmpfaenger, belegKennung, belegZeile, euroCent, istBelegKandidat, postfachAus, pruefeBeleg } from "../lib/belege-regeln.ts";
+import { anbieterOption, ausgabeProps, BELEG_PROMPT, belegEmpfaenger, belegKennung, belegZeile, rechnungsMerkmal, euroCent, istBelegKandidat, postfachAus, pruefeBeleg } from "../lib/belege-regeln.ts";
 
 const mail = (o: Partial<{ von: string; betreff: string; text: string; anhaenge: { name: string; typ: string; groesse: number }[] }>) => ({
   von: "Jemand <jemand@firma.de>",
@@ -112,4 +112,13 @@ test("KI-Anweisung: nur Rechnungen, die Agents Gilt selbst bezahlt", () => {
   assert.match(BELEG_PROMPT, /Auszahlungen/);
   assert.match(BELEG_PROMPT, /an Kunden geschickt/);
   assert.match(BELEG_PROMPT, /Gutschriften/, "Gutschrift (credit note) ist keine Ausgabe");
+});
+
+test("Dieselbe Rechnung aus zwei Mails (z. B. Weiterleitung): Merkmal steht genau so in der Notiz", () => {
+  const b = pruefeBeleg({ istRechnung: true, privat: false, anbieter: "Google", was: "Workspace", betrag: 8.1, waehrung: "EUR", datum: "2026-10-31", rechnungsnr: "5728212279" })!;
+  const notiz = JSON.stringify(ausgabeProps(b, { euroCent: 810, kurs: null, postfach: "kontakt@", link: null, mailId: "m1", jahrSeite: null, datei: null })["Notiz"]);
+  assert.equal(rechnungsMerkmal("5728212279"), "Rechnung 5728212279");
+  assert.ok(notiz.includes(rechnungsMerkmal("5728212279")));
+  assert.equal(rechnungsMerkmal(null), null);
+  assert.equal(rechnungsMerkmal("  "), null);
 });

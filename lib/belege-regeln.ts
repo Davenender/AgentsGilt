@@ -114,6 +114,9 @@ export function euroCent(betrag: number, waehrung: string, kurs: number | null):
 
 const text = (s: string) => [{ type: "text", text: { content: s.slice(0, 2000) } }];
 
+/** So steht die Rechnungsnummer in der Notiz; daran erkennt der Bot dieselbe Rechnung aus einer zweiten Mail. */
+export const rechnungsMerkmal = (nr: string | null | undefined) => (nr?.trim() ? `Rechnung ${nr.trim()}` : null);
+
 /** Notion-Eigenschaften für die Zeile in „Ausgaben“. */
 export function ausgabeProps(
   b: Beleg,
@@ -122,7 +125,7 @@ export function ausgabeProps(
   const option = anbieterOption(b.anbieter);
   const notiz = [
     `Mail ${z.mailId}`,
-    b.rechnungsnr ? `Rechnung ${b.rechnungsnr}` : null,
+    rechnungsMerkmal(b.rechnungsnr),
     option === "Sonstiges" ? `Anbieter: ${b.anbieter}` : null,
     z.kurs ? `umgerechnet zum EZB-Kurs ${z.kurs.toLocaleString("de-DE", { maximumFractionDigits: 4 })} € je $` : null,
     z.euroCent === null ? "Euro-Betrag bitte eintragen" : null,
