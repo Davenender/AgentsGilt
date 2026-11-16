@@ -1,4 +1,5 @@
 import { isGermanMobile, toE164 } from "@/lib/termin";
+import { nameKnopf } from "@/lib/anrufer-name";
 
 // Zustand und Knöpfe der Anruf-Meldungen in Discord.
 //
@@ -128,12 +129,12 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
 
   switch (state) {
     case "open":
-      return [{ type: 1, components: [button("Übernehmen", "claim", 3)] }];
+      return [{ type: 1, components: [button("Übernehmen", "claim", 3), nameKnopf()] }];
     case "claimed":
     case "proposed":
     case "customer_alt":
       // Ohne Bearbeiter (nach "Freigeben") kann nur wieder übernommen werden.
-      if (!hasOwner) return [{ type: 1, components: [button("Übernehmen", "claim", 3), button("Gespräch ansehen", "verlauf", 2)] }];
+      if (!hasOwner) return [{ type: 1, components: [button("Übernehmen", "claim", 3), button("Gespräch ansehen", "verlauf", 2), nameKnopf()] }];
       return [
         {
           type: 1,
@@ -156,6 +157,7 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
           type: 1,
           components: [
             button("Gespräch ansehen", "verlauf", 2),
+            nameKnopf(),
             ...(rueckrufKonfiguriert() && (!rueckrufStand(embed) || (embed && rueckrufGewaehlt(embed)))
               ? [
                   {
@@ -172,7 +174,7 @@ export function callComponents(state: CallState, hasOwner = true, embed?: EmbedL
     case "confirmed":
     case "done":
       // Den Gesprächsverlauf kann jeder im Team jederzeit ansehen.
-      return [{ type: 1, components: [button("Gespräch ansehen", "verlauf", 2)] }];
+      return [{ type: 1, components: [button("Gespräch ansehen", "verlauf", 2), nameKnopf()] }];
   }
 }
 
