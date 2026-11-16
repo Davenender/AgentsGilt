@@ -3,6 +3,8 @@
 //   vl:nichts            → Karte schließen, nichts passiert
 //   vl:zurueck           → schaltet wieder an, was der Bot abgeschaltet hat
 //   vl:zurueckvon:<id>   → dasselbe von der Frage nach „Wieder aufnehmen“ aus (Karte <id> im selben Kanal)
+//   vl:loeschen:<teil>   → B2: rote Rückfrage (nur für David sichtbar), Teil = vercel | github
+//   vl:loeschja:<teil>:<karte> → endgültig löschen, Karte zeigt „gelöscht“; vl:loeschnein → abbrechen
 // Regeln und Karte: lib/verloren-regeln.ts, Netz: lib/verloren.ts.
 import { after, NextResponse } from "next/server";
 import type { AnfInteraction } from "@/lib/anfrage-handlers";
@@ -11,8 +13,8 @@ import { aendereKarte, call, posteingangKanal, postKarte, setzeAntwort } from "@
 import { listMessages } from "@/lib/discord";
 import { seitenId } from "@/lib/notion-api";
 import { DAVID_ID } from "@/lib/team";
-import { holeZurueck, liesVerlorenKunde, schalteAb, sucheAlles } from "@/lib/verloren";
-import { kopfAus, leseMerker, merkerText, verlorenKarte, type Merker } from "@/lib/verloren-regeln";
+import { holeZurueck, liesVerlorenKunde, loescheTeil, loeschName, schalteAb, sucheAlles } from "@/lib/verloren";
+import { kopfAus, leseMerker, loeschFrage, merkerText, mitGeloescht, verlorenKarte, type Loeschbar, type Merker } from "@/lib/verloren-regeln";
 
 const ephemeral = (content: string) => NextResponse.json({ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } });
 const heuteDe = () => new Date().toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" });
@@ -52,6 +54,24 @@ export async function meldeWiederAufgenommen(token: string, nr: string): Promise
   }
 }
 
+/** Eine schon gestartete Karte neu zeichnen (z. B. damit sie die Löschen-Knöpfe aus B2 bekommt). true = gefunden. */
+export async function frischeKarteAuf(token: string, nr: string): Promise<boolean> {
+  const kanal = await posteingangKanal(token);
+  if (!kanal) return false;
+  const karte = (await listMessages(token, kanal, 100)).find((x) => {
+    const mk = leseMerker(x.embeds?.[0]?.footer?.text);
+    return mk?.nr === nr && mk.zustand === "gestartet";
+  });
+  const e = karte?.embeds?.[0];
+  const m = leseMerker(e?.footer?.text);
+  const kopf = kopfAus(e);
+  if (!karte || !m || !kopf) return false;
+  const kunde = await liesVerlorenKunde(m.seite, m.nr);
+  if (!kunde) return false;
+  const { embed, components } = verlorenKarte({ nr: m.nr, ...kopf }, await sucheAlles(kunde, m.weg), m);
+  return aendereKarte(token, kanal, karte.id, embed, components);
+}
+
 async function holeNachricht(token: string, kanal: string, id: string): Promise<EmbedLike | null> {
   const m = await call<{ embeds?: EmbedLike[] }>(token, "GET", `/channels/${kanal}/messages/${id}`);
   return m?.embeds?.[0] ?? null;
@@ -63,8 +83,8 @@ async function zurueck(token: string, kanal: string, kartenId: string, e: EmbedL
   if (!kopf) return "Die Karte lässt sich nicht lesen.";
   const ergebnisse = await holeZurueck(m);
   const kunde = await liesVerlorenKunde(m.seite, m.nr);
-  const f = kunde ? await sucheAlles(kunde) : { vercel: null, github: null, link: null, promo: null, laufend: [], vertrag: null, hinweise: ["Notion war nicht lesbar."] };
-  const { embed, components } = verlorenKarte({ nr: m.nr, ...kopf }, f, { nr: m.nr, seite: m.seite, zustand: "zurueck" }, ergebnisse);
+  const f = kunde ? await sucheAlles(kunde, m.weg) : { vercel: null, github: null, link: null, promo: null, laufend: [], vertrag: null, hinweise: ["Notion war nicht lesbar."] };
+  const { embed, components } = verlorenKarte({ nr: m.nr, ...kopf }, f, { nr: m.nr, seite: m.seite, zustand: "zurueck", ...(m.weg ? { weg: m.weg } : {}) }, ergebnisse);
   await aendereKarte(token, kanal, kartenId, embed, components);
   const fehler = Object.values(ergebnisse).filter((x) => x?.startsWith("⚠️")).length;
   return fehler ? `↩️ Zurückgeholt, aber ${fehler} Teil(e) gingen nicht. Siehe Karte.` : "↩️ Alles wieder angeschaltet.";
@@ -78,6 +98,31 @@ export function handleVerloren(i: AnfInteraction, token: string | undefined) {
   const kanal = i.channel_id;
   const nachricht = i.message;
   const antwort = (t: string) => setzeAntwort(i.application_id!, i.token!, t);
+
+  // ---- B2: endgültig löschen
+  if (id === "loeschnein") return NextResponse.json({ type: 7, data: { content: "Abgebrochen. Es bleibt alles, wie es ist.", components: [] } });
+  if (id.startsWith("loeschja:")) {
+    const [teil, kartenId] = id.slice("loeschja:".length).split(":");
+    if ((teil !== "vercel" && teil !== "github") || !kartenId) return ephemeral("Das hat nicht geklappt.");
+    const t: Loeschbar = teil;
+    after(async () => {
+      const e = await holeNachricht(token, kanal, kartenId);
+      const m = leseMerker(e?.footer?.text);
+      const feld = e?.fields?.find((x) => x.name === (t === "vercel" ? "Vercel-Demo" : "GitHub-Repo"))?.value ?? "";
+      if (!e || !m || m.zustand !== "gestartet" || (m.weg ?? []).includes(t)) return void (await antwort("Da gibt es nichts mehr zu löschen."));
+      const kunde = await liesVerlorenKunde(m.seite, m.nr);
+      const name = kunde ? loeschName(t, kunde) : null;
+      // Sicherheit: gelöscht wird nur, was genau so auf der Karte stand.
+      if (!name || feld.split("\n")[0].replace(/`/g, "") !== name) return void (await antwort("⚠️ Der Name in Notion passt nicht mehr zur Karte. Es ist nichts gelöscht."));
+      const r = await loescheTeil(t, name);
+      if (!r.ok) return void (await antwort(`⚠️ Löschen ging nicht (HTTP ${r.status}). Es ist nichts gelöscht.`));
+      const neu = mitGeloescht(e, t);
+      if (neu) await aendereKarte(token, kanal, kartenId, neu.embed, neu.components);
+      console.log(`[verloren] ${m.nr}: ${t} „${name}“ gelöscht`);
+      await antwort(`🗑️ ${t === "vercel" ? "Vercel-Projekt" : "GitHub-Repo"} „${name}“ ist endgültig gelöscht.`);
+    });
+    return NextResponse.json({ type: 7, data: { content: "⏳ Wird gelöscht …", components: [] } });
+  }
 
   if (id.startsWith("zurueckvon:")) {
     const kartenId = id.slice("zurueckvon:".length);
@@ -96,6 +141,16 @@ export function handleVerloren(i: AnfInteraction, token: string | undefined) {
   const m = leseMerker(e?.footer?.text);
   const kopf = kopfAus(e);
   if (!e || !m || !kopf) return ephemeral("Diese Karte lässt sich nicht lesen.");
+
+  if (id.startsWith("loeschen:")) {
+    const t = id.slice("loeschen:".length);
+    if (t !== "vercel" && t !== "github") return ephemeral("Unbekannter Knopf.");
+    if (m.zustand !== "gestartet" || (m.weg ?? []).includes(t)) return ephemeral("Da gibt es nichts mehr zu löschen.");
+    const name = (e.fields?.find((x) => x.name === (t === "vercel" ? "Vercel-Demo" : "GitHub-Repo"))?.value ?? "").split("\n")[0].replace(/`/g, "");
+    if (!name || name === "nichts gefunden") return ephemeral("Dazu steht nichts auf der Karte.");
+    const frage = loeschFrage(t, name, nachricht.id);
+    return NextResponse.json({ type: 4, data: { flags: 64, content: frage.content, components: frage.components, allowed_mentions: { parse: [] } } });
+  }
 
   if (id === "nichts") {
     if (m.zustand !== "offen") return ephemeral("Diese Karte ist schon erledigt.");

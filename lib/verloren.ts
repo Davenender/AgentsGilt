@@ -3,7 +3,7 @@
 // (eingeschränkt), geprüft mit POST /api/schluessel. Gelöscht wird hier nichts.
 import { notion } from "@/lib/finanzen";
 import { seitenId } from "@/lib/notion-api";
-import { githubAus, ohneVerlorenBeschreibung, schritte, stripeLinkAus, vercelNameAus, verlorenBeschreibung, type Fund, type Merker, type Teil } from "@/lib/verloren-regeln";
+import { githubAus, ohneVerlorenBeschreibung, schritte, stripeLinkAus, vercelNameAus, verlorenBeschreibung, type Fund, type Loeschbar, type Merker, type Teil } from "@/lib/verloren-regeln";
 import { betragText } from "@/lib/finanzen-regeln";
 
 const TEAM = process.env.VERCEL_TEAM_ID || "team_aGDX333dwIk6UgZq6ACgeHaU";
@@ -68,12 +68,13 @@ export async function liesVerlorenKunde(seite: string, nr: string): Promise<Verl
 const LAUFEND = ["active", "trialing", "past_due", "unpaid"];
 
 /** Sucht alles zum Kunden (nur lesen). Was sich nicht prüfen lässt, steht unter „Hinweise“; Stripe im Zweifel als „läuft“. */
-export async function sucheAlles(k: VerlorenKunde): Promise<Fund> {
+/** `ohne`: endgültig Gelöschtes (B2) nicht mehr suchen. */
+export async function sucheAlles(k: VerlorenKunde, ohne: readonly Loeschbar[] = []): Promise<Fund> {
   const hinweise: string[] = [];
   const laufend: string[] = [];
 
-  const vName = vercelNameAus(k.vercel);
-  if (k.vercel && !vName) hinweise.push(`Vercel: „${k.vercel}“ ist keine *.vercel.app-Adresse, bitte selbst prüfen.`);
+  const vName = ohne.includes("vercel") ? null : vercelNameAus(k.vercel);
+  if (k.vercel && !vName && !ohne.includes("vercel")) hinweise.push(`Vercel: „${k.vercel}“ ist keine *.vercel.app-Adresse, bitte selbst prüfen.`);
   let vFund: Fund["vercel"] = null;
   if (vName) {
     const r = await vercel<{ id?: string; name?: string; paused?: boolean }>(`/v9/projects/${encodeURIComponent(vName)}`);
@@ -81,8 +82,8 @@ export async function sucheAlles(k: VerlorenKunde): Promise<Fund> {
     else hinweise.push(`Vercel-Projekt „${vName}“ nicht gefunden (HTTP ${r.status}).`);
   }
 
-  const gh = githubAus(k.github);
-  if (k.github && !gh) hinweise.push(`GitHub: „${k.github}“ ist keine Repo-Adresse.`);
+  const gh = ohne.includes("github") ? null : githubAus(k.github);
+  if (k.github && !gh && !ohne.includes("github")) hinweise.push(`GitHub: „${k.github}“ ist keine Repo-Adresse.`);
   let gFund: Fund["github"] = null;
   if (gh) {
     const r = await github<{ full_name?: string; archived?: boolean }>(`/repos/${gh}`);
@@ -201,4 +202,15 @@ export async function holeZurueck(m: Merker): Promise<Partial<Record<Teil, strin
     e.promo = r.status === 200 ? "✅ wieder aktiv" : fehler(r.status);
   }
   return e;
+}
+
+/** B2: endgültig löschen (nur nach Davids roter Bestätigung). Vercel nimmt Name oder Kennung, GitHub „Besitzer/Repo“. */
+export async function loescheTeil(t: Loeschbar, name: string): Promise<{ ok: boolean; status: number }> {
+  const r = t === "vercel" ? await vercel(`/v9/projects/${encodeURIComponent(name)}`, "DELETE") : await github(`/repos/${name}`, "DELETE");
+  return { ok: r.status === 204 || r.status === 200, status: r.status };
+}
+
+/** B2: der Name, den der Bot heute aus Notion löschen würde (zum Abgleich mit der Karte). */
+export function loeschName(t: Loeschbar, k: VerlorenKunde): string | null {
+  return t === "vercel" ? vercelNameAus(k.vercel) : githubAus(k.github);
 }

@@ -17,7 +17,9 @@ export type Fund = {
   hinweise: string[];
 };
 export type Zustand = "offen" | "gestartet" | "zurueck" | "nichts";
-export type Merker = { nr: string; seite: string; zustand: Zustand } & Partial<Record<Teil, string>>;
+export type Loeschbar = "vercel" | "github";
+/** weg: was David nach dem Start endgültig gelöscht hat (B2). */
+export type Merker = { nr: string; seite: string; zustand: Zustand; weg?: Loeschbar[] } & Partial<Record<Teil, string>>;
 
 /** Vercel-Projektname aus „https://name.vercel.app“ oder „vercel.com/team/name“. Eigene Domain: null. */
 export function vercelNameAus(url: string | null | undefined): string | null {
@@ -63,7 +65,7 @@ const ZUSTAENDE: Zustand[] = ["offen", "gestartet", "zurueck", "nichts"];
 
 /** Merker in der Fußzeile der Karte: nur Kennungen dessen, was der Bot abgeschaltet hat. */
 export function merkerText(m: Merker): string {
-  return ["vl1", `nr=${m.nr}`, `seite=${m.seite}`, `z=${m.zustand}`, ...TEILE.filter((t) => m[t]).map((t) => `${t}=${m[t]}`)].join(" ");
+  return ["vl1", `nr=${m.nr}`, `seite=${m.seite}`, `z=${m.zustand}`, ...TEILE.filter((t) => m[t]).map((t) => `${t}=${m[t]}`), ...(m.weg?.length ? [`weg=${m.weg.join("+")}`] : [])].join(" ");
 }
 
 export function leseMerker(s: string | null | undefined): Merker | null {
@@ -73,6 +75,8 @@ export function leseMerker(s: string | null | undefined): Merker | null {
   if (!w.nr || !w.seite || !ZUSTAENDE.includes(w.z as Zustand)) return null;
   const m: Merker = { nr: w.nr, seite: w.seite, zustand: w.z as Zustand };
   for (const t of TEILE) if (w[t]) m[t] = w[t];
+  const weg = (w.weg ?? "").split("+").filter((x): x is Loeschbar => x === "vercel" || x === "github");
+  if (weg.length) m.weg = weg;
   return m;
 }
 
@@ -87,9 +91,12 @@ export const ohneVerlorenBeschreibung = (s: string | null | undefined) => (s ?? 
 type Knopf = { type: 2; style: number; label: string; custom_id: string };
 type Reihe = { type: 1; components: Knopf[] };
 
-function teilWert(t: Teil, f: Fund, gesperrt: boolean, ergebnis: string | undefined): string {
+const GELOESCHT = "🗑️ endgültig gelöscht";
+
+function teilWert(t: Teil, f: Fund, gesperrt: boolean, ergebnis: string | undefined, weg: Loeschbar[]): string {
   const name =
     t === "vercel" ? f.vercel?.name : t === "github" ? f.github?.voll : t === "link" ? f.link?.url : f.promo?.code;
+  if ((t === "vercel" || t === "github") && weg.includes(t)) return name ? `${name}\n${GELOESCHT}` : GELOESCHT;
   if (!name) return "nichts gefunden";
   const stand =
     ergebnis ??
@@ -104,6 +111,17 @@ function teilWert(t: Teil, f: Fund, gesperrt: boolean, ergebnis: string | undefi
 }
 
 const TITEL: Record<Teil, string> = { vercel: "Vercel-Demo", github: "GitHub-Repo", link: "Stripe-Zahlungslink", promo: "Rabattcode" };
+const LOESCH_LABEL: Record<Loeschbar, string> = { vercel: "🗑️ Demo löschen", github: "🗑️ Repo löschen" };
+
+/** Knöpfe je Zustand; nach dem Start dazu je ein roter Löschen-Knopf (B2). */
+function knoepfe(zustand: Zustand, loeschbar: readonly Loeschbar[]): Reihe[] {
+  if (zustand === "offen") return [{ type: 1, components: [{ type: 2, style: 3, label: "▶️ Starten", custom_id: "vl:start" }, { type: 2, style: 2, label: "Nichts tun", custom_id: "vl:nichts" }] }];
+  if (zustand !== "gestartet") return [];
+  return [
+    { type: 1, components: [{ type: 2, style: 2, label: "↩️ Alles zurück", custom_id: "vl:zurueck" }] },
+    ...(loeschbar.length ? [{ type: 1 as const, components: loeschbar.map((t) => ({ type: 2 as const, style: 4, label: LOESCH_LABEL[t], custom_id: `vl:loeschen:${t}` })) }] : []),
+  ];
+}
 
 /** Die Karte in #posteingang, je nach Zustand mit „Starten“/„Nichts tun“ oder „Alles zurück“. */
 export function verlorenKarte(
@@ -122,17 +140,13 @@ export function verlorenKarte(
           ? "Alles wieder angeschaltet."
           : "Nichts abgeschaltet (so gewollt).";
   const fields = [
-    ...TEILE.map((t) => ({ name: TITEL[t], value: teilWert(t, f, gesperrt.includes(t) && !ergebnisse[t], ergebnisse[t]), inline: true })),
+    ...TEILE.map((t) => ({ name: TITEL[t], value: teilWert(t, f, gesperrt.includes(t) && !ergebnisse[t], ergebnisse[t], m.weg ?? []), inline: true })),
     { name: "Zahlungen", value: f.laufend.length ? `⚠️ läuft noch: ${f.laufend.join(" · ")}`.slice(0, 1024) : "keine laufende Zahlung gefunden", inline: false },
     ...(f.vertrag ? [{ name: "Vertrag (DocuSign)", value: `${f.vertrag}\nbleibt, wie er ist`.slice(0, 1024), inline: false }] : []),
     ...(f.hinweise.length ? [{ name: "Hinweise", value: f.hinweise.join("\n").slice(0, 1024), inline: false }] : []),
   ];
-  const components: Reihe[] =
-    m.zustand === "offen"
-      ? [{ type: 1, components: [{ type: 2, style: 3, label: "▶️ Starten", custom_id: "vl:start" }, { type: 2, style: 2, label: "Nichts tun", custom_id: "vl:nichts" }] }]
-      : m.zustand === "gestartet"
-        ? [{ type: 1, components: [{ type: 2, style: 2, label: "↩️ Alles zurück", custom_id: "vl:zurueck" }] }]
-        : [];
+  const loeschbar = (["vercel", "github"] as const).filter((t) => f[t] && !(m.weg ?? []).includes(t));
+  const components = knoepfe(m.zustand, loeschbar);
   return {
     embed: {
       title: `⚪ ${k.nr} · ${k.name} ist verloren`.slice(0, 256),
@@ -150,4 +164,41 @@ export function kopfAus(e: EmbedLike | null | undefined): { name: string; grund:
   const t = (e?.title ?? "").match(/^⚪ KND-\d+ · (.+) ist verloren$/);
   const d = (e?.description ?? "").match(/^Grund: (.+?) · gesetzt von <@(\d+)>/);
   return t && d ? { name: t[1], grund: d[1], von: d[2] } : null;
+}
+
+
+/** Rote Rückfrage vor dem endgültigen Löschen (nur für David sichtbar). */
+export function loeschFrage(t: Loeschbar, name: string, kartenId: string): { content: string; components: Reihe[] } {
+  const was =
+    t === "vercel"
+      ? `🗑️ **Vercel-Projekt „${name}“ endgültig löschen?**\nDas lässt sich nicht rückgängig machen: Die Demo-Adresse ist danach weg.`
+      : `🗑️ **GitHub-Repo „${name}“ endgültig löschen?**\nDas lässt sich nicht rückgängig machen: Der Code auf GitHub ist danach weg.`;
+  return {
+    content: `${was} Der Ordner auf deinem Mac bleibt.`,
+    components: [
+      {
+        type: 1,
+        components: [
+          { type: 2, style: 4, label: "Ja, endgültig löschen", custom_id: `vl:loeschja:${t}:${kartenId}` },
+          { type: 2, style: 2, label: "Abbrechen", custom_id: "vl:loeschnein" },
+        ],
+      },
+    ],
+  };
+}
+
+/** Karte nach dem Löschen: Feld zeigt „gelöscht“, Merker ohne die Kennung (Alles zurück lässt es aus), Knopf weg. */
+export function mitGeloescht(e: EmbedLike, t: Loeschbar): { embed: EmbedLike; components: Reihe[] } | null {
+  const m = leseMerker(e.footer?.text);
+  const felder = e.fields ?? [];
+  const feld = felder.find((x) => x.name === TITEL[t]);
+  if (!m || !feld) return null;
+  const neu: Merker = { ...m, weg: [...new Set([...(m.weg ?? []), t])] };
+  delete neu[t];
+  const fields = felder.map((x) => (x === feld ? { ...x, value: `${x.value.split("\n")[0]}\n${GELOESCHT}`.slice(0, 1024) } : x));
+  const loeschbar = (["vercel", "github"] as const).filter((x) => {
+    const v = fields.find((y) => y.name === TITEL[x])?.value ?? "nichts gefunden";
+    return !v.startsWith("nichts gefunden") && !v.includes(GELOESCHT) && !(neu.weg ?? []).includes(x);
+  });
+  return { embed: { ...e, fields, footer: { text: merkerText(neu) } }, components: knoepfe(m.zustand, loeschbar) };
 }
