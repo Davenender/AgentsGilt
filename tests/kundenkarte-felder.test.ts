@@ -1,7 +1,7 @@
 // Kundenkarte: Knöpfe statt Notion (Etappe 4, 16.11.2026). Reine Logik.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CHECKLISTE, checklisteProps, feedbackProps, leseDatum, pruefeKontakt, standAusKarte } from "../lib/kundenkarte-felder.ts";
+import { CHECKLISTE, checklisteProps, feedbackProps, leseDatum, pruefeKontakt, standAusKarte, notionLinkAusKarte } from "../lib/kundenkarte-felder.ts";
 
 const karte = (zeilen: string[]) => ({ fields: [{ name: "Status", value: "Lead" }, { name: "Checkliste", value: zeilen.join("\n") }] });
 
@@ -51,4 +51,11 @@ test("Feedback", () => {
   assert.deepEqual(feedbackProps(3, null), { Zufriedenheit: { select: { name: "⭐⭐⭐ 3" } } });
   assert.deepEqual(feedbackProps(null, true), { "Referenz erlaubt": { checkbox: true } });
   assert.deepEqual(feedbackProps(5, false), { Zufriedenheit: { select: { name: "⭐⭐⭐⭐⭐ 5" } }, "Referenz erlaubt": { checkbox: false } });
+});
+
+test("Notion-Link aus der Karte (Etappe 5: Angebotslink in Mails prüfen)", () => {
+  const karte = { fields: [{ name: "Notion", value: "[Kundenseite öffnen](https://www.notion.so/abc123)" }] };
+  assert.equal(notionLinkAusKarte(karte), "https://www.notion.so/abc123");
+  assert.equal(notionLinkAusKarte({ fields: [{ name: "Notion", value: "fehlt" }] }), null);
+  assert.equal(notionLinkAusKarte(null), null);
 });

@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { statusAusBelegen } from "./status-regeln.ts";
 
 // Zahlungsmeldung von Stripe: Signatur prüfen und aus einem Ereignis eine Meldung machen. Rein, ohne Netz.
 // Das Verschicken steht in lib/stripe-handler.ts, die Adresse in app/api/stripe/route.ts.
@@ -40,6 +41,8 @@ export type Meldung = {
   hinweis: boolean;
   /** Zusätzlich eine Mail an kontakt@agentsgilt.com. */
   mail: boolean;
+  /** Gehört zu einem Abo (Etappe 5: dann „Retainer läuft“, sonst „Anzahlung erhalten“ und „Kunde“). */
+  abo: boolean;
   letzterVersuch: boolean;
   link: string | null;
   beschreibung: string;
@@ -64,6 +67,7 @@ function ausRechnung(id: string, typ: string, o: Obj): Meldung | null {
     firma: textOderNull(o.customer_name),
     kundeNr: kundenNr(meta.kunde ?? alt.kunde ?? obj(o.metadata).kunde),
     link: rechnungsLink(o),
+    abo: String(o.billing_reason ?? "").startsWith("subscription") || Boolean(o.subscription) || Boolean(obj(o.parent).subscription_details),
   };
   if (typ === "invoice.paid") {
     const betrag = zahl(o.amount_paid) ?? 0;
@@ -114,6 +118,7 @@ export function meldungAus(ereignis: unknown): Meldung | null {
       zahlungsstatus: "Bezahlt",
       hinweis: true,
       mail: false,
+      abo: false,
       letzterVersuch: false,
       link: o.payment_intent ? `https://dashboard.stripe.com/payments/${String(o.payment_intent)}` : null,
       beschreibung: "Einmalzahlung.",
@@ -132,6 +137,7 @@ export function meldungAus(ereignis: unknown): Meldung | null {
       zahlungsstatus: null,
       hinweis: true,
       mail: true,
+      abo: true,
       letzterVersuch: false,
       link: o.id ? `https://dashboard.stripe.com/subscriptions/${String(o.id)}` : null,
       beschreibung: "Das Abo wurde beendet, es wird nichts mehr abgebucht.",
@@ -174,11 +180,15 @@ export function meldungsKarte(m: Meldung, name: string | null): MeldungsKarte {
   };
 }
 
-export type StripeKunde = { nr: string; name: string; email?: string | null; notionUrl?: string | null };
+export type StripeKunde = { nr: string; name: string; email?: string | null; notionUrl?: string | null; status?: string };
 
 export type Dienste = {
   kunden: () => Promise<StripeKunde[] | null>;
-  setzeStatus: (notionUrl: string, status: "Bezahlt" | "Offen") => Promise<boolean>;
+  /** Feld „Zahlungsstatus“ */
+  setzeZahlung: (notionUrl: string, status: "Bezahlt" | "Offen") => Promise<boolean>;
+  /** Kundenstatus (Etappe 5, nur vorwärts über statusAusBelegen) */
+  setzeStatus: (notionUrl: string, status: string) => Promise<boolean>;
+  setzeFelder: (notionUrl: string, properties: Record<string, unknown>) => Promise<boolean>;
   kundenKanal: (nr: string) => Promise<string | null>;
   posteingang: () => Promise<string | null>;
   schonGemeldet: (kanal: string, ereignis: string) => Promise<boolean>;
@@ -203,8 +213,17 @@ export async function verarbeite(m: Meldung, d: Dienste): Promise<boolean> {
 
   const karte = meldungsKarte(m, kunde ? kunde.name : null);
   if (kunde && m.zahlungsstatus) {
-    const gesetzt = kunde.notionUrl ? await d.setzeStatus(kunde.notionUrl, m.zahlungsstatus) : false;
+    const gesetzt = kunde.notionUrl ? await d.setzeZahlung(kunde.notionUrl, m.zahlungsstatus) : false;
     if (!gesetzt) karte.fields.push({ name: "Notion", value: `Zahlungsstatus konnte nicht gesetzt werden, bitte von Hand auf „${m.zahlungsstatus}“ stellen.`, inline: false });
+  }
+  // Etappe 5: Eine Zahlung ist ein fester Beleg. Einmalzahlung → „Anzahlung erhalten“ + Kunde, Abo → Retainer läuft.
+  if (kunde?.notionUrl && m.art === "bezahlt") {
+    if (!m.abo) await d.setzeFelder(kunde.notionUrl, { "Anzahlung erhalten": { checkbox: true } });
+    const neu = statusAusBelegen({ status: kunde.status ?? "", angebotRaus: false, anzahlung: !m.abo, bezahlt: true, abo: m.abo });
+    if (neu) {
+      const ok = await d.setzeStatus(kunde.notionUrl, neu);
+      karte.fields.push({ name: "Status", value: ok ? `Von selbst auf „${neu}“ gesetzt.` : `Konnte nicht gesetzt werden, bitte von Hand auf „${neu}“ stellen.`, inline: false });
+    }
   }
   if (!(await d.poste(kanal, karte, m.hinweis))) return false;
 

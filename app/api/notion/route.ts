@@ -14,7 +14,8 @@ import { call, postKarte } from "@/lib/leads";
 import { findeKarte, legeKundenkanalAn, ordneKanalEin, zustaendigHinweis } from "@/lib/kundenkanal";
 import { kartenKnoepfe, knoepfePassen } from "@/lib/kundenablauf";
 import { demoFeldAusNotion } from "@/lib/demo";
-import { holeKundenNr, seitenId, setzeZustaendig } from "@/lib/notion-api";
+import { holeKundenNr, seitenId, setzeStatus, setzeZustaendig } from "@/lib/notion-api";
+import { belege, statusAusBelegen, statusZeile } from "@/lib/status-regeln";
 import { ausKarte, wahrheit } from "@/lib/zustaendige";
 import type { Kunde } from "@/lib/notion-kunden";
 import { standAusKarte } from "@/lib/kundenkarte-felder";
@@ -113,6 +114,22 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
   const token = process.env.DISCORD_BOT_TOKEN;
   await ladeTeam(token);
   const name = kanalName(kunde.nr);
+  const notionSeite = kunde.url ?? seite;
+  // Etappe 5: Status von selbst aus festen Belegen (Häkchen, Zahlungsstatus), nur vorwärts, nie aus „Verloren“.
+  // Der Bot setzt ihn in Notion und baut Karte und Farbpunkt gleich mit dem neuen Status; der Webhook danach ändert nichts mehr.
+  const auto = statusAusBelegen(
+    belege({
+      status: wert(kunde.props["Status"]),
+      angebotRaus: wert(kunde.props["Angebot raus"]) === "ja",
+      anzahlungHaken: wert(kunde.props["Anzahlung erhalten"]) === "ja",
+      zahlungsstatus: wert(kunde.props["Zahlungsstatus"]),
+    }),
+  );
+  let autoZeile: string | null = null;
+  if (auto && notionSeite && (await setzeStatus(notionSeite, auto))) {
+    kunde.props["Status"] = { type: "select", select: { name: auto } };
+    autoZeile = statusZeile(auto);
+  }
   const status = wert(kunde.props["Status"]);
   const mitPunkt = kanalNameMitPunkt(kunde.nr, status);
 
@@ -149,7 +166,6 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
   // Etappe 4: Knöpfe mit dem Stand der Checkliste (die Auswahl zeigt, was schon abgehakt ist)
   const stand = standAusKarte(karte);
   const knoepfe = kartenKnoepfe(status, demoStatus, stand);
-  const notionSeite = kunde.url ?? seite;
   if (zust.zuruecksetzen && zust.ids && notionSeite && (await setzeZustaendig(notionSeite, zust.ids))) {
     await postText(token, kanal, zustaendigHinweis(zust.ids));
   }
@@ -167,7 +183,7 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
       };
     }
     await editMessage(token, kanal, alt.id, { embeds: [karte], components: knoepfe });
-    await postText(token, kanal, `🔄 ${aender.join("\n")}`);
+    await postText(token, kanal, `🔄 ${aender.join("\n")}${autoZeile ? `\n${autoZeile}` : ""}`);
     return {
       res: NextResponse.json({ ok: true, geaendert: aender.length }),
       protokoll: `${kunde.nr} · ${kunde.name}: ${aender.length} Änderung(en) in <#${kanal}> eingetragen.`,

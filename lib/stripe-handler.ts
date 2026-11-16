@@ -1,7 +1,7 @@
 import { findChannelId, listMessages } from "@/lib/discord";
 import { posteingangKanal, postKarte, teamRolle } from "@/lib/leads";
 import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
-import { listeKunden, setzeZahlungsstatus } from "@/lib/notion-api";
+import { listeKunden, setzeFelder, setzeStatus, setzeZahlungsstatus } from "@/lib/notion-api";
 import { kanalName } from "@/lib/notion-kunden";
 import type { Dienste } from "@/lib/stripe-meldung";
 
@@ -9,7 +9,9 @@ import type { Dienste } from "@/lib/stripe-meldung";
 export function stripeDienste(token: string): Dienste {
   return {
     kunden: listeKunden,
-    setzeStatus: setzeZahlungsstatus,
+    setzeZahlung: setzeZahlungsstatus,
+    setzeStatus: (url, status) => setzeStatus(url, status),
+    setzeFelder,
     kundenKanal: (nr) => findChannelId(token, kanalName(nr)),
     posteingang: () => posteingangKanal(token),
     schonGemeldet: async (kanal, ereignis) =>

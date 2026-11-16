@@ -24,6 +24,10 @@ export function standAusKarte(e: EmbedLike | null | undefined): KartenStand {
   return { checkliste, live: checkliste["Live / Übergeben"] === true };
 }
 
+/** Die Notion-Adresse steht in der Karte im Feld „Notion“ als Link. */
+export const notionLinkAusKarte = (e: EmbedLike | null | undefined): string | null =>
+  e?.fields?.find((f) => f.name === "Notion")?.value.match(/\((https:\/\/[^)\s]+)\)/)?.[1] ?? null;
+
 /** Notion-Eigenschaften für die Auswahl: alle sieben, die gewählten an. */
 export function checklisteProps(gewaehlt: string[]): Record<string, { checkbox: boolean }> {
   const props: Record<string, { checkbox: boolean }> = {};

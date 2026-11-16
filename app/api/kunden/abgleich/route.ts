@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { findChannelId, setzeKanalName } from "@/lib/discord";
+import { findChannelId, postText, setzeKanalName } from "@/lib/discord";
 import { gleicheZustaendigAb, ordneKanalEin, sichereKundenarchiv, sperreKundenkanal } from "@/lib/kundenkanal";
-import { listeKunden } from "@/lib/notion-api";
+import { listeKunden, setzeStatus } from "@/lib/notion-api";
+import { belege, statusAusBelegen, statusZeile } from "@/lib/status-regeln";
 import { kanalName, kanalNameMitPunkt, statusPunkt } from "@/lib/notion-kunden";
 import { zeitplanGebremst } from "@/lib/zeitplan";
 import { ladeTeam } from "@/lib/team-daten";
@@ -20,6 +21,8 @@ export const maxDuration = 60;
 //   - Karte: alte Karten bekommen das Feld „Zuständig“ (Erwähnungen) und den Knopf „👥 Zuständige“.
 //   - Kategorie: „Verloren“ liegt im KUNDENARCHIV, alles andere unter KUNDEN; die Knöpfe passen zum Status.
 //   - Zuständig: Die Karte gilt. Wurde das Feld in Notion von Hand geändert, wird es zurückgesetzt.
+//   - Status von selbst (Etappe 5): fehlt nach festen Belegen ein Schritt (z. B. Notion hat zum Häkchen
+//     nichts geschickt), setzt der Abgleich ihn nach, nur vorwärts, mit Zeile im Kundenkanal.
 // Der Aufruf braucht kein Geheimnis: Er stellt nur den gültigen Stand wieder her.
 
 async function laufen() {
@@ -38,10 +41,18 @@ async function laufen() {
   let fehler = 0;
   let gesperrt = 0;
   const zuruecksetzungen: string[] = [];
+  const statusGesetzt: string[] = [];
   for (const k of kunden) {
+    const auto = statusAusBelegen(belege({ status: k.status, angebotRaus: Boolean(k.angebotRaus), anzahlungHaken: Boolean(k.anzahlung), zahlungsstatus: k.zahlungsstatus ?? "" }));
+    const neuGesetzt = Boolean(auto && k.notionUrl && (await setzeStatus(k.notionUrl, auto)));
+    if (auto && neuGesetzt) {
+      k.status = auto;
+      statusGesetzt.push(`${k.nr}: ${auto}`);
+    }
     const kanal = await findChannelId(token, kanalName(k.nr));
     if (!kanal) continue;
     geprueft++;
+    if (auto && neuGesetzt) await postText(token, kanal, statusZeile(auto));
     if (statusPunkt(k.status) && !(await setzeKanalName(token, kanal, kanalNameMitPunkt(k.nr, k.status)))) fehler++;
     if (statusPunkt(k.status) && !(await ordneKanalEin(token, kanal, k.status))) fehler++;
     if (await sperreKundenkanal(token, kanal)) gesperrt++;
@@ -50,7 +61,7 @@ async function laufen() {
     if (z === "zurückgesetzt") zuruecksetzungen.push(k.nr);
     if (z === "Notion-Fehler") fehler++;
   }
-  return NextResponse.json({ ok: true, kunden: kunden.length, kundenarchiv, geprueft, gesperrt, zuruecksetzungen, fehler });
+  return NextResponse.json({ ok: true, kunden: kunden.length, kundenarchiv, geprueft, gesperrt, zuruecksetzungen, statusGesetzt, fehler });
 }
 
 export async function GET() {

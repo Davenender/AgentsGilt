@@ -123,16 +123,18 @@ test("Fremder Text löst in Discord keine Erwähnung aus", () => {
 
 // ---- Ablauf mit Attrappen statt Notion, Discord und Mail
 
-const KUNDEN = [{ nr: "KND-003", name: "Relax Fit", email: "Info@Relax-Fit.de", notionUrl: "https://notion.so/abc" }];
+const KUNDEN = [{ nr: "KND-003", name: "Relax Fit", email: "Info@Relax-Fit.de", notionUrl: "https://notion.so/abc", status: "Angebot gesendet" }];
 function attrappen(aenderung: Partial<Dienste> = {}) {
-  const log = { status: [] as string[], karten: [] as { kanal: string; title: string; hinweis: boolean }[], mails: [] as string[] };
+  const log = { status: [] as string[], kundenstatus: [] as string[], felder: [] as string[], karten: [] as { kanal: string; title: string; hinweis: boolean; felder: string }[], mails: [] as string[] };
   const d: Dienste = {
     kunden: async () => KUNDEN,
-    setzeStatus: async (url, s) => { log.status.push(`${url}:${s}`); return true; },
+    setzeZahlung: async (url, s) => { log.status.push(`${url}:${s}`); return true; },
+    setzeStatus: async (url, s) => { log.kundenstatus.push(`${url}:${s}`); return true; },
+    setzeFelder: async (url, p) => { log.felder.push(`${url}:${Object.keys(p).join(",")}`); return true; },
     kundenKanal: async (nr) => (nr === "KND-003" ? "kanal-003" : null),
     posteingang: async () => "kanal-post",
     schonGemeldet: async () => false,
-    poste: async (kanal, karte, hinweis) => { log.karten.push({ kanal, title: karte.title, hinweis }); return true; },
+    poste: async (kanal, karte, hinweis) => { log.karten.push({ kanal, title: karte.title, hinweis, felder: JSON.stringify(karte.fields) }); return true; },
     schickeMail: async (betreff) => { log.mails.push(betreff); return true; },
     ...aenderung,
   };
@@ -187,7 +189,7 @@ test("Doppelt zugestellt: keine zweite Karte, keine zweite Mail", async () => {
 });
 
 test("Notion oder Mail streiken: die Karte kommt trotzdem, und sie sagt es", async () => {
-  const { d, log } = attrappen({ setzeStatus: async () => false, schickeMail: async () => false });
+  const { d, log } = attrappen({ setzeZahlung: async () => false, schickeMail: async () => false });
   let karte: { fields: { value: string }[] } | null = null;
   d.poste = async (_k, k) => { karte = k; return true; };
   assert.equal(await verarbeite(gescheitert(), d), true);
@@ -204,4 +206,52 @@ test("Notion nicht erreichbar: Stripe soll es später noch einmal schicken, stat
   const { d, log } = attrappen({ kunden: async () => null });
   assert.equal(await verarbeite(bezahlt(), d), false);
   assert.deepEqual(log.karten, []);
+});
+
+// ---- Etappe 5: Status von selbst
+
+const einmal = (o: Record<string, unknown> = {}) => meldungAus(rechnung({ billing_reason: "manual", ...o }))!;
+
+test("Abo erkennen: Abo-Rechnungen ja, Einmalzahlung und Bezahlseite nein", () => {
+  assert.equal(meldungAus(rechnung({}))?.abo, true, "subscription_create");
+  assert.equal(meldungAus(rechnung({ billing_reason: "subscription_cycle" }))?.abo, true);
+  assert.equal(einmal().abo, false);
+  const s = { id: "evt_s", type: "checkout.session.completed", livemode: true, data: { object: { mode: "payment", payment_status: "paid", amount_total: 50000, currency: "eur", customer_details: { email: "a@b.de" } } } };
+  assert.equal(meldungAus(s)?.abo, false);
+});
+
+test("Einmalzahlung: „Anzahlung erhalten“ abhaken und Status Kunde", async () => {
+  const { d, log } = attrappen();
+  assert.equal(await verarbeite(einmal(), d), true);
+  assert.deepEqual(log.felder, ["https://notion.so/abc:Anzahlung erhalten"]);
+  assert.deepEqual(log.kundenstatus, ["https://notion.so/abc:Kunde"]);
+  assert.match(log.karten[0].felder, /Kunde/);
+});
+
+test("Erste Abo-Zahlung: Retainer läuft, kein Anzahlung-Haken", async () => {
+  const { d, log } = attrappen();
+  assert.equal(await verarbeite(bezahlt(), d), true);
+  assert.deepEqual(log.felder, []);
+  assert.deepEqual(log.kundenstatus, ["https://notion.so/abc:Retainer läuft"]);
+});
+
+test("Nie zurück und nie aus Verloren: Status bleibt", async () => {
+  for (const status of ["Retainer läuft", "Verloren"]) {
+    const { d, log } = attrappen({ kunden: async () => [{ ...KUNDEN[0], status }] });
+    assert.equal(await verarbeite(einmal(), d), true);
+    assert.deepEqual(log.kundenstatus, [], status);
+  }
+});
+
+test("Fehlgeschlagene Zahlung ändert den Status nicht", async () => {
+  const { d, log } = attrappen();
+  await verarbeite(gescheitert(), d);
+  assert.deepEqual(log.kundenstatus, []);
+  assert.deepEqual(log.felder, []);
+});
+
+test("Status lässt sich nicht setzen: die Karte sagt, was von Hand zu tun ist", async () => {
+  const { d, log } = attrappen({ setzeStatus: async () => false });
+  assert.equal(await verarbeite(einmal(), d), true);
+  assert.match(log.karten[0].felder, /von Hand.*Kunde/);
 });

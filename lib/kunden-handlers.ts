@@ -38,7 +38,7 @@ import {
 import { kanalNameMitPunkt } from "@/lib/notion-kunden";
 import { ausKarte, auswahlMenue, CHEF_ID, darf, gleich, mitZustaendig, NUR_ZUSTAENDIGE, pruefeAuswahl, zustaendigZeile } from "@/lib/zustaendige";
 import { ersetzeIn, team } from "@/lib/team";
-import { checklisteProps, feedbackProps, leseDatum, pruefeKontakt, standAusKarte } from "@/lib/kundenkarte-felder";
+import { checklisteProps, feedbackProps, leseDatum, notionLinkAusKarte, pruefeKontakt, standAusKarte } from "@/lib/kundenkarte-felder";
 
 // Knöpfe an der Kundenkarte im Kundenkanal (knd:):
 //   „👥 Zuständige“, „📝 Gesprächsbogen“, „🧠 Gespräch auswerten“, „⚪ Verloren“ (Grund wählen,
@@ -50,8 +50,7 @@ const ersetze = (content: string, components: unknown[] = []) =>
   NextResponse.json({ type: 7, data: { content, components, allowed_mentions: { parse: [] } } });
 
 /** Die Notion-Adresse steht in der Karte im Feld „Notion“ als Link. */
-const notionAusKarte = (karte: EmbedLike) =>
-  karte.fields?.find((f) => f.name === "Notion")?.value.match(/\((https:\/\/[^)\s]+)\)/)?.[1] ?? null;
+const notionAusKarte = notionLinkAusKarte;
 /** „KND-003 · Relax Fit“ → „KND-003“ */
 const nrAusKarte = (karte: EmbedLike) => karte.title?.match(/^(KND-\d+)/)?.[1] ?? null;
 

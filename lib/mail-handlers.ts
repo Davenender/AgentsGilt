@@ -18,6 +18,9 @@ import { datenAusKarte } from "@/lib/anfragen";
 import { listMessages, messageLink } from "@/lib/discord";
 import type { EmbedLike } from "@/lib/discord-calls";
 import { findeKarte } from "@/lib/kundenkanal";
+import { notionLinkAusKarte, standAusKarte } from "@/lib/kundenkarte-felder";
+import { leseLinkFeld, setzeFelder } from "@/lib/notion-api";
+import { enthaeltLink } from "@/lib/status-regeln";
 import { aendereKarte, besitzerId, call, posteingangKanal, postKarte, setzeAntwort } from "@/lib/leads";
 import { sendMail } from "@/lib/mail";
 import {
@@ -170,10 +173,28 @@ async function versende(f: Pick<Freigabe, "an" | "frage">, betreff: string, text
   return !("skipped" in res) && !("error" in res && res.error);
 }
 
-/** Nach dem Senden: Zeile fürs Team und Faden für die Antwort des Kunden. */
-async function nachDemSenden(token: string, f: Pick<Freigabe, "an" | "ort" | "kanal" | "quelleId" | "zeilenId">) {
+/**
+ * Etappe 5: Steht der Angebotslink aus Notion („Angebot (Link)“) in einer gesendeten Mail an einen Kunden,
+ * hakt der Bot „Angebot raus“ ab. Den Status setzt danach der Notion-Webhook (🟡 Angebot gesendet).
+ */
+async function hakeAngebotAb(token: string, ort: MailOrt, kanal: string, text: string): Promise<void> {
+  if (ort !== "kunde" && ort !== "kundenmail") return;
+  try {
+    const karte = (await findeKarte(token, kanal))?.embeds[0];
+    const seite = notionLinkAusKarte(karte);
+    if (!seite || standAusKarte(karte).checkliste["Angebot raus"]) return;
+    const link = await leseLinkFeld(seite, "Angebot (Link)");
+    if (link && enthaeltLink(text, link)) await setzeFelder(seite, { "Angebot raus": { checkbox: true } });
+  } catch (err) {
+    console.error("[mail] Angebot raus abhaken fehlgeschlagen:", err);
+  }
+}
+
+/** Nach dem Senden: Zeile fürs Team, Faden für die Antwort des Kunden und „Angebot raus“, wenn der Angebotslink drin war. */
+async function nachDemSenden(token: string, f: Pick<Freigabe, "an" | "ort" | "kanal" | "quelleId" | "zeilenId">, text: string) {
   await aendereZeile(token, f.kanal, f.zeilenId, zeileGesendet(uhrzeit()));
   await merkeFaden(token, { email: f.an, kanal: f.kanal, ort: f.ort, quelleId: f.quelleId, zeit: new Date().toISOString() });
+  await hakeAngebotAb(token, f.ort, f.kanal, text);
 }
 
 const eingabe = (i: AnfInteraction, id: string) =>
@@ -276,6 +297,7 @@ export function handleMail(i: AnfInteraction, token: string | undefined) {
         if (!(await versende(k, betreff, text))) return void (await antwort("⚠️ Die Mail konnte nicht gesendet werden. Bitte gleich nochmal versuchen."));
         const zeilenId = (await zeile(token, kanal, k.quelleId, zeileGesendet(uhrzeit()))) ?? "";
         await merkeFaden(token, { email: k.an, kanal, ort, quelleId: k.quelleId, zeit: new Date().toISOString() });
+        await hakeAngebotAb(token, ort, kanal, text);
         return void (await antwort(zeilenId ? "✅ Gesendet." : "✅ Gesendet (die Zeile im Kanal fehlt)."));
       }
       const zeilenId = await zeile(token, kanal, k.quelleId, ZEILE_RAUS);
@@ -308,7 +330,7 @@ export function handleMail(i: AnfInteraction, token: string | undefined) {
           await aendereKarte(token, kanal, kartenId, { ...karte, fields: [...(karte.fields ?? []), { name: "⚠️", value: "Senden ging nicht. Bitte nochmal versuchen." }] }, freigabeKnoepfe("offen"));
           return;
         }
-        await nachDemSenden(token, f);
+        await nachDemSenden(token, f, f.text);
       } finally {
         laufend.delete(kartenId);
       }
@@ -338,7 +360,7 @@ export function handleMail(i: AnfInteraction, token: string | undefined) {
         if (!(await versende(f, betreff, text))) return void (await antwort("⚠️ Senden ging nicht. Bitte nochmal versuchen."));
         const neu = { ...mitText(karte, text), fields: (karte.fields ?? []).map((x) => (x.name === "Betreff" ? { ...x, value: clip(betreff, 200) } : x)) };
         await aendereKarte(token, kanal, kartenId, mitZustand(neu, "gesendet", `✅ Geändert und gesendet um ${uhrzeit()}`), []);
-        await nachDemSenden(token, f);
+        await nachDemSenden(token, f, text);
         await antwort("✅ Geändert und gesendet.");
       } finally {
         laufend.delete(kartenId);
