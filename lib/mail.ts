@@ -25,13 +25,30 @@ export function escapeHtml(input: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export async function sendMail(opts: {
+export interface MailOptionen {
   to: string | string[];
   subject: string;
   html: string;
   text?: string;
   replyTo?: string;
-}) {
+  /** Kopie, z. B. an kontakt@agentsgilt.com, damit gesendete Team-Mails in Gmail stehen (Etappe 2). */
+  bcc?: string | string[];
+}
+
+/** Was an Resend geht. Bcc nur, wenn gesetzt. */
+export function resendNutzlast(opts: MailOptionen, from: string) {
+  return {
+    from,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
+    replyTo: opts.replyTo,
+    ...(opts.bcc ? { bcc: opts.bcc } : {}),
+  };
+}
+
+export async function sendMail(opts: MailOptionen) {
   const resend = getResend();
   if (!resend) {
     console.warn(
@@ -40,14 +57,7 @@ export async function sendMail(opts: {
     return { id: null, skipped: true };
   }
   const { from } = getMailEnv();
-  const res = await resend.emails.send({
-    from,
-    to: opts.to,
-    subject: opts.subject,
-    html: opts.html,
-    text: opts.text,
-    replyTo: opts.replyTo,
-  });
+  const res = await resend.emails.send(resendNutzlast(opts, from));
   if (res.error) {
     console.error(
       `[mail] Resend-Fehler für "${opts.subject}" → ${opts.to}: ${JSON.stringify(res.error, Object.getOwnPropertyNames(res.error))}`,
