@@ -163,3 +163,17 @@ test("Anleitung „Mails an Kunden“ und kein Gmail-Antworten mehr", () => {
   assert.equal(ANLEITUNGEN[i + 1]?.titel, "📖 Anleitung: Mails und Zahlungen");
   assert.deepEqual(pruefeLaengen(ANLEITUNGEN), []);
 });
+
+// Etappe 3 (16.11.2026): Leads „In Arbeit“ mit Recherche-Thread.
+test("Lead-Anleitungen erklären Reihenfolge, eine Firma und den Recherche-Thread", () => {
+  const lead = ANLEITUNGEN.find((x) => x.titel.startsWith("📖 Anleitung: Lead-Karten"));
+  const t = [lead?.text ?? "", ...(lead?.felder ?? []).map((f) => f.value)].join("\n");
+  assert.match(t, /erst nach \*\*In Arbeit\*\*/);
+  assert.match(t, /nur eine Firma gleichzeitig/);
+  assert.match(t, /🔎/);
+  assert.match(t, /👥 Einladen/);
+  assert.match(t, /nach 2 Tagen/);
+  const befehle = String(LEAD_BEFEHLE_TEXT);
+  assert.match(befehle, /🔎 Recherche/);
+  assert.deepEqual(pruefeLaengen(ANLEITUNGEN), []);
+});
