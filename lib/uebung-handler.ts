@@ -3,7 +3,7 @@ import { after, NextResponse } from "next/server";
 import { alleNachrichten, call } from "@/lib/leads";
 import { lektionText, pfadLektionen, zeileUebung, type Person } from "@/lib/akademie";
 import { holeInhalt, leseAkademie, merke, nameVon, zeichneUebung, zeichneVerwaltung, type Inhalt } from "@/lib/akademie-daten";
-import type { Uebung, Zug } from "@/lib/uebung";
+import { zuFragendeUebKanaele, type Uebung, type Zug } from "@/lib/uebung";
 import { guthabenLeer } from "@/lib/gespraech";
 import { leseBloecke } from "@/lib/notion-api";
 import {
@@ -33,6 +33,7 @@ import {
   zugKnoepfe,
 } from "@/lib/uebung";
 import { pruefeAufnahme } from "@/lib/aufnahme-daten";
+import { team } from "@/lib/team";
 
 // Knöpfe der Übungen (ak:u…), nur im eigenen Übungskanal:
 //   ak:us        🎭 Übung starten → Auswahl der Lagen (nur für die Person)
@@ -143,7 +144,10 @@ async function uebKanaele(token: string, jetzt: number) {
   if (kanalSpeicher && jetzt < kanalSpeicher.bis) return kanalSpeicher.liste;
   const ak = await leseAkademie(token);
   if (!ak) return [];
-  const liste = [...ak.personen.entries()].flatMap(([user, p]) => (p.uebKanal ? [{ kanal: p.uebKanal.kanal, user }] : []));
+  // Nur noch vorhandene Kanäle und keine Ausgetretenen (sonst alle 30 s „Unknown Channel“). Die Kanalliste wird nur alle 10 Minuten gelesen.
+  const kanaele = await call<{ id: string }[]>(token, "GET", `/guilds/${process.env.DISCORD_GUILD_ID || "1564355422222159975"}/channels`);
+  const ausgetreten = new Set(team().filter((m) => m.status === "ausgetreten").map((m) => m.discord));
+  const liste = zuFragendeUebKanaele(ak.personen.entries(), ausgetreten, kanaele ? new Set(kanaele.map((k) => k.id)) : null);
   kanalSpeicher = { bis: jetzt + 10 * 60_000, liste };
   return liste;
 }

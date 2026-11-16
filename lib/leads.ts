@@ -1,3 +1,4 @@
+import { istKanallisteAbruf, kanalliste, leertKanalliste } from "@/lib/kanalliste";
 import { findCategoryId, findChannelId } from "@/lib/discord";
 import { kanalWahl } from "./kanalwahl.ts";
 import { entscheide, NOETIG } from "./abstimmung.ts";
@@ -60,7 +61,13 @@ function headers(token: string) {
   return { "Content-Type": "application/json", Authorization: `Bot ${token}` };
 }
 
-export async function call<T>(token: string, method: string, path: string, body?: unknown): Promise<T | null> {
+export async function call<T>(token: string, method: string, path: string, body?: unknown, nochmal = true): Promise<T | null> {
+  // Gemeinsamer Zwischenspeicher für die Kanalliste (lib/kanalliste.ts): weniger Bremsen (HTTP 429) durch Discord.
+  const liste = istKanallisteAbruf(method, path);
+  if (liste) {
+    const gemerkt = kanalliste.hole();
+    if (gemerkt) return gemerkt as T;
+  } else if (leertKanalliste(method, path)) kanalliste.leere();
   try {
     const res = await fetch(`${API}${path}`, {
       method,
@@ -69,13 +76,23 @@ export async function call<T>(token: string, method: string, path: string, body?
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
+    // Bremst Discord die Kanalliste nur kurz, einmal warten und nochmal fragen statt „nicht gefunden“ zu melden.
+    if (liste && res.status === 429 && nochmal) {
+      const warten = Number(((await res.json().catch(() => ({}))) as { retry_after?: number }).retry_after);
+      if (Number.isFinite(warten) && warten > 0 && warten <= 3) {
+        await new Promise((r) => setTimeout(r, Math.ceil(warten * 1000) + 50));
+        return call<T>(token, method, path, body, false);
+      }
+    }
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       letzterFehler = `HTTP ${res.status} ${text.slice(0, 300)}`;
       console.error(`[lead] ${method} ${path.split("?")[0]} -> ${letzterFehler}`);
       return null;
     }
-    return res.status === 204 ? ({} as T) : ((await res.json()) as T);
+    const daten = res.status === 204 ? ({} as T) : ((await res.json()) as T);
+    if (liste && Array.isArray(daten)) kanalliste.merke(daten);
+    return daten;
   } catch (err) {
     console.error(`[lead] ${method} ${path.split("?")[0]} fehlgeschlagen:`, err);
     return null;

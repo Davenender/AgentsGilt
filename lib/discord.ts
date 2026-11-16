@@ -1,3 +1,4 @@
+import { kanalliste } from "@/lib/kanalliste";
 import { createPublicKey, verify } from "node:crypto";
 import type { EmbedLike } from "@/lib/discord-calls";
 
@@ -214,6 +215,29 @@ function merkeKanal(name: string, id: string) {
   channelCache.set(ohneStatusPunkt(name), id);
 }
 
+/** Die Kanalliste des Servers, gemeinsam zwischengespeichert (lib/kanalliste.ts). null bei Fehler (steht im Protokoll). */
+async function leseKanalliste(token: string): Promise<{ id: string; name: string; type: number }[] | null> {
+  const gemerkt = kanalliste.hole() as { id: string; name: string; type: number }[] | undefined;
+  if (gemerkt) return gemerkt;
+  for (let versuch = 0; versuch < 2; versuch++) {
+    const res = await fetch(`${API}/guilds/${GUILD_ID}/channels`, { headers: botHeaders(token), signal: AbortSignal.timeout(5000) });
+    if (res.ok) {
+      const all = (await res.json()) as { id: string; name: string; type: number }[];
+      kanalliste.merke(all);
+      return all;
+    }
+    // Bremst Discord nur kurz, einmal warten und nochmal fragen.
+    const warten = res.status === 429 ? Number(((await res.json().catch(() => ({}))) as { retry_after?: number }).retry_after) : NaN;
+    if (versuch === 0 && Number.isFinite(warten) && warten > 0 && warten <= 3) {
+      await new Promise((r) => setTimeout(r, Math.ceil(warten * 1000) + 50));
+      continue;
+    }
+    console.error(`[discord] Kanäle lesen fehlgeschlagen: HTTP ${res.status}`);
+    return null;
+  }
+  return null;
+}
+
 /** Findet einen Textkanal des Servers über seinen Namen (z.B. "termine"). */
 export async function findChannelId(
   token: string | undefined,
@@ -223,15 +247,8 @@ export async function findChannelId(
   const cached = channelCache.get(name);
   if (cached) return cached;
   try {
-    const res = await fetch(`${API}/guilds/${GUILD_ID}/channels`, {
-      headers: botHeaders(token),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) {
-      console.error(`[discord] Kanäle lesen fehlgeschlagen: HTTP ${res.status}`);
-      return null;
-    }
-    const all = (await res.json()) as { id: string; name: string; type: number }[];
+    const all = await leseKanalliste(token);
+    if (!all) return null;
     channelCache = new Map();
     for (const c of all) if (c.type === 0) merkeKanal(c.name, c.id);
     return channelCache.get(name) ?? null;
@@ -288,6 +305,7 @@ export async function createTextChannel(
       console.error(`[discord] Kanal anlegen fehlgeschlagen: HTTP ${res.status}`);
       return null;
     }
+    kanalliste.leere();
     const ch = (await res.json()) as { id: string; name: string };
     merkeKanal(ch.name, ch.id);
     return ch.id;
@@ -332,12 +350,8 @@ export async function findCategoryId(
 ): Promise<string | null> {
   if (!token) return null;
   try {
-    const res = await fetch(`${API}/guilds/${GUILD_ID}/channels`, {
-      headers: botHeaders(token),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return null;
-    const all = (await res.json()) as { id: string; name: string; type: number }[];
+    const all = await leseKanalliste(token);
+    if (!all) return null;
     return all.find((c) => c.type === 4 && c.name.toLowerCase() === name.toLowerCase())?.id ?? null;
   } catch {
     return null;

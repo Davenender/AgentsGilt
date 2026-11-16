@@ -358,3 +358,22 @@ export const lagenAuswahl = (lagen: Uebung[]) => [
     ],
   },
 ];
+
+/**
+ * Welche Übungskanäle der Takt abfragt (alle 30 Sekunden): nicht die von Ausgetretenen und nur Kanäle, die es auf dem
+ * Server noch gibt (sonst meldet Discord „Unknown Channel“, Befund 16.11.2026). `vorhanden` null: Kanalliste nicht
+ * lesbar, dann wird nur nach Austritt gefiltert.
+ */
+export function zuFragendeUebKanaele(
+  personen: Iterable<[string, { uebKanal?: { kanal: string } }]>,
+  ausgetreten: ReadonlySet<string>,
+  vorhanden: ReadonlySet<string> | null,
+): { kanal: string; user: string }[] {
+  const out: { kanal: string; user: string }[] = [];
+  for (const [user, p] of personen) {
+    if (!p.uebKanal || ausgetreten.has(user)) continue;
+    if (vorhanden && !vorhanden.has(p.uebKanal.kanal)) continue;
+    out.push({ kanal: p.uebKanal.kanal, user });
+  }
+  return out;
+}

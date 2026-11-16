@@ -292,3 +292,19 @@ test("der KI-Kunde ist streng: Einstieg, Zeit, Nein sagen", () => {
   assert.match(KUNDEN_PROMPT, /Nein/);
   assert.match(KUNDEN_PROMPT, /\{ROLLE\}/);
 });
+
+test("Übungs-Takt fragt nur Kanäle ab, die es noch gibt, und nicht die von Ausgetretenen (Unknown Channel, 16.11.)", async () => {
+  const { zuFragendeUebKanaele } = await import("../lib/uebung.ts");
+  const personen: [string, { uebKanal?: { kanal: string; karte: string } }][] = [
+    ["u1", { uebKanal: { kanal: "k1", karte: "c1" } }],
+    ["u2", { uebKanal: { kanal: "k2", karte: "c2" } }],
+    ["u3", {}],
+    ["u4", { uebKanal: { kanal: "k4", karte: "c4" } }],
+  ];
+  assert.deepEqual(zuFragendeUebKanaele(personen, new Set(["u2"]), new Set(["k1", "k2"])), [{ kanal: "k1", user: "u1" }], "u2 ausgetreten, k4 gelöscht");
+  assert.deepEqual(
+    zuFragendeUebKanaele(personen, new Set(), null),
+    [{ kanal: "k1", user: "u1" }, { kanal: "k2", user: "u2" }, { kanal: "k4", user: "u4" }],
+    "Kanalliste nicht lesbar: nichts wegfiltern außer Ausgetretenen",
+  );
+});
