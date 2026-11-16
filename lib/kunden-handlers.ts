@@ -38,6 +38,7 @@ import {
 import { kanalNameMitPunkt } from "@/lib/notion-kunden";
 import { ausKarte, auswahlMenue, CHEF_ID, darf, gleich, mitZustaendig, NUR_ZUSTAENDIGE, pruefeAuswahl, zustaendigZeile } from "@/lib/zustaendige";
 import { ersetzeIn, team } from "@/lib/team";
+import { checklisteProps, feedbackProps, leseDatum, pruefeKontakt, standAusKarte } from "@/lib/kundenkarte-felder";
 
 // Knöpfe an der Kundenkarte im Kundenkanal (knd:):
 //   „👥 Zuständige“, „📝 Gesprächsbogen“, „🧠 Gespräch auswerten“, „⚪ Verloren“ (Grund wählen,
@@ -55,7 +56,7 @@ const notionAusKarte = (karte: EmbedLike) =>
 const nrAusKarte = (karte: EmbedLike) => karte.title?.match(/^(KND-\d+)/)?.[1] ?? null;
 
 /** Die Knöpfe passend zu Status und Demo-Stand der Karte. */
-const knoepfeFuer = (karte: EmbedLike, status = statusAusKarte(karte)) => kartenKnoepfe(status, demoAusKarte(karte)?.status ?? null);
+const knoepfeFuer = (karte: EmbedLike, status = statusAusKarte(karte)) => kartenKnoepfe(status, demoAusKarte(karte)?.status ?? null, standAusKarte(karte));
 
 /**
  * Austritt (Plan 4): Im Kundenkanal die gehende Person in „Zuständig“ durch eine andere ersetzen – Karte (sie gilt),
@@ -92,7 +93,8 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
   // Knöpfe direkt an der Karte: Karte und Rechte aus der Nachricht.
   const karte = i.message?.embeds?.[0];
   const messageId = i.message?.id;
-  const anKarte = ["zust", "bogen", "auswerten", "demo", "verloren", "wieder"].includes(id);
+  // Etappe 4 (16.11.): dazu Nächster Schritt, Kontakt, Checkliste, Zufriedenheit und Referenz
+  const anKarte = ["zust", "bogen", "auswerten", "demo", "verloren", "wieder", "schritt", "kontakt", "check", "sterne", "ref:ja", "ref:nein"].includes(id);
   if (anKarte) {
     if (!karte || !messageId) return ephemeral("Diese Karte ist nicht mehr aktuell.");
     if (!darf(user.id, ausKarte(karte) ?? [])) return ephemeral(NUR_ZUSTAENDIGE);
@@ -327,6 +329,103 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
       );
     });
     return ephemeral("⏳ Wird wieder aufgenommen …");
+  }
+
+  // ---------------------------------------------------------------- Etappe 4: Knöpfe statt Notion
+  const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const feldVon = (k: EmbedLike, name: string) => k.fields?.find((f) => f.name === name)?.value ?? "";
+  const eingabe = (name: string) => i.data?.components?.flatMap((r) => r.components ?? []).find((c) => c.custom_id === name)?.value?.trim() ?? "";
+  /** Speichert in Notion; die Karte aktualisiert sich über den Notion-Webhook von selbst. */
+  const speichere = (k: EmbedLike, properties: Record<string, unknown>, fertig: string) =>
+    after(async () => {
+      const seite = notionAusKarte(k);
+      const ok = seite ? await setzeFelder(seite, properties) : false;
+      await antwort(ok ? fertig : "⚠️ Notion hat das gerade nicht angenommen. Bitte gleich nochmal versuchen.");
+    });
+
+  // ---- 📌 Nächster Schritt: Fenster mit Text und Datum
+  if (id === "schritt" && karte && messageId) {
+    const termin = feldVon(karte, "Nächster Termin").match(/^\d{2}\.\d{2}\.\d{4}/)?.[0] ?? "";
+    return NextResponse.json({
+      type: 9,
+      data: {
+        custom_id: `knd:schrittfenster:${messageId}`,
+        title: "Nächster Schritt",
+        components: [
+          { type: 1, components: [{ type: 4, custom_id: "schritt", label: "Was ist der nächste Schritt?", style: 2, required: true, max_length: 200, value: feldVon(karte, "Nächster Schritt").slice(0, 200) || undefined }] },
+          { type: 1, components: [{ type: 4, custom_id: "datum", label: "Wann nachfassen? (TT.MM.JJJJ, leer = kein Datum)", style: 1, required: false, max_length: 10, value: termin || undefined }] },
+        ],
+      },
+    });
+  }
+  if (id.startsWith("schrittfenster:") && i.type === 5) {
+    const kartenId = id.slice("schrittfenster:".length);
+    const schritt = eingabe("schritt");
+    const datumRoh = eingabe("datum");
+    const datum = datumRoh ? leseDatum(datumRoh, heute) : null;
+    if (datumRoh && !datum) return ephemeral("Das Datum passt nicht. Bitte so: 24.11.2026 (und nicht in der Vergangenheit).");
+    after(async () => {
+      const k = await holeKarte(token, channelId, kartenId);
+      if (!k) return void (await antwort("Die Karte ist nicht mehr da."));
+      if (!darf(user.id, ausKarte(k) ?? [])) return void (await antwort(NUR_ZUSTAENDIGE));
+      const seite = notionAusKarte(k);
+      const ok = seite
+        ? await setzeFelder(seite, {
+            "Nächster Schritt": { rich_text: [{ type: "text", text: { content: schritt.slice(0, 200) } }] },
+            "Nächstes Follow-up": datum ? { date: { start: datum } } : { date: null },
+          })
+        : false;
+      await antwort(ok ? `📌 Gespeichert.${datum ? " Am Tag erinnert der Bot hier im Kanal." : ""}` : "⚠️ Notion hat das gerade nicht angenommen. Bitte gleich nochmal versuchen.");
+    });
+    return NextResponse.json({ type: 5, data: { flags: 64 } });
+  }
+
+  // ---- ✏️ Kontakt: E-Mail und Telefon
+  if (id === "kontakt" && karte && messageId) {
+    return NextResponse.json({
+      type: 9,
+      data: {
+        custom_id: `knd:kontaktfenster:${messageId}`,
+        title: "Kontakt",
+        components: [
+          { type: 1, components: [{ type: 4, custom_id: "email", label: "E-Mail", style: 1, required: false, max_length: 120, value: feldVon(karte, "E-Mail").replace(/\u200b/g, "") || undefined }] },
+          { type: 1, components: [{ type: 4, custom_id: "telefon", label: "Telefon", style: 1, required: false, max_length: 40, value: feldVon(karte, "Telefon") || undefined }] },
+        ],
+      },
+    });
+  }
+  if (id.startsWith("kontaktfenster:") && i.type === 5) {
+    const kartenId = id.slice("kontaktfenster:".length);
+    const k = pruefeKontakt(eingabe("email"), eingabe("telefon"));
+    if (!k.ok) return ephemeral(k.grund);
+    after(async () => {
+      const karteNeu = await holeKarte(token, channelId, kartenId);
+      if (!karteNeu) return void (await antwort("Die Karte ist nicht mehr da."));
+      if (!darf(user.id, ausKarte(karteNeu) ?? [])) return void (await antwort(NUR_ZUSTAENDIGE));
+      const seite = notionAusKarte(karteNeu);
+      const ok = seite ? await setzeFelder(seite, k.props) : false;
+      await antwort(ok ? "✏️ Gespeichert. Die Karte aktualisiert sich gleich." : "⚠️ Notion hat das gerade nicht angenommen. Bitte gleich nochmal versuchen.");
+    });
+    return NextResponse.json({ type: 5, data: { flags: 64 } });
+  }
+
+  // ---- ✅ Checkliste (Auswahl an der Karte)
+  if (id === "check" && karte) {
+    speichere(karte, checklisteProps(i.data?.values ?? []), "✅ Checkliste gespeichert. Die Karte aktualisiert sich gleich.");
+    return NextResponse.json({ type: 5, data: { flags: 64 } });
+  }
+
+  // ---- ⭐ Zufriedenheit und Referenz (erst nach „Live / Übergeben“)
+  if (id === "sterne" && karte) {
+    const n = Number(i.data?.values?.[0]);
+    if (![1, 2, 3, 4, 5].includes(n)) return ephemeral("Bitte 1 bis 5 Sterne wählen.");
+    speichere(karte, feedbackProps(n as 1 | 2 | 3 | 4 | 5, null), `⭐ Zufriedenheit ${n} von 5 gespeichert.`);
+    return NextResponse.json({ type: 5, data: { flags: 64 } });
+  }
+  if ((id === "ref:ja" || id === "ref:nein") && karte) {
+    const ja = id === "ref:ja";
+    speichere(karte, feedbackProps(null, ja), ja ? "✅ Gespeichert: Wir dürfen den Kunden als Referenz nennen." : "Gespeichert: keine Referenz.");
+    return NextResponse.json({ type: 5, data: { flags: 64 } });
   }
 
   return NextResponse.json({ ok: true });

@@ -41,17 +41,38 @@ test("Verlustgründe wie in Notion", () => {
 });
 
 test("Knöpfe an der Karte hängen vom Status ab", () => {
-  assert.deepEqual(ids(kartenKnoepfe("Lead")), ["knd:zust", "knd:bogen", "knd:auswerten", "knd:demo", "knd:verloren"]);
-  assert.deepEqual(ids(kartenKnoepfe("Angebot gesendet")), ["knd:zust", "knd:bogen", "knd:auswerten", "knd:demo", "knd:verloren"]);
+  // Etappe 4 (16.11.2026): Nächster Schritt, Kontakt, E-Mail und die Checkliste stehen direkt an der Karte.
+  const offen = ["knd:zust", "knd:bogen", "knd:auswerten", "knd:demo", "knd:schritt", "knd:kontakt", "mail:start:kunde", "knd:verloren", "knd:check"];
+  assert.deepEqual(ids(kartenKnoepfe("Lead")), offen);
+  assert.deepEqual(ids(kartenKnoepfe("Angebot gesendet")), offen);
   assert.deepEqual(ids(kartenKnoepfe("Verloren")), ["knd:zust", "knd:bogen", "knd:wieder"]);
   assert.equal(knoepfePassen(kartenKnoepfe("Lead"), "Lead"), true);
   assert.equal(knoepfePassen(kartenKnoepfe("Lead"), "Verloren"), false);
   assert.equal(knoepfePassen([], "Lead"), false);
   assert.equal(knoepfePassen(undefined, "Lead"), false);
   // So kommen die Knöpfe von Discord zurück (mit zusätzlichen Feldern)
-  const vonDiscord = [{ type: 1, id: 1, components: ["knd:zust", "knd:bogen", "knd:auswerten", "knd:demo", "knd:verloren"].map((custom_id, i) => ({ type: 2, id: i + 2, custom_id, label: "x", disabled: false })) }];
+  const vonDiscord = kartenKnoepfe("Lead").map((r, n) => ({ ...r, id: n, components: r.components.map((c, i) => ({ ...c, id: 100 + i, label: "x" })) }));
   assert.equal(knoepfePassen(vonDiscord, "Lead"), true);
-  assert.equal(knoepfePassen([{ type: 1, components: [{ custom_id: "knd:zust" }, { custom_id: "knd:verloren" }] }], "Lead"), false, "alte Karte aus Etappe 2 bekommt die neuen Knöpfe");
+  assert.equal(knoepfePassen([{ type: 1, components: [{ custom_id: "knd:zust" }, { custom_id: "knd:verloren" }] }], "Lead"), false, "alte Karte bekommt die neuen Knöpfe");
+});
+
+test("Checkliste und Feedback an der Karte", () => {
+  const stand = { checkliste: { "Material erhalten": true }, live: false };
+  const reihen = kartenKnoepfe("Kunde", null, stand);
+  const auswahl = reihen[2].components[0] as unknown as { type: number; min_values: number; max_values: number; options: { value: string; default?: boolean }[] };
+  assert.equal(auswahl.type, 3);
+  assert.equal(auswahl.min_values, 0);
+  assert.equal(auswahl.max_values, 7);
+  assert.deepEqual(auswahl.options.filter((o) => o.default).map((o) => o.value), ["Material erhalten"]);
+  // Ändert sich die Checkliste, passen die Knöpfe nicht mehr (die Auswahl soll den neuen Stand zeigen).
+  assert.equal(knoepfePassen(reihen, "Kunde", null, stand), true);
+  assert.equal(knoepfePassen(reihen, "Kunde", null, { checkliste: {}, live: false }), false);
+  // Nach „Live / Übergeben“: Zufriedenheit und Referenz
+  const live = kartenKnoepfe("Kunde", null, { checkliste: { "Live / Übergeben": true }, live: true });
+  assert.deepEqual(ids(live).slice(-3), ["knd:sterne", "knd:ref:ja", "knd:ref:nein"]);
+  assert.equal(ids(kartenKnoepfe("Kunde")).includes("knd:sterne"), false);
+  for (const r of live) assert.ok(r.components.length <= 5);
+  assert.ok(live.length <= 5);
 });
 
 test("Status aus der Karte", () => {

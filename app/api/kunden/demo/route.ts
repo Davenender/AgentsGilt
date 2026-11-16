@@ -8,6 +8,7 @@ import { aendereKarte } from "@/lib/leads";
 import { listeKunden, setzeFelder } from "@/lib/notion-api";
 import { kanalName } from "@/lib/notion-kunden";
 import { team } from "@/lib/team";
+import { standAusKarte } from "@/lib/kundenkarte-felder";
 import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
     kanal,
     karte.id,
     mitDemo(karte.embeds[0], status ? demoFeldText(status, p.link, anfrage) : null),
-    kartenKnoepfe(statusAusKarte(karte.embeds[0]), status),
+    kartenKnoepfe(statusAusKarte(karte.embeds[0]), status, standAusKarte(karte.embeds[0])),
   );
   const ping = (p.aktion === "fertig" || p.aktion === "ablehnen") && a?.von ? [a.von] : [];
   await postText(token, kanal, demoZeile(p.aktion, { von: ping[0] ?? null, link: p.link, grund: p.grund }), ping);

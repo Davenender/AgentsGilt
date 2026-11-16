@@ -3,6 +3,7 @@ import { aendereKarte, call, teamRolle } from "@/lib/leads";
 import { setzeZustaendig } from "@/lib/notion-api";
 import { CARD_MARKER } from "@/lib/notion-kunden";
 import { alsMentions, bit, kanalRechte, mitZustaendig, SPERRE, wahrheit, type Overwrite } from "@/lib/zustaendige";
+import { standAusKarte } from "@/lib/kundenkarte-felder";
 import { ARCHIV_KATEGORIE, archivReihenfolge, kartenKnoepfe, KUNDEN_KATEGORIE, knoepfePassen, zielKategorie } from "@/lib/kundenablauf";
 
 // Kundenkanäle (🔴knd_00X): nur der Bot schreibt dort (Karte und Änderungszeilen), alle anderen
@@ -124,8 +125,9 @@ export async function gleicheZustaendigAb(
   const status = kunde.status ?? "";
   // Alte Karten und Karten, deren Knöpfe nicht zum Status passen (Status direkt in Notion geändert).
   const demo = kunde.demoStatus ?? null;
-  if (w.ausNotion || !knoepfePassen(karte.components, status, demo)) {
-    await aendereKarte(token, kanal, karte.id, mitZustaendig(karte.embeds[0], w.ids), kartenKnoepfe(status, demo));
+  const stand = standAusKarte(karte.embeds[0]);
+  if (w.ausNotion || !knoepfePassen(karte.components, status, demo, stand)) {
+    await aendereKarte(token, kanal, karte.id, mitZustaendig(karte.embeds[0], w.ids), kartenKnoepfe(status, demo, stand));
   }
   if (!w.zuruecksetzen || !kunde.notionUrl) return "ok";
   if (!(await setzeZustaendig(kunde.notionUrl, w.ids))) return "Notion-Fehler";

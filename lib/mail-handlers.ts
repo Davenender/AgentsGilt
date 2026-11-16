@@ -123,7 +123,31 @@ async function kontext(token: string, ort: MailOrt, kanal: string, quelle: Msg |
       quelleId: quelle.id,
     };
   }
-  return "Das kommt mit der nächsten Etappe.";
+  if (ort === "kunde") {
+    // Etappe 4 (16.11.): Mail an den Kunden direkt von der Kundenkarte
+    const an = sauberAdresse(feldWert(e, "E-Mail"));
+    if (!istEmail(an)) return "In Notion steht keine E-Mail. Trag sie mit ✏️ Kontakt ein.";
+    const verlauf = (await listMessages(token, kanal, 30))
+      .slice()
+      .reverse()
+      .map((m) => m.content || m.embeds?.[0]?.title || "")
+      .filter(Boolean)
+      .slice(-15);
+    return {
+      an,
+      frage: "",
+      verlauf: [
+        `Kunde: ${e.title ?? ""}`,
+        ...["Status", "Angebot", "Nächster Schritt", "Nächster Termin"].map((n) => (feldWert(e, n) ? `${n}: ${feldWert(e, n)}` : "")).filter(Boolean),
+        "Letzte Einträge im Kundenkanal:",
+        ...verlauf,
+      ].join("\n"),
+      betreff: "Nachricht von Agents Gilt",
+      berechtigt: ausKarte(e) ?? [],
+      quelleId: quelle.id,
+    };
+  }
+  return "Unbekannter Ort.";
 }
 
 /** Zeile fürs Team im Kanal, als Antwort auf die Karte oder Mail. */
