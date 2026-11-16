@@ -40,6 +40,7 @@ import { ausKarte, auswahlMenue, CHEF_ID, darf, gleich, mitZustaendig, NUR_ZUSTA
 import { ersetzeIn, team } from "@/lib/team";
 import { checklisteProps, feedbackProps, leseDatum, notionLinkAusKarte, pruefeKontakt, standAusKarte } from "@/lib/kundenkarte-felder";
 import { meldeAnzahlung } from "@/lib/finanzen-handlers";
+import { meldeVerloren, meldeWiederAufgenommen } from "@/lib/verloren-handlers";
 
 // Knöpfe an der Kundenkarte im Kundenkanal (knd:):
 //   „👥 Zuständige“, „📝 Gesprächsbogen“, „🧠 Gespräch auswerten“, „⚪ Verloren“ (Grund wählen,
@@ -302,6 +303,8 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
       await setzeKanalName(token, channelId, kanalNameMitPunkt(nr, VERLOREN));
       const verschoben = await ordneKanalEin(token, channelId, VERLOREN);
       await postText(token, channelId, verlorenZeile(grund, user.id, jetztText()));
+      // Verloren-Automat B1: Karte in #posteingang, David entscheidet mit „▶️ Starten“
+      await meldeVerloren(token, { nr, seite, grund, von: user.id });
       await antwort(
         verschoben
           ? `✅ Als verloren markiert (Grund: ${grund}). Der Kanal liegt jetzt im ${ARCHIV_KATEGORIE}.`
@@ -324,6 +327,7 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
       await setzeKanalName(token, channelId, kanalNameMitPunkt(nr, "Lead"));
       const verschoben = await ordneKanalEin(token, channelId, "Lead");
       await postText(token, channelId, wiederZeile(user.id, jetztText()));
+      await meldeWiederAufgenommen(token, nr);
       await antwort(
         verschoben
           ? "✅ Wieder aufgenommen. Status ist wieder Lead, der Kanal liegt wieder unter KUNDEN."

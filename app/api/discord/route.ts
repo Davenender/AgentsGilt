@@ -51,6 +51,7 @@ import { ladeTeam } from "@/lib/team-daten";
 import { handleMail } from "@/lib/mail-handlers";
 import { handleRecherche } from "@/lib/recherche-handlers";
 import { handleFinanzen } from "@/lib/finanzen-handlers";
+import { handleVerloren } from "@/lib/verloren-handlers";
 
 export const runtime = "nodejs";
 // /lead liest Webseiten und lässt sie auswerten, das dauert länger als ein Knopfdruck.
@@ -328,6 +329,7 @@ async function antworte(request: Request) {
   if (customId.startsWith("mail:")) return handleMail(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("rch:")) return handleRecherche(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("fin:")) return handleFinanzen(interaction as unknown as AnfInteraction, token);
+  if (customId.startsWith("vl:")) return handleVerloren(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("ticket:")) return handleTicket(interaction, who, ownerTag, token);
   if (customId.startsWith("knd:")) return handleKundenKnopf(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("stat:")) return handleStatistikKnopf(interaction, token);
