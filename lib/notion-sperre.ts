@@ -130,3 +130,26 @@ export const alsKartenProp = (sw: StandWert): Record<string, unknown> & { type: 
 /** Die kurze DM an die Person, deren Änderung zurückgesetzt wurde. */
 export const sperrHinweis = (nr: string, name: string, felder: string[], kanal: string | null) =>
   `↩️ Bei **${nr} · ${name}** habe ich ${felder.map((f) => `„${f}“`).join(", ")} in Notion zurückgesetzt. Das ändert ihr bitte über die Knöpfe im Kundenkanal${kanal ? ` <#${kanal}>` : ""}. Notion ist zum Nachlesen und für den Gesprächsbogen da.`;
+
+export type Entscheidung =
+  | { art: "neu"; stand: Stand }
+  | { art: "uebernehmen"; stand: Stand }
+  | { art: "zuruecksetzen"; felder: string[]; props: Record<string, unknown> }
+  | { art: "nichts" };
+
+/**
+ * Was mit einer Meldung passiert: ohne Stand gilt der aktuelle (erster Lauf); David und der Bot ändern den Stand
+ * (fehlende Felder bleiben aus dem alten); das Team wird auf den Stand zurückgesetzt; Unbekanntes bleibt liegen.
+ */
+export function entscheide(props: Record<string, unknown>, alt: Stand | null, wer: Wer): Entscheidung {
+  if (!alt) return { art: "neu", stand: standAus(props) };
+  if (wer === "david" || wer === "bot") {
+    const stand = { ...alt, ...standAus(props) };
+    return JSON.stringify(stand) === JSON.stringify(alt) ? { art: "nichts" } : { art: "uebernehmen", stand };
+  }
+  if (wer === "team") {
+    const felder = abweichungen(props, alt);
+    return felder.length ? { art: "zuruecksetzen", felder, props: rueckProps(alt, felder) } : { art: "nichts" };
+  }
+  return { art: "nichts" };
+}

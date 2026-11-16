@@ -9,6 +9,24 @@ import { bogenBloecke, type RohBlock } from "@/lib/gespraech";
 // Datenbank muss mit der Integration geteilt sein.
 
 const DATABASE_ID = process.env.NOTION_KUNDEN_DB || "94012175-c78b-41c9-8c2e-c0e21ea2889c";
+/** Arbeitszeiten (Ein- und Ausstempeln), Etappe 6: Einträge des Teams räumt der stündliche Abgleich weg. */
+const ARBEITSZEITEN_DB = process.env.NOTION_ARBEITSZEITEN_DB || "399e062d-433f-4ad0-a4a3-e36c33f8fc13";
+
+/**
+ * Etappe 6 (Notion-Sperre): Nach jeder Änderung durch den Bot die geschriebenen Felder in den gültigen Stand
+ * übernehmen (lib/kunden-stand.ts). Fehler hier dürfen die eigentliche Änderung nie stören.
+ */
+async function merkeFuerSperre(res: Response, namen: string[]): Promise<void> {
+  try {
+    const token = process.env.DISCORD_BOT_TOKEN;
+    if (!token || !namen.length) return;
+    const seite = await res.clone().json();
+    const { merkeBotFelder } = await import("@/lib/kunden-stand");
+    await merkeBotFelder(token, seite, namen);
+  } catch (err) {
+    console.error("[notion] Stand nach Bot-Änderung nicht gemerkt:", err);
+  }
+}
 
 export const notionConfigured = () => Boolean(process.env.NOTION_TOKEN?.trim());
 
@@ -177,6 +195,7 @@ export async function setzeStatus(notionUrl: string, status: string, verlustgrun
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) console.error(`[notion] Status setzen fehlgeschlagen: HTTP ${res.status}`);
+    else await merkeFuerSperre(res, Object.keys(properties));
     return res.ok;
   } catch (err) {
     console.error("[notion] Status setzen fehlgeschlagen:", err);
@@ -197,6 +216,7 @@ export async function setzeZahlungsstatus(notionUrl: string, status: "Bezahlt" |
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) console.error(`[notion] Zahlungsstatus setzen fehlgeschlagen: HTTP ${res.status}`);
+    else await merkeFuerSperre(res, ["Zahlungsstatus"]);
     return res.ok;
   } catch (err) {
     console.error("[notion] Zahlungsstatus setzen fehlgeschlagen:", err);
@@ -317,6 +337,9 @@ export interface KundeKurz {
   /** Etappe 5 (Status von selbst): Haken „Anzahlung erhalten“ und „Zahlungsstatus“ */
   anzahlung?: boolean;
   zahlungsstatus?: string | null;
+  /** Etappe 6 (Notion-Sperre): alle Eigenschaften wie von Notion und wer die Seite zuletzt geändert hat */
+  roh?: Record<string, unknown>;
+  zuletztVon?: string | null;
 }
 
 /** Alle Kunden aus Notion (für die Auswahl "Bestehender Kunde?"), neueste zuerst. */
@@ -352,6 +375,7 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
           url?: string;
           last_edited_time?: string;
           created_time?: string;
+          last_edited_by?: { id?: string };
           properties?: Record<
             string,
             {
@@ -397,6 +421,8 @@ export async function listeKunden(max = 300): Promise<KundeKurz[] | null> {
           erstellt: p.created_time ?? null,
           anzahlung: props["Anzahlung erhalten"]?.checkbox ?? false,
           zahlungsstatus: props["Zahlungsstatus"]?.select?.name ?? null,
+          roh: props as Record<string, unknown>,
+          zuletztVon: p.last_edited_by?.id ?? null,
         });
       }
       if (!data.has_more || !data.next_cursor) break;
@@ -434,6 +460,7 @@ export async function aendereKunde(nr: string, felder: { status?: string; naechs
     console.error(`[notion] Kunde ändern fehlgeschlagen: HTTP ${res.status}`);
     return { ok: false, grund: "Notion hat die Änderung nicht angenommen." };
   }
+  await merkeFuerSperre(res, Object.keys(properties));
   return { ok: true, name: kunde.name };
 }
 
@@ -586,6 +613,78 @@ export async function setzeFelder(notionUrl: string, properties: Record<string, 
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) console.error(`[notion] Felder setzen fehlgeschlagen: HTTP ${res.status}`);
+    else await merkeFuerSperre(res, Object.keys(properties));
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ------------------------------------------------- Notion-Sperre (Etappe 6)
+
+let botKennung: string | null = null;
+
+/** Die Notion-Kennung unseres Bots (wer „last_edited_by“ ist, wenn der Bot schreibt). null, wenn nicht lesbar. */
+export async function eigeneNotionId(): Promise<string | null> {
+  if (botKennung) return botKennung;
+  const token = process.env.NOTION_TOKEN?.trim();
+  if (!token) return null;
+  try {
+    const res = await fetch("https://api.notion.com/v1/users/me", { headers: kopf(token), signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    botKennung = ((await res.json()) as { id?: string }).id ?? null;
+    return botKennung;
+  } catch {
+    return null;
+  }
+}
+
+/** Wer die Seite zuletzt geändert hat (Ersatz, wenn die Notion-Meldung es nicht mitschickt). */
+export async function letzterBearbeiter(notionUrl: string | null | undefined): Promise<string | null> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const seite = seitenId(notionUrl);
+  if (!token || !seite) return null;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/pages/${seite}`, { headers: kopf(token), signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    return ((await res.json()) as { last_edited_by?: { id?: string } }).last_edited_by?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Einträge in „Arbeitszeiten“, die seit einem Zeitpunkt angelegt wurden, mit Ersteller. null bei Fehler. */
+export async function arbeitszeitenSeit(seit: string): Promise<{ id: string; erstelltVon: string | null; taetigkeit: string }[] | null> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/databases/${ARBEITSZEITEN_DB}/query`, {
+      method: "POST",
+      headers: kopf(token),
+      body: JSON.stringify({ page_size: 100, filter: { timestamp: "created_time", created_time: { on_or_after: seit } } }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      console.error(`[notion] Arbeitszeiten lesen fehlgeschlagen: HTTP ${res.status}`);
+      return null;
+    }
+    const data = (await res.json()) as { results?: { id: string; created_by?: { id?: string }; properties?: Record<string, { title?: { plain_text?: string }[] }> }[] };
+    return (data.results ?? []).map((r) => ({
+      id: r.id,
+      erstelltVon: r.created_by?.id ?? null,
+      taetigkeit: (r.properties?.["Tätigkeit"]?.title ?? []).map((t) => t.plain_text ?? "").join("").trim(),
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/** Legt eine Seite in den Papierkorb (nie endgültig löschen). */
+export async function inPapierkorb(seitenKennung: string): Promise<boolean> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  if (!token) return false;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/pages/${seitenKennung}`, { method: "PATCH", headers: kopf(token), body: JSON.stringify({ archived: true }), signal: AbortSignal.timeout(10_000) });
     return res.ok;
   } catch {
     return false;

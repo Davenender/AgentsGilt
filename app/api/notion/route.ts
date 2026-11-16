@@ -14,7 +14,9 @@ import { call, postKarte } from "@/lib/leads";
 import { findeKarte, legeKundenkanalAn, ordneKanalEin, zustaendigHinweis } from "@/lib/kundenkanal";
 import { kartenKnoepfe, knoepfePassen } from "@/lib/kundenablauf";
 import { demoFeldAusNotion } from "@/lib/demo";
-import { holeKundenNr, leseAuswahl, seitenId, setzeStatus, setzeZustaendig } from "@/lib/notion-api";
+import { holeKundenNr, leseAuswahl, letzterBearbeiter, seitenId, setzeStatus, setzeZustaendig } from "@/lib/notion-api";
+import { editorAus } from "@/lib/notion-sperre";
+import { wendeSperreAn } from "@/lib/notion-sperre-anwenden";
 import { belege, statusAusBelegen, statusZeile } from "@/lib/status-regeln";
 import { ausKarte, wahrheit } from "@/lib/zustaendige";
 import type { Kunde } from "@/lib/notion-kunden";
@@ -94,8 +96,11 @@ async function annehmen(request: Request): Promise<Ergebnis | { kunde: Kunde; pa
   return { kunde, payload };
 }
 
-/** Überträgt eine Seite nach Discord: Kanal anlegen oder umbenennen, Karte und Änderungszeile. */
-async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis> {
+/**
+ * Überträgt eine Seite nach Discord: Kanal anlegen oder umbenennen, Karte und Änderungszeile.
+ * editor = wer die Seite laut Notion-Meldung geändert hat (Etappe 6, Notion-Sperre); null = nicht mitgeschickt.
+ */
+async function uebertrage(kunde: Kunde, seite: string | null, editor: string | null): Promise<Ergebnis> {
   if (!kunde.nr) {
     // Der Webhook liefert die Nummer nicht immer mit: direkt bei Notion nachschlagen.
     kunde.nr = await holeKundenNr(kunde.url ?? seite);
@@ -115,6 +120,16 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
   await ladeTeam(token);
   const name = kanalName(kunde.nr);
   const notionSeite = kunde.url ?? seite;
+  // Etappe 6: Notion-Sperre. Ändert jemand aus dem Team ein gesperrtes Feld, setzt der Bot es auf den gültigen Stand
+  // zurück (die Karte zeigt gleich den gültigen Wert, die Person bekommt eine DM); David und der Bot ändern den Stand.
+  // Vor „Status von selbst“, damit der mit den gültigen Werten rechnet.
+  if (token) {
+    const wer = editor ?? (await letzterBearbeiter(notionSeite));
+    console.log(`[sperre] ${kunde.nr}: Bearbeiter ${editor ? "aus der Meldung" : wer ? "von der Seite" : "unbekannt"}`);
+    const sp = await wendeSperreAn(token, { nr: kunde.nr, name: kunde.name, props: kunde.props, seite: notionSeite, editor: wer });
+    if (sp.art === "zuruecksetzen") await protokolliere(`↩️ ${kunde.nr} · ${kunde.name}: Änderung aus dem Team zurückgesetzt (${sp.felder.join(", ")}).`);
+    if (sp.art === "fehler") console.error(`[sperre] ${kunde.nr}: Prüfung nicht möglich (${sp.felder.join(", ") || "Stand-Kanal"})`);
+  }
   // Etappe 5: Status von selbst aus festen Belegen (Häkchen, Zahlungsstatus), nur vorwärts, nie aus „Verloren“.
   // Der Bot setzt ihn in Notion und baut Karte und Farbpunkt gleich mit dem neuen Status; der Webhook danach ändert nichts mehr.
   const belegeJetzt = (status: string) =>
@@ -255,7 +270,7 @@ export async function POST(request: Request) {
 
   // Ohne Seiten-ID oder ohne #notion geht das Warten nicht: dann wie früher sofort übertragen.
   if (!seite || !token || !log || !(await merkeWarten(token, log, seite, marke, kunde.name))) {
-    const { res, protokoll } = await uebertrage(kunde, seite);
+    const { res, protokoll } = await uebertrage(kunde, seite, editorAus(payload));
     if (protokoll) await protokolliere(protokoll);
     return res;
   }
@@ -266,7 +281,7 @@ export async function POST(request: Request) {
     // Ist inzwischen eine neuere Meldung gekommen, überträgt deren Aufruf.
     if (!neueste || neueste.embeds?.[0]?.footer?.text !== `${WARTE_MARKER}${seite}:${marke}`) return;
     // Jede Notion-Meldung enthält die ganze Seite, die neueste also den aktuellen Stand.
-    const { protokoll } = await uebertrage(kunde, seite);
+    const { protokoll } = await uebertrage(kunde, seite, editorAus(payload));
     await call(token, "PATCH", `/channels/${log}/messages/${neueste.id}`, {
       content: protokoll ?? `${kunde.name}: übertragen.`,
       embeds: [],

@@ -1,7 +1,7 @@
 // Etappe 6: Notion-Sperre durch Zurücksetzen. Reine Logik. `npm test`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { abweichungen, alsKartenProp, editorAus, GESPERRT, rueckProps, sperrHinweis, standAus, werHat } from "../lib/notion-sperre.ts";
+import { abweichungen, alsKartenProp, editorAus, entscheide, GESPERRT, rueckProps, sperrHinweis, standAus, werHat } from "../lib/notion-sperre.ts";
 
 const BOT = "bot-1111";
 const DAVID = "42dc06f2-4850-4c87-b958-a8bf40505986";
@@ -116,4 +116,43 @@ test("Hinweis an die Person nennt Kunde, Felder und die Knöpfe", () => {
   assert.match(t, /KND-003 · Relax Fit/);
   assert.match(t, /„Status“, „Telefon“/);
   assert.match(t, /Knöpfe im Kundenkanal <#123>/);
+});
+
+// ---- Task 6.2: was mit einer Meldung passiert
+
+test("Noch kein Stand: der aktuelle Notion-Stand gilt (erster Lauf), egal wer", () => {
+  const e = entscheide(props, null, "team");
+  assert.equal(e.art, "neu");
+  assert.deepEqual(e.art === "neu" && e.stand.Status, ["select", "Lead"]);
+});
+
+test("David oder Bot: neuer Stand, unveränderte Felder aus dem alten bleiben", () => {
+  const alt = { ...standAus(props), "Gmail-Label": ["rich_text", "Kunden/Kunde - 003"] as [string, unknown] };
+  const neu = { ...props, Status: { type: "select", select: { name: "Kunde" } } };
+  for (const wer of ["david", "bot"] as const) {
+    const e = entscheide(neu, alt, wer);
+    assert.equal(e.art, "uebernehmen", wer);
+    if (e.art === "uebernehmen") {
+      assert.deepEqual(e.stand.Status, ["select", "Kunde"]);
+      assert.deepEqual(e.stand["Gmail-Label"], ["rich_text", "Kunden/Kunde - 003"], "fehlt in der Meldung, bleibt");
+    }
+  }
+  assert.equal(entscheide(props, standAus(props), "david").art, "nichts", "nichts geändert");
+});
+
+test("Team: nur die abweichenden Felder zurück, mit Notion-Form", () => {
+  const alt = standAus(props);
+  const neu = { ...props, Status: { type: "select", select: { name: "Kunde" } }, Telefon: { type: "phone_number", phone_number: "+49 170 1" } };
+  const e = entscheide(neu, alt, "team");
+  assert.equal(e.art, "zuruecksetzen");
+  if (e.art === "zuruecksetzen") {
+    assert.deepEqual(e.felder, ["Status", "Telefon"]);
+    assert.deepEqual(e.props, { Status: { select: { name: "Lead" } }, Telefon: { phone_number: null } });
+  }
+  assert.equal(entscheide(props, alt, "team").art, "nichts", "Team hat nur im Gesprächsbogen geschrieben");
+});
+
+test("Unbekannter Bearbeiter: nichts tun", () => {
+  const neu = { ...props, Status: { type: "select", select: { name: "Kunde" } } };
+  assert.equal(entscheide(neu, standAus(props), "unbekannt").art, "nichts");
 });
