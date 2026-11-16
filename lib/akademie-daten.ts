@@ -32,6 +32,7 @@ import { snowflakeZeit } from "@/lib/statistik";
 import { mitAkademie, mitglied, nameVon as teamName, team } from "@/lib/team";
 import { sichtbareUebungen, uebungAusNotion, uebungKarte, type Uebung } from "@/lib/uebung";
 import type { EmbedLike } from "@/lib/discord-calls";
+import { istSpeicher, SPEICHER_KATEGORIE } from "@/lib/speicher-kategorie";
 
 // Akademie: Notion lesen, Kanäle, Karten und Merkzettel in Discord (Plan 2).
 // Jeder aus dem Team-Register (außer Ausgetretenen) hat seinen Lernpfad und seine Bibliothek, ohne Freischalten.
@@ -116,7 +117,20 @@ async function kategorie(token: string, kanaele: Kanal[]): Promise<string | null
   return (await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: KATEGORIE, type: 4 }))?.id ?? null;
 }
 
-/** Ein Kanal, den außer dem Bot nur David sieht (als Serverbesitzer). */
+/**
+ * Kategorie „🗄️ SPEICHER“ für die Merkzettel (16.11.): nur für David und den Bot sichtbar, legt sie an, wenn sie fehlt.
+ * Die Position ganz unten setzt POST /api/speicher.
+ */
+export async function speicherKategorie(token: string, kanaele: Kanal[]): Promise<string | null> {
+  const w = kanalWahl(kanaele, SPEICHER_KATEGORIE, 4);
+  if (w.art === "da") return w.id;
+  const [team, bot] = await Promise.all([teamRolle(token), eigeneId(token)]);
+  if (!bot) return null;
+  const rechte = privatRechte(bot, { everyone: GUILD_ID, team, bot }).slice(0, -1);
+  return (await call<Kanal>(token, "POST", `/guilds/${GUILD_ID}/channels`, { name: SPEICHER_KATEGORIE, type: 4, permission_overwrites: rechte }))?.id ?? null;
+}
+
+/** Ein Kanal, den außer dem Bot nur David sieht (als Serverbesitzer). Merkzettel landen in „🗄️ SPEICHER“. */
 /** Gefundene Kanäle je Instanz kurz merken: Die Übungen fragen alle paar Sekunden, das bremst Discord sonst aus (429). */
 const GEMERKT_MS = 10 * 60_000;
 const gemerkt = new Map<string, { id: string; bis: number }>();
@@ -132,7 +146,7 @@ export async function nurDavidKanal(token: string, name: string, topic: string):
     gemerkt.set(name, { id: w.id, bis: Date.now() + GEMERKT_MS });
     return w.id;
   }
-  const [kat, team, bot] = await Promise.all([kategorie(token, kanaele), teamRolle(token), eigeneId(token)]);
+  const [kat, team, bot] = await Promise.all([istSpeicher(name) ? speicherKategorie(token, kanaele) : kategorie(token, kanaele), teamRolle(token), eigeneId(token)]);
   if (!bot) return null;
   // Wie die privaten Kanäle, nur ohne Person (das wäre der Bot selbst).
   const rechte = privatRechte(bot, { everyone: GUILD_ID, team, bot }).slice(0, -1);
