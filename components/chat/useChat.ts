@@ -18,6 +18,7 @@ import {
   type Message,
   type Ticket,
 } from "@/lib/chat-text";
+import { ladeVerlauf, merkeTicket, merkeVerlassen, merkeVerlauf, vergissVerlauf } from "@/lib/chat-speicher";
 
 // Die ganze Logik des Website-Chats, aus components/ChatWidget.tsx herausgezogen (14.11.2026;
 // seitdem einzige Änderung: Antworten merken sich, was der Assistent unter ihnen anbietet, dazu
@@ -28,39 +29,23 @@ import {
 //
 // Was hier steht, bestimmt, was der Chat tut: Antworten über /api/chat (Streaming), Übergabe an
 // das Team über das Support-Ticket (/api/support; Antworten aus Discord erscheinen im Chat),
-// Übernahme ins Kontaktformular, Verlauf in sessionStorage, Gesprächsprotokoll beim Verlassen.
+// Übernahme ins Kontaktformular, Verlauf im Browser (lib/chat-speicher.ts), Gesprächsprotokoll beim Verlassen.
 // Die Hüllen zeigen nur an.
 
-const STORAGE_TICKET = "ag-support-ticket";
-const STORAGE_LEFT = "ag-support-left";
 const STORAGE_DISMISSED = "ag-assistant-dismissed";
-// Der Verlauf überlebt einen Seitenwechsel (Impressum, Datenschutz) und ein
-// versehentliches Neuladen. Bewusst sessionStorage: Beim Schließen des Tabs
-// soll nichts zurückbleiben.
-const STORAGE_MESSAGES = "ag-assistant-messages";
+// Verlauf, Ticket und „Besucher war weg“ bleiben seit 16.11.2026 (Davids Entscheidung) 24 Stunden nach
+// der letzten Nachricht im localStorage, auch über das Schließen des Tabs hinaus (lib/chat-speicher.ts).
+// Hat das Team das Ticket inzwischen geschlossen, beginnt der Chat beim nächsten Besuch leer.
+// Blase und Formular-Vorschlag bleiben nur in diesem Tab (sessionStorage).
 const STORAGE_PREFILL = PREFILL_SPEICHER;
-const MAX_STORED_MESSAGES = 30;
 
-function loadMessages(): Message[] {
-  if (typeof window === "undefined") return [GREETING];
+const lokal = (): Storage | null => {
   try {
-    const raw = sessionStorage.getItem(STORAGE_MESSAGES);
-    if (!raw) return [GREETING];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return [GREETING];
-    return parsed.filter(
-      (m): m is Message =>
-        !!m &&
-        typeof m === "object" &&
-        ((m as Message).role === "user" ||
-          (m as Message).role === "assistant" ||
-          (m as Message).role === "team") &&
-        typeof (m as Message).content === "string",
-    );
+    return typeof window === "undefined" ? null : window.localStorage;
   } catch {
-    return [GREETING];
+    return null;
   }
-}
+};
 // Wartezeit auf Seiten OHNE Startseiten-Aufbau (Impressum, Datenschutz)
 const BUBBLE_DELAY_MS = 10_000;
 // Wartezeit, nachdem die Schreibmaschinen-Animation FERTIG getippt hat. Kurz
@@ -99,6 +84,8 @@ export function useChat() {
   const openRef = useRef(false);
   const router = useRouter();
   const ticketRef = useRef<Ticket | null>(null);
+  // Der beim Laden gelesene Verlauf: Ihn erneut zu speichern hieße, die 24 Stunden ohne neue Nachricht zu verlängern.
+  const geladenRef = useRef<Message[] | null>(null);
   const stateRef = useRef<{
     messages: Message[];
     contacted: boolean;
@@ -107,48 +94,71 @@ export function useChat() {
 
   // Verlauf erst nach dem ersten Rendern laden. Server und Client müssen beim
   // ersten Durchgang dasselbe ausgeben, sonst meckert React über abweichendes
-  // HTML — sessionStorage gibt es auf dem Server aber nicht.
+  // HTML — den Browser-Speicher gibt es auf dem Server aber nicht.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage gibt es erst im Browser, siehe oben
-    setMessages(loadMessages());
+    const s = lokal();
+    const gemerkt = s ? ladeVerlauf(s, Date.now()) : { messages: null, ticket: null, verlassen: false };
     try {
       const raw = sessionStorage.getItem(STORAGE_PREFILL);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- der Browser-Speicher steht erst im Browser bereit, siehe oben
       if (raw) setPrefill(JSON.parse(raw) as PrefillContactDetail);
     } catch {
       /* kaputter Eintrag – dann eben ohne */
     }
-    try {
-      const raw = sessionStorage.getItem(STORAGE_TICKET);
-      if (raw) {
-        const t = JSON.parse(raw) as Ticket;
-        setTicket(t);
-        // Seite wurde nur neu geladen oder gewechselt: dem Team sagen, dass der Besucher wieder da ist.
-        if (sessionStorage.getItem(STORAGE_LEFT) && !t.closed) {
-          sessionStorage.removeItem(STORAGE_LEFT);
-          void fetch("/api/support", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "presence", state: "back", token: t.token }),
-          }).catch(() => {});
-        }
-      }
-    } catch {
-      /* kein laufender Support-Chat */
+    const zeige = (m: Message[] | null) => {
+      geladenRef.current = m;
+      setMessages(m ?? [GREETING]);
+    };
+    const t = gemerkt.ticket;
+    if (!t || t.closed) {
+      // Kein laufender Support-Chat (oder er endete, während der Besucher noch da war): einfach weiter.
+      zeige(gemerkt.messages);
+      if (t) setTicket(t);
+      return;
     }
+    // Ein Support-Chat lief noch: erst fragen, ob das Team ihn inzwischen geschlossen hat.
+    // Dann beginnt der Chat leer (Davids Entscheidung), sonst geht es mit demselben Verlauf weiter.
+    let aus = false;
+    void (async () => {
+      let geschlossen = false;
+      try {
+        const res = await fetch(`/api/support?t=${encodeURIComponent(t.token)}&after=${encodeURIComponent(t.after)}`, { cache: "no-store" });
+        if (res.ok) geschlossen = ((await res.json()) as { closed?: boolean }).closed === true;
+      } catch {
+        /* nicht erreichbar: lieber mit dem alten Stand weiter */
+      }
+      if (aus) return;
+      if (geschlossen) {
+        if (s) vergissVerlauf(s);
+        zeige(null);
+        return;
+      }
+      zeige(gemerkt.messages);
+      setTicket(t);
+      // Der Besucher war weg (Tab zu, neu geladen, Seite gewechselt): dem Team sagen, dass er wieder da ist.
+      if (gemerkt.verlassen) {
+        if (s) merkeVerlassen(s, false);
+        void fetch("/api/support", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "presence", state: "back", token: t.token }),
+        }).catch(() => {});
+      }
+    })();
+    return () => {
+      aus = true;
+    };
   }, []);
 
   useEffect(() => {
     openRef.current = open;
   }, [open]);
 
-  // Ticket merken, damit der Support-Chat einen Seitenwechsel übersteht.
+  // Ticket merken, damit der Support-Chat einen Seitenwechsel und das Schließen des Tabs übersteht.
   useEffect(() => {
     ticketRef.current = ticket;
-    try {
-      if (ticket) sessionStorage.setItem(STORAGE_TICKET, JSON.stringify(ticket));
-    } catch {
-      /* nicht schlimm */
-    }
+    const s = lokal();
+    if (ticket && s) merkeTicket(s, ticket);
   }, [ticket]);
 
   // Antworten des Teams abholen, solange ein Support-Chat läuft. Offen alle
@@ -223,7 +233,8 @@ export function useChat() {
       if (t && !t.closed) {
         // Support-Chat läuft: dem Team melden, dass der Besucher weg ist.
         try {
-          sessionStorage.setItem(STORAGE_LEFT, "1");
+          const s = lokal();
+          if (s) merkeVerlassen(s, true);
           navigator.sendBeacon?.(
             "/api/support",
             new Blob([JSON.stringify({ action: "presence", state: "left", token: t.token })], {
@@ -261,18 +272,13 @@ export function useChat() {
     return () => window.removeEventListener("pagehide", send);
   }, []);
 
-  // Verlauf sichern. Die Begrüßung allein ist nichts wert, die entsteht neu.
+  // Verlauf sichern. Die Begrüßung allein ist nichts wert, die entsteht neu. Der gerade geladene
+  // Verlauf wird nicht neu gespeichert, sonst liefen die 24 Stunden bei jedem Seitenaufruf neu an.
   useEffect(() => {
     stateRef.current.messages = messages;
-    if (typeof window === "undefined" || messages.length <= 1) return;
-    try {
-      sessionStorage.setItem(
-        STORAGE_MESSAGES,
-        JSON.stringify(messages.slice(-MAX_STORED_MESSAGES)),
-      );
-    } catch {
-      /* Speicher voll oder gesperrt – der Chat läuft trotzdem weiter */
-    }
+    if (messages.length <= 1 || messages === geladenRef.current) return;
+    const s = lokal();
+    if (s) merkeVerlauf(s, messages, Date.now());
   }, [messages]);
 
   // Aufmerksamkeits-Bubble: Sie erscheint kurz nachdem in der Sektion
