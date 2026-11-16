@@ -111,4 +111,5 @@ test("KI-Anweisung: nur Rechnungen, die Agents Gilt selbst bezahlt", () => {
   assert.match(BELEG_PROMPT, /Zahlungseingänge von Kunden/);
   assert.match(BELEG_PROMPT, /Auszahlungen/);
   assert.match(BELEG_PROMPT, /an Kunden geschickt/);
+  assert.match(BELEG_PROMPT, /Gutschriften/, "Gutschrift (credit note) ist keine Ausgabe");
 });

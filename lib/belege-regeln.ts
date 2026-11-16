@@ -29,7 +29,7 @@ export function istBelegKandidat(m: { betreff: string; anhaenge?: Anhang[] }): b
 
 export const BELEG_PROMPT = `Du liest eine E-Mail (und, falls dabei, das PDF dazu) für die Buchhaltung der kleinen deutschen KI-Agentur Agents Gilt.
 
-Entscheide, ob es eine Rechnung oder Quittung über etwas ist, das Agents Gilt selbst bezahlt hat oder bezahlen muss. Keine Rechnung sind: Newsletter, Werbung, Mahnungen ohne Beleg, Hinweise auf neue Bedingungen, Anfragen von Kunden, Zahlungseingänge von Kunden, Rechnungen oder Quittungen, die Agents Gilt an Kunden geschickt hat, Auszahlungen (Payouts) von Stripe aufs Bankkonto.
+Entscheide, ob es eine Rechnung oder Quittung über etwas ist, das Agents Gilt selbst bezahlt hat oder bezahlen muss. Keine Rechnung sind: Newsletter, Werbung, Mahnungen ohne Beleg, Hinweise auf neue Bedingungen, Anfragen von Kunden, Zahlungseingänge von Kunden, Rechnungen oder Quittungen, die Agents Gilt an Kunden geschickt hat, Auszahlungen (Payouts) von Stripe aufs Bankkonto, Gutschriften und Erstattungen (Credit note, Refund).
 
 Ist es eine Rechnung, lies heraus:
 - anbieter: wer die Rechnung stellt (kurz, z. B. "Google", "Anthropic", "Notion")
