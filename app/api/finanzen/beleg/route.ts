@@ -17,6 +17,7 @@ const schema = z.object({
   text: z.string().max(20_000).default(""),
   link: z.string().url().max(500).optional(),
   an: z.string().max(500).optional(),
+  datum: z.string().max(40).optional(),
   pdf: z.object({ name: z.string().max(200), daten: z.string().max(4_500_000) }).optional(),
 });
 
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Ungültige Eingaben" }, { status: 400 });
   const m = parsed.data;
   const pdf = m.pdf ? { name: m.pdf.name, daten: Uint8Array.from(Buffer.from(m.pdf.daten, "base64")) } : null;
-  const b = await bucheBeleg({ id: `privat-${m.id}`, von: m.von, betreff: m.betreff, text: m.text, an: m.an ?? "privat", anhaenge: pdf ? [{ name: pdf.name, typ: "application/pdf", groesse: pdf.daten.byteLength }] : [], link: m.link }, pdf);
+  const b = await bucheBeleg({ id: `privat-${m.id}`, von: m.von, betreff: m.betreff, text: m.text, an: m.an ?? "privat", anhaenge: pdf ? [{ name: pdf.name, typ: "application/pdf", groesse: pdf.daten.byteLength }] : [], link: m.link, datum: m.datum }, pdf);
   const token = process.env.DISCORD_BOT_TOKEN;
   if (b.art === "gebucht" && token) await meldeBeleg(token, b);
   console.log(`[belege] privat ${m.id}: ${b.art}${"grund" in b ? ` (${b.grund})` : ""}`);

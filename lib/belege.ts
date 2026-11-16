@@ -7,7 +7,7 @@ import { holeAnhang } from "@/lib/mail-bruecke";
 import { call, posteingangKanal } from "@/lib/leads";
 import { belegZeile } from "@/lib/belege-regeln";
 
-export type BelegMail = { id: string; von: string; betreff: string; text: string; an?: string; anhaenge?: Anhang[]; link?: string };
+export type BelegMail = { id: string; von: string; betreff: string; text: string; an?: string; anhaenge?: Anhang[]; link?: string; datum?: string };
 export type BelegErgebnis =
   | { art: "gebucht"; beleg: Beleg; cent: number | null; url: string | null }
   | { art: "schon" }
@@ -32,7 +32,7 @@ async function liesBeleg(m: BelegMail, pdf: { daten: Uint8Array } | null): Promi
   if (!apiKey) return null;
   const inhalt: Anthropic.ContentBlockParam[] = [
     ...(pdf ? [{ type: "document" as const, source: { type: "base64" as const, media_type: "application/pdf" as const, data: Buffer.from(pdf.daten).toString("base64") } }] : []),
-    { type: "text", text: `<mail>\nVon: ${m.von}\nBetreff: ${m.betreff}\n\n${m.text.slice(0, 6000)}\n</mail>` },
+    { type: "text", text: `<mail>\nVon: ${m.von}\nBetreff: ${m.betreff}${m.datum ? `\nGesendet: ${m.datum.slice(0, 10)}` : ""}\n\n${m.text.slice(0, 6000)}\n</mail>` },
   ];
   try {
     const res = await new Anthropic({ apiKey, timeout: 40_000, maxRetries: 1 }).messages.create({
@@ -48,7 +48,7 @@ async function liesBeleg(m: BelegMail, pdf: { daten: Uint8Array } | null): Promi
       .map((b) => b.text)
       .join("");
     const json = raw.match(/\{[\s\S]*\}/)?.[0];
-    return json ? pruefeBeleg(JSON.parse(json)) : null;
+    return json ? pruefeBeleg(JSON.parse(json), m.datum) : null;
   } catch (err) {
     console.error("[belege] KI fehlgeschlagen:", err);
     return null;

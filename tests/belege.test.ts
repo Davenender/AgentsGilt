@@ -90,3 +90,11 @@ test("Zeile in #posteingang: kurz, mit Betrag, Datum und Hinweisen", () => {
   assert.match(z, /Reverse Charge/);
   assert.match(z, /notion\.so\/zeile/);
 });
+
+test("Ohne Datum in der Mail (z. B. Twilio-Aufladung): Datum der Mail als Ersatz, falsches Ersatzdatum zählt nicht", () => {
+  const ki = { istRechnung: true, privat: false, anbieter: "Twilio", was: "Twilio Guthaben", betrag: 20, waehrung: "USD", kategorie: "Telefon" };
+  assert.equal(pruefeBeleg(ki)?.datum, undefined, "ohne Ersatz bleibt es unbrauchbar");
+  assert.equal(pruefeBeleg(ki, "2026-11-16T10:30:00.000Z")?.datum, "2026-11-16");
+  assert.equal(pruefeBeleg(ki, "kaputt"), null);
+  assert.equal(pruefeBeleg({ ...ki, datum: "2026-11-02" }, "2026-11-16T10:30:00.000Z")?.datum, "2026-11-02", "Datum der Rechnung geht vor");
+});

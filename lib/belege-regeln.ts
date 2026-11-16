@@ -51,8 +51,11 @@ Antworte nur mit JSON ohne Erklärung:
 const KEIN: Beleg = { istRechnung: false, privat: false, anbieter: "", was: "", betrag: 0, waehrung: "EUR", datum: "", rechnungsnr: null, reverseCharge: false, monatlich: false, kategorie: "Sonstiges" };
 const kurz = (v: unknown, n: number) => (typeof v === "string" ? v.trim().slice(0, n) : "");
 
-/** Prüft die KI-Antwort. null = unbrauchbar; istRechnung false = keine Rechnung. */
-export function pruefeBeleg(o: unknown): Beleg | null {
+/**
+ * Prüft die KI-Antwort. null = unbrauchbar; istRechnung false = keine Rechnung. ersatzDatum (Datum der Mail, ISO) gilt,
+ * wenn in der Mail selbst kein Datum steht (z. B. Twilio-Aufladung).
+ */
+export function pruefeBeleg(o: unknown, ersatzDatum?: string | null): Beleg | null {
   if (!o || typeof o !== "object" || Array.isArray(o)) return null;
   const r = o as Record<string, unknown>;
   if (r.istRechnung !== true) return { ...KEIN };
@@ -60,7 +63,8 @@ export function pruefeBeleg(o: unknown): Beleg | null {
   const was = kurz(r.was, 120) || anbieter;
   const betrag = typeof r.betrag === "number" && Number.isFinite(r.betrag) && r.betrag > 0 ? Math.round(r.betrag * 100) / 100 : null;
   const waehrung = kurz(r.waehrung, 3).toUpperCase();
-  const datum = typeof r.datum === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.datum) ? r.datum : null;
+  const ersatz = typeof ersatzDatum === "string" && /^\d{4}-\d{2}-\d{2}/.test(ersatzDatum) ? ersatzDatum.slice(0, 10) : null;
+  const datum = typeof r.datum === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.datum) ? r.datum : ersatz;
   if (!anbieter || !was || betrag === null || !/^[A-Z]{3}$/.test(waehrung) || !datum) return null;
   return {
     istRechnung: true,
