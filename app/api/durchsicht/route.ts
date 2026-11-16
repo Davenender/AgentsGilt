@@ -1,6 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { call } from "@/lib/leads";
+import { serverCheck, sperreArchiv } from "@/lib/server-check-lauf";
+import { ladeTeam } from "@/lib/team-daten";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +11,8 @@ export const maxDuration = 30;
 // Discord-Durchsicht (16.11.2026): liest den Aufbau des Servers, nur lesen, nur mit HELFER_SECRET.
 // Rollen mit Reihenfolge, Kategorien und Kanäle mit Sonderrechten, Mitglieder mit Rollen, laufende Threads.
 // Gibt nur Namen, Kennungen und Rechte-Namen zurück, keine Nachrichten.
+//   POST {"aktion":"check"}   → Server-Check jetzt (ohne Karte), Funde als Liste
+//   POST {"aktion":"archiv"}  → geschlossene Tickets im ARCHIV fürs Team schreibgeschützt
 
 const GUILD = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 
@@ -77,4 +81,15 @@ export async function GET(req: Request) {
     mitglieder: (mitglieder ?? []).map((m) => ({ id: m.user.id, name: personName.get(m.user.id), bot: Boolean(m.user.bot), rollen: m.roles.map((r) => rollenName.get(r) ?? r) })),
     threads: (threads?.threads ?? []).map((t) => ({ id: t.id, name: t.name, in: kanaele.find((k) => k.id === t.parent_id)?.name ?? t.parent_id, privat: t.type === 12, mitglieder: t.member_count })),
   });
+}
+
+export async function POST(req: Request) {
+  if (!erlaubt(req)) return NextResponse.json({ error: "nicht erlaubt" }, { status: 401 });
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token) return NextResponse.json({ error: "Kein Bot-Token" }, { status: 500 });
+  const aktion = String(((await req.json().catch(() => ({}))) as { aktion?: unknown }).aktion ?? "");
+  await ladeTeam(token);
+  if (aktion === "check") return NextResponse.json(await serverCheck(token, false));
+  if (aktion === "archiv") return NextResponse.json(await sperreArchiv(token));
+  return NextResponse.json({ error: "aktion: check oder archiv" }, { status: 400 });
 }

@@ -1,6 +1,6 @@
 {
   "crons": [
     { "path": "/api/kunden/statistik", "schedule": "0 7 1 * *" },
-    { "path": "/api/finanzen/waechter", "schedule": "0 6 * * *" }
+    { "path": "/api/taeglich", "schedule": "0 6 * * *" }
   ]
 }

@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Finanzen A5 (16.11.2026): Wächter und Termine. Vercel ruft das jeden Morgen mit CRON_SECRET auf (vercel.json).
+// Finanzen A5 (16.11.2026): Wächter und Termine. Jeden Morgen läuft er über /api/taeglich (Vercel-Cron, vercel.json); hier von Hand.
 //   GET /api/finanzen/waechter            → Grenze, Steuertermine, am Monatsanfang Überblick des Vormonats
 //   GET /api/finanzen/waechter?zeigen=1   → zusätzlich sofort den Überblick des laufenden Monats (mit HELFER_SECRET)
 // Meldet nur an David (#posteingang, Push). Keine Steuerberatung, nur Zahlen und Fristen.
