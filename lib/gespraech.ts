@@ -138,6 +138,8 @@ Antworte ausschließlich mit einem JSON-Objekt mit diesen Feldern (auf Deutsch, 
 - "einwand": Bedenken oder Einwände des Kunden
 - "naechster_schritt": der konkrete nächste Schritt für das Team (z. B. „Angebot schicken“)
 - "follow_up": Datum für die nächste Nachfrage als JJJJ-MM-TT, nur wenn ein Termin oder Zeitraum genannt wurde
+- "email": geschäftliche E-Mail-Adresse des Kunden, nur wenn sie im Gespräch genannt wurde
+- "telefon": geschäftliche Telefonnummer des Kunden, nur wenn sie im Gespräch genannt wurde
 - "angebot": genau einer dieser Werte oder null: {ANGEBOTE}
 - "quelle": genau einer dieser Werte oder null (wie der Kontakt zustande kam): {QUELLEN}
 
@@ -153,6 +155,9 @@ export interface Auswertung {
   followUp: string | null;
   angebot: string | null;
   quelle: string | null;
+  /** Etappe 4: Kontaktdaten aus dem Gespräch (nur, wenn genannt und gültig) */
+  email: string | null;
+  telefon: string | null;
 }
 
 const kurz = (v: unknown, max: number): string | null => {
@@ -188,19 +193,24 @@ export function pruefeAuswertung(raw: unknown, opt: { angebote: string[]; quelle
     followUp: follow && echtesDatum(follow) && follow >= heute ? follow : null,
     angebot: wahl(r.angebot, opt.angebote),
     quelle: wahl(r.quelle, opt.quellen),
+    email: ((e) => (e && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) ? e : null))(kurz(r.email, 120)?.toLowerCase() ?? null),
+    telefon: ((t) => (t && /^[+\d][\d\s/()-]*$/.test(t) && t.replace(/\D/g, "").length >= 6 ? t : null))(kurz(r.telefon, 40)),
   };
 }
 
 /**
  * Welche Notion-Felder die Auswertung setzt: „Nächster Schritt“ und „Nächstes Follow-up“ werden ersetzt,
- * „Angebot“ und „Quelle“ nur gefüllt, wenn sie leer sind. Status, Preise, Zuständige und Häkchen nie.
+ * „Angebot“, „Quelle“, „E-Mail“ und „Telefon“ nur gefüllt, wenn sie leer sind. Status, Preise, Zuständige und Häkchen nie.
  */
-export function feldAenderungen(a: Auswertung, aktuell: { angebot: string | null; quelle: string | null }) {
+export function feldAenderungen(a: Auswertung, aktuell: { angebot: string | null; quelle: string | null; email?: string | null; telefon?: string | null }) {
   const properties: Record<string, unknown> = {};
   if (a.naechsterSchritt) properties["Nächster Schritt"] = { rich_text: rich(a.naechsterSchritt) };
   if (a.followUp) properties["Nächstes Follow-up"] = { date: { start: a.followUp } };
   if (a.angebot && !aktuell.angebot) properties["Angebot"] = { select: { name: a.angebot } };
   if (a.quelle && !aktuell.quelle) properties["Quelle"] = { select: { name: a.quelle } };
+  // Etappe 4: fehlende Kontaktdaten aus dem Gespräch, vorhandene nie überschreiben
+  if (a.email && !aktuell.email) properties["E-Mail"] = { email: a.email };
+  if (a.telefon && !aktuell.telefon) properties["Telefon"] = { phone_number: a.telefon };
   return { properties, geaendert: Object.keys(properties) };
 }
 

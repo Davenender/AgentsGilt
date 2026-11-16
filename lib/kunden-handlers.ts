@@ -201,7 +201,9 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
       if (!auswertung) return void (await antwort("⚠️ Die Auswertung hat nicht geklappt. Bitte gleich nochmal versuchen."));
 
       // Notion: Felder nach den Regeln, Ergebnis unter „5. Ergebnis“ (eine frühere Auswertung wird ersetzt).
-      const felder = feldAenderungen(auswertung, aktuell);
+      // Etappe 4: E-Mail und Telefon nur füllen, wenn sie auf der Karte (also in Notion) noch fehlen
+      const kontakt = (n: string) => karte.fields?.find((f) => f.name === n)?.value.replace(/\u200b/g, "").trim() || null;
+      const felder = feldAenderungen(auswertung, { ...aktuell, email: kontakt("E-Mail"), telefon: kontakt("Telefon") });
       const felderOk = await setzeFelder(seite, felder.properties);
       const ergebnis = findeErgebnis(bloecke);
       for (const alt of ergebnis.alte) await entferneBlock(alt);

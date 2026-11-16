@@ -3,14 +3,18 @@
 //   - Mail-Knopf: Ticket übernommen und der Kunde 3 Stunden still → Knopf „📧 Per E-Mail antworten“
 //     (bzw. einmal der Hinweis, dass es keine Mail-Adresse gibt). Die Person, die übernommen hat, wird erwähnt.
 //   - Freigabe-Erinnerung: Eine Mail wartet seit 2 Stunden auf David → einmal Push, nie von selbst senden.
+//   - Follow-up (Etappe 4): am Tag von „Nächstes Follow-up“ um 8 Uhr eine Zeile im Kundenkanal an die Zuständigen.
 //   - Recherche (Etappe 3): Mappen bauen, Fragen im Thread beantworten, nach 2 Tagen „In Arbeit“ nachhaken.
 // Regeln: lib/mail-antwort.ts (mailKnopfFaellig), lib/team-takt-regeln.ts.
-import { listMessages, messageLink } from "@/lib/discord";
+import { listMessages, messageLink, ohneStatusPunkt } from "@/lib/discord";
 import type { EmbedLike } from "@/lib/discord-calls";
 import { aendereKarte, call } from "@/lib/leads";
 import { freigabeKnoepfe, KEIN_EMAIL, leseFreigabe, MAIL_HINWEIS, mailKnopf, mailKnopfFaellig, mitErinnert, ticketBesitzer } from "@/lib/mail-antwort";
 import { pusheDavid } from "@/lib/ntfy";
-import { erinnerungFaellig, kanalId, zeitAusId, type GildenKanal } from "@/lib/team-takt-regeln";
+import { erinnerungFaellig, followUpHeute, followUpZeile, followUpZeit, heuteBerlin, heuteSchonErinnert, kanalId, zeitAusId, type GildenKanal } from "@/lib/team-takt-regeln";
+import { listeKunden } from "@/lib/notion-api";
+import { kanalName } from "@/lib/notion-kunden";
+import { discordIdFuer } from "@/lib/zustaendige";
 import { rechercheTakt } from "@/lib/recherche-handlers";
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
@@ -60,6 +64,24 @@ async function freigabeErinnerungen(token: string, jetzt: number, kanal: string 
   return erinnert;
 }
 
+/** Etappe 4: Am Follow-up-Tag um 8 Uhr im Kundenkanal an den nächsten Schritt erinnern (einmal am Tag). */
+async function followUps(token: string, jetzt: Date, kanaele: GildenKanal[]): Promise<number> {
+  if (!followUpZeit(jetzt)) return 0;
+  const heute = heuteBerlin(jetzt);
+  const kunden = (await listeKunden()) ?? [];
+  let erinnert = 0;
+  for (const nr of followUpHeute(kunden, heute)) {
+    const k = kunden.find((x) => x.nr === nr)!;
+    const kanal = kanaele.find((c) => c.type === 0 && ohneStatusPunkt(c.name) === kanalName(nr))?.id;
+    if (!kanal) continue;
+    const msgs = await listMessages(token, kanal, 30);
+    if (heuteSchonErinnert(msgs.map((m) => ({ id: m.id, text: m.content ?? "" })), heute)) continue;
+    const ids = (k.zustaendig ?? []).map((n) => discordIdFuer(n)).filter((x): x is string => Boolean(x));
+    if (await call(token, "POST", `/channels/${kanal}/messages`, { content: followUpZeile(ids, k.naechsterSchritt ?? ""), allowed_mentions: { users: ids } })) erinnert++;
+  }
+  return erinnert;
+}
+
 export async function teamTakt(token: string, jetzt = new Date()): Promise<Record<string, number | string>> {
   const t = jetzt.getTime();
   const bericht: Record<string, number | string> = {};
@@ -69,6 +91,7 @@ export async function teamTakt(token: string, jetzt = new Date()): Promise<Recor
   const schritte: [string, () => Promise<number | Record<string, number>>][] = [
     ["mailKnoepfe", () => mailKnoepfe(token, t, kanaele)],
     ["freigabeErinnerungen", () => freigabeErinnerungen(token, t, kanalId(kanaele, "posteingang"))],
+    ["followUps", () => followUps(token, jetzt, kanaele)],
     // Etappe 3: Recherche-Mappen bauen, Fragen im Thread beantworten, nach 2 Tagen nachhaken (zuletzt, dauert am längsten)
     ["recherche", () => rechercheTakt(token, t, kanalId(kanaele, "leads"))],
   ];

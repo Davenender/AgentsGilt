@@ -8,6 +8,7 @@ import {
   bogenBloecke,
   ergebnisBlock,
   ergebnisKarte,
+  AUSWERTUNG_PROMPT,
   feldAenderungen,
   findeBogen,
   findeErgebnis,
@@ -101,6 +102,8 @@ test("Auswertung prüfen: nur erlaubte Werte, Datum nicht in der Vergangenheit",
     followUp: "2026-11-12",
     angebot: "Voice-Agent",
     quelle: "Persönlich vor Ort",
+    email: null,
+    telefon: null,
   });
   const b2 = pruefeAuswertung({ zusammenfassung: "x", follow_up: "2026-11-01", angebot: "Raketen", quelle: "Telepathie", einwand: "" }, OPT, "2026-11-08");
   assert.equal(b2?.followUp, null, "Vergangenheit");
@@ -153,4 +156,22 @@ test("Leeres KI-Guthaben wird erkannt", () => {
   assert.equal(guthabenLeer("400 {\"type\":\"error\",\"error\":{\"message\":\"Your credit balance is too low to access the Anthropic API.\"}}"), true);
   assert.equal(guthabenLeer("Kein ANTHROPIC_API_KEY"), false);
   assert.equal(guthabenLeer("overloaded"), false);
+});
+
+// Etappe 4 (16.11.2026): Die Auswertung füllt fehlende Kontaktdaten, überschreibt aber nie vorhandene.
+test("Kontakt aus dem Gespräch: nur leere Felder füllen", () => {
+  const a = pruefeAuswertung({ zusammenfassung: "x", email: " Max@Firma.de ", telefon: "069 123456" }, OPT, "2026-11-08")!;
+  assert.equal(a.email, "max@firma.de");
+  assert.equal(a.telefon, "069 123456");
+  const leer = feldAenderungen(a, { angebot: null, quelle: null, email: null, telefon: null });
+  assert.deepEqual(leer.properties["E-Mail"], { email: "max@firma.de" });
+  assert.deepEqual(leer.properties["Telefon"], { phone_number: "069 123456" });
+  const voll = feldAenderungen(a, { angebot: null, quelle: null, email: "alt@firma.de", telefon: "" });
+  assert.equal("E-Mail" in voll.properties, false);
+  assert.deepEqual(voll.properties["Telefon"], { phone_number: "069 123456" });
+  const kaputt = pruefeAuswertung({ zusammenfassung: "x", email: "keine", telefon: "ruft an" }, OPT, "2026-11-08")!;
+  assert.equal(kaputt.email, null);
+  assert.equal(kaputt.telefon, null);
+  assert.match(AUSWERTUNG_PROMPT, /"email"/);
+  assert.match(AUSWERTUNG_PROMPT, /"telefon"/);
 });

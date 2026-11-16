@@ -1,7 +1,7 @@
 // Takt fürs Team (cron-job.org, jede Minute): wann etwas fällig ist (Etappe 2, 16.11.2026).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { erinnerungFaellig, kanalId, zeitAusId } from "../lib/team-takt-regeln.ts";
+import { erinnerungFaellig, followUpHeute, followUpZeile, followUpZeit, heuteSchonErinnert, kanalId, zeitAusId } from "../lib/team-takt-regeln.ts";
 
 const H = 60 * 60 * 1000;
 
@@ -31,4 +31,33 @@ test("Kanal aus der einmal geholten Liste", () => {
   assert.equal(kanalId(liste, "posteingang"), "3");
   assert.equal(kanalId(liste, "fehlt"), null);
   assert.equal(kanalId([], "leads"), null);
+});
+
+// Etappe 4 (16.11.2026): Am Follow-up-Tag erinnert der Bot im Kundenkanal, einmal, um 8 Uhr.
+test("Follow-up: welche Kunden heute dran sind", () => {
+  const kunden = [
+    { nr: "KND-002", followUp: "2026-11-17", status: "Lead" },
+    { nr: "KND-003", followUp: "2026-11-17", status: "Verloren" },
+    { nr: "KND-004", followUp: "2026-11-18", status: "Kunde" },
+    { nr: "KND-005", followUp: null, status: "Lead" },
+  ];
+  assert.deepEqual(followUpHeute(kunden, "2026-11-17"), ["KND-002"]);
+});
+
+test("Follow-up: nur zwischen 8:00 und 8:04 deutscher Zeit", () => {
+  assert.equal(followUpZeit(new Date("2026-11-17T07:02:00Z")), true); // 8:02 Winterzeit
+  assert.equal(followUpZeit(new Date("2026-11-17T07:06:00Z")), false);
+  assert.equal(followUpZeit(new Date("2026-07-17T06:01:00Z")), true); // 8:01 Sommerzeit
+  assert.equal(followUpZeit(new Date("2026-11-17T08:01:00Z")), false);
+});
+
+test("Follow-up: Zeile und keine zweite Erinnerung am selben Tag", () => {
+  const z = followUpZeile(["111", "222"], "Angebot nachfassen");
+  assert.equal(z, "📌 <@111> <@222> Heute steht an: Angebot nachfassen");
+  assert.equal(followUpZeile([], ""), "📌 Heute steht an: nachfassen");
+  const heuteId = String((BigInt(Date.parse("2026-11-17T07:01:00Z") - 1420070400000) << 22n));
+  const gesternId = String((BigInt(Date.parse("2026-11-16T07:01:00Z") - 1420070400000) << 22n));
+  assert.equal(heuteSchonErinnert([{ id: heuteId, text: z }], "2026-11-17"), true);
+  assert.equal(heuteSchonErinnert([{ id: gesternId, text: z }], "2026-11-17"), false);
+  assert.equal(heuteSchonErinnert([{ id: heuteId, text: "andere Nachricht" }], "2026-11-17"), false);
 });
