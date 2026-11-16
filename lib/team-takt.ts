@@ -3,6 +3,7 @@
 //   - Mail-Knopf: Ticket übernommen und der Kunde 3 Stunden still → Knopf „📧 Per E-Mail antworten“
 //     (bzw. einmal der Hinweis, dass es keine Mail-Adresse gibt). Die Person, die übernommen hat, wird erwähnt.
 //   - Freigabe-Erinnerung: Eine Mail wartet seit 2 Stunden auf David → einmal Push, nie von selbst senden.
+//   - Recherche (Etappe 3): Mappen bauen, Fragen im Thread beantworten, nach 2 Tagen „In Arbeit“ nachhaken.
 // Regeln: lib/mail-antwort.ts (mailKnopfFaellig), lib/team-takt-regeln.ts.
 import { listMessages, messageLink } from "@/lib/discord";
 import type { EmbedLike } from "@/lib/discord-calls";
@@ -10,6 +11,7 @@ import { aendereKarte, call, posteingangKanal } from "@/lib/leads";
 import { freigabeKnoepfe, KEIN_EMAIL, leseFreigabe, MAIL_HINWEIS, mailKnopf, mailKnopfFaellig, mitErinnert, ticketBesitzer } from "@/lib/mail-antwort";
 import { pusheDavid } from "@/lib/ntfy";
 import { erinnerungFaellig, zeitAusId } from "@/lib/team-takt-regeln";
+import { rechercheTakt } from "@/lib/recherche-handlers";
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 const feld = (e: EmbedLike, name: string) => e.fields?.find((f) => f.name === name)?.value ?? "";
@@ -63,13 +65,17 @@ async function freigabeErinnerungen(token: string, jetzt: number): Promise<numbe
 export async function teamTakt(token: string, jetzt = new Date()): Promise<Record<string, number | string>> {
   const t = jetzt.getTime();
   const bericht: Record<string, number | string> = {};
-  const schritte: [string, () => Promise<number>][] = [
+  const schritte: [string, () => Promise<number | Record<string, number>>][] = [
     ["mailKnoepfe", () => mailKnoepfe(token, t)],
     ["freigabeErinnerungen", () => freigabeErinnerungen(token, t)],
+    // Etappe 3: Recherche-Mappen bauen, Fragen im Thread beantworten, nach 2 Tagen nachhaken (zuletzt, dauert am längsten)
+    ["recherche", () => rechercheTakt(token, t)],
   ];
   for (const [name, schritt] of schritte) {
     try {
-      bericht[name] = await schritt();
+      const r = await schritt();
+      if (typeof r === "number") bericht[name] = r;
+      else for (const [k, v] of Object.entries(r)) bericht[`${name}.${k}`] = v;
     } catch (err) {
       console.error(`[team-takt] ${name} fehlgeschlagen:`, err);
       bericht[name] = "fehler";

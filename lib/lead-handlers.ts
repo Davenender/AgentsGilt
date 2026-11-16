@@ -30,7 +30,8 @@ import {
   vergissAbgelehnt,
 } from "@/lib/leads";
 import { nameVon } from "@/lib/team";
-import { andererInArbeit, pruefeSchritt } from "@/lib/lead-arbeit";
+import { andererInArbeit, ohneRecherche, pruefeSchritt, rechercheThread } from "@/lib/lead-arbeit";
+import { rechercheNachNotion, schliesseRecherche, starteRecherche } from "@/lib/recherche-handlers";
 import { legeKundenZeileAn, notionConfigured } from "@/lib/notion-api";
 import type { Analyse } from "@/lib/lead-analyse";
 import { analyseAusFormular, analyseAusPlatz, formularModal, formularWerte, manuellerSchluessel, webArt, type Platz, erkenneEingabe, kandidatenSchluessel, trefferAuswahl } from "@/lib/lead-ohne-website";
@@ -368,6 +369,7 @@ export async function handleLeadButton(i: LeadInteraction, token: string | undef
         return;
       }
       // Nur die Karte wegnehmen: Die Firma wird NICHT gesperrt und lässt sich später wieder anlegen.
+      await schliesseRecherche(token, rechercheThread(karte)); // Etappe 3
       await loescheNachricht(token, channelId, ziel);
       await setzeAntwort(appId, itoken, `🗑️ **${(karte.title ?? "Die Firma").replace(/[*_~`|>@]/g, "")}** ist aussortiert. Du kannst sie später mit /lead in #lead-befehle wieder anlegen. In der Lead-Suche taucht sie nur auf, wenn du dort auf „Alle Firmen“ umschaltest.`);
     });
@@ -409,7 +411,12 @@ export async function handleLeadButton(i: LeadInteraction, token: string | undef
     const aktuell = besitzerId(embed);
     const wort = statusWort(embed);
     if (!aktuell) return update(mitBesitzer(embed, user.id), leadComponents("accepted", wort, user.id));
-    if (aktuell === user.id || user.id === OWNER_ID) return update(mitBesitzer(embed, null), leadComponents("accepted", wort, null));
+    if (aktuell === user.id || user.id === OWNER_ID) {
+      // Etappe 3: Freigeben schließt den Recherche-Thread; wer den Lead neu übernimmt, bekommt eine neue Mappe.
+      const thread = rechercheThread(embed);
+      if (thread) after(() => schliesseRecherche(token, thread));
+      return update(ohneRecherche(mitBesitzer(embed, null)), leadComponents("accepted", wort, null));
+    }
     return ephemeral(`Diesen Lead hat schon <@${aktuell}> übernommen. Freigeben kann nur sie/er (oder David).`);
   }
 
@@ -474,11 +481,14 @@ export async function handleLeadButton(i: LeadInteraction, token: string | undef
       }
     }
     const wort = st === "open" ? "Offen" : st === "work" ? "In Arbeit" : "Kontaktiert";
+    // Etappe 3: „In Arbeit“ öffnet den privaten Recherche-Thread (die Mappe baut der Team-Takt)
+    if (st === "work" && statusWort(embed) !== "In Arbeit") after(() => starteRecherche(token, channelId, messageId, besitzer ?? user.id));
     return update(mitStatus(embed, wort, zeit), leadComponents("accepted", wort, besitzerId(embed)));
   }
 
   if (st === "nointerest") {
     after(async () => {
+      await schliesseRecherche(token, rechercheThread(embed));
       const ablage = await ablageKanal(token);
       if (!ablage) return;
       const id = await postKarte(token, ablage, archiviert(embed, zeit), []);
@@ -523,6 +533,12 @@ export async function handleLeadButton(i: LeadInteraction, token: string | undef
       }
       const neu = mitNotion(mitStatus(embed, "Lead aktiv", zeit, "active"), res.nr, res.seite);
       await aendereKarte(token, channelId, messageId, neu, leadComponents("active"));
+      // Etappe 3: Mappe auf die Notion-Seite, Thread zu
+      const thread = rechercheThread(embed);
+      if (thread) {
+        await rechercheNachNotion(token, thread, res.seite);
+        await schliesseRecherche(token, thread);
+      }
     });
     return NextResponse.json(DEFERRED_UPDATE);
   }
