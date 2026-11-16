@@ -7,17 +7,16 @@
 // Regeln: lib/mail-antwort.ts (mailKnopfFaellig), lib/team-takt-regeln.ts.
 import { listMessages, messageLink } from "@/lib/discord";
 import type { EmbedLike } from "@/lib/discord-calls";
-import { aendereKarte, call, posteingangKanal } from "@/lib/leads";
+import { aendereKarte, call } from "@/lib/leads";
 import { freigabeKnoepfe, KEIN_EMAIL, leseFreigabe, MAIL_HINWEIS, mailKnopf, mailKnopfFaellig, mitErinnert, ticketBesitzer } from "@/lib/mail-antwort";
 import { pusheDavid } from "@/lib/ntfy";
-import { erinnerungFaellig, zeitAusId } from "@/lib/team-takt-regeln";
+import { erinnerungFaellig, kanalId, zeitAusId, type GildenKanal } from "@/lib/team-takt-regeln";
 import { rechercheTakt } from "@/lib/recherche-handlers";
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 const feld = (e: EmbedLike, name: string) => e.fields?.find((f) => f.name === name)?.value ?? "";
 
-async function mailKnoepfe(token: string, jetzt: number): Promise<number> {
-  const kanaele = (await call<{ id: string; name: string; type: number }[]>(token, "GET", `/guilds/${GUILD_ID}/channels`)) ?? [];
+async function mailKnoepfe(token: string, jetzt: number, kanaele: GildenKanal[]): Promise<number> {
   let gesetzt = 0;
   for (const k of kanaele.filter((c) => c.type === 0 && /^ticket-\d+$/.test(c.name))) {
     const nachrichten = await listMessages(token, k.id, 100);
@@ -46,8 +45,7 @@ async function mailKnoepfe(token: string, jetzt: number): Promise<number> {
   return gesetzt;
 }
 
-async function freigabeErinnerungen(token: string, jetzt: number): Promise<number> {
-  const kanal = await posteingangKanal(token);
+async function freigabeErinnerungen(token: string, jetzt: number, kanal: string | null): Promise<number> {
   if (!kanal) return 0;
   let erinnert = 0;
   for (const m of await listMessages(token, kanal, 100)) {
@@ -65,11 +63,14 @@ async function freigabeErinnerungen(token: string, jetzt: number): Promise<numbe
 export async function teamTakt(token: string, jetzt = new Date()): Promise<Record<string, number | string>> {
   const t = jetzt.getTime();
   const bericht: Record<string, number | string> = {};
+  // Die Kanalliste nur EINMAL je Lauf holen: Discord erlaubt davon nur wenige kurz hintereinander (16.11.: 429).
+  const kanaele = (await call<GildenKanal[]>(token, "GET", `/guilds/${GUILD_ID}/channels`)) ?? [];
+  if (kanaele.length === 0) return { kanalliste: "fehlt (Discord bremst), nächste Minute wieder" };
   const schritte: [string, () => Promise<number | Record<string, number>>][] = [
-    ["mailKnoepfe", () => mailKnoepfe(token, t)],
-    ["freigabeErinnerungen", () => freigabeErinnerungen(token, t)],
+    ["mailKnoepfe", () => mailKnoepfe(token, t, kanaele)],
+    ["freigabeErinnerungen", () => freigabeErinnerungen(token, t, kanalId(kanaele, "posteingang"))],
     // Etappe 3: Recherche-Mappen bauen, Fragen im Thread beantworten, nach 2 Tagen nachhaken (zuletzt, dauert am längsten)
-    ["recherche", () => rechercheTakt(token, t)],
+    ["recherche", () => rechercheTakt(token, t, kanalId(kanaele, "leads"))],
   ];
   for (const [name, schritt] of schritte) {
     try {

@@ -167,8 +167,7 @@ const feldOhne = (e: EmbedLike, name: string) => {
 };
 
 /** Ein Takt: höchstens eine neue Mappe, Antworten auf offene Fragen, einmal nachhaken nach 2 Tagen. */
-export async function rechercheTakt(token: string, jetzt: number): Promise<{ mappen: number; antworten: number; nachgehakt: number }> {
-  const leads = await kartenKanal(token);
+export async function rechercheTakt(token: string, jetzt: number, leads: string | null): Promise<{ mappen: number; antworten: number; nachgehakt: number }> {
   if (!leads) return { mappen: 0, antworten: 0, nachgehakt: 0 };
   const [threads, karten, botId] = await Promise.all([aktiveThreads(token, leads), rechercheKarten(token, leads), eigeneId(token)]);
   let mappen = 0;

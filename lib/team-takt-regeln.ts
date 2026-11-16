@@ -11,3 +11,9 @@ export function zeitAusId(id: string): number {
   if (!/^\d{15,20}$/.test(id)) return 0;
   return Number((BigInt(id) >> BigInt(22)) + BigInt(1420070400000));
 }
+
+export type GildenKanal = { id: string; name: string; type: number; parent_id?: string | null };
+
+/** Textkanal mit genau diesem Namen aus der einmal je Takt geholten Kanalliste (Discord bremst sonst mit 429). */
+export const kanalId = (liste: GildenKanal[], name: string): string | null =>
+  liste.find((c) => c.type === 0 && c.name === name)?.id ?? null;

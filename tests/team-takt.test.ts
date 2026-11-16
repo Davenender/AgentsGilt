@@ -1,7 +1,7 @@
 // Takt fürs Team (cron-job.org, jede Minute): wann etwas fällig ist (Etappe 2, 16.11.2026).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { erinnerungFaellig, zeitAusId } from "../lib/team-takt-regeln.ts";
+import { erinnerungFaellig, kanalId, zeitAusId } from "../lib/team-takt-regeln.ts";
 
 const H = 60 * 60 * 1000;
 
@@ -17,4 +17,18 @@ test("Zeitpunkt aus der Discord-Kennung", () => {
   const t = zeitAusId("1564724866966360156");
   assert.equal(new Date(t).toISOString(), "2026-10-27T19:37:59.467Z");
   assert.equal(zeitAusId("kein"), 0);
+});
+
+// 16.11.: Der Takt holte die Kanalliste bis zu sechsmal je Lauf → Discord 429. Jetzt einmal je Lauf.
+test("Kanal aus der einmal geholten Liste", () => {
+  const liste = [
+    { id: "1", name: "leads", type: 0 },
+    { id: "2", name: "LEADS", type: 4 },
+    { id: "3", name: "posteingang", type: 0 },
+    { id: "4", name: "🟡knd_003", type: 0 },
+  ];
+  assert.equal(kanalId(liste, "leads"), "1");
+  assert.equal(kanalId(liste, "posteingang"), "3");
+  assert.equal(kanalId(liste, "fehlt"), null);
+  assert.equal(kanalId([], "leads"), null);
 });
