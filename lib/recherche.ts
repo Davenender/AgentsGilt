@@ -3,7 +3,7 @@
 // Aufbau und Prüfung: lib/recherche-mappe.ts. Antworten auf Fragen im Thread: beantworteFrage().
 import Anthropic from "@anthropic-ai/sdk";
 import { LEISTUNGEN, seitenText } from "@/lib/lead-analyse";
-import { antwortAlsNachricht, antwortMitQuellen, FRAGE_PROMPT, MAPPE_PROMPT, pruefeMappe, type Mappe } from "@/lib/recherche-mappe";
+import { antwortAlsNachricht, antwortMitQuellen, FRAGE_PROMPT, leseWebsiteAntwort, MAPPE_PROMPT, pruefeMappe, WEBSITE_PROMPT, websiteZustand, type Mappe } from "@/lib/recherche-mappe";
 import { zaehleBewertung } from "@/lib/recherche-speicher";
 
 const PLACES = "https://places.googleapis.com/v1";
@@ -76,18 +76,78 @@ async function frageClaude(system: string, inhalt: string, maxTokens: number): P
   }
 }
 
+const hostOhneWww = (url: string) => {
+  try {
+    return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+/** Aktuelle offizielle Website über die Websuche (höchstens 2 Suchen, je 1 Cent). null, wenn nichts Eigenes gefunden. */
+async function findeAktuelleWebsite(firma: string, adresse: string | null): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await new Anthropic({ apiKey, timeout: 30_000, maxRetries: 1 }).messages.create({
+      model: "claude-haiku-5-5",
+      max_tokens: 400,
+      thinking: { type: "disabled" },
+      output_config: { effort: "low" },
+      system: WEBSITE_PROMPT,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2, user_location: { type: "approximate", country: "DE", timezone: "Europe/Berlin" } }],
+      messages: [{ role: "user", content: `Firma: ${firma}${adresse ? `, ${adresse}` : ""}` }],
+    });
+    const text = res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+    return leseWebsiteAntwort(text);
+  } catch (err) {
+    console.error("[recherche] Website suchen fehlgeschlagen:", err);
+    return null;
+  }
+}
+
 /** Erstellt die Mappe. null, wenn die KI nichts Brauchbares liefert. */
 export async function erstelleMappe(
   token: string,
   lead: { firma: string; website: string | null; adresse: string | null; analyse: string; branche: string | null },
 ): Promise<Mappe | null> {
-  const [seite, google] = await Promise.all([
+  const [ersteSeite, google] = await Promise.all([
     lead.website ? seitenText(lead.website) : Promise.resolve(null),
     holeGoogleInfos(token, [lead.firma, lead.adresse].filter(Boolean).join(" ")),
   ]);
+  // 16.11.: Die Karte kann eine alte Adresse haben (Fantasia 1: ristorante-fantasia1.de geparkt, echt ist fantasia1.de).
+  // Ist die Seite nicht zu gebrauchen, erst nach der aktuellen Website suchen, bevor die Mappe „offline“ sagt.
+  let seite = ersteSeite;
+  let websiteHinweis = "";
+  const zustand = websiteZustand(ersteSeite?.text ?? null);
+  if (zustand === "wenig" && ersteSeite) {
+    websiteHinweis = `Hinweis: Die Website ${ersteSeite.url} ist erreichbar, lädt ihren Inhalt aber per Skript, darum gibt es kaum lesbaren Text. Schreib nicht, dass sie offline oder kaputt ist.`;
+  } else if (zustand === "fehlt" || zustand === "geparkt") {
+    const neu = await findeAktuelleWebsite(lead.firma, lead.adresse);
+    if (neu && (!lead.website || hostOhneWww(neu) !== hostOhneWww(lead.website))) {
+      const zweite = await seitenText(neu);
+      const z2 = websiteZustand(zweite?.text ?? null);
+      const karte = `Die Website auf unserer Karte (${lead.website ?? "keine"}) ist nicht erreichbar oder fehlt.`;
+      if (zweite && z2 === "ok") {
+        seite = zweite;
+        websiteHinweis = `Hinweis: ${karte} Die aktuelle Website laut Websuche ist ${zweite.url}. Beurteile diese und erwähne beides kurz unter „website“.`;
+      } else if (zweite && z2 === "wenig") {
+        seite = null;
+        websiteHinweis = `Hinweis: ${karte} Die aktuelle Website laut Websuche ist ${neu}: Sie ist erreichbar, lädt ihren Inhalt aber per Skript (kaum lesbarer Text). Schreib nicht, dass die Firma keine oder eine kaputte Website hat, und erwähne beides kurz unter „website“.`;
+      }
+    }
+  }
   const inhalt = [
+    ...(websiteHinweis ? [websiteHinweis] : []),
     `<analyse>\nFirma: ${lead.firma}\nBranche: ${lead.branche ?? "unbekannt"}\nAdresse: ${lead.adresse ?? "unbekannt"}\n${lead.analyse}\n</analyse>`,
-    seite ? `<website url="${seite.url}">\n${seite.text}\n</website>` : "<website>keine Website oder nicht lesbar</website>",
+    seite
+      ? `<website url="${seite.url}">\n${seite.text}\n</website>`
+      : websiteHinweis
+        ? "<website>siehe Hinweis</website>"
+        : "<website>keine Website oder nicht lesbar</website>",
     google
       ? `<google>\nSterne: ${google.sterne ?? "?"} bei ${google.anzahl ?? "?"} Bewertungen\nÖffnungszeiten:\n${google.oeffnungszeiten.join("\n") || "unbekannt"}\nBewertungen:\n${google.rezensionen.join("\n") || "keine Texte"}\n</google>`
       : "<google>keine Daten</google>",

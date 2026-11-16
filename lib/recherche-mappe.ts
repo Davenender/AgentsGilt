@@ -24,6 +24,7 @@ Regeln:
 - Nenne keine Preise, Beträge oder Rabatte.
 - Kurz und konkret, für jemanden, der gleich anruft. Die Einstiegssätze in der Sie-Form (Firmenkunde am Telefon).
 - Unser Name ist Agents Gilt (immer der volle Name).
+- In den Einstiegssätzen keine Fachbegriffe (Skript, Code, Hosting, Domain) und keine Vermutungen über Technik: so sprechen, wie ein Inhaber am Telefon spricht.
 
 Antworte ausschließlich mit einem JSON-Objekt:
 {"profil": "2 bis 3 Sätze: was die Firma macht, Inhaber oder Ansprechpartner, wenn bekannt",
@@ -166,4 +167,41 @@ export function antwortMitQuellen(inhalt: Block[]): { text: string; quellen: str
 export function antwortAlsNachricht(a: { text: string; quellen: string[] }): string {
   const fuss = a.quellen.length ? `\n\n${a.quellen.map((u) => `Quelle: <${u}>`).join("\n")}` : "";
   return `${clip(a.text, 1900 - fuss.length)}${fuss}`;
+}
+
+// ------------------------------------------------------------------ Aktuelle Website suchen (16.11., Davids Ja)
+
+const KAPUTT = /domain not available|domain ist nicht verfügbar|diese domain|domain (is )?(parked|for sale)|this domain|seite nicht gefunden|404 not found|nicht (mehr )?erreichbar|coming soon|under construction|im aufbau|baustelle/i;
+
+/**
+ * Zustand der gelesenen Website: „fehlt“ (nicht erreichbar), „geparkt“ (Fehler- oder Parkseite),
+ * „wenig“ (erreichbar, aber kaum Text, z. B. lädt sie per Skript – darf nie als offline gelten), „ok“.
+ */
+export function websiteZustand(text: string | null): "fehlt" | "geparkt" | "wenig" | "ok" {
+  if (!text) return "fehlt";
+  const inhalt = text.replace(/^###.*$/gm, "").trim();
+  if (KAPUTT.test(inhalt.slice(0, 1500))) return "geparkt";
+  return inhalt.length < 200 ? "wenig" : "ok";
+}
+
+export const WEBSITE_PROMPT = `Finde mit der Websuche die aktuelle offizielle Website dieser Firma (ihre eigene Seite, kein Portal wie Lieferando, Wolt, Google, Facebook, Instagram, Tripadvisor oder Branchenbücher).
+Antworte ausschließlich mit JSON: {"url": "https://… oder null", "quelle": "wo du sie gefunden hast"}`;
+
+const PORTAL = /(^|\.)(lieferando|wolt|ubereats|uber|facebook|instagram|google|goo|tripadvisor|yelp|gelbeseiten|dasoertliche|dastelefonbuch|northdata|speisekarte|opentable|thefork|tiktok|youtube|linkedin|xing|pizza)\.[a-z.]+$/i;
+
+/** URL aus der Antwort der Websuche; null, wenn keine oder nur ein Portal gefunden wurde. */
+export function leseWebsiteAntwort(text: string): string | null {
+  const a = text.indexOf("{");
+  const b = text.lastIndexOf("}");
+  if (a === -1 || b <= a) return null;
+  try {
+    const roh = (JSON.parse(text.slice(a, b + 1)) as { url?: unknown }).url;
+    if (typeof roh !== "string" || !roh.trim()) return null;
+    const u = new URL(/^https?:\/\//i.test(roh.trim()) ? roh.trim() : `https://${roh.trim()}`);
+    if (!/^https?:$/.test(u.protocol) || !u.hostname.includes(".") || PORTAL.test(u.hostname)) return null;
+    // Nur die Startseite: Unterseiten aus Suchergebnissen sind oft veraltet (16.11.: /home/ gab 404).
+    return `${u.origin}/`;
+  } catch {
+    return null;
+  }
 }

@@ -1,7 +1,7 @@
 // Recherche-Mappe (Etappe 3, 16.11.2026): Prüfung der KI-Antwort und Aufbereitung für Discord und Notion.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { FRAGE_PROMPT, MAPPE_PROMPT, antwortAlsNachricht, antwortMitQuellen, embedsAlsText, istMappe, mappeAlsText, mappeEmbeds, pruefeMappe } from "../lib/recherche-mappe.ts";
+import { FRAGE_PROMPT, MAPPE_PROMPT, WEBSITE_PROMPT, antwortAlsNachricht, antwortMitQuellen, embedsAlsText, istMappe, leseWebsiteAntwort, mappeAlsText, mappeEmbeds, pruefeMappe, websiteZustand } from "../lib/recherche-mappe.ts";
 
 const roh = {
   profil: "Friseursalon in Mühlheim, Inhaberin Anna Weber.",
@@ -73,6 +73,7 @@ test("Einwände ohne Satzzeichen am Ende, Prompt nennt den vollen Namen", () => 
   assert.equal(m.einwaende[0].einwand, "Wir haben schon eine Website");
   assert.equal(m.einwaende[1].einwand, "Keine Zeit");
   assert.match(MAPPE_PROMPT, /Agents Gilt \(immer der volle Name\)/);
+  assert.match(MAPPE_PROMPT, /keine Fachbegriffe/);
 });
 
 // 16.11.: Fragen im Thread werden wirklich recherchiert (Websuche), mit Quellen.
@@ -125,4 +126,24 @@ test("Erzählsätze am Anfang fallen weg", () => {
   assert.equal(b.text, "Er heißt Daglik.");
   const c = antwortMitQuellen([{ type: "text", text: "Die beste Zeit ist 14 Uhr. Ich schaue morgen nochmal nach." }]);
   assert.equal(c.text, "Die beste Zeit ist 14 Uhr. Ich schaue morgen nochmal nach.");
+});
+
+// 16.11.: Die Lead-Karte hatte eine alte Domain (STRATO „Domain not available“), die echte Website war fantasia1.de.
+test("Zustand der Website erkennen", () => {
+  assert.equal(websiteZustand(null), "fehlt");
+  assert.equal(websiteZustand("### http://www.ristorante-fantasia1.de/\nDomain not available. This domain is registered at STRATO."), "geparkt");
+  // fantasia1.de lädt seinen Inhalt per Skript: erreichbar, aber kaum Text. Darf nie als „offline“ gelten.
+  assert.equal(websiteZustand("### https://fantasia1.de/\nkurz"), "wenig");
+  const echt = "### https://fantasia1.de/\n" + "Willkommen im Ristorante Pizzeria Fantasia1 in Offenbach. Pizza, Pasta und mehr. ".repeat(6);
+  assert.equal(websiteZustand(echt), "ok");
+});
+
+test("aktuelle Website aus der Suche lesen, Portale zählen nicht", () => {
+  assert.equal(leseWebsiteAntwort('{"url": "fantasia1.de", "quelle": "Google"}'), "https://fantasia1.de/");
+  assert.equal(leseWebsiteAntwort('Gefunden: {"url": "https://www.fantasia1.de/home/"}'), "https://www.fantasia1.de/");
+  assert.equal(leseWebsiteAntwort('{"url": "https://www.lieferando.de/speisekarte/fantasia-1"}'), null);
+  assert.equal(leseWebsiteAntwort('{"url": "https://www.facebook.com/fantasia1"}'), null);
+  assert.equal(leseWebsiteAntwort('{"url": null}'), null);
+  assert.equal(leseWebsiteAntwort("keine Ahnung"), null);
+  assert.match(WEBSITE_PROMPT, /offizielle Website/);
 });
