@@ -489,3 +489,14 @@ test("Neu laden landet oben: Ein Abschnitt in der Adresse wird nur bei einem neu
   assert.match(code, /if \(window\.scrollY > 0\) window\.scrollTo\(\{ top: 0, behavior: "instant" \}\);/);
 });
 
+
+test("Neu laden landet oben, auch bei „weniger Bewegung“ (Davids Wunsch 16.11.)", () => {
+  const code = lies("components/neu/kopf/LichtName.tsx");
+  const still = code.slice(code.indexOf("if (still) {"), code.indexOf("} else {", code.indexOf("if (still) {")));
+  assert.ok(still.length > 0, "Zweig für „weniger Bewegung“ gefunden");
+  assert.ok(!/scrollRestoration = "auto"/.test(still), "der Browser stellt die alte Lage nicht mehr her");
+  assert.match(still, /window\.history\.scrollRestoration = "manual";/);
+  assert.match(still, /if \(!zielAnsteuern\(navigationsArt, rueckkehr > 0\)\) \{/);
+  assert.match(still, /window\.history\.replaceState\(window\.history\.state, "", window\.location\.pathname \+ window\.location\.search\);/);
+  assert.match(still, /if \(window\.scrollY > 0\) window\.scrollTo\(\{ top: 0, behavior: "instant" \}\);/);
+});

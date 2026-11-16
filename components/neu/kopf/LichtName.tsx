@@ -155,7 +155,7 @@ export function LichtName() {
     const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches || istVorschau();
     let uhr = 0;
     // Beim Verlassen wird die Seite verdeckt: Kommt sie aus dem Zwischenspeicher zurück, blitzt
-    // nicht erst der alte Stand auf. (Bei „weniger Bewegung“ kommt sie einfach so wieder.)
+    // nicht erst der alte Stand auf. (Bei „weniger Bewegung“ kommt sie einfach so wieder, landet nach Neuladen aber ebenfalls oben.)
     const weg = (ev: PageTransitionEvent) => {
       if (ev.persisted && !still()) wurzel.classList.add(ZURUECK_KLASSE);
     };
@@ -955,11 +955,22 @@ export function LichtName() {
 
     if (still) {
       // „Weniger Bewegung“: Es steht das ruhige Bild, der Name blendet ein, alles ist sofort da.
-      // Der Browser darf hier wie gewohnt die frühere Lage wiederherstellen.
+      // Auch hier beginnt die Seite nach Neuladen oder Zurück/Vor oben (Davids Wunsch 16.11.), und der
+      // Abschnitt kommt aus der Adresse. Ein neuer Aufruf mit Abschnitt (Link von außen) springt sofort dorthin.
       try {
-        window.history.scrollRestoration = "auto";
+        window.history.scrollRestoration = "manual";
       } catch {
         /* dann eben ohne */
+      }
+      if (!zielAnsteuern(navigationsArt, rueckkehr > 0)) {
+        if (window.location.hash) {
+          try {
+            window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+          } catch {
+            /* dann bleibt der Abschnitt eben in der Adresse */
+          }
+        }
+        if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: "instant" });
       }
       held.dataset.licht = "bild";
       lichtAn = true;
