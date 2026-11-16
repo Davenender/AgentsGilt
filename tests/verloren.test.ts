@@ -12,6 +12,10 @@ import {
   verlorenBeschreibung,
   ohneVerlorenBeschreibung,
   kopfAus,
+  kndKurz,
+  kndName,
+  passtZuKnd,
+  stripePasstZuKnd,
   loeschFrage,
   mitGeloescht,
   type Fund,
@@ -164,4 +168,17 @@ test("B2: nach dem Löschen Karte anpassen (Feld, Merker, Knöpfe)", () => {
   const beide = mitGeloescht(nach!.embed, "github");
   assert.deepEqual(ids(beide!.components), ["vl:zurueck"]);
   assert.equal(mitGeloescht({ title: "x" }, "vercel"), null);
+});
+
+test("B4: Namen nach Kundennummer", () => {
+  assert.equal(kndKurz("KND-003"), "knd-003");
+  assert.equal(kndName("KND-003", "Relax Fit"), "KND-003 · Relax Fit");
+  assert.equal(passtZuKnd("knd-003-relaxfit", "KND-003"), true);
+  assert.equal(passtZuKnd("knd-003", "KND-003"), true);
+  assert.equal(passtZuKnd("knd-0031-x", "KND-003"), false, "KND-0031 ist ein anderer Kunde");
+  assert.equal(passtZuKnd("relaxfit-demo", "KND-003"), false);
+  assert.equal(stripePasstZuKnd({ knd: "KND-003" }, "KND-003"), true);
+  assert.equal(stripePasstZuKnd({ kunde: "3" }, "KND-003"), true, "alte Metadaten (Relax Fit: kunde=3)");
+  assert.equal(stripePasstZuKnd({ kunde: "30" }, "KND-003"), false);
+  assert.equal(stripePasstZuKnd(undefined, "KND-003"), false);
 });

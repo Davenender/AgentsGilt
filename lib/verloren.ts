@@ -3,7 +3,7 @@
 // (eingeschränkt), geprüft mit POST /api/schluessel. Gelöscht wird hier nichts.
 import { notion } from "@/lib/finanzen";
 import { seitenId } from "@/lib/notion-api";
-import { githubAus, ohneVerlorenBeschreibung, schritte, stripeLinkAus, vercelNameAus, verlorenBeschreibung, type Fund, type Loeschbar, type Merker, type Teil } from "@/lib/verloren-regeln";
+import { githubAus, kndKurz, ohneVerlorenBeschreibung, passtZuKnd, schritte, stripeLinkAus, stripePasstZuKnd, vercelNameAus, verlorenBeschreibung, type Fund, type Loeschbar, type Merker, type Teil } from "@/lib/verloren-regeln";
 import { betragText } from "@/lib/finanzen-regeln";
 
 const TEAM = process.env.VERCEL_TEAM_ID || "team_aGDX333dwIk6UgZq6ACgeHaU";
@@ -91,6 +91,24 @@ export async function sucheAlles(k: VerlorenKunde, ohne: readonly Loeschbar[] = 
     else hinweise.push(`GitHub-Repo „${gh}“ nicht gefunden (HTTP ${r.status}).`);
   }
 
+  // B4: Steht in Notion nichts, über die Kundennummer suchen („knd-003-…“).
+  if (!k.vercel && !vFund && !ohne.includes("vercel")) {
+    const r = await vercel<{ projects?: { id: string; name: string; paused?: boolean }[] }>(`/v9/projects?search=${encodeURIComponent(kndKurz(k.nr))}&limit=20`);
+    const p = r.json?.projects?.find((x) => passtZuKnd(x.name, k.nr));
+    if (p) {
+      vFund = { id: p.id, name: p.name, pausiert: p.paused === true };
+      hinweise.push(`Vercel-Projekt „${p.name}“ über die Kundennummer gefunden (in Notion nicht eingetragen).`);
+    }
+  }
+  if (!k.github && !gFund && !ohne.includes("github")) {
+    const r = await github<{ name: string; full_name: string; archived: boolean }[]>("/user/repos?per_page=100&affiliation=owner");
+    const g = Array.isArray(r.json) ? r.json.find((x) => passtZuKnd(x.name, k.nr)) : undefined;
+    if (g) {
+      gFund = { voll: g.full_name, archiviert: g.archived };
+      hinweise.push(`GitHub-Repo „${g.full_name}“ über die Kundennummer gefunden (in Notion nicht eingetragen).`);
+    }
+  }
+
   const sl = stripeLinkAus(k.zahlungslink);
   if (k.zahlungslink && !sl) hinweise.push(`Zahlungslink „${k.zahlungslink}“ ist kein Stripe-Link.`);
   let lFund: Fund["link"] = null;
@@ -106,6 +124,21 @@ export async function sucheAlles(k: VerlorenKunde, ohne: readonly Loeschbar[] = 
       if (c) pFund = { id: c.id, code: c.code, aktiv: c.active };
       else hinweise.push(`Rabattcode ${sl.promo} nicht gefunden.`);
     }
+  }
+
+  // B4: ohne Notion-Link über die Stripe-Metadaten (knd=KND-003, alt kunde=3)
+  if (!sl) {
+    const r = await stripe<{ data?: { id: string; url: string; active: boolean; metadata?: Record<string, string> }[] }>("/payment_links?limit=100");
+    const l = r.json?.data?.find((x) => x.active && stripePasstZuKnd(x.metadata, k.nr)) ?? r.json?.data?.find((x) => stripePasstZuKnd(x.metadata, k.nr));
+    if (l) {
+      lFund = { id: l.id, url: l.url, aktiv: l.active };
+      hinweise.push("Stripe-Zahlungslink über die Kundennummer gefunden (in Notion nicht eingetragen).");
+    }
+  }
+  if (!pFund) {
+    const r = await stripe<{ data?: { id: string; code: string; active: boolean; metadata?: Record<string, string> }[] }>("/promotion_codes?limit=100");
+    const c = r.json?.data?.find((x) => stripePasstZuKnd(x.metadata, k.nr));
+    if (c) pFund = { id: c.id, code: c.code, aktiv: c.active };
   }
 
   // Läuft noch eine Zahlung? Über die E-Mail des Kunden in Stripe. Lässt es sich nicht prüfen, gilt es als „läuft“.

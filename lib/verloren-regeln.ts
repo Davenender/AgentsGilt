@@ -202,3 +202,28 @@ export function mitGeloescht(e: EmbedLike, t: Loeschbar): { embed: EmbedLike; co
   });
   return { embed: { ...e, fields, footer: { text: merkerText(neu) } }, components: knoepfe(m.zustand, loeschbar) };
 }
+
+// ---- B4 (16.11.2026): Namen nach Kundennummer. Repo und Vercel-Projekt heißen „knd-003-<kurz>“, Stripe-Produkt und
+// DocuSign-Betreff „KND-003 · Name · …“, Stripe-Metadaten knd=KND-003. Steht in Notion nichts, findet der
+// Verloren-Automat sie darüber.
+
+/** „KND-003“ → „knd-003“ (Anfang von Repo- und Vercel-Namen). */
+export const kndKurz = (nr: string) => nr.trim().toLowerCase();
+
+/** „KND-003 · Relax Fit“ (Anfang von Stripe-Produkt und DocuSign-Betreff). */
+export const kndName = (nr: string, name: string) => `${nr.trim().toUpperCase()} · ${name.trim()}`;
+
+/** Gehört ein Repo- oder Vercel-Name zu dieser Kundennummer? („knd-003“ oder „knd-003-…“, nicht „knd-0031“) */
+export function passtZuKnd(name: string, nr: string): boolean {
+  const k = kndKurz(nr);
+  const n = name.trim().toLowerCase();
+  return n === k || n.startsWith(`${k}-`);
+}
+
+/** Stripe-Metadaten: neu knd=KND-003, alt kunde=3 (so steht es noch bei Relax Fit). */
+export function stripePasstZuKnd(meta: Record<string, string> | null | undefined, nr: string): boolean {
+  if (!meta) return false;
+  if (meta.knd?.trim().toUpperCase() === nr.trim().toUpperCase()) return true;
+  const zahl = Number(nr.replace(/\D/g, ""));
+  return Boolean(meta.kunde) && Number(meta.kunde) === zahl;
+}
