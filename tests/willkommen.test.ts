@@ -177,3 +177,18 @@ test("Lead-Anleitungen erklären Reihenfolge, eine Firma und den Recherche-Threa
   assert.match(befehle, /🔎 Recherche/);
   assert.deepEqual(pruefeLaengen(ANLEITUNGEN), []);
 });
+
+// Etappe 4 (16.11.2026): Knöpfe auf der Kundenkarte und der Ablauf eines Kundengesprächs.
+test("Kundenkarte: neue Knöpfe und Gesprächsablauf erklärt", () => {
+  const karte = ANLEITUNGEN.find((x) => x.titel === "📖 Anleitung: Kundenkanal und Kundenkarte");
+  const t = karte?.text ?? "";
+  for (const k of ["📌 Nächster Schritt", "✏️ Kontakt", "📧 E-Mail", "✅ Checkliste", "⭐ Zufriedenheit"]) assert.match(t, new RegExp(k), k);
+  const gespraech = ANLEITUNGEN.find((x) => x.titel === "📖 Anleitung: So läuft ein Kundengespräch");
+  assert.ok(gespraech, "Anleitung zum Gespräch fehlt");
+  assert.match(gespraech.text ?? "", /📝 Gesprächsbogen/);
+  assert.match(gespraech.text ?? "", /🧠 Gespräch auswerten/);
+  assert.match(gespraech.text ?? "", /Notizen/);
+  const i = ANLEITUNGEN.findIndex((x) => x.titel === "📖 Anleitung: Kundenkanal und Kundenkarte");
+  assert.equal(ANLEITUNGEN[i + 1]?.titel, "📖 Anleitung: So läuft ein Kundengespräch");
+  assert.deepEqual(pruefeLaengen(ANLEITUNGEN), []);
+});
