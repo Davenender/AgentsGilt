@@ -149,7 +149,7 @@ export const ANLEITUNGEN: Anleitung[] = [
       },
       {
         name: "💶 #zahlungen",
-        value: "Zahlungen über Stripe erscheinen inzwischen automatisch im **Kundenkanal** des Kunden und setzen den Zahlungsstatus in Notion (Anleitung „Mails und Zahlungen“ unten).",
+        value: "Zahlungen über Stripe erscheinen inzwischen automatisch im **Kundenkanal** des Kunden und setzen Zahlungsstatus und Status in Notion (Anleitung „Mails und Zahlungen“ unten).",
       },
       {
         name: "🗒️ #notion",
@@ -330,6 +330,7 @@ export const ANLEITUNGEN: Anleitung[] = [
       "**Zahlungen über Stripe:** Bezahlt ein Kunde über einen Zahlungslink, läuft alles von selbst:",
       "• In seinem **Kundenkanal** erscheint eine Zahlungskarte (bezahlt, fehlgeschlagen oder Abo beendet), mit einem Ping ans Team (nur die normale monatliche Abbuchung kommt ohne Ping).",
       "• In Notion wird der **Zahlungsstatus** gesetzt, und er steht auf der Kundenkarte.",
+      "• Der **Status** wird von selbst 🟢: bei einer Einmalzahlung „Kunde“ (dazu der Haken „Anzahlung erhalten“), beim Monatsabo „Retainer läuft“. Kommt eine Anzahlung per Überweisung, hakt ihr in der ✅ Checkliste „Anzahlung“ ab.",
       "• David bekommt zusätzlich eine Mail.",
       "",
       "Preise, Verträge und Rechnungen gehen nie ohne Davids OK an einen Kunden.",
