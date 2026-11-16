@@ -3,7 +3,7 @@
 // Aufbau und Prüfung: lib/recherche-mappe.ts. Antworten auf Fragen im Thread: beantworteFrage().
 import Anthropic from "@anthropic-ai/sdk";
 import { LEISTUNGEN, seitenText } from "@/lib/lead-analyse";
-import { MAPPE_PROMPT, pruefeMappe, type Mappe } from "@/lib/recherche-mappe";
+import { antwortAlsNachricht, antwortMitQuellen, FRAGE_PROMPT, MAPPE_PROMPT, pruefeMappe, type Mappe } from "@/lib/recherche-mappe";
 import { zaehleBewertung } from "@/lib/recherche-speicher";
 
 const PLACES = "https://places.googleapis.com/v1";
@@ -103,12 +103,46 @@ export async function erstelleMappe(
   }
 }
 
-const FRAGE_PROMPT = `Du hilfst einem Mitarbeiter der KI-Agentur Agents Gilt, sich auf einen Anruf bei einer Firma vorzubereiten.
-Antworte kurz (höchstens 6 Sätze), auf Deutsch, in der Du-Form, nur auf Grundlage der Recherche-Mappe und des bisherigen Threads.
-Steht etwas nicht darin, sag das ehrlich und schlag vor, wo man nachsehen kann (Website, Google-Eintrag, Impressum). Nenne keine Preise.`;
-
-/** Antwort auf eine Frage im Recherche-Thread. */
-export async function beantworteFrage(mappe: string, verlauf: string, frage: string): Promise<string | null> {
-  const out = await frageClaude(FRAGE_PROMPT, `<mappe>\n${mappe.slice(0, 8000)}\n</mappe>\n<thread>\n${verlauf.slice(-4000)}\n</thread>\n<frage>\n${frage.slice(0, 1500)}\n</frage>`, 700);
-  return out ? out.slice(0, 1800) : null;
+/**
+ * Antwort auf eine Frage im Recherche-Thread (16.11., Davids Wunsch): Erst Mappe und Thread, sonst echte Websuche
+ * (höchstens 3 Suchen, je 1 Cent), immer mit Quelle. Haiku 5.5 hält die Textkosten unter 1 Cent.
+ */
+export async function beantworteFrage(
+  mappe: string,
+  verlauf: string,
+  frage: string,
+  firma: { name: string; adresse: string | null },
+): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  const client = new Anthropic({ apiKey, timeout: 50_000, maxRetries: 1 });
+  const messages: Anthropic.MessageParam[] = [
+    {
+      role: "user",
+      content: `<firma>${firma.name}${firma.adresse ? `, ${firma.adresse}` : ""}</firma>\n<mappe>\n${mappe.slice(0, 8000)}\n</mappe>\n<thread>\n${verlauf.slice(-4000)}\n</thread>\n<frage>\n${frage.slice(0, 1500)}\n</frage>`,
+    },
+  ];
+  const inhalt: Anthropic.ContentBlock[] = [];
+  try {
+    // Lange Suchen kann der Server unterbrechen (pause_turn): dann mit demselben Verlauf weitermachen.
+    for (let runde = 0; runde < 3; runde++) {
+      const res = await client.messages.create({
+        model: "claude-haiku-5-5",
+        max_tokens: 1200,
+        thinking: { type: "disabled" },
+        output_config: { effort: "low" },
+        system: FRAGE_PROMPT,
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3, user_location: { type: "approximate", country: "DE", timezone: "Europe/Berlin" } }],
+        messages,
+      });
+      inhalt.push(...res.content);
+      if (res.stop_reason !== "pause_turn") break;
+      messages.push({ role: "assistant", content: res.content });
+    }
+  } catch (err) {
+    console.error("[recherche] Frage beantworten fehlgeschlagen:", err);
+    return null;
+  }
+  const a = antwortMitQuellen(inhalt as unknown as Parameters<typeof antwortMitQuellen>[0]);
+  return a.text ? antwortAlsNachricht(a) : null;
 }

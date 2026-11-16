@@ -1,7 +1,7 @@
 // Recherche-Mappe (Etappe 3, 16.11.2026): Prüfung der KI-Antwort und Aufbereitung für Discord und Notion.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MAPPE_PROMPT, embedsAlsText, istMappe, mappeAlsText, mappeEmbeds, pruefeMappe } from "../lib/recherche-mappe.ts";
+import { FRAGE_PROMPT, MAPPE_PROMPT, antwortAlsNachricht, antwortMitQuellen, embedsAlsText, istMappe, mappeAlsText, mappeEmbeds, pruefeMappe } from "../lib/recherche-mappe.ts";
 
 const roh = {
   profil: "Friseursalon in Mühlheim, Inhaberin Anna Weber.",
@@ -73,4 +73,56 @@ test("Einwände ohne Satzzeichen am Ende, Prompt nennt den vollen Namen", () => 
   assert.equal(m.einwaende[0].einwand, "Wir haben schon eine Website");
   assert.equal(m.einwaende[1].einwand, "Keine Zeit");
   assert.match(MAPPE_PROMPT, /Agents Gilt \(immer der volle Name\)/);
+});
+
+// 16.11.: Fragen im Thread werden wirklich recherchiert (Websuche), mit Quellen.
+test("Antwort und Quellen aus der Antwort mit Websuche", () => {
+  const inhalt = [
+    { type: "server_tool_use", id: "s1", name: "web_search", input: { query: "Fantasia 1 Offenbach Inhaber" } },
+    { type: "web_search_tool_result", tool_use_id: "s1", content: [] },
+    {
+      type: "text",
+      text: "Laut Impressum auf Lieferando ist Inhaber Marco Rossi.",
+      citations: [
+        { type: "web_search_result_location", url: "https://www.lieferando.de/speisekarte/fantasia-1", title: "Fantasia 1 | Lieferando", cited_text: "Inhaber: Marco Rossi" },
+        { type: "web_search_result_location", url: "https://www.lieferando.de/speisekarte/fantasia-1", title: "doppelt", cited_text: "x" },
+      ],
+    },
+    { type: "text", text: " Frag beim Anruf am besten nach ihm.", citations: null },
+  ];
+  const a = antwortMitQuellen(inhalt);
+  assert.equal(a.text, "Laut Impressum auf Lieferando ist Inhaber Marco Rossi. Frag beim Anruf am besten nach ihm.");
+  assert.deepEqual(a.quellen, ["https://www.lieferando.de/speisekarte/fantasia-1"]);
+  assert.match(antwortAlsNachricht(a), /Quelle: <https:\/\/www\.lieferando\.de\/speisekarte\/fantasia-1>/);
+  assert.equal(antwortAlsNachricht({ text: "Nichts gefunden.", quellen: [] }), "Nichts gefunden.");
+});
+
+test("Fragen-Prompt: recherchieren, Quellen nennen, keine toten Seiten, keine Privatdaten", () => {
+  assert.match(FRAGE_PROMPT, /Websuche/);
+  assert.match(FRAGE_PROMPT, /Lieferando/);
+  assert.match(FRAGE_PROMPT, /nicht erreichbar/);
+  assert.match(FRAGE_PROMPT, /privat/i);
+});
+
+// Probe 16.11.: „… schaue ich in anderen Quellen nach.Laut dem Impressum …“
+test("Textteile mit Leerzeichen verbinden, Prompt verbietet Erzählen", () => {
+  const a = antwortMitQuellen([
+    { type: "text", text: "Die Mappe nennt keinen Inhaber." },
+    { type: "server_tool_use" },
+    { type: "text", text: "Laut Impressum ist es Herr Daglik.", citations: null },
+    { type: "text", text: " Er ist seit 2019 Inhaber.", citations: null },
+  ]);
+  assert.equal(a.text, "Die Mappe nennt keinen Inhaber. Laut Impressum ist es Herr Daglik. Er ist seit 2019 Inhaber.");
+  assert.match(FRAGE_PROMPT, /Erzähl nicht, was du tust/);
+});
+
+test("Erzählsätze am Anfang fallen weg", () => {
+  const a = antwortMitQuellen([
+    { type: "text", text: "Die Mappe nennt keinen Inhaber, deshalb schaue ich zuerst bei den Lieferdiensten nach. Laut Impressum ist Abbas Daglik der Inhaber." },
+  ]);
+  assert.equal(a.text, "Laut Impressum ist Abbas Daglik der Inhaber.");
+  const b = antwortMitQuellen([{ type: "text", text: "Ich suche kurz. Ich recherchiere weiter. Er heißt Daglik." }]);
+  assert.equal(b.text, "Er heißt Daglik.");
+  const c = antwortMitQuellen([{ type: "text", text: "Die beste Zeit ist 14 Uhr. Ich schaue morgen nochmal nach." }]);
+  assert.equal(c.text, "Die beste Zeit ist 14 Uhr. Ich schaue morgen nochmal nach.");
 });

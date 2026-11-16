@@ -122,3 +122,48 @@ export function embedsAlsText(embeds: EmbedLike[]): string {
     .map((e) => [e.title, e.description, ...(e.fields ?? []).map((f) => `${f.name}: ${f.value}`)].filter(Boolean).join("\n"))
     .join("\n\n");
 }
+
+// ------------------------------------------------------------------ Fragen im Thread (16.11., Davids Wunsch)
+
+/** Fragen werden wirklich recherchiert: erst Mappe und Thread, sonst Websuche, immer mit Quelle. */
+export const FRAGE_PROMPT = `Du hilfst einem Mitarbeiter der KI-Agentur Agents Gilt, sich auf einen Anruf bei einer Firma vorzubereiten. Er hat die Recherche-Mappe schon gelesen und stellt eine weitere Frage.
+
+So gehst du vor:
+- Steht die Antwort sicher in der Mappe oder im Thread, antworte daraus.
+- Sonst recherchiere mit der Websuche: Google-Unternehmensprofil, Lieferando, Wolt, Uber Eats (dort steht bei Restaurants oft das Impressum mit Inhaber), Facebook- oder Instagram-Seite der Firma, Northdata, Branchenbücher, Presseberichte.
+- Nenne nur, was du in einer Quelle gefunden hast, und sag kurz, woher es stammt. Findest du nichts Belastbares, sag das ehrlich und schlag vor, beim Anruf direkt danach zu fragen.
+- Verweise nie auf Seiten, die laut Mappe nicht erreichbar sind.
+- Nur geschäftliche Angaben: keine privaten Adressen, privaten Telefonnummern oder privaten Profile von Personen.
+- Nenne keine Preise von Agents Gilt.
+- Erzähl nicht, was du tust („ich schaue nach …“), sondern antworte direkt.
+- Kurz: höchstens 6 Sätze, Deutsch, Du-Form, kein Markdown außer Fett.`;
+
+const ERZAEHLT = /\b(ich (schaue|suche|recherchiere|prüfe|sehe)|(schaue|suche|recherchiere|prüfe|sehe) ich)\b/i;
+
+/** Sätze am Anfang, die nur erzählen, was der Bot tut („… deshalb schaue ich nach.“), fallen weg (Probe 16.11.). */
+function ohneErzaehlung(text: string): string {
+  const saetze = text.match(/[^.!?]+[.!?]+(\s+|$)/g) ?? [text];
+  let i = 0;
+  while (i < saetze.length - 1 && ERZAEHLT.test(saetze[i])) i++;
+  return saetze.slice(i).join("").trim();
+}
+
+type Block = { type: string; text?: string; citations?: { type?: string; url?: string }[] | null };
+
+/** Text und Quellen (eindeutige Links) aus der Antwort mit Websuche. */
+export function antwortMitQuellen(inhalt: Block[]): { text: string; quellen: string[] } {
+  const texte = inhalt.filter((b) => b.type === "text" && typeof b.text === "string");
+  const quellen = [...new Set(texte.flatMap((b) => (b.citations ?? []).map((c) => c.url).filter((u): u is string => Boolean(u))))];
+  // Zwischen zwei Textteilen fehlt oft das Leerzeichen („nach.Laut“, Probe 16.11.).
+  const text = texte
+    .map((b) => b.text as string)
+    .reduce((acc, t) => (acc && /[.!?:]$/.test(acc) && /^\S/.test(t) ? `${acc} ${t}` : acc + t), "")
+    .trim();
+  return { text: ohneErzaehlung(text), quellen: quellen.slice(0, 3) };
+}
+
+/** Für Discord: Antwort, darunter höchstens drei Quellen (ohne Vorschau). Höchstens 1.900 Zeichen. */
+export function antwortAlsNachricht(a: { text: string; quellen: string[] }): string {
+  const fuss = a.quellen.length ? `\n\n${a.quellen.map((u) => `Quelle: <${u}>`).join("\n")}` : "";
+  return `${clip(a.text, 1900 - fuss.length)}${fuss}`;
+}

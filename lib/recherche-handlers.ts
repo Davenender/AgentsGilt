@@ -182,7 +182,7 @@ export async function rechercheTakt(token: string, jetzt: number, leads: string 
     // Mappe fehlt noch: bauen (eine je Takt, höchstens zwei Fehlversuche)
     if (!mappe) {
       const versuche = msgs.filter((m) => (m.content ?? "").startsWith(FEHLVERSUCH)).length;
-      if (mappen > 0 || versuche >= 2 || !karte) continue;
+      if (mappen + antworten > 0 || versuche >= 2 || !karte) continue;
       mappen++;
       const e = karte.embed;
       const firma = ohneNull(e.title ?? "Firma");
@@ -213,13 +213,17 @@ export async function rechercheTakt(token: string, jetzt: number, leads: string 
       msgs.map((m) => ({ id: m.id, autorId: m.author?.id ?? "", bot: Boolean(m.author?.bot), text: m.content ?? "" })),
       botId ?? "",
     );
-    if (fragen.length) {
+    // Höchstens eine schwere Arbeit je Takt (Mappe oder Antwort mit Websuche), sonst reichen die 60 Sekunden nicht.
+    if (fragen.length && mappen + antworten === 0) {
       const verlauf = msgs
         .filter((m) => m.content)
         .slice(-12)
         .map((m) => `${m.author?.bot ? "Bot" : (nameVon(m.author?.id ?? "") ?? "Team")}: ${m.content}`)
         .join("\n");
-      const antwort = await beantworteFrage(embedsAlsText(mappe.embeds ?? []), verlauf, fragen.map((f) => f.text).join("\n"));
+      const antwort = await beantworteFrage(embedsAlsText(mappe.embeds ?? []), verlauf, fragen.map((f) => f.text).join("\n"), {
+        name: ohneNull(karte?.embed.title ?? t.name.replace(/^🔎\s*/, "").replace(/\s*·\s*Recherche$/, "")),
+        adresse: karte ? feldOhne(karte.embed, "Adresse") : null,
+      });
       if (antwort) {
         await call(token, "POST", `/channels/${t.id}/messages`, {
           content: antwort,
