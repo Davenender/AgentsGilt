@@ -14,7 +14,7 @@ import { call, postKarte } from "@/lib/leads";
 import { findeKarte, legeKundenkanalAn, ordneKanalEin, zustaendigHinweis } from "@/lib/kundenkanal";
 import { kartenKnoepfe, knoepfePassen } from "@/lib/kundenablauf";
 import { demoFeldAusNotion } from "@/lib/demo";
-import { holeKundenNr, seitenId, setzeStatus, setzeZustaendig } from "@/lib/notion-api";
+import { holeKundenNr, leseAuswahl, seitenId, setzeStatus, setzeZustaendig } from "@/lib/notion-api";
 import { belege, statusAusBelegen, statusZeile } from "@/lib/status-regeln";
 import { ausKarte, wahrheit } from "@/lib/zustaendige";
 import type { Kunde } from "@/lib/notion-kunden";
@@ -117,14 +117,23 @@ async function uebertrage(kunde: Kunde, seite: string | null): Promise<Ergebnis>
   const notionSeite = kunde.url ?? seite;
   // Etappe 5: Status von selbst aus festen Belegen (Häkchen, Zahlungsstatus), nur vorwärts, nie aus „Verloren“.
   // Der Bot setzt ihn in Notion und baut Karte und Farbpunkt gleich mit dem neuen Status; der Webhook danach ändert nichts mehr.
-  const auto = statusAusBelegen(
-    belege({
-      status: wert(kunde.props["Status"]),
-      angebotRaus: wert(kunde.props["Angebot raus"]) === "ja",
-      anzahlungHaken: wert(kunde.props["Anzahlung erhalten"]) === "ja",
-      zahlungsstatus: wert(kunde.props["Zahlungsstatus"]),
-    }),
-  );
+  const belegeJetzt = (status: string) =>
+    statusAusBelegen(
+      belege({
+        status,
+        angebotRaus: wert(kunde.props["Angebot raus"]) === "ja",
+        anzahlungHaken: wert(kunde.props["Anzahlung erhalten"]) === "ja",
+        zahlungsstatus: wert(kunde.props["Zahlungsstatus"]),
+      }),
+    );
+  let auto = belegeJetzt(wert(kunde.props["Status"]));
+  if (auto && notionSeite) {
+    // Der Webhook kann älter sein als Notion (Stripe setzt Zahlungsstatus und Status kurz nacheinander):
+    // den Status frisch lesen, damit er nie zurückgesetzt wird. Nicht lesbar = lieber nichts ändern.
+    const frisch = await leseAuswahl(notionSeite, "Status");
+    if (frisch) kunde.props["Status"] = { type: "select", select: { name: frisch } };
+    auto = frisch === null ? null : belegeJetzt(frisch);
+  }
   let autoZeile: string | null = null;
   if (auto && notionSeite && (await setzeStatus(notionSeite, auto))) {
     kunde.props["Status"] = { type: "select", select: { name: auto } };

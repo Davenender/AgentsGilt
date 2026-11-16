@@ -542,6 +542,21 @@ export async function leseAngebotQuelle(notionUrl: string): Promise<{ angebot: s
   }
 }
 
+/** Liest ein Auswahlfeld einer Seite frisch aus Notion (Etappe 5: „Status“). null, wenn nicht lesbar; "" wenn leer. */
+export async function leseAuswahl(notionUrl: string, name: string): Promise<string | null> {
+  const token = process.env.NOTION_TOKEN?.trim();
+  const seite = seitenId(notionUrl);
+  if (!token || !seite) return null;
+  try {
+    const res = await fetch(`https://api.notion.com/v1/pages/${seite}`, { headers: kopf(token), signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const props = ((await res.json()) as { properties?: Record<string, { select?: { name?: string } | null }> }).properties ?? {};
+    return props[name]?.select?.name ?? "";
+  } catch {
+    return null;
+  }
+}
+
 /** Liest ein Link-Feld einer Seite (Etappe 5: „Angebot (Link)“). null, wenn leer oder nicht lesbar. */
 export async function leseLinkFeld(notionUrl: string, name: string): Promise<string | null> {
   const token = process.env.NOTION_TOKEN?.trim();
