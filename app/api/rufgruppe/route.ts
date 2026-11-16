@@ -24,6 +24,7 @@ import { davidsNummern, lucaAn, lucaSip, sipZugang } from "@/lib/luca";
 import { setzeKartenzeile } from "@/lib/anruf-karte";
 
 import { markiereZurueckgerufen, rueckrufNachEigenemAnruf, rueckrufWartet } from "@/lib/rueckruf";
+import { eingangsWeg } from "@/lib/eingangsweg";
 import { rueckrufKonfiguriert } from "@/lib/discord-calls";
 import { ladeTeam } from "@/lib/team-daten";
 
@@ -71,13 +72,14 @@ async function handle(request: Request) {
   if (aktion === "eingang") {
     const von = feld("From");
     // David (LUCA_NUMMER oder DAVID_NUMMERN) bekommt ein Menü: 1 = Luca, 2 = Kunden-Assistent. Alle anderen merken davon nichts.
-    if (lucaAn() && istDavid(von, davidsNummern())) return twiml(twimlDavidsMenue(1));
+    const david = lucaAn() && istDavid(von, davidsNummern());
     // Hat unser Rückruf-Assistent den Kunden nicht erreicht und er ruft jetzt zurück? Dann nicht zum normalen Assistenten.
+    // Davids Wunsch 16.11.: Das gilt zuerst, auch für Davids eigene Nummer (so kann er den Ablauf als Kunde testen).
     const sid = feld("CallSid");
     if (von && sid && rueckrufKonfiguriert()) {
       try {
         const wartet = await Promise.race([rueckrufWartet(von), new Promise<null>((r) => setTimeout(() => r(null), 5000))]);
-        if (wartet) {
+        if (wartet && eingangsWeg({ rueckrufWartet: true, david }) === "rueckruf-ansage") {
           console.log(`[rufgruppe] Rückruf wartet auf ${von}: Ansage, danach Rückruf durch den Assistenten`);
           await markiereZurueckgerufen(wartet.messageId, wartet.embed, wartet.versuch);
           after(async () => {
@@ -91,6 +93,7 @@ async function handle(request: Request) {
         console.error("[rufgruppe] Prüfung auf wartenden Rückruf fehlgeschlagen, Anruf geht normal weiter:", err);
       }
     }
+    if (eingangsWeg({ rueckrufWartet: false, david }) === "davids-menue") return twiml(twimlDavidsMenue(1));
     return twiml(twimlEingang());
   }
   if (aktion === "menue") {
