@@ -29,7 +29,7 @@ export function istBelegKandidat(m: { betreff: string; anhaenge?: Anhang[] }): b
 
 export const BELEG_PROMPT = `Du liest eine E-Mail (und, falls dabei, das PDF dazu) für die Buchhaltung der kleinen deutschen KI-Agentur Agents Gilt.
 
-Entscheide, ob es eine Rechnung oder Quittung über etwas ist, das bezahlt wurde oder bezahlt wird. Keine Rechnung sind: Newsletter, Werbung, Mahnungen ohne Beleg, Hinweise auf neue Bedingungen, Anfragen von Kunden.
+Entscheide, ob es eine Rechnung oder Quittung über etwas ist, das Agents Gilt selbst bezahlt hat oder bezahlen muss. Keine Rechnung sind: Newsletter, Werbung, Mahnungen ohne Beleg, Hinweise auf neue Bedingungen, Anfragen von Kunden, Zahlungseingänge von Kunden, Rechnungen oder Quittungen, die Agents Gilt an Kunden geschickt hat, Auszahlungen (Payouts) von Stripe aufs Bankkonto.
 
 Ist es eine Rechnung, lies heraus:
 - anbieter: wer die Rechnung stellt (kurz, z. B. "Google", "Anthropic", "Notion")
@@ -95,6 +95,12 @@ const ANBIETER: [RegExp, string][] = [
 
 /** Anbieter auf die Auswahl in Notion „Ausgaben“ abbilden. */
 export const anbieterOption = (name: string) => ANBIETER.find(([re]) => re.test(name))?.[1] ?? "Sonstiges";
+
+/** Kennung der Mail in „Ausgaben“: private Mails bekommen „privat-“ davor, kontakt@ dieselbe wie in lib/mail-eingang.ts. */
+export const belegKennung = (id: string, postfach: "privat" | "kontakt@") => (postfach === "privat" ? `privat-${id}` : id);
+
+/** Empfänger für postfachAus: privat bleibt privat (egal an wen), kontakt@ ohne Angabe ist kontakt@. */
+export const belegEmpfaenger = (postfach: "privat" | "kontakt@", an: string | undefined) => (postfach === "privat" ? "privat" : an || "kontakt@agents-gilt.agency");
 
 /** An die Firma (kontakt@) oder aus dem privaten Postfach weitergeleitet. Ohne Angabe (alter Skriptstand): kontakt@. */
 export const postfachAus = (an: string | undefined | null) => (!an || /agents-?gilt/i.test(an) ? "kontakt@" : "privat");

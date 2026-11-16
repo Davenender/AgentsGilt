@@ -1,7 +1,7 @@
 // Finanzen A3 (16.11.2026): Belege-Sammler, Rechnungen aus Gmail werden Zeilen in „Ausgaben“. Reine Logik. `npm test`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { anbieterOption, ausgabeProps, belegZeile, euroCent, istBelegKandidat, postfachAus, pruefeBeleg } from "../lib/belege-regeln.ts";
+import { anbieterOption, ausgabeProps, BELEG_PROMPT, belegEmpfaenger, belegKennung, belegZeile, euroCent, istBelegKandidat, postfachAus, pruefeBeleg } from "../lib/belege-regeln.ts";
 
 const mail = (o: Partial<{ von: string; betreff: string; text: string; anhaenge: { name: string; typ: string; groesse: number }[] }>) => ({
   von: "Jemand <jemand@firma.de>",
@@ -97,4 +97,18 @@ test("Ohne Datum in der Mail (z. B. Twilio-Aufladung): Datum der Mail als Ersatz
   assert.equal(pruefeBeleg(ki, "2026-11-16T10:30:00.000Z")?.datum, "2026-11-16");
   assert.equal(pruefeBeleg(ki, "kaputt"), null);
   assert.equal(pruefeBeleg({ ...ki, datum: "2026-11-02" }, "2026-11-16T10:30:00.000Z")?.datum, "2026-11-02", "Datum der Rechnung geht vor");
+});
+
+test("Nachtrag (A4): Kennung und Postfach je nach Herkunft, kontakt@-Kennung gleich wie im laufenden Eingang", () => {
+  assert.equal(belegKennung("1a1e3b", "privat"), "privat-1a1e3b");
+  assert.equal(belegKennung("1a19b6", "kontakt@"), "1a19b6", "gleiche Kennung wie lib/mail-eingang.ts, sonst doppelt gebucht");
+  assert.equal(postfachAus(belegEmpfaenger("privat", "kontakt@agents-gilt.agency")), "privat", "privat bleibt privat, egal an wen");
+  assert.equal(postfachAus(belegEmpfaenger("kontakt@", undefined)), "kontakt@");
+  assert.equal(postfachAus(belegEmpfaenger("kontakt@", "Kontakt <kontakt@agentsgilt.com>")), "kontakt@");
+});
+
+test("KI-Anweisung: nur Rechnungen, die Agents Gilt selbst bezahlt", () => {
+  assert.match(BELEG_PROMPT, /Zahlungseingänge von Kunden/);
+  assert.match(BELEG_PROMPT, /Auszahlungen/);
+  assert.match(BELEG_PROMPT, /an Kunden geschickt/);
 });
