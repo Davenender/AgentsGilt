@@ -205,7 +205,7 @@ export const ANLEITUNGEN: Anleitung[] = [
       "• **📝 Gesprächsbogen:** öffnet den Bogen für das Erstgespräch in Notion. Fehlt er, legt der erste Klick ihn an.",
       "• **🧠 Gespräch auswerten:** liest deine Notizen im Bogen und fasst zusammen (Anleitung „So läuft ein Kundengespräch“).",
       "• **🎨 Demo anfragen:** fragt bei David eine Vorführung für den Kunden an (mit roter Bestätigung). David entscheidet und baut sie. Der Stand und später der Link stehen auf der Karte.",
-      "• **📌 Nächster Schritt:** was als Nächstes passiert und wann ihr nachfasst (TT.MM.JJJJ). Am Tag erinnert der Bot um 8 Uhr hier im Kanal.",
+      "• **📌 Nächster Schritt:** was als Nächstes passiert (zum Beispiel „Angebot nachfragen“) und an welchem Tag ihr euch wieder beim Kunden meldet (Follow-up = Nachfassen, TT.MM.JJJJ). An dem Tag erinnert der Bot um 8 Uhr hier im Kanal, damit kein Kunde vergessen wird. Auf der Karte steht das Datum als „Nächster Termin“.",
       "• **✏️ Kontakt:** E-Mail und Telefon des Kunden ändern.",
       "• **📧 E-Mail:** dem Kunden schreiben, mit Entwurf vom Bot (Anleitung „Mails an Kunden“).",
       "• **✅ Checkliste** (Auswahl unter den Knöpfen): Angebot raus, Vertrag, AVV, Anzahlung, Material, Abnahme, Live. Haken setzen oder wegnehmen, die Karte zieht nach.",
