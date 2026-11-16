@@ -44,3 +44,10 @@ export function waehleFaden(liste: Faden[], email: string, jetzt: number): Faden
   }
   return best;
 }
+
+/** Wohin eine eingehende Mail gehört: bekannter Kunde → sein Kanal (wie bisher), sonst der Faden, sonst #posteingang. */
+export function zielFuerMail(kunde: boolean, faden: Faden | null): "kunde" | "ticket" | "anfrage" | "posteingang" {
+  if (kunde) return "kunde";
+  if (!faden) return "posteingang";
+  return faden.ort === "ticket" ? "ticket" : faden.ort === "anfrage" ? "anfrage" : "kunde";
+}

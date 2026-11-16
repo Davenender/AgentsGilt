@@ -15,6 +15,7 @@ import {
   sauber,
 } from "@/lib/leads";
 import { kanalName } from "@/lib/notion-kunden";
+import { mailKnopf } from "@/lib/mail-antwort";
 import { pushe } from "@/lib/ntfy";
 
 // Anfragen aus dem Kontaktformular der Website.
@@ -127,6 +128,8 @@ export function anfrageKomponenten(state: AnfrageState, status = "Offen", besitz
       components: [
         besitzer ? knopf("Freigeben", "take", 2) : knopf("Übernehmen", "take", 1),
         knopf("Bestehender Kunde?", "kunde", 2),
+        // Etappe 2 (16.11.): Antwort per Mail, geht erst nach Davids Freigabe raus
+        ...(besitzer ? [mailKnopf("anfrage")] : []),
       ],
     },
   ];

@@ -260,3 +260,17 @@ export function leseEntwurfKarte(e: EmbedLike | null | undefined): { betreff: st
   const b = e.fields?.find((f) => f.name === E_BETREFF)?.value ?? "";
   return { betreff: b === "–" ? "" : b, text: e.description ?? "" };
 }
+
+/** Der Knopf „📧 …“ an Anfragen, Kundenmails, Tickets. Mit quelleId, wenn er nicht an der Karte selbst hängt. */
+export function mailKnopf(ort: MailOrt, label = "Per E-Mail antworten", quelleId?: string) {
+  return { type: 2, style: 1, label, emoji: { name: "📧" }, custom_id: quelleId ? `mail:start:${ort}:${quelleId}` : `mail:start:${ort}` };
+}
+
+/**
+ * Mail-Adresse aus einer Karte: ohne die unsichtbaren Zeichen, mit denen Karten „@“ entschärfen
+ * (sonst ginge die Mail an eine Adresse, die es nicht gibt). Aus „Name <adresse>“ nur die Adresse.
+ */
+export function sauberAdresse(s: string): string {
+  const ohne = s.replace(/[​-‍⁠﻿]/g, "").trim();
+  return (ohne.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] ?? ohne).trim();
+}

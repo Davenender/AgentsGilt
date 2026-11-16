@@ -2,7 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { findChannelId } from "@/lib/discord";
 import type { EmbedLike } from "@/lib/discord-calls";
 import { PB_COLOR, PB_FOOTER, posteingangKomponenten } from "@/lib/anfragen";
-import { clip, posteingangKanal, postKarte, sauber, teamRolle } from "@/lib/leads";
+import { call, clip, posteingangKanal, postKarte, sauber, teamRolle } from "@/lib/leads";
+import { mailKnopf } from "@/lib/mail-antwort";
+import { waehleFaden, zielFuerMail } from "@/lib/mail-faeden";
+import { ladeFaeden } from "@/lib/mail-faeden-speicher";
+import { oeffneTicketWieder } from "@/lib/support";
 import { labelFuerNr } from "@/lib/mail-bruecke";
 import { listeKunden, type KundeKurz } from "@/lib/notion-api";
 import { kanalName } from "@/lib/notion-kunden";
@@ -25,6 +29,7 @@ export type MailErgebnis =
   | { aktion: "ignoriert"; grund: string }
   | { aktion: "kunde"; label: string; kanal: string }
   | { aktion: "posteingang" }
+  | { aktion: "faden"; kanal: string }
   | { aktion: "fehler"; grund: string };
 
 const EIGENE_ADRESSE = /kontakt@agentsgilt\.com/i;
@@ -168,12 +173,45 @@ export async function verarbeiteMail(token: string, m: EingehendeMail): Promise<
         token,
         kanal,
         embed,
-        [],
+        // Etappe 2 (16.11.): Antworten aus Discord, geht erst nach Davids Freigabe raus
+        [{ type: 1, components: [mailKnopf("kundenmail", "Antworten")] }],
         rolle ? { content: `<@&${rolle}> Neue Mail von **${sauber(clip(kunde.name, 80)).replace(/[*_~`|>]/g, "")}**`, roleId: rolle } : undefined,
       );
       if (id) return { aktion: "kunde", label: labelFuerNr(kunde.nr), kanal };
     }
     // Kanal nicht erreichbar: lieber im Posteingang zeigen, als die Mail zu verlieren.
+  }
+
+  // Etappe 2 (16.11.): Antwort auf eine Mail des Teams? Dann ins Ticket, unter die Anfrage oder in den Kundenkanal.
+  const faden = waehleFaden(await ladeFaeden(token), a.email, Date.now());
+  const ziel = zielFuerMail(false, faden);
+  if (faden && ziel !== "posteingang") {
+    if (ziel === "ticket") await oeffneTicketWieder(token, faden.kanal);
+    const urteilF = await beurteile(m);
+    const rolle = await teamRolle(token);
+    const name = sauber(clip(a.name || a.email, 80)).replace(/[*_~`|>]/g, "");
+    const knopf = ziel === "ticket" ? mailKnopf("ticket", "Antworten") : ziel === "anfrage" ? mailKnopf("anfrage", "Antworten", faden.quelleId) : mailKnopf("kundenmail", "Antworten");
+    const gepostet = await call<{ id: string }>(token, "POST", `/channels/${faden.kanal}/messages`, {
+      ...(rolle ? { content: `<@&${rolle}> Antwort per Mail von **${name}**` } : {}),
+      allowed_mentions: { parse: [], roles: rolle ? [rolle] : [] },
+      message_reference: { message_id: faden.quelleId, fail_if_not_exists: false },
+      embeds: [
+        {
+          title: `📧 Antwort per Mail von ${sauber(clip(a.name || a.email, 150))}`,
+          description: sauber(clip(m.text.trim(), 3000)),
+          color: 0x3b82f6,
+          fields: [
+            { name: "Betreff", value: sauber(clip(m.betreff || "(ohne Betreff)", 300)), inline: false },
+            ...(urteilF?.zusammenfassung ? [{ name: "Kurz gesagt", value: sauber(clip(urteilF.zusammenfassung, 500)), inline: false }] : []),
+            { name: "Absender", value: sauber(clip(m.von, 200)), inline: true },
+            ...(m.link ? [{ name: "Gmail", value: `[Mail öffnen](${m.link})`, inline: true }] : []),
+          ],
+          footer: { text: `Antwort per Mail · ${ziel}` },
+        },
+      ],
+      components: [{ type: 1, components: [knopf] }],
+    });
+    if (gepostet) return { aktion: "faden", kanal: faden.kanal };
   }
 
   const urteil = await beurteile(m);

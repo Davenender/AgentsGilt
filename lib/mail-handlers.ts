@@ -33,6 +33,7 @@ import {
   mitText,
   mitZustand,
   pruefeSenden,
+  sauberAdresse,
   ticketBesitzer,
   ticketVerlauf,
   ZEILE_RAUS,
@@ -79,7 +80,7 @@ async function kontext(token: string, ort: MailOrt, kanal: string, quelle: Msg |
     const karte = nachrichten.find((m) => m.embeds[0]?.title?.startsWith("Support-Anfrage") && feldWert(m.embeds[0], "Kontakt"));
     if (!karte) return "Die Ticket-Karte ist nicht mehr da.";
     const e = karte.embeds[0];
-    const an = feldWert(e, "Kontakt").trim();
+    const an = sauberAdresse(feldWert(e, "Kontakt"));
     if (!istEmail(an)) return "Für dieses Ticket gibt es keine Mail-Adresse, nur die Nummer in der Karte.";
     return {
       an,
@@ -94,9 +95,9 @@ async function kontext(token: string, ort: MailOrt, kanal: string, quelle: Msg |
   const e = quelle.embeds[0];
   if (ort === "anfrage") {
     const d = datenAusKarte(e);
-    if (!istEmail(d.email)) return "Diese Anfrage hat keine gültige Mail-Adresse.";
+    if (!istEmail(sauberAdresse(d.email))) return "Diese Anfrage hat keine gültige Mail-Adresse.";
     return {
-      an: d.email.trim(),
+      an: sauberAdresse(d.email),
       frage: d.message,
       verlauf: [`Name: ${d.name}`, d.company && `Unternehmen: ${d.company}`, d.service && `Gewünschte Leistung: ${d.service}`, `Nachricht: ${d.message}`].filter(Boolean).join("\n"),
       betreff: "Deine Anfrage bei Agents Gilt",
@@ -106,7 +107,7 @@ async function kontext(token: string, ort: MailOrt, kanal: string, quelle: Msg |
   }
   if (ort === "kundenmail") {
     const absender = feldWert(e, "Absender");
-    const an = absender.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] ?? absender.trim();
+    const an = sauberAdresse(absender);
     if (!istEmail(an)) return "Die Mail-Adresse des Kunden ist nicht lesbar.";
     const betreff = feldWert(e, "Betreff").replace(/^\(ohne Betreff\)$/, "");
     const karte = await findeKarte(token, kanal);
@@ -196,8 +197,11 @@ export function handleMail(i: AnfInteraction, token: string | undefined) {
   if (was === "start") {
     const ort = teile[2] as MailOrt;
     if (!ORTE.includes(ort)) return ephemeral("Unbekannter Knopf.");
-    const quelle = i.message ? { id: i.message.id, embeds: i.message.embeds } : null;
+    // Hängt der Knopf nicht an der Karte selbst (z. B. an einer Antwort per Mail), steht ihre Kennung im Knopf.
+    const quelleId = teile[3];
+    const hier = i.message ? { id: i.message.id, embeds: i.message.embeds } : null;
     after(async () => {
+      const quelle = quelleId ? await holeNachricht(token, kanal, quelleId) : hier;
       const k = await kontext(token, ort, kanal, quelle);
       if (typeof k === "string") return void (await antwort(k));
       const verbot = darfMailen(ort, user.id, k.berechtigt, DAVID_ID);
