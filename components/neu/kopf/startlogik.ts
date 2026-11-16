@@ -7,13 +7,12 @@
 export const OBEN_PX = 24;
 
 /**
- * Scroll-Fortschritt für das Auseinanderfliegen des Namens: 0 = der Name steht, 1 = alle Zeichen
- * sind draußen (nach 90 % der Bildhöhe).
+ * Scroll-Fortschritt im Kopfbereich: 0 = oben, 1 = nach 90 % der Bildhöhe. Danach tritt das Licht
+ * zurück (bis auf 14 %); zurück am Seitenanfang leuchtet es kurz etwas heller auf.
  *
- * Solange die Seite „oben“ ist (bis 24 px), bleibt er genau 0. Das ist wichtig: Nur bei 0
- * reagieren die Zeichen auf die Maus und flimmern. Früher zählte schon ein einziger Pixel als
- * „gescrollt“: Wer herunter- und nicht ganz bis zum Anfang wieder hochscrollte, hatte einen Namen,
- * der nicht mehr auf die Maus reagierte.
+ * Solange die Seite „oben“ ist (bis 24 px), bleibt er genau 0. (Bis zur Startanimation-Runde 2 vom
+ * 16.11.2026 flogen am Computer auch die Zeichen mit diesem Fortschritt auseinander; seitdem steht
+ * der Name nach dem Einflug überall fest und wandert mit der Seite.)
  */
 export function rollStand(scrollY: number, bildHoehe: number): number {
   const weg = Math.max(OBEN_PX + 1, 0.9 * bildHoehe);
@@ -171,3 +170,62 @@ export function wachFensterVoll(messungen: number, seitBeginnMs: number): boolea
 export function schonfristVorbei(messungen: number, seitWechselMs: number): boolean {
   return messungen >= 30 || seitWechselMs >= 1200;
 }
+
+// ───────────── Ablauf der Startanimation (Startanimation-Runde 2, 16.11.2026) ─────────────
+
+/** Ab diesem Pegel (0 bis 1) hat das Licht seine volle Helligkeit: Ende der Licht-Stufen. */
+export const LICHT_VOLL = 0.999;
+export const lichtVoll = (pegel: number) => pegel >= LICHT_VOLL;
+
+/**
+ * Sobald das Licht voll ist (kurz bevor der Name einfliegt), dreht es sich in so vielen Sekunden
+ * weich zur Maus und folgt ihr danach wie immer. (Bis zur Runde 2: erst 1 s nach der Welle, 1,5 s lang.)
+ */
+export const MAUS_DREHEN = 0.8;
+
+/** Pause zwischen der Landung des Namens und der Welle aus seiner Mitte, und die Dauer der Welle (Sekunden). */
+export const WELLE_PAUSE = 0.25;
+export const WELLE_DAUER = 1.3;
+
+/**
+ * Was nach der Landung des Namens geschieht, in Sekunden ab der Landung:
+ * - `frei`: Scrollen ist frei (auch Scroll-Tasten und Wischen; ein gemerktes Ziel in der Adresse
+ *   wird jetzt angesteuert). Seit der Runde 2 sofort bei der Landung, die Welle läuft einfach weiter.
+ * - `welle`: Welle aus der Mitte des Namens (nur mit Maus; am Handy reagiert der Name nicht auf Tippen).
+ * - `vorbei`: Die Startanimation ist ganz vorbei (Welle durch). Danach richtet sich der
+ *   Scroll-Hinweis (die Lichtleiste erscheint 3 s später); das ist derselbe Zeitpunkt wie bisher.
+ */
+export function nachLandung(maus: boolean): { frei: number; welle: number | null; vorbei: number } {
+  return { frei: 0, welle: maus ? WELLE_PAUSE : null, vorbei: WELLE_PAUSE + WELLE_DAUER };
+}
+
+/**
+ * Die erste Drehung des Lichts zur Maus, ohne Ruck. Ein Folger läuft der Maus so nach, wie das
+ * Licht ihr sonst folgt; das Licht geht in `dauer` Sekunden weich (langsam anfahren, langsam
+ * ankommen) von seinem Platz auf den Folger über. Bewegt sich die Maus währenddessen, folgt das
+ * Licht ihr stetig, und am Ende ist es genau dort, wo es auch beim gewöhnlichen Folgen wäre: Der
+ * Übergang ins gewöhnliche Folgen hat keinen Sprung und keinen Knick.
+ * Gibt den Anteil des Folgers zurück (0 am Anfang, 1 am Ende).
+ */
+export function drehAnteil(zeit: number, dauer: number): number {
+  if (!(dauer > 0)) return 1;
+  const x = zeit <= 0 ? 0 : zeit >= dauer ? 1 : zeit / dauer;
+  // Die glattere S-Kurve: Am Anfang und am Ende sind Tempo und Beschleunigung null. So knickt der
+  // Übergang ins gewöhnliche Folgen auch dann nicht, wenn die Maus sich gerade bewegt.
+  return x * x * x * (x * (6 * x - 15) + 10);
+}
+
+/**
+ * Steht ein Abschnitt in der Adresse (#kontakt), steuert die Seite ihn nach dem Start nur bei einem
+ * neuen Aufruf an (Link von außen, aus einer Mail oder SMS, aus der Navigation einer anderen Seite):
+ * Dann ist sie dort, sobald das Scrollen frei ist. Wird die Seite dagegen neu geladen oder über
+ * Zurück/Vor wieder aufgerufen (auch aus dem Zwischenspeicher des Browsers), beginnt sie immer ganz
+ * oben, und der Abschnitt kommt aus der Adresse (Startanimation-Runde 2, Punkt 4).
+ * `art`: die Navigationsart des Dokuments (performance.getEntriesByType("navigation")[0].type); sie
+ * gilt nur für den ersten Start nach dem Laden, nicht für Wechsel innerhalb der Website.
+ */
+export function zielAnsteuern(art: string | undefined, ausZwischenspeicher: boolean): boolean {
+  if (ausZwischenspeicher) return false;
+  return art !== "reload" && art !== "back_forward";
+}
+

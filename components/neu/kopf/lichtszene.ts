@@ -44,7 +44,7 @@
 import * as THREE from "three";
 import { BlendFunction, EffectComposer, EffectPass, GodRaysEffect, KernelSize, NoiseEffect, RenderPass } from "postprocessing";
 import { gsap } from "@/lib/gsap";
-import { lichtStaerke, schonfristVorbei, softwareGrafik, stufenWerte as stufenWerteVon, wachFensterVoll } from "./startlogik";
+import { drehAnteil, lichtStaerke, schonfristVorbei, softwareGrafik, stufenWerte as stufenWerteVon, wachFensterVoll } from "./startlogik";
 
 /** Was die Zeichen vom Licht wissen müssen, um richtig zu schimmern (alles in CSS-Pixeln der Bühne). */
 export type LichtLage = {
@@ -528,8 +528,9 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
   // Wo die Maus zuletzt war. Solange das Licht ihr nicht folgt (Startanimation), wird das nur gemerkt.
   const mausOrt = { x: 0, y: 0 };
   let folgt = !wahl.stufen;
-  // Erstes Hindrehen zur Maus (nach der Startanimation): von wo, wie lange schon, wie lange insgesamt.
-  let dreh: { vonX: number; vonY: number; zeit: number; dauer: number } | null = null;
+  // Erstes Hindrehen zur Maus (sobald das Licht voll ist): von wo, wo der Folger gerade ist (er läuft
+  // der Maus nach wie sonst das Licht), wie lange schon, wie lange insgesamt (startlogik.ts: drehAnteil).
+  let dreh: { vonX: number; vonY: number; folgX: number; folgY: number; zeit: number; dauer: number } | null = null;
   const zeiger = (ev: PointerEvent) => {
     if (ev.pointerType !== "mouse") return;
     const r = halter.getBoundingClientRect();
@@ -813,13 +814,21 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
     if (!gezeigt && !neu) return;
 
     if (dreh) {
-      // Erstes Hindrehen: weich anfahren und weich ankommen, dorthin, wo die Maus gerade ist.
+      // Erstes Hindrehen: Der Folger läuft der Maus nach wie sonst das Licht; das Licht geht weich
+      // (langsam anfahren, langsam ankommen) von seinem Platz auf den Folger über. Bewegt sich die
+      // Maus dabei, folgt es ihr stetig, und danach geht es ohne Sprung ins gewöhnliche Folgen über.
       dreh.zeit += dt;
-      const x = Math.min(1, dreh.zeit / dreh.dauer);
-      const a = x * x * (3 - 2 * x);
-      ist.x = ziel.x = dreh.vonX + (mausOrt.x - dreh.vonX) * a;
-      ist.y = ziel.y = dreh.vonY + (mausOrt.y - dreh.vonY) * a;
-      if (x >= 1) dreh = null;
+      const zug = 1 - Math.exp(-dt * FOLGE_TEMPO);
+      dreh.folgX += (mausOrt.x - dreh.folgX) * zug;
+      dreh.folgY += (mausOrt.y - dreh.folgY) * zug;
+      const a = drehAnteil(dreh.zeit, dreh.dauer);
+      ist.x = dreh.vonX + (dreh.folgX - dreh.vonX) * a;
+      ist.y = dreh.vonY + (dreh.folgY - dreh.vonY) * a;
+      if (a >= 1) {
+        dreh = null;
+        ziel.x = mausOrt.x;
+        ziel.y = mausOrt.y;
+      }
     } else {
       const zug = 1 - Math.exp(-dt * FOLGE_TEMPO);
       ist.x += (ziel.x - ist.x) * zug;
@@ -1170,7 +1179,7 @@ export function starteLichtSzene(halter: HTMLElement, anker: HTMLElement, wahl: 
       folgt = ja;
       if (ja && langsam) {
         // Erstes Hindrehen: in „langsam“ Sekunden weich zur Maus, danach folgt das Licht wie immer.
-        dreh = { vonX: ist.x, vonY: ist.y, zeit: 0, dauer: langsam };
+        dreh = { vonX: ist.x, vonY: ist.y, folgX: ist.x, folgY: ist.y, zeit: 0, dauer: langsam };
       } else {
         dreh = null;
         ziel.x = ja ? mausOrt.x : 0;

@@ -42,11 +42,18 @@ export const START_FERTIG = "ag:start-fertig";
 export const START_FERTIG_KLASSE = "ag-start-fertig";
 
 /**
- * „Start frei“: Die Startanimation ist ganz vorbei (Name gelandet, Welle durch) oder es gab keine.
- * Ab jetzt kann man scrollen.
+ * „Start frei“: Ab jetzt kann man scrollen. Seit der Startanimation-Runde 2 (16.11.2026) sobald der
+ * Name gelandet ist (die Welle läuft dann weiter), oder sofort, wenn es keine Startanimation gibt.
  */
 export const START_FREI = "ag:start-frei";
 export const START_FREI_KLASSE = "ag-start-frei";
+
+/**
+ * „Start vorbei“: Die Startanimation ist ganz vorbei (Name gelandet, Welle durch) oder es gab keine.
+ * Darauf wartet der Scroll-Hinweis (bis zur Runde 2 kam das zusammen mit „Start frei“).
+ */
+export const START_VORBEI = "ag:start-vorbei";
+export const START_VORBEI_KLASSE = "ag-start-vorbei";
 
 /**
  * „Vor dem Start“: Die Seite hat die Startanimation, ihr Skript läuft aber noch nicht. Die Klasse

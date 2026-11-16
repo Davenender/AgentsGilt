@@ -16,13 +16,15 @@ import {
   START_FERTIG_KLASSE,
   START_FREI,
   START_FREI_KLASSE,
+  START_VORBEI,
+  START_VORBEI_KLASSE,
   VORSTART_KLASSE,
   istVorschau,
   scrollSperre,
   scrollZiel,
 } from "../umgebung";
 import type { LichtLage, LichtSzene } from "./lichtszene";
-import { OBEN_PX, erzeugeSichtUhr, lichtQuelle, lichtStaerke, probeFrist, rollStand, sichtbarZwischen, stufenWerte, wennBildKommt, wennSzeneKommt, type StartStand } from "./startlogik";
+import { MAUS_DREHEN, OBEN_PX, erzeugeSichtUhr, lichtQuelle, lichtStaerke, lichtVoll, nachLandung, probeFrist, rollStand, sichtbarZwischen, stufenWerte, wennBildKommt, wennSzeneKommt, zielAnsteuern, type StartStand } from "./startlogik";
 import { NOT_LICHT } from "./notlicht";
 import { STERN_BILD } from "./sternbild";
 import { erzeugeZeichenname } from "./zeichenname";
@@ -51,18 +53,28 @@ import { erzeugeZeichenname } from "./zeichenname";
  *      wachsen die Strahlen (1,2 s). Am Handy etwas kürzer. Gibt es kein Licht
  *      aus der Szene (kein WebGL, Laden gescheitert), läuft dieselbe Abfolge
  *      mit dem ruhigen Bild: Es wird von der Mitte her freigegeben.
- *   4. Bei 60 % der Lichtstärke fliegen die Zeichen ein (2,2 s); 250 ms nach
- *      der Landung läuft die Welle aus der Namensmitte.
+ *   4. Hat das Licht seine volle Helligkeit (Ende der drei Stufen), dreht es
+ *      sich weich zur Maus (0,8 s) und folgt ihr danach wie immer; bewegt
+ *      sich die Maus dabei, folgt es ihr ohne Ruck (nur mit Maus). 0,7 s
+ *      später fliegen die Zeichen ein (2,2 s).
  *   5. Während die Zeichen landen, erscheinen Kopfleiste, „Anrufen“ und
  *      Chat-Knopf (Stylesheet, über data-start am Kopfbereich).
- * Solange das läuft, steht das Licht ruhig in der Mitte. Wenn alles steht
- * (Zeichen gelandet, Welle vorbei), wartet es 1 s und dreht sich dann langsam
- * zur Maus (1,5 s). Während der ganzen Startanimation steht die Seite oben:
- * Man kann nicht scrollen und nichts überspringen, bis der Name gelandet und
- * die Welle durch ist. Der Browser stellt nach Neuladen oder Zurück keine
- * frühere Lage wieder her (`history.scrollRestoration = "manual"`); steht ein
- * Ziel in der Adresse (#kontakt), läuft erst der Start, danach scrollt die
- * Seite weich dorthin. Holt der Browser die Seite bei „Zurück“ aus seinem
+ *   6. Ist der Name gelandet, ist Scrollen frei (Mausrad, Wischen, Scroll-
+ *      Tasten). 250 ms nach der Landung läuft die Welle aus der Namensmitte
+ *      (nur mit Maus); sie läuft weiter, auch wenn schon gescrollt wird. Ist sie
+ *      durch, ist die Startanimation ganz vorbei („Start vorbei“: danach richtet
+ *      sich der Scroll-Hinweis).
+ * Bis der Name gelandet ist, steht die Seite oben: Man kann nicht scrollen und
+ * nichts überspringen. Der Browser stellt nach Neuladen oder Zurück keine
+ * frühere Lage wieder her (`history.scrollRestoration = "manual"`). Steht ein
+ * Ziel in der Adresse (#kontakt) und kommt der Besucher neu (Link von außen,
+ * Mail, SMS), läuft erst der Start, und sobald der Name gelandet ist, scrollt
+ * die Seite weich dorthin. Wird die Seite dagegen neu geladen oder über
+ * Zurück/Vor wieder aufgerufen, beginnt sie immer ganz oben, und der Abschnitt
+ * kommt aus der Adresse (ohne neuen Verlaufseintrag; startlogik.ts:
+ * zielAnsteuern).
+ * (Bis zur Startanimation-Runde 2 vom 16.11.2026: Scrollen erst nach der Welle,
+ * die Drehung zur Maus erst 1 s danach und 1,5 s lang.) Holt der Browser die Seite bei „Zurück“ aus seinem
  * Zwischenspeicher (sie käme so wieder, wie sie verlassen wurde), wird alles
  * frisch eingerichtet und der Start läuft noch einmal ganz. Nur wenn der Start
  * bei diesem Laden schon lief (neu eingerichtet nach einer Umstellung, im
@@ -70,9 +82,11 @@ import { erzeugeZeichenname } from "./zeichenname";
  * Bewegung“ blendet alles ruhig ein.
  *
  * Danach: Die Zeichen weichen dem Zeiger aus, ein Klick auf den Namen schickt
- * eine Welle hindurch. Beim Runterscrollen fliegen die Zeichen auf den Bahnen
- * des Startflugs wieder auseinander, das Licht wird schwächer; zurück am
- * Seitenanfang leuchtet es kurz etwas heller auf.
+ * eine Welle hindurch. Beim Scrollen bleibt der Name als fester Schriftzug
+ * stehen und wandert mit der Seite nach oben (am Computer wie am Handy; bis zum
+ * 16.11.2026 flogen die Zeichen am Computer dabei auseinander). Das Licht wird
+ * beim Runterscrollen schwächer; zurück am Seitenanfang leuchtet es kurz etwas
+ * heller auf.
  *
  * Am Computer wird das Licht nie zum Standbild: Wird es knapp, rechnet die
  * Szene billiger (Sparstufen in lichtszene.ts), lebt aber weiter und folgt der
@@ -109,11 +123,8 @@ const LICHT_STUFEN_HANDY: [number, number, number] = [0.5, 0.45, 0.9];
 const FLUG_NACH_LICHT = 0.7;
 // So lange nach Beginn des Flugs erscheinen Kopfleiste, „Anrufen“ und Chat-Knopf (die Zeichen landen dann).
 const LEISTE_NACH = 1.1;
-// Wenn alles steht (Zeichen gelandet, Welle vorbei: 0,25 s Pause + 1,3 s Welle), wartet das Licht
-// noch 1 s. Dann dreht es sich langsam zur Maus (1,5 s) und folgt ihr danach wie immer.
-const WELLE_ENDE = 0.25 + 1.3;
-const MAUS_NACH = WELLE_ENDE + 1;
-const MAUS_DREHEN = 1.5;
+// Was nach der Landung geschieht (Freigabe, Welle, Ende des Starts) und wann sich das Licht zur Maus
+// dreht, steht in startlogik.ts (nachLandung, lichtVoll, MAUS_DREHEN): So prüfen es die Tests.
 // Probe vor dem Start: so viele Bilder hintereinander müssen schneller sein als diese Zeit
 // (17 ms, mit einer halben Millisekunde Luft für Browser, die Zeiten runden).
 const PROBE_BILDER = 30;
@@ -186,7 +197,7 @@ export function LichtName() {
     const maus = feinerZeiger.matches && !still;
     // Meldungen an den Rest der Seite. Sie gehören zu genau diesem Start: Eine Freigabe von einem
     // früheren Besuch der Seite gilt nicht.
-    const KLASSEN = [INTRO_FERTIG_KLASSE, LADEN_FERTIG_KLASSE, START_FERTIG_KLASSE, START_FREI_KLASSE];
+    const KLASSEN = [INTRO_FERTIG_KLASSE, LADEN_FERTIG_KLASSE, START_FERTIG_KLASSE, START_FREI_KLASSE, START_VORBEI_KLASSE];
     wurzel.classList.remove(...KLASSEN);
     // Der Stand des Starts (`data-start`, `data-skript`) steht am Kopfbereich und, gleichlautend, an
     // Kopfleiste und Chat-Knopf: Das Stylesheet liest ihn dort direkt ab. Früher
@@ -225,6 +236,7 @@ export function LichtName() {
       held.dataset.licht = "bild";
       allesGemeldet();
       melden(START_FREI, START_FREI_KLASSE);
+      melden(START_VORBEI, START_VORBEI_KLASSE);
       return () => {
         delete held.dataset.ln;
         delete held.dataset.licht;
@@ -247,7 +259,7 @@ export function LichtName() {
     let sofortNachBau = false;
     let uebersprungenUm = 0;
     const spaeter: gsap.core.Tween[] = [];
-    // Scrollen ist frei, sobald die Startanimation ganz vorbei ist (Name gelandet, Welle durch).
+    // Scrollen ist frei, sobald der Name gelandet ist (die Welle läuft dann weiter).
     let frei = false;
     // Solange gesperrt ist, tun Mausrad, Wischen und die Scroll-Tasten nichts (das Stylesheet sperrt
     // dazu das gewöhnliche Scrollen samt Scrollbalken, das weiche Scrollen hält an).
@@ -331,11 +343,23 @@ export function LichtName() {
       window.removeEventListener("hashchange", beiHash);
       return zumZiel;
     };
-    const freigeben = () => {
+    // „Start vorbei“ (Welle durch): Danach richtet sich der Scroll-Hinweis, wie bisher.
+    let vorbeiGemeldet = false;
+    const startVorbei = () => {
+      if (vorbeiGemeldet || vorbei) return;
+      vorbeiGemeldet = true;
+      performance.mark("ag-start:vorbei");
+      melden(START_VORBEI, START_VORBEI_KLASSE);
+    };
+    /** Scrollen frei. `mitVorbei`: zugleich „Start vorbei“ (überall außer bei der Landung, dort kommt es nach der Welle). */
+    const freigeben = (mitVorbei = true) => {
+      if (mitVorbei) startVorbei();
       if (frei || vorbei) return;
       const warGesperrt = gesperrt;
       frei = true;
       gesperrt = false;
+      // Nachzulesen über performance.getEntriesByName("ag-start:frei").
+      performance.mark("ag-start:frei");
       // Ziel in der Adresse (#kontakt) oder ein Klick auf ein Sprungziel während des Starts: Erst
       // lief der Start, jetzt scrollt die Seite weich dorthin.
       const zumZiel = entsperren();
@@ -355,6 +379,10 @@ export function LichtName() {
     // Jeder spätere Start (zurück innerhalb der Website, zurück aus dem Zwischenspeicher) rechnet ab
     // jetzt: Sonst wären Mindestzeit und Sicherheitsgrenze längst abgelaufen, bevor etwas geladen ist.
     const erstesBild = (ersterStart ? performance.getEntriesByType("paint").find((p) => p.name === "first-contentful-paint")?.startTime : undefined) ?? performance.now();
+    // Die Navigationsart des Dokuments (neu aufgerufen, neu geladen, Zurück/Vor) gilt nur für diesen
+    // ersten Start; ein späterer Wechsel innerhalb der Website (etwa „Zurück“ vom Impressum auf
+    // /#fuss) ist ein neuer Aufruf der Startseite.
+    const navigationsArt = ersterStart ? (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.type : "navigate";
     ersterStart = false;
     const gemessen = async <T,>(name: string, arbeit: () => Promise<T> | T): Promise<T | undefined> => {
       const von = performance.now();
@@ -449,10 +477,8 @@ export function LichtName() {
             // Pixeldichte: am Handy höchstens 1,5, am Computer höchstens 2.
             dichteMax: handyBreite ? 1.5 : 2,
             schirm: Math.max(window.innerWidth, window.innerHeight),
-            // Beim Scrollen fliegen die Zeichen auseinander: Die Fläche reicht deshalb 90 % der
-            // Bildschirmhöhe unter den Kopfbereich hinaus (so weit, wie man dabei scrollt).
-            // Am Handy fliegt nichts auseinander: dann reicht die Fläche nicht unter den Kopfbereich (spart Rechenzeit).
-            ueberhang: still || !maus ? 0 : Math.round(window.innerHeight * 0.9),
+            // Beim Scrollen fliegt nichts auseinander (seit dem 16.11.2026 auch am Computer): Die
+            // Fläche reicht nicht unter den Kopfbereich hinaus (früher am Computer 90 % der Bildhöhe).
           },
           // Am Handy steht der Schimmer ruhig, auch wenn sich das Licht dort leicht wiegt.
           szene ? (maus ? szene.lage : { ...szene.lage, kippX: 0, kippY: 0 }) : ruhe,
@@ -733,12 +759,14 @@ export function LichtName() {
       // (seit dem 15.11.2026). Die Zeiten des Starts bleiben dieselben. (War der Kopfbereich beim
       // Start nicht zu sehen, fliegen die Zeichen erst ein, wenn er ins Bild kommt.)
       feld.starten(() => {
-        if (maus) spaeter.push(gsap.delayedCall(0.25, feld.welleMitte));
-        // Ist die Welle durch (0,25 s Pause + 1,3 s), ist die Startanimation vorbei: Scrollen ist frei.
-        spaeter.push(gsap.delayedCall(WELLE_ENDE, freigeben));
-        // Wenn alles steht, wartet das Licht 1 s und dreht sich dann langsam zur Maus.
-        spaeter.push(gsap.delayedCall(MAUS_NACH, () => szene?.mausFolgen(true, MAUS_DREHEN)));
+        performance.mark("ag-start:gelandet");
+        const plan = nachLandung(maus);
+        if (plan.welle !== null) spaeter.push(gsap.delayedCall(plan.welle, feld.welleMitte));
         stehen();
+        // Der Name ist gelandet: Scrollen ist frei (seit dem 16.11.2026 schon jetzt, die Welle läuft
+        // weiter). Ist die Welle durch, ist die Startanimation ganz vorbei.
+        freigeben(false);
+        spaeter.push(gsap.delayedCall(plan.vorbei, startVorbei));
       });
       // Während die Zeichen landen, erscheinen Kopfleiste, „Anrufen“ und Chat-Knopf.
       spaeter.push(
@@ -756,10 +784,21 @@ export function LichtName() {
       stufen.stern = Math.pow(sternAus(0.35) ?? 0.2, 2.2);
       held.dataset.licht = "live";
       szene.zeigen(false, dauer, undefined, (pegel) => {
-        if (pegel >= 0.999) lichtIstAn();
+        if (!lichtVoll(pegel)) return;
+        // Volle Helligkeit: Das Licht dreht sich weich zur Maus (auch wenn die Zeichen schon standen,
+        // weil die Szene erst danach kam), und 0,7 s später fliegen die Zeichen ein.
+        mausAb();
+        lichtIstAn();
       });
-      // Standen die Zeichen schon (die Szene kam erst danach), dreht sich das Licht nach seinem Auftritt zur Maus.
-      if (fertig) spaeter.push(gsap.delayedCall(dauer + 1, () => szene?.mausFolgen(true, MAUS_DREHEN)));
+    };
+    // Einmal je Auftritt: ab voller Helligkeit folgt das Licht der Maus (startlogik.ts: MAUS_DREHEN).
+    let mausDreht = false;
+    const mausAb = () => {
+      if (mausDreht || !szene) return;
+      mausDreht = true;
+      // Nachzulesen über performance.getEntriesByName("ag-start:maus").
+      performance.mark("ag-start:maus");
+      szene.mausFolgen(true, MAUS_DREHEN);
     };
     // Statt der Szene das ruhige Bild des Lichts: Es blendet ein, der Stern blendet darunter aus.
     const mitRuhigemBild = (sternDauer: number) => {
@@ -827,7 +866,7 @@ export function LichtName() {
       if (quelle === "bild") return bildAuftritt();
       // Weder Szene noch das große Bild sind da (nur an der Sicherheitsgrenze, bei sehr langsamer
       // Leitung): Die Abfolge läuft mit dem Not-Licht, in derselben Reihenfolge. Die Zeichen fliegen
-      // erst, wenn das Licht bei 60 % ist, und die Freigabe kommt erst nach der Welle.
+      // erst, wenn das Licht ganz an ist, und die Freigabe kommt erst mit der Landung.
       notlichtEinsetzen();
       bildAuftritt();
     };
@@ -873,19 +912,20 @@ export function LichtName() {
     };
     const zeigerWeg = () => feld.zeiger(-9999, -9999, false);
 
-    // ── Scrollen: Die Zeichen fliegen auseinander, das Licht wird schwächer. Zurück am
-    // Seitenanfang leuchtet es kurz etwas heller auf.
+    // ── Scrollen: Der Name steht fest und wandert mit der Seite, das Licht wird schwächer. Zurück
+    // am Seitenanfang leuchtet es kurz etwas heller auf.
     let warWeg = false;
     let rollZuletzt = -1;
     const beimScrollen = () => {
       const y = window.scrollY;
       const hoch = window.innerHeight;
-      // Scroll-Fortschritt 0 bis 1 über 90 % der Bildhöhe. Solange die Seite oben ist (bis 24 px),
-      // bleibt er genau 0: Nur dann reagieren die Zeichen auf die Maus (startlogik.ts).
+      // Scroll-Fortschritt 0 bis 1 über 90 % der Bildhöhe (startlogik.ts): Daran tritt das Licht zurück.
       const s = rollStand(y, hoch);
-      // Am Handy (Touch ohne Maus) bleibt der Name nach dem Einflug stehen (Davids Wunsch 15.11.:
-      // das Auseinanderfliegen lief dort nicht flüssig). Nur am Computer fliegen die Zeichen auseinander.
-      if (gebaut) feld.rollen(maus ? s : 0, Math.max(0, y - obenImDokument), hoch);
+      // Der Name bleibt nach dem Einflug als fester Schriftzug stehen und wandert mit der Seite nach
+      // oben: am Handy seit dem 15.11.2026 (das Auseinanderfliegen lief dort nicht flüssig), am
+      // Computer seit dem 16.11.2026 (Davids Wunsch). Die Zeichen erfahren nur, welcher Teil ihrer
+      // Fläche im Bild ist (dort wird gezeichnet); sie weichen weiter dem Zeiger aus.
+      if (gebaut) feld.rollen(0, Math.max(0, y - obenImDokument), hoch);
       if (s === rollZuletzt) return;
       rollZuletzt = s;
       // Das Licht tritt zurück (bis auf 14 %), je weiter man scrollt.
@@ -944,8 +984,18 @@ export function LichtName() {
       const schonGelaufen = startGelaufen.current;
       if (!schonGelaufen) {
         // Hat der Browser die Seite schon bewegt (Ziel in der Adresse, erste Wiederherstellung),
-        // geht es zurück nach oben. Ein Ziel in der Adresse merkt sich die Seite für danach.
-        const sprungziel = zielVon(window.location.hash);
+        // geht es zurück nach oben. Ein Ziel in der Adresse merkt sich die Seite für danach, aber
+        // nur bei einem neuen Aufruf. Neu geladen oder über Zurück/Vor (auch aus dem Zwischenspeicher):
+        // Die Seite beginnt oben, und der Abschnitt kommt aus der Adresse, ohne neuen Verlaufseintrag.
+        const vonAussen = zielAnsteuern(navigationsArt, rueckkehr > 0);
+        if (!vonAussen && window.location.hash) {
+          try {
+            window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+          } catch {
+            /* dann bleibt der Abschnitt eben in der Adresse; angesteuert wird er trotzdem nicht */
+          }
+        }
+        const sprungziel = vonAussen ? zielVon(window.location.hash) : null;
         if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: "instant" });
         // Während der ganzen Startanimation steht die Seite oben: kein Scrollen, kein Überspringen.
         sperren();

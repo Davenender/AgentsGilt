@@ -295,8 +295,9 @@
      (Mit der Kurve der übrigen Seite, die vorn schnell ist, war sie schon nach 0,4 s kaum noch zu sehen.) */
   transition: opacity 1.2s cubic-bezier(0.45, 0, 0.55, 1);
 }
-/* Solange die Startanimation läuft (auch wenn sie nach „Zurück“ noch einmal läuft), ist die Leiste nicht zu sehen. */
-html:not(.ag-start-frei) .ag-hinweis {
+/* Solange die Startanimation läuft (auch wenn sie nach „Zurück“ noch einmal läuft), ist die Leiste
+   nicht zu sehen: bis die Welle durch ist („Start vorbei“; scrollen kann man schon ab der Landung). */
+html:not(.ag-start-vorbei) .ag-hinweis {
   opacity: 0;
   transition: none;
 }

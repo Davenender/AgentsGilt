@@ -33,7 +33,7 @@ In Schritt 1 stand vorläufig „Bühnenhorizont“; in Schritt 2 hat David unte
 **Stand seit 12.11.2026: die neue Seite** (`/varianten/kopf/kern`, `components/neu/seite/Seite.tsx`). Alle Anker bleiben (`#top #leistungen #ablauf #warum #ausbildung #kontakt`).
 1. **Startanimation** (4f): Stern im Dunkeln, während alles lädt; dann geht das Licht an, dann fliegen die Zeichen ein. Ersetzt den Ladebildschirm mit Balken und „0 %“.
 2. **Kopfbereich ohne Text** (4d): Licht-Logo, darunter der Name aus Zeichen; am unteren Rand der Scroll-Hinweis aus Licht (4g).
-3. **Erste Aussage** (4h): Die Zeichen fliegen beim Scrollen auseinander, dann steht groß „Wir bauen in Stunden*, wofür Agenturen Wochen brauchen.“ (die Hauptüberschrift der Seite), darunter ein kurzer Satz und die Anruf-Leiste.
+3. **Erste Aussage** (4h): Die Zeichen fliegen beim Scrollen auseinander (seit 16.11.2026 nicht mehr, siehe 4v), dann steht groß „Wir bauen in Stunden*, wofür Agenturen Wochen brauchen.“ (die Hauptüberschrift der Seite), darunter ein kurzer Satz und die Anruf-Leiste.
 4. **Übergang** (4h): ein schräger Lichtstrahl, der sich zum Lichtstern auffächert, mit den vier Wörtern Persönlich · Schnell · Feste Preise · Aus Rhein-Main.
 5. **Leistungen** (4h): sechs Karten mit kleinen Szenen und Zeichen-Nummern; „Anfragen“ wählt die Leistung im Formular vor (Funktion bleibt).
 6. **So läuft es ab** (4h): drei Schritte, daneben die gewählte Nummer als großes Zeichen-Bild.
@@ -157,7 +157,7 @@ Ziel in einem Satz: Man sieht kein Objekt, keine Kante und keine Fläche, nur ei
 - **Welle beim Klick:** Klick oder Tippen im Bereich des Namens plus 40 px Rand, nicht auf Knöpfen oder Links, nicht während des Startflugs. Ausschlag je Zeichen (seit 12.11.2026 höchstens 40 px statt 56, Band 80 px statt 90): `40 × e^(−((Abstand − 1150 × t) / 80)²) × max(0, 1 − t/1,3)²` (t in Sekunden seit dem Klick): Der Ring schiebt die Zeichen nach außen und ist nach 1,3 s vorbei. Mehrere Wellen addieren sich (höchstens 4 gleichzeitig), zusammen aber nie mehr als 40 px. Getroffene Zeichen werden kräftiger (Deckkraft × (1 + Ausschlag/28), höchstens ganz deckend) und wechseln ab 7 px Ausschlag mit 25 % Wahrscheinlichkeit je Bild ihr Zeichen (auf 60 Bilder je Sekunde bezogen, läuft also auf jedem Bildschirm gleich). Wo Strahlen den Namen streifen, leuchten die Zeichen golden. Am Handy dazu eine kurze Vibration (6 ms, wo das Gerät es kann).
 - **Startflug (seit 12.11.2026, nach dem Vorbild ksenpanchenko.com, Zahlen von dort):** Die Zeichen fliegen wie ein Schwarm von außerhalb des Bildes an ihren Platz. Startpunkt je Zeichen: in der Richtung von der Namensmitte (50 % der Breite, 42 % der Höhe) zu seinem Platz, ± 0,8 im Bogenmaß, 0,5 bis 1,4 × `u` weit draußen (`u` = 0,75 × die größere Bildschirmseite), dazu bis 0,25 × `u` nach oben versetzt. Dauer 2,2 s, Restweg `a = (1 − n)³` (am Anfang sehr schnell, am Ende weich). Reihenfolge: Schwelle `Y = clamp((0,62 − r) × 0,5 + 0,22 × Zufall, 0, 0,45)` mit `r` = Abstand zur Namensmitte (in Anteilen von Breite und Höhe des Namens), eigener Fortschritt `f = smoothstep((a − Y) / 0,55)` (1 = ganz außen, 0 = gelandet): Die Mitte landet zuerst, die Ränder zuletzt. Bahn: Platz + Startversatz × `f`. Unterwegs: Größe × (1 + 0,8 × f); solange 0,02 < f < 0,98, wechselt das Zeichen mit 7 % Wahrscheinlichkeit je Bild zu einem Zufallszeichen (`# + = - : . * / % ·`, ohne die Block-Zeichen; das Ruhe-Flimmern nimmt dieselben). Zeichen mehr als 40 px außerhalb des Bildes werden nicht gezeichnet. **Sichtbarkeit und Farbe unterwegs (seit 12.11.2026):** Fliegende Zeichen haben das Hellgrau des Namens, nur leicht wärmer; golden werden sie nur, wo sie unter dem Licht durchfliegen (Gold über den ganzen Bildschirm wirkte zu voll). Im letzten Fünftel des Wegs gleicht sich die Farbe der ihres Platzes an. Deckkraft = Ruhedeckkraft × (1 − f)^0,8, mindestens 0,22, sobald ein Zeichen losgeflogen und im Bild ist. Unter den Zeichen liegt nichts mehr (das frühere Feld in Zellgröße sah wie Pixel-Schnee aus); die Kacheln im Schwarm sind die Block-Zeichen selbst. So füllt bei 0,3 bis 0,9 s ein klar erkennbarer, aber ruhiger Schwarm das Bild. Maus und Klick wirken auf ein Zeichen erst, wenn es gelandet ist (f < 0,05). 250 ms nach dem Ende des Flugs läuft von selbst eine Welle aus der Mitte des Namens.
 - **Takt des Starts (seit 12.11.2026, Einzelheiten in 4f):** Erst wird alles geladen, während nur der Stern schimmert. Dann geht das Licht an, und bei 40 % seiner Stärke (rund 0,5 s später) fliegen die Zeichen los. Flug und Welle rechnen mit der wirklich vergangenen Zeit, dauern also auch auf langsamen Geräten 2,2 s und 1,3 s.
-- **Beim Scrollen (seit 12.11.2026, Einzelheiten in 4h):** Die Zeichen fliegen auf den Bahnen des Startflugs wieder auseinander; zurück am Seitenanfang setzt sich der Name wieder zusammen.
+- **Beim Scrollen (seit 12.11.2026, Einzelheiten in 4h):** Die Zeichen fliegen auf den Bahnen des Startflugs wieder auseinander; zurück am Seitenanfang setzt sich der Name wieder zusammen. (Seit 16.11.2026 nicht mehr, siehe 4v.)
 - **Nichts blitzt auf:** Vor dem Start ist vom Namen nichts zu sehen. Der gewöhnliche Schriftzug hält nur den Platz frei und nennt Vorleseprogrammen den Namen; er ist unsichtbar. Sichtbar wird er nur ohne Skript oder wenn der Browser keine Zeichenfläche hergibt.
 - **Leistung:** Solange die Zeichen als Ganzes unterwegs sind (Startflug, Welle), wird das Licht dahinter höchstens 20-mal je Sekunde neu gezeichnet; sein Bild ändert sich dadurch nicht. So bleibt die Bewegung der Zeichen auch in großen Fenstern flüssig.
 - **Technik:** 2D-Zeichenfläche, pausiert, wenn nicht sichtbar. Bei „weniger Bewegung“ blendet der Name einfach ein (0,6 s): kein Flug, kein Ausweichen, keine Welle, kein Flimmern.
@@ -274,7 +274,7 @@ Code: `components/neu/seite/ScrollHinweis.tsx`, Stile in `kopf.css`. Kein Text, 
 
 Code: `components/neu/seite/` (Seite, Aussage, Uebergang, Leistungen, AblaufNummern, Warum, FussStrahl, Entschluesselt, ZeichenNummer, `zeichenbild.ts`), Stile in `components/neu/seite/seite.css`. Die Zahlen zum Auseinanderfliegen und zu den Zeichen-Bildern stammen aus dem Code von ksenpanchenko.com; umgesetzt ist alles selbst.
 
-**1 · Die Zeichen fliegen auseinander** (`zeichenname.ts`, Methode `rollen`)
+**1 · Die Zeichen fliegen auseinander** (`zeichenname.ts`, Methode `rollen`) (seit 16.11.2026 nicht mehr, siehe 4v)
 - Scroll-Fortschritt `s = scrollY ÷ (0,9 × Bildschirmhöhe)`, begrenzt auf 0–1.
 - Gemeinsamer Antrieb mit dem Startflug: `l = max(s, Restweg des Startflugs)`; jedes Zeichen nutzt `f = smoothstep((l − Y) / 0,55)` mit demselben `Y` wie im Startflug. Die Ränder gehen zuerst, die Mitte zuletzt.
 - Richtung und Weite: dieselben Startversätze wie beim Startflug. Unterwegs gleiche Größe, Farbe, Deckkraft und gleicher Zeichenwechsel. Maus und Welle sind dabei aus. Beim Hochscrollen setzt sich der Name genauso wieder zusammen.
@@ -489,7 +489,7 @@ Kornstärke = Streuung der Helligkeit gegenüber dem weichgezeichneten Bild. Ein
 ### 5 · Start: Stern 1,5 s, kein Scrollen, kein Überspringen
 - **Der Stern steht mindestens 1,5 s** (statt 3 s), höchstens 6 s (`WARTEN_MIN`).
 - **Während der ganzen Startanimation steht die Seite oben:** kein Mausrad, kein Wischen, keine Scroll-Tasten, kein Scrollbalken, kein Sprung zu einem Ziel auf der Seite. Die Sperre gilt vom ersten Bild an (eine Regel im Stylesheet, noch bevor das Skript läuft; `welt.css`), das Skript übernimmt sie und hält dazu das weiche Scrollen an (`scrollSperre` in `umgebung.ts`). Ist die Sperre fest (Klasse `ag-scroll-fest`), ist die Seite nur so hoch wie das Bild und schneidet alles darunter ab: Es gibt dann nichts, wohin sie scrollen könnte, und kein Abschnitt weiter unten löst seinen Auftritt aus. Bei einem frischen Aufruf ist sie sofort fest; nach Neuladen oder Zurück erst 0,3 s nach dem Laden, damit der Browser die frühere Lage noch herstellen kann (in dieser kurzen Zeit tut die Tab-Taste nichts). **Überspringen gibt es nicht mehr** (kein Klick, keine Taste).
-- **Frei** ist das Scrollen, sobald der Name gelandet und die Welle durch ist (1,55 s nach der Landung; Ereignis `ag:start-frei`). Sicherheitsnetz: Käme das Skript nie, gibt das Stylesheet nach 14 s frei.
+- **Frei** ist das Scrollen, sobald der Name gelandet und die Welle durch ist (1,55 s nach der Landung; Ereignis `ag:start-frei`) (seit 16.11.2026 nicht mehr, siehe 4v: frei ab der Landung). Sicherheitsnetz: Käme das Skript nie, gibt das Stylesheet nach 14 s frei.
 - Stellt der Browser die Seite selbst woanders hin, steht alles sofort: bei einem Ziel in der Adresse (`#kontakt`; der Browser springt oft erst nach dem Skript, deshalb wird das Ziel beim Einrichten erkannt) und nach Neuladen oder Zurück mit wiederhergestellter Lage.
 - **Tastatur:** Die Tab-Taste kann die Seite während der festen Sperre nicht bewegen (sie ist nur so hoch wie das Bild). Der Fokus darf wandern; steht er bei der Freigabe auf einem Feld weiter unten, kommt es dann ins Bild. Der Inhalt bleibt die ganze Zeit im Dokument, Vorleseprogramme erreichen ihn. Hat ein Fokus-Sprung die Seite schon bewegt, bevor das Skript lief (frischer Aufruf ohne Ziel in der Adresse), geht es zurück nach oben, und der Start läuft normal.
 - **„Weniger Bewegung“** bleibt wie bisher: ruhiges Einblenden, keine Sperre.
@@ -581,7 +581,7 @@ Während des Starts bewegen die Seite weder Mausrad, Bild-ab, Ende, Leertaste, P
 
 ### 1 · Der Name reagiert immer auf die Maus
 `kopf/zeichenname.ts`, `kopf/startlogik.ts` (`rollStand`, `OBEN_PX`), `kopf/LichtName.tsx`.
-- **Der Fall:** Die Zeichen weichen der Maus nur, solange der Name nicht „wegrollt“ (beim Scrollen fliegen sie auseinander). Dieser Stand war `Lage ÷ (0,9 × Bildhöhe)`, also schon bei 1 px über null: Die Maus war dann abgeschaltet. Nach dem Hochscrollen bleibt die Seite aber oft ein paar Pixel unter dem Anfang stehen (Trackpad, weiches Scrollen, ein Sprung). Der Name stand heil da und reagierte nicht mehr, bis man neu lud. Nachgestellt mit 10 px und mit 3 px Rest.
+- **Der Fall:** Die Zeichen weichen der Maus nur, solange der Name nicht „wegrollt“ (beim Scrollen fliegen sie auseinander; seit 16.11.2026 nicht mehr, siehe 4v). Dieser Stand war `Lage ÷ (0,9 × Bildhöhe)`, also schon bei 1 px über null: Die Maus war dann abgeschaltet. Nach dem Hochscrollen bleibt die Seite aber oft ein paar Pixel unter dem Anfang stehen (Trackpad, weiches Scrollen, ein Sprung). Der Name stand heil da und reagierte nicht mehr, bis man neu lud. Nachgestellt mit 10 px und mit 3 px Rest.
 - **Behoben:** `rollStand` hat eine tote Zone von 24 px. Bis dahin gilt die Seite als oben, erst danach beginnt das Wegrollen (sanft ab null, ohne Sprung).
 - **Zweiter Fund, beim Prüfen mit nachgestelltem Tab-Wechsel:** Ruhte die Maus im Namen, fiel das Loch immer wieder für einen Augenblick zu (in 5 bis 13 % der Messpunkte, gemessen alle 100 ms über 6 s). Kam ein Bild, in dem sich nichts änderte (etwa weil der Zeitgeber des Flimmerns einen Augenblick zu früh weckte), legte die Fläche das ruhende Bild des Namens darüber, also den Namen ohne Loch; erst das nächste Flimmern öffnete es wieder. Jetzt bleibt die Fläche, wie sie ist, solange Zeichen neben ihrem Platz stehen (`zeichenname.ts`). Gemessen danach: 0 von 60 Messpunkten zu, mit und ohne Tab-Wechsel. Dazu ein eigener Test.
 - **Die anderen Verdachtsfälle waren es nicht,** sie sind jetzt aber alle mit Test belegt: später Licht-Start (Szene 8 s verzögert, auch mit bewegter Maus), Tab-Wechsel während und nach dem Start (im Browser nachgestellt, siehe oben), ganz runter und wieder hoch, Fenstergröße während und nach dem Start geändert.
@@ -1150,6 +1150,53 @@ Ausgangsstand: Commit `a65e358`. Am Aussehen der Startseite ändert sich nichts.
 ### Offen
 - Nichts. (Bildraten im Chat bei ruhigem Mac nachgemessen, siehe Geprüft.)
 
+## 4v. Startanimation-Runde 2 vom 16.11.2026
+
+Davids Wunsch: Der Name soll beim Scrollen nicht mehr auseinanderfliegen, Scrollen soll früher frei sein, und das Licht soll früher und weicher zur Maus drehen. Am übrigen Aussehen ändert sich nichts. Nichts hochgeladen.
+
+### 1 · Der Name fliegt beim Scrollen nicht mehr auseinander (auch am Computer)
+- Am Handy war das seit 15.11.2026 schon so (4r). Jetzt gilt es überall: Nach dem Einflug bleibt der Name als fester Schriftzug stehen und wandert mit der Seite nach oben (`LichtName.tsx` übergibt `feld.rollen` immer 0).
+- Die Zeichenfläche reicht nicht mehr 90 % der Bildhöhe unter den Kopfbereich hinaus (der frühere Überhang ist weg).
+- Es bleiben: der Einflug beim Start, das Ausweichen der Zeichen vor dem Zeiger, die Welle beim Klick auf den Namen und das Licht, das beim Runterscrollen schwächer wird und oben wieder kurz aufleuchtet.
+
+### 2 · Scrollen ist frei, sobald der Name gelandet ist
+- Vorher erst nach der Welle, also 1,55 s später. Jetzt gilt die Freigabe bei der Landung (`ag:start-frei`); die Welle läuft einfach weiter. Ein gemerktes Ziel in der Adresse (`#kontakt`) wird ab der Landung angesteuert; Mausrad, Wischen und Scroll-Tasten ebenso.
+- Der Ablauf nach der Landung steht als reine Regel in `components/neu/kopf/startlogik.ts` → `nachLandung`: frei 0 s, Welle 0,25 s (nur mit Maus), vorbei 1,55 s. Die Tests prüfen genau diese Regel.
+- Neues Signal **„Start vorbei“** (`umgebung.ts`: `START_VORBEI = "ag:start-vorbei"`, Klasse `ag-start-vorbei`): Es kommt, wenn die Welle durch ist. Danach richtet sich der Scroll-Hinweis (`ScrollHinweis.tsx`: Lichtleiste erscheint 3 s später), damit er genau so spät kommt wie bisher. `kopf.css` blendet die Leiste bis „Start vorbei“ aus (vorher bis `ag-start-frei`).
+- Messpunkte: `performance.mark` `ag-start:gelandet`, `ag-start:frei`, `ag-start:vorbei`, `ag-start:maus`.
+- „Weniger Bewegung“ und `?vorschau` verhalten sich wie bisher: alles sofort, frei und vorbei zugleich.
+
+### 3 · Das Licht folgt der Maus ab voller Helligkeit, mit weicher Drehung
+- **Wann:** Ab voller Helligkeit (Ende der Licht-Stufen, Pegel mindestens 0,999, `startlogik.ts` → `lichtVoll`), also 0,7 s bevor der Name einfliegt. Vorher: erst 1 s nach der Welle.
+- **Wie lange:** Die Drehung dauert 0,8 s (`MAUS_DREHEN`). Vorher 1,5 s.
+- **Neu gebaut** (`lichtszene.ts`, `startlogik.ts` → `drehAnteil`): Ein Folger läuft der Maus nach wie sonst das Licht. Das Licht geht mit einer glatten S-Kurve (Tempo und Beschleunigung am Anfang und Ende null) vom Startplatz auf den Folger über. Bewegt sich die Maus währenddessen, folgt es ihr ohne Ruck und geht ohne Knick ins gewöhnliche Folgen über.
+- **Nachgerechnet im Test:** Am Übergang ist die Beschleunigung so klein wie beim gewöhnlichen Folgen. Die alte Drehung (zuletzt 1:1 mit der Maus, dann umgeschaltet) war dort mehr als fünfmal so stark.
+- Nur mit Maus. Am Handy ändert sich nichts.
+
+### 4 · Neu laden landet immer oben
+- Wird die Seite neu geladen oder über Zurück/Vor wieder aufgerufen (auch aus dem Zwischenspeicher des Browsers), beginnt sie immer ganz oben. Ein Abschnitt in der Adresse (`#kontakt`) wird mit `history.replaceState` herausgenommen, ohne neuen Verlaufseintrag.
+- Kommt jemand neu (Link von außen, Mail, SMS, etwa `agentsgilt.com/#kontakt`), läuft wie bisher erst der Start, und die Seite scrollt dorthin, sobald das Scrollen frei ist (ab der Landung).
+- Unterschieden wird über die Navigationsart des Dokuments (`performance.getEntriesByType("navigation")[0].type`: `reload` und `back_forward` gegenüber `navigate`; `startlogik.ts` → `zielAnsteuern`, `LichtName.tsx` → `navigationsArt`). Sie gilt nur für den ersten Start nach dem Laden, damit Wechsel innerhalb der Website (etwa „Zurück“ vom Impressum auf `/#fuss`) weiter zum Abschnitt führen.
+- „Weniger Bewegung“ und `?vorschau` wie bisher (dort stellt der Browser die Lage selbst wieder her).
+
+### Geprüft
+- Neu laden am fertigen Build (Prüfkopien ohne Schlüssel), Computer und Handy: Weiter unten neu laden: oben, Adresse „/“ (war schon vorher so). Neu laden mit `#kontakt`: vorher sprang die Seite zum Kontakt und `#kontakt` blieb, nachher oben und Adresse „/“. Zurück von `/impressum` auf eine Startseite mit `#leistungen`: vorher bei Leistungen, nachher oben und „/“. Aufruf von außen mit `/#kontakt`: nach dem Start beim Kontakt (vorher und nachher). Navigation danach (Leistungen) und „Zurück“ vom neu geladenen Impressum zum Fuß funktionieren wie gewohnt. Test: `tests/kopf-start.test.ts` („Neu laden landet oben …“).
+- Gemessen am fertigen Build (Prüfkopien ohne Schlüssel), ab der Landung des Namens:
+
+| Was | vorher | nachher |
+|---|---|---|
+| Scrollen frei | 1,58 s (Computer), 1,57 s (Handy) | sofort (0 s) |
+| Erster Scroll | nach der Freigabe | 0,04 bis 0,05 s |
+| Sprung zu `#kontakt` | 1,6 s | 0,02 bis 0,03 s |
+| „Start vorbei“ | (alte Freigabe) | 1,50 bis 1,52 s, wie die alte Freigabe |
+| Licht folgt der Maus | rund 2,55 s nach der Landung | bei voller Helligkeit, rund 3 s vor der Landung |
+
+- Tests: `tests/kopf-start.test.ts` (neu: Freigabe bei der Landung, Maus ab voller Helligkeit, Drehung weich und ohne Ruck, Name fliegt nicht auseinander), `tests/handy.test.ts` angepasst (Welle nur mit Maus, über `nachLandung`).
+- Bildraten (echtes Chrome-Fenster ohne Bremse, Netz gesperrt, abwechselnd vorher und nachher, im 60-Hz-Takt, Bildschirmtakt in allen Läufen 6,1 ms): Computer, je 3 Paare: Start mit kreisender Maus 58,7 gegen 59,4 Bilder/s, Runter- und Hochscrollen 59,8 gegen 60,1, lange Bilder über 50 ms je Lauf 1,0 gegen 1,0 bzw. 0 gegen 0; kein Unterschied über der Streuung. Handy in Ruhe, 4 Paare (eine erste Reihe lief teils mit Fremdlast durch eigene Prüfbrowser): Start 60,0 gegen 59,9, Scrollen 60,1 gegen 60,0, keine langen Bilder; kein Unterschied.
+
+### Offen
+- Nichts.
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.
@@ -1209,3 +1256,4 @@ Ausgangsstand: Commit `a65e358`. Am Aussehen der Startseite ändert sich nichts.
 32. **Neunte Runde (15.11.2026, Abschnitt 4r):** Die Glaskarten zeigen nur noch den kleinen Stern hinter Milchglas (weiche, vorbereitete Bilder), die Schrift der hervorgehobenen Karte wird deutlich heller; Strahlen und Licht auf der Seite sind entfernt. Eine Karte leuchtet erst, wenn sie ganz eingeschwebt ist. Am Handy leuchtet die Karte in der Mitte des Bildschirms, und dort ist wieder alles animiert wie am Computer (Überschriften, Wettlauf, Wörter-Feld, „In drei Schritten“, Leistungen nur die Karte in der Mitte, mit Neustart); weg bleibt nur, was Maus oder Finger auf der Fläche braucht, und der Sprung des Namens. Überschriften springen nirgends mehr (Zwischenwort im Platz des echten Wortes). Am Handy greifen Sparstufen (gröberer Takt der Zeichen, feste Ebenen der Leistungs-Karten).
 33. **Prüfung (15.11.2026, Abschnitt 4s):** Am Aussehen ändert sich nichts, außer zwei Behebungen: Die Kopfleiste wird unter 375 px Breite etwas kleiner gezeichnet, damit der Menü-Knopf erreichbar ist, und die nicht aktiven Schritte in „So läuft es ab“ sind heller (Deckkraft 0,75 statt 0,62, Davids Entscheidung), damit sie genug Kontrast haben.
 34. **Livegang vorbereitet (15.11.2026, Abschnitt 4t):** Die Überschrift heißt „Wir bauen in Tagen, wofür Agenturen Monate brauchen.“ (erst „Wochen“, dann „Tagen“), ohne Sternchen und Fußnote; Zeitangaben überall „Tage statt Wochen oder Monate“. Der Chat schreibt ohne Emojis. Die neue Seite ist die Startseite `/`, alle `/varianten`-Adressen leiten auf sie weiter, der Chat ist auf jeder Seite derselbe. Sonst ändert sich am Aussehen nichts.
+35. **Startanimation-Runde 2 (16.11.2026, Abschnitt 4v):** Der Name fliegt beim Scrollen auch am Computer nicht mehr auseinander und wandert fest mit der Seite. Scrollen ist ab der Landung des Namens frei (nicht erst nach der Welle). Das Licht folgt der Maus ab voller Helligkeit, mit einer weichen Drehung von 0,8 s. Neu laden und Zurück/Vor landen immer oben (Abschnitt in der Adresse fällt weg), Aufrufe von außen mit `#kontakt` scrollen weiter dorthin.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { START_FREI, START_FREI_KLASSE } from "../umgebung";
+import { START_VORBEI, START_VORBEI_KLASSE } from "../umgebung";
 import { Lichtleiste } from "./Lichtleiste";
 
 // So lange nach dem Ende der Startanimation erscheint die Leiste (wenn man dann noch ganz oben steht).
@@ -14,8 +14,8 @@ const AUSBLENDEN = 1200;
  * durchgehende, leuchtende Leiste über die ganze Breite (Lichtleiste.tsx). Sie bewegt sich nicht
  * seitlich; sie atmet nur ganz leicht von unten nach oben (Höhe und Helligkeit, 3 s je Atemzug).
  *
- * Sie blendet 3 s nach dem Ende der Startanimation weich ein (Name gelandet, Welle durch: ab da
- * kann man scrollen), wenn man dann noch ganz oben steht. Danach atmet sie ununterbrochen weiter,
+ * Sie blendet 3 s nach dem Ende der Startanimation weich ein (Name gelandet, Welle durch; scrollen
+ * kann man seit dem 16.11.2026 schon ab der Landung), wenn man dann noch ganz oben steht. Danach atmet sie ununterbrochen weiter,
  * bis gescrollt wird. Beim ersten Scrollen blendet sie langsam aus (1,2 s) und kommt bei diesem
  * Seitenaufruf nicht wieder, auch nicht, wenn man wieder hochscrollt. Nur echtes Scrollen zählt:
  * Während der Startanimation ist das Scrollen gesperrt. Nach einem neuen Laden kommt sie wieder.
@@ -35,7 +35,7 @@ export function ScrollHinweis() {
     const planen = () => {
       window.clearTimeout(uhr);
       if (weg) return;
-      // Die Wartezeit beginnt mit jeder Freigabe neu: Läuft die Startanimation noch einmal (etwa
+      // Die Wartezeit beginnt mit jedem Ende des Starts neu: Läuft die Startanimation noch einmal (etwa
       // nach „Zurück“ aus dem Zwischenspeicher des Browsers), kommt auch die Leiste erst danach wieder.
       delete el.dataset.an;
       uhr = window.setTimeout(() => {
@@ -53,12 +53,12 @@ export function ScrollHinweis() {
       ruhe = window.setTimeout(() => delete el.dataset.an, AUSBLENDEN + 100);
     };
     const abbau = () => {
-      window.removeEventListener(START_FREI, planen);
+      window.removeEventListener(START_VORBEI, planen);
       window.removeEventListener("scroll", beimScrollen);
     };
-    // Die Wartezeit zählt ab dem Ende der Startanimation („Start frei“).
-    if (document.documentElement.classList.contains(START_FREI_KLASSE)) planen();
-    window.addEventListener(START_FREI, planen);
+    // Die Wartezeit zählt ab dem Ende der Startanimation („Start vorbei“: Welle durch).
+    if (document.documentElement.classList.contains(START_VORBEI_KLASSE)) planen();
+    window.addEventListener(START_VORBEI, planen);
     window.addEventListener("scroll", beimScrollen, { passive: true });
     return () => {
       window.clearTimeout(uhr);

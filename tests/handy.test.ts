@@ -115,8 +115,10 @@ test("am Handy ist alles animiert wie am Computer; weg bleibt nur, was Maus oder
   assert.ok(!stil.includes("data-ruhig"));
   // Das Verbuggen unter der Maus bleibt nur mit Maus.
   assert.match(ohneKommentare(lies("components/neu/seite/Entschluesselt.tsx")), /ev\.pointerType === "mouse"\) spiel\.stoeren/);
-  // Der Name oben bildet sich am Handy ohne den kleinen Sprung danach.
-  assert.match(ohneKommentare(lies("components/neu/kopf/LichtName.tsx")), /if \(maus\) spaeter\.push\(gsap\.delayedCall\(0\.25, feld\.welleMitte\)\);/);
+  // Der Name oben bildet sich am Handy ohne den kleinen Sprung danach (die Welle gibt es nur mit
+  // Maus: startlogik.ts nachLandung, seit der Startanimation-Runde 2).
+  assert.match(ohneKommentare(lies("components/neu/kopf/LichtName.tsx")), /const plan = nachLandung\(maus\);\s*if \(plan\.welle !== null\) spaeter\.push\(gsap\.delayedCall\(plan\.welle, feld\.welleMitte\)\);/);
+  assert.match(lies("components/neu/kopf/startlogik.ts"), /welle: maus \? WELLE_PAUSE : null/);
   // Leistungen: Am Handy spielt die Karte in der Mitte, immer höchstens eine, mit Zurücksetzen.
   const leistungen = lies("components/neu/seite/Leistungen.tsx");
   assert.match(leistungen, /meldeMitte\(/);
