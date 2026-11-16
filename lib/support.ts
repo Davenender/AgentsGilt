@@ -307,7 +307,7 @@ export async function hinweisBeiAnrufwunsch(token: string, channelId: string, te
 export async function postPresence(token: string, channelId: string, state: "left" | "back"): Promise<boolean> {
   const content =
     state === "left"
-      ? "❗ **Der Besucher hat den Chat verlassen.** Antworten kommen bei ihm nicht mehr an. Nimm bei Bedarf über den angegebenen Kontakt (E-Mail oder Telefon, siehe oben) Verbindung auf."
+      ? "❗ **Der Besucher hat den Chat verlassen.** Kommt er innerhalb von 24 Stunden zurück, sieht er eure Antworten. Schreibt er 3 Stunden nichts mehr, erscheint hier **📧 Per E-Mail antworten** (bei einer Telefonnummer: anrufen, siehe Karte)."
       : "✅ Der Besucher ist wieder im Chat.";
   const res = await call(token, "POST", `/channels/${channelId}/messages`, {
     content,

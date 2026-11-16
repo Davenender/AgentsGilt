@@ -14,7 +14,7 @@ export interface Entwurf {
 export const ENTWURF_PROMPT = `Du schreibst für die KI-Agentur Agents Gilt den Entwurf einer kurzen E-Mail an einen Kunden. Ein Mitarbeiter liest und ändert ihn vor dem Senden, danach wird er freigegeben.
 
 Regeln:
-- Du-Form, freundlich, klar, 60 bis 150 Wörter.
+- Du-Form, freundlich, klar, 60 bis 150 Wörter. Nur wenn unser Team den Kunden im Verlauf schon siezt, bleib beim Sie.
 - Beginne mit „Hallo <Vorname des Kunden>,“, wenn der Name bekannt ist, sonst mit „Hallo,“.
 - Geh auf das ein, was im Verlauf offen ist. Erfinde nichts: keine Termine, Zusagen, Fakten oder Leistungen, die nicht im Verlauf oder in den Kundendaten stehen.
 - Nenne nie Preise, Beträge, Rabatte oder Kosten. Bei Preisfragen: Das besprechen wir gern kurz am Telefon oder in einem kostenlosen Erstgespräch.
@@ -25,7 +25,7 @@ Regeln:
 {LAGE}
 
 Antworte ausschließlich mit einem JSON-Objekt:
-{"zusammenfassung": "1 bis 2 Sätze für den Mitarbeiter, worum es geht", "betreff": "höchstens 80 Zeichen", "text": "die Mail"}`;
+{"zusammenfassung": "1 bis 2 Sätze für den Mitarbeiter, worum es geht", "betreff": "höchstens 80 Zeichen, dieselbe Anrede wie im Text", "text": "die Mail"}`;
 
 const LAGE: Record<MailOrt, string> = {
   ticket: "Lage: Der Kunde hat im Website-Chat mit unserem Team geschrieben und ist seit Stunden nicht mehr im Chat. Die Mail führt das Gespräch weiter.",

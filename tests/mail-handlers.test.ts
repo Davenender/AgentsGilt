@@ -1,7 +1,7 @@
 // Mails mit Freigabe (Etappe 2): Wer darf mailen, doppeltes Senden, Verlauf fürs Ticket, Entwurf-Karte.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { darfMailen, entwurfKarte, freigabeKarte, leseEntwurfKarte, mitZustand, pruefeSenden, ticketBesitzer, ticketVerlauf } from "../lib/mail-antwort.ts";
+import { BETREFF_MAX, TEXT_MAX, darfMailen, entwurfKarte, fensterWerte, freigabeKarte, leseEntwurfKarte, mitZustand, pruefeSenden, ticketBesitzer, ticketVerlauf } from "../lib/mail-antwort.ts";
 
 const DAVID = "806859236768088114";
 
@@ -46,4 +46,12 @@ test("Entwurf-Karte lässt sich wieder lesen", () => {
   const k = entwurfKarte({ zusammenfassung: "Kunde will Preise.", betreff: "Deine Frage", text: "Hallo Max" }, "max@firma.de");
   assert.deepEqual(leseEntwurfKarte(k), { betreff: "Deine Frage", text: "Hallo Max" });
   assert.deepEqual(leseEntwurfKarte(entwurfKarte(null, "max@firma.de")), { betreff: "", text: "" });
+});
+
+// Discord öffnet ein Fenster nicht, wenn der vorausgefüllte Wert länger als erlaubt ist.
+test("Fenster-Werte bleiben unter den Grenzen", () => {
+  const w = fensterWerte("Re: " + "x".repeat(300), "y".repeat(5000));
+  assert.ok(w.betreff.length <= BETREFF_MAX);
+  assert.ok(w.text.length <= TEXT_MAX);
+  assert.deepEqual(fensterWerte("Hallo", "Text"), { betreff: "Hallo", text: "Text" });
 });

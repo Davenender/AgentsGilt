@@ -250,7 +250,7 @@ export const ANLEITUNGEN: Anleitung[] = [
   {
     titel: "📖 Anleitung: Anfragen (Karten in #anfragen)",
     sucht: ["📖 Anleitung: Anfragen"],
-    text: "**Woher kommen Anfragen?** Besucher der Website füllen das Kontaktformular aus (Name, E-Mail, Unternehmen, gewünschte Leistung, Nachricht). Was echt aussieht, erscheint als Karte in **#anfragen**, und alle im Team bekommen einen **Push aufs Handy**.\n\n**Ablauf**\n1. **Übernehmen:** Wer sich kümmert, drückt Übernehmen. Sein Name steht als **Übernommen von** auf der Karte. **Nur dieser Bearbeiter** (und David) kann danach die weiteren Knöpfe benutzen. Mit **Freigeben** gibt er die Anfrage wieder ab.\n2. **Status:** **Offen**, **In Arbeit**, **Kontaktiert**. Der aktuelle Status ist blau hervorgehoben.\n3. **Lead aktiv** (erscheint erst bei „Kontaktiert“): Der Bot legt den Kunden in **Notion** an (Quelle „Website / Chatbot“), und du wirst dort **Zuständig**. Der **Kundenkanal** (knd_00X) entsteht automatisch, die Anfrage steht dort als erste Nachricht, und die Karte in #anfragen wird gelöscht.\n4. **Bestehender Kunde?** Wenn ein Kunde, den wir schon haben, über die Website schreibt: Der Knopf zeigt die Kunden aus Notion (bei mehr als 25 mit Suche nach Name, E-Mail oder KND-Nummer). Nach der Auswahl wandert die Anfrage in dessen Kanal, die Karte verschwindet.\n5. **Erledigt:** schließt die Anfrage (Karte grau, keine Knöpfe mehr), zum Beispiel wenn sich alles per Telefon geklärt hat.\n\n**Antworten per Mail:** Zu jeder Anfrage kommt eine Mail an kontakt@agentsgilt.com („Neue Projekt-Anfrage von …“). Klickt man dort in Gmail auf **Antworten**, geht die Antwort direkt an den Besucher. Der Besucher bekommt außerdem automatisch eine Bestätigungsmail.",
+    text: "**Woher kommen Anfragen?** Besucher der Website füllen das Kontaktformular aus (Name, E-Mail, Unternehmen, gewünschte Leistung, Nachricht). Was echt aussieht, erscheint als Karte in **#anfragen**, und alle im Team bekommen einen **Push aufs Handy**.\n\n**Ablauf**\n1. **Übernehmen:** Wer sich kümmert, drückt Übernehmen. Sein Name steht als **Übernommen von** auf der Karte. **Nur dieser Bearbeiter** (und David) kann danach die weiteren Knöpfe benutzen. Mit **Freigeben** gibt er die Anfrage wieder ab.\n2. **Status:** **Offen**, **In Arbeit**, **Kontaktiert**. Der aktuelle Status ist blau hervorgehoben.\n3. **Lead aktiv** (erscheint erst bei „Kontaktiert“): Der Bot legt den Kunden in **Notion** an (Quelle „Website / Chatbot“), und du wirst dort **Zuständig**. Der **Kundenkanal** (knd_00X) entsteht automatisch, die Anfrage steht dort als erste Nachricht, und die Karte in #anfragen wird gelöscht.\n4. **Bestehender Kunde?** Wenn ein Kunde, den wir schon haben, über die Website schreibt: Der Knopf zeigt die Kunden aus Notion (bei mehr als 25 mit Suche nach Name, E-Mail oder KND-Nummer). Nach der Auswahl wandert die Anfrage in dessen Kanal, die Karte verschwindet.\n5. **Erledigt:** schließt die Anfrage (Karte grau, keine Knöpfe mehr), zum Beispiel wenn sich alles per Telefon geklärt hat.\n\n**Antworten per Mail:** Nach dem Übernehmen steht an der Karte **📧 Per E-Mail antworten** (Anleitung „Mails an Kunden“ unten). Der Besucher bekommt außerdem automatisch eine Bestätigungsmail.",
   },
   {
     titel: "📖 Anleitung: Support-Chat auf der Website",
@@ -282,10 +282,32 @@ export const ANLEITUNGEN: Anleitung[] = [
     ),
   },
   {
+    titel: "📖 Anleitung: Mails an Kunden",
+    sucht: [],
+    text: z(
+      "Mails an Kunden schreibt ihr direkt in Discord, mit einem Entwurf vom Bot.",
+      "",
+      "**Wo der Knopf ist:**",
+      "• **Support-Ticket:** Hat jemand übernommen und der Kunde schreibt 3 Stunden nichts mehr, erscheint **📧 Per E-Mail antworten**, und wer übernommen hat, wird erwähnt. Gibt es nur eine Telefonnummer, steht dort ein Hinweis.",
+      "• **#anfragen:** nach **Übernehmen** an der Karte.",
+      "• **Kundenmail im Kundenkanal:** **📧 Antworten** unter der Mail.",
+      "",
+      "**So geht es:**",
+      "1. Knopf drücken. Der Bot schreibt aus dem bisherigen Gespräch einen Entwurf, den nur du siehst.",
+      "2. **✏️ Bearbeiten & senden:** Betreff und Text prüfen, anpassen und absenden.",
+      "3. Im Kanal steht **📧 Mail geht raus**, danach **✅ Mail gesendet um …**.",
+      "4. Steht dort **❌ Mail konnte nicht abgeschickt werden: …**, ging sie nicht raus. Der Grund steht dabei, und du wirst erwähnt.",
+      "",
+      "**Antwortet der Kunde,** landet seine Mail wieder dort: im Ticket (ein geschlossenes Ticket kommt aus dem ARCHIV zurück), unter der Anfrage oder im Kundenkanal.",
+      "",
+      "**Gut zu wissen:** Mailen können nur, wer übernommen hat, und die Zuständigen. Der Entwurf nennt nie Preise. **An Leads schreibt ihr keine Mails:** Werbung per Mail ohne Einwilligung ist verboten (§ 7 UWG).",
+    ),
+  },
+  {
     titel: "📖 Anleitung: Mails und Zahlungen",
     sucht: [],
     text: z(
-      "**Mails von Kunden:** Schreibt ein Kunde, dessen Adresse in Notion im Feld **E-Mail** steht, an kontakt@agentsgilt.com, erscheint die Mail mit kurzer Zusammenfassung in seinem **Kundenkanal**, und das Team wird erwähnt. In Gmail bekommt die Unterhaltung automatisch das Label **„Kunden/Kunde - 00X“**. Geantwortet wird weiterhin direkt in Gmail. Ihr müsst nichts weiterleiten.",
+      "**Mails von Kunden:** Schreibt ein Kunde, dessen Adresse in Notion im Feld **E-Mail** steht, an kontakt@agentsgilt.com, erscheint die Mail mit kurzer Zusammenfassung in seinem **Kundenkanal**, und das Team wird erwähnt. In Gmail bekommt die Unterhaltung automatisch das Label **„Kunden/Kunde - 00X“**. Geantwortet wird in Discord mit **📧 Antworten** unter der Mail (Anleitung „Mails an Kunden“). Ihr müsst nichts weiterleiten.",
       "",
       "**Zahlungen über Stripe:** Bezahlt ein Kunde über einen Zahlungslink, läuft alles von selbst:",
       "• In seinem **Kundenkanal** erscheint eine Zahlungskarte (bezahlt, fehlgeschlagen oder Abo beendet), mit einem Ping ans Team (nur die normale monatliche Abbuchung kommt ohne Ping).",

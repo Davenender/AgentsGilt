@@ -21,7 +21,10 @@ import { findeKarte } from "@/lib/kundenkanal";
 import { aendereKarte, besitzerId, call, posteingangKanal, postKarte, setzeAntwort } from "@/lib/leads";
 import { sendMail } from "@/lib/mail";
 import {
+  BETREFF_MAX,
   darfMailen,
+  fensterWerte,
+  TEXT_MAX,
   entwurfKarte,
   freigabeKarte,
   freigabeKnoepfe,
@@ -152,15 +155,16 @@ async function nachDemSenden(token: string, f: Pick<Freigabe, "an" | "ort" | "ka
 const eingabe = (i: AnfInteraction, id: string) =>
   i.data?.components?.flatMap((r) => r.components ?? []).find((c) => c.custom_id === id)?.value?.trim() ?? "";
 
-function fenster(customId: string, titel: string, betreff: string, text: string) {
+function fenster(customId: string, titel: string, betreffRoh: string, textRoh: string) {
+  const { betreff, text } = fensterWerte(betreffRoh, textRoh);
   return NextResponse.json({
     type: 9,
     data: {
       custom_id: customId,
       title: titel,
       components: [
-        { type: 1, components: [{ type: 4, custom_id: "betreff", label: "Betreff", style: 1, required: true, max_length: 150, value: betreff || undefined }] },
-        { type: 1, components: [{ type: 4, custom_id: "text", label: "Text der Mail", style: 2, required: true, max_length: 3800, value: text || undefined }] },
+        { type: 1, components: [{ type: 4, custom_id: "betreff", label: "Betreff", style: 1, required: true, max_length: BETREFF_MAX, value: betreff || undefined }] },
+        { type: 1, components: [{ type: 4, custom_id: "text", label: "Text der Mail", style: 2, required: true, max_length: TEXT_MAX, value: text || undefined }] },
       ],
     },
   });

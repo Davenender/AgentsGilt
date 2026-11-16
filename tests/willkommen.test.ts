@@ -148,3 +148,18 @@ test("Support-Chat erklärt Anruf anbieten und die 24 Stunden", () => {
   assert.doesNotMatch(text, /Antworten kommen nur an, solange er im Chat ist/);
   assert.match(text, /schreibt er danach wieder mit dem KI-Assistenten/);
 });
+
+// Etappe 2 (16.11.2026): Mails an Kunden laufen über Discord, nicht mehr über Gmail.
+test("Anleitung „Mails an Kunden“ und kein Gmail-Antworten mehr", () => {
+  const alle = ANLEITUNGEN.map((x) => [x.text ?? "", ...(x.felder ?? []).map((f) => f.value)].join("\n")).join("\n");
+  const mails = ANLEITUNGEN.find((x) => x.titel === "📖 Anleitung: Mails an Kunden");
+  assert.ok(mails, "Anleitung fehlt");
+  assert.match(mails.text ?? "", /📧 Mail geht raus/);
+  assert.match(mails.text ?? "", /Bearbeiten & senden/);
+  assert.match(mails.text ?? "", /§ 7 UWG/);
+  assert.doesNotMatch(alle, /in Gmail auf \*\*Antworten\*\*/);
+  assert.doesNotMatch(alle, /Geantwortet wird weiterhin direkt in Gmail/);
+  const i = ANLEITUNGEN.findIndex((x) => x.titel === "📖 Anleitung: Mails an Kunden");
+  assert.equal(ANLEITUNGEN[i + 1]?.titel, "📖 Anleitung: Mails und Zahlungen");
+  assert.deepEqual(pruefeLaengen(ANLEITUNGEN), []);
+});

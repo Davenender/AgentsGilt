@@ -274,3 +274,8 @@ export function sauberAdresse(s: string): string {
   const ohne = s.replace(/[​-‍⁠﻿]/g, "").trim();
   return (ohne.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] ?? ohne).trim();
 }
+
+/** Grenzen der Eingabefelder im Discord-Fenster; ein längerer Startwert würde das Fenster verhindern. */
+export const BETREFF_MAX = 150;
+export const TEXT_MAX = 3800;
+export const fensterWerte = (betreff: string, text: string) => ({ betreff: betreff.slice(0, BETREFF_MAX), text: text.slice(0, TEXT_MAX) });
