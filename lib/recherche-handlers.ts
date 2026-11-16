@@ -4,7 +4,9 @@
 //   das passt nicht in einen Knopfdruck, und so wird es bei einem Fehler einfach noch einmal versucht.
 // - „👥 Einladen“ holt jemanden aus dem Team dazu (lesen und fragen; die Status-Knöpfe bleiben beim Zuständigen).
 // - Fragen tippt man in den Thread, der Takt antwortet.
-// - Freigeben, Aussortieren, Kein Interesse: Thread zu. „Lead aktiv“: Mappe auf die Notion-Seite, Thread zu.
+// - Freigeben, Aussortieren, Kein Interesse: Thread zu. „Lead aktiv“: Mappe und Verlauf auf die Notion-Seite, Thread zu;
+//   der Takt kopiert beides als gesperrten Thread „🔎 Recherche“ in den Kundenkanal, sobald es ihn gibt (lib/recherche-umzug.ts).
+// - Zurück auf „Offen“: Thread nur einklappen. Wieder „In Arbeit“: derselbe Thread, ab 30 Tagen alter Mappe eine neue.
 // Reine Regeln: lib/lead-arbeit.ts, lib/recherche-mappe.ts.
 import { NextResponse } from "next/server";
 import type { AnfInteraction } from "@/lib/anfrage-handlers";
@@ -15,14 +17,15 @@ import { mitRecherche, nachhakenFaellig, nachhakText, offeneFragen, rechercheThr
 import { haengeAn } from "@/lib/notion-api";
 import { beantworteFrage, erstelleMappe } from "@/lib/recherche";
 import { embedsAlsText, istMappe, mappeEmbeds } from "@/lib/recherche-mappe";
+import { findChannelId } from "@/lib/discord";
+import { kanalName } from "@/lib/notion-kunden";
+import { aktuelleMappe, FEHLVERSUCH, kundenNrAus, mappeVeraltet, mitUmzug, NEUE_MAPPE, PLATZHALTER, teileText, umzugFaellig, verlaufZeilen } from "@/lib/recherche-umzug";
 import { aktive, DAVID_ID, nameVon } from "@/lib/team";
 import { zeitAusId } from "@/lib/team-takt-regeln";
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 const ephemeral = (content: string) => NextResponse.json({ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } });
 const ohneNull = (s: string) => s.replace(/​/g, "");
-const PLATZHALTER = "Ich stelle dir die Mappe zusammen";
-const FEHLVERSUCH = "⚠️ Die Mappe hat diesmal nicht geklappt";
 
 type Msg = { id: string; content?: string; author?: { id?: string; bot?: boolean }; embeds?: EmbedLike[]; components?: unknown[] };
 
@@ -38,6 +41,15 @@ export async function starteRecherche(token: string, leadsKanal: string, karteId
   const alt = rechercheThread(e);
   if (alt && (await call(token, "PATCH", `/channels/${alt}`, { archived: false, locked: false }))) {
     await call(token, "PUT", `/channels/${alt}/thread-members/${besitzer}`);
+    // Alte Mappe (ab 30 Tagen): Hinweis setzen, dann baut der Takt eine neue. Ohne Mappe baut er ohnehin.
+    const msgs = await liesThread(token, alt);
+    const { mappeId } = aktuelleMappe(msgs.map((m) => ({ id: m.id, mappe: istMappe(m.embeds?.[0]), text: m.content ?? "" })));
+    if (mappeId && mappeVeraltet(mappeId, Date.now())) {
+      await call(token, "POST", `/channels/${alt}/messages`, {
+        content: `${NEUE_MAPPE}, ich stelle <@${besitzer}> eine neue zusammen (etwa eine Minute).`,
+        allowed_mentions: { users: [besitzer] },
+      });
+    }
     return;
   }
   const firma = ohneNull(e.title ?? "Firma");
@@ -67,6 +79,25 @@ export async function starteRecherche(token: string, leadsKanal: string, karteId
   }
 }
 
+/** Zurück auf „Offen“: Thread einklappen, nicht sperren und nicht löschen (bei „In Arbeit“ geht er wieder auf). */
+export async function klappeRechercheEin(token: string, threadId: string | null): Promise<void> {
+  if (threadId) await call(token, "PATCH", `/channels/${threadId}`, { archived: true });
+}
+
+/** Alle Nachrichten eines Threads in zeitlicher Reihenfolge (höchstens 100). */
+async function liesThread(token: string, threadId: string): Promise<Msg[]> {
+  return ((await call<Msg[]>(token, "GET", `/channels/${threadId}/messages?limit=100`)) ?? []).slice().reverse();
+}
+
+const mappeUndVerlauf = (msgs: Msg[]) => {
+  const { mappeId } = aktuelleMappe(msgs.map((m) => ({ id: m.id, mappe: istMappe(m.embeds?.[0]), text: m.content ?? "" })));
+  const mappe = msgs.find((m) => m.id === mappeId) ?? null;
+  const verlauf = verlaufZeilen(
+    msgs.filter((m) => !istMappe(m.embeds?.[0])).map((m) => ({ bot: Boolean(m.author?.bot), name: m.author?.bot ? "Bot" : (nameVon(m.author?.id ?? "") ?? "Team"), text: m.content ?? "" })),
+  );
+  return { mappe, verlauf };
+};
+
 /** Thread schließen (Freigeben, Aussortieren, Kein Interesse, Lead aktiv). */
 export async function schliesseRecherche(token: string, threadId: string | null): Promise<void> {
   if (threadId) await call(token, "PATCH", `/channels/${threadId}`, { archived: true, locked: true });
@@ -78,14 +109,65 @@ const block = (typ: "heading_3" | "paragraph", text: string) => ({
   [typ]: { rich_text: [{ type: "text", text: { content: text.slice(0, 1900) } }] },
 });
 
-/** „Lead aktiv“: Mappe auf die neue Notion-Seite. */
+/** „Lead aktiv“: Mappe und Fragen/Antworten auf die neue Notion-Seite. */
 export async function rechercheNachNotion(token: string, threadId: string | null, notionUrl: string): Promise<boolean> {
   if (!threadId) return false;
-  const msgs = (await call<Msg[]>(token, "GET", `/channels/${threadId}/messages?limit=50`)) ?? [];
-  const mappe = msgs.find((m) => istMappe(m.embeds?.[0]));
-  if (!mappe?.embeds) return false;
-  const absaetze = embedsAlsText(mappe.embeds).split(/\n\n/).filter(Boolean);
-  return Boolean(await haengeAn(notionUrl, [block("heading_3", "🔎 Recherche-Mappe (aus Discord)"), ...absaetze.map((t) => block("paragraph", t))]));
+  const { mappe, verlauf } = mappeUndVerlauf(await liesThread(token, threadId));
+  if (!mappe?.embeds && verlauf.length === 0) return false;
+  const absaetze = mappe?.embeds ? embedsAlsText(mappe.embeds).split(/\n\n/).filter(Boolean) : [];
+  return Boolean(
+    await haengeAn(notionUrl, [
+      block("heading_3", "🔎 Recherche-Mappe (aus Discord)"),
+      ...absaetze.map((t) => block("paragraph", t)),
+      ...(verlauf.length ? [block("heading_3", "💬 Fragen und Antworten"), ...teileText(verlauf).map((t) => block("paragraph", t))] : []),
+    ]),
+  );
+}
+
+/** Kopie der Recherche als gesperrter Thread im Kundenkanal. Gibt die Thread-ID zurück. */
+async function kopiereInKundenkanal(token: string, kanal: string, original: string, firma: string, besitzer: string | null): Promise<string | null> {
+  const { mappe, verlauf } = mappeUndVerlauf(await liesThread(token, original));
+  const name = firma.replace(/[*_~`|>]/g, "");
+  const start = await call<{ id: string }>(token, "POST", `/channels/${kanal}/messages`, {
+    content: `🔎 **Recherche zu ${name}** aus #leads: Mappe${verlauf.length ? " und Fragen" : ""} im Thread.${besitzer ? ` Den Lead hatte <@${besitzer}>.` : ""}`,
+    allowed_mentions: { parse: [] },
+  });
+  if (!start) return null;
+  const thread = await call<{ id: string }>(token, "POST", `/channels/${kanal}/messages/${start.id}/threads`, {
+    name: `🔎 Recherche · ${firma}`.slice(0, 100),
+    auto_archive_duration: 10080,
+  });
+  if (!thread) return null;
+  const post = (body: Record<string, unknown>) => call(token, "POST", `/channels/${thread.id}/messages`, { ...body, allowed_mentions: { parse: [] } });
+  if (mappe?.embeds?.length) await post({ embeds: mappe.embeds.slice(0, 10) });
+  if (verlauf.length) {
+    const teile = teileText(verlauf);
+    teile[0] = `💬 **Fragen und Antworten**\n${teile[0]}`.slice(0, 2000);
+    for (const t of teile) await post({ content: t });
+  }
+  await post({ content: `Original (nur für die Zuständigen sichtbar): <#${original}>` });
+  await call(token, "PATCH", `/channels/${thread.id}`, { locked: true });
+  return thread.id;
+}
+
+/** Ein Takt: höchstens eine Recherche von „Lead aktiv“ in den Kundenkanal kopieren (sobald es ihn gibt). */
+async function rechercheUmzug(token: string, leads: string, karten: LeadKarte[]): Promise<number> {
+  for (const k of karten) {
+    if (!umzugFaellig(k.embed, statusWort(k.embed))) continue;
+    const kanal = await findChannelId(token, kanalName(kundenNrAus(k.embed)!));
+    if (!kanal) continue; // Notion legt den Kanal gleich an, nächster Takt
+    const neu = await kopiereInKundenkanal(token, kanal, k.thread, ohneNull(k.embed.title ?? "Firma"), besitzerId(k.embed));
+    if (!neu) {
+      console.error(`[recherche] Kopie in den Kundenkanal fehlgeschlagen (${k.id})`);
+      return 0;
+    }
+    const m = await call<Msg>(token, "GET", `/channels/${leads}/messages/${k.id}`);
+    if (m?.embeds?.[0]) {
+      await call(token, "PATCH", `/channels/${leads}/messages/${k.id}`, { embeds: [mitUmzug(m.embeds[0], neu)], components: m.components ?? [], allowed_mentions: { parse: [] } });
+    }
+    return 1;
+  }
+  return 0;
 }
 
 // ------------------------------------------------------------------ Knöpfe im Thread (rch:)
@@ -167,8 +249,12 @@ const feldOhne = (e: EmbedLike, name: string) => {
 };
 
 /** Ein Takt: höchstens eine neue Mappe, Antworten auf offene Fragen, einmal nachhaken nach 2 Tagen. */
-export async function rechercheTakt(token: string, jetzt: number, leads: string | null): Promise<{ mappen: number; antworten: number; nachgehakt: number }> {
-  if (!leads) return { mappen: 0, antworten: 0, nachgehakt: 0 };
+export async function rechercheTakt(
+  token: string,
+  jetzt: number,
+  leads: string | null,
+): Promise<{ mappen: number; antworten: number; nachgehakt: number; kopiert: number }> {
+  if (!leads) return { mappen: 0, antworten: 0, nachgehakt: 0, kopiert: 0 };
   const [threads, karten, botId] = await Promise.all([aktiveThreads(token, leads), rechercheKarten(token, leads), eigeneId(token)]);
   let mappen = 0;
   let antworten = 0;
@@ -176,12 +262,13 @@ export async function rechercheTakt(token: string, jetzt: number, leads: string 
 
   for (const t of threads) {
     const karte = karten.find((k) => k.thread === t.id);
-    const msgs = ((await call<Msg[]>(token, "GET", `/channels/${t.id}/messages?limit=50`)) ?? []).slice().reverse();
-    const mappe = msgs.find((m) => istMappe(m.embeds?.[0]));
+    const msgs = await liesThread(token, t.id);
+    const stand = aktuelleMappe(msgs.map((m) => ({ id: m.id, mappe: istMappe(m.embeds?.[0]), text: m.content ?? "" })));
+    const mappe = msgs.find((m) => m.id === stand.mappeId);
 
-    // Mappe fehlt noch: bauen (eine je Takt, höchstens zwei Fehlversuche)
+    // Mappe fehlt noch (oder ist nach dem Hinweis „älter als 30 Tage“ neu fällig): bauen, eine je Takt, höchstens zwei Fehlversuche
     if (!mappe) {
-      const versuche = msgs.filter((m) => (m.content ?? "").startsWith(FEHLVERSUCH)).length;
+      const versuche = stand.fehlversuche;
       if (mappen + antworten > 0 || versuche >= 2 || !karte) continue;
       mappen++;
       const e = karte.embed;
@@ -246,5 +333,7 @@ export async function rechercheTakt(token: string, jetzt: number, leads: string 
       }
     }
   }
-  return { mappen, antworten, nachgehakt };
+  // Kopieren in den Kundenkanal nur, wenn dieser Takt sonst nichts Schweres gemacht hat
+  const kopiert = mappen + antworten === 0 ? await rechercheUmzug(token, leads, karten) : 0;
+  return { mappen, antworten, nachgehakt, kopiert };
 }

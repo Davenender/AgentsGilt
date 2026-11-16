@@ -31,7 +31,7 @@ import {
 } from "@/lib/leads";
 import { nameVon } from "@/lib/team";
 import { andererInArbeit, ohneRecherche, pruefeSchritt, rechercheThread } from "@/lib/lead-arbeit";
-import { rechercheNachNotion, schliesseRecherche, starteRecherche } from "@/lib/recherche-handlers";
+import { klappeRechercheEin, rechercheNachNotion, schliesseRecherche, starteRecherche } from "@/lib/recherche-handlers";
 import { legeKundenZeileAn, notionConfigured } from "@/lib/notion-api";
 import type { Analyse } from "@/lib/lead-analyse";
 import { analyseAusFormular, analyseAusPlatz, formularModal, formularWerte, manuellerSchluessel, webArt, type Platz, erkenneEingabe, kandidatenSchluessel, trefferAuswahl } from "@/lib/lead-ohne-website";
@@ -483,6 +483,8 @@ export async function handleLeadButton(i: LeadInteraction, token: string | undef
     const wort = st === "open" ? "Offen" : st === "work" ? "In Arbeit" : "Kontaktiert";
     // Etappe 3: „In Arbeit“ öffnet den privaten Recherche-Thread (die Mappe baut der Team-Takt)
     if (st === "work" && statusWort(embed) !== "In Arbeit") after(() => starteRecherche(token, channelId, messageId, besitzer ?? user.id));
+    // Zurück auf „Offen“: Thread nur einklappen (bei „In Arbeit“ geht derselbe wieder auf)
+    if (st === "open" && statusWort(embed) !== "Offen") after(() => klappeRechercheEin(token, rechercheThread(embed)));
     return update(mitStatus(embed, wort, zeit), leadComponents("accepted", wort, besitzerId(embed)));
   }
 
