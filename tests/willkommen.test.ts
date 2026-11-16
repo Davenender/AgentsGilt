@@ -138,3 +138,13 @@ test("Anleitung in #lead-befehle: /lead mit einem Feld, /lead-delete nur für Da
   assert.match(LEAD_BEFEHLE_TEXT, /`\/lead-delete` mit Website, Maps-Link oder Firma und Ort/);
   assert.ok(LEAD_BEFEHLE_TEXT.length <= 2000);
 });
+
+// Etappe 1 (16.11.2026): Anruf anbieten und der Chat, der 24 Stunden bleibt.
+test("Support-Chat erklärt Anruf anbieten und die 24 Stunden", () => {
+  const support = ANLEITUNGEN.find((x) => x.titel === "📖 Anleitung: Support-Chat auf der Website");
+  const text = [support?.text ?? "", ...(support?.felder ?? []).map((f) => f.value)].join("\n");
+  assert.match(text, /📞 Anruf anbieten/);
+  assert.match(text, /innerhalb von 24 Stunden zurück/);
+  assert.doesNotMatch(text, /Antworten kommen nur an, solange er im Chat ist/);
+  assert.match(text, /schreibt er danach wieder mit dem KI-Assistenten/);
+});

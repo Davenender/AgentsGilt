@@ -164,6 +164,14 @@ export function DatenschutzText() {
           Aufbewahrungspflichten entgegenstehen. Die Übermittlung in die USA
           erfolgt auf Grundlage der EU-Standardvertragsklauseln.
         </p>
+        <p>
+          Damit du ein Gespräch fortsetzen kannst, speichert dein Browser den
+          Chatverlauf bis zu 24 Stunden nach deiner letzten Nachricht auf
+          deinem Gerät (lokaler Speicher). Danach wird er beim nächsten Aufruf
+          der Seite gelöscht, ebenso wenn das Team einen Mitarbeiter-Chat
+          inzwischen beendet hat. Du kannst ihn jederzeit selbst löschen,
+          indem du die Website-Daten in deinem Browser löschst.
+        </p>
       </div>
 
       <div>

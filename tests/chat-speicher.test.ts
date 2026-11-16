@@ -2,7 +2,7 @@
 // gerechnet ab der letzten Nachricht. Danach beginnt der Chat leer.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CHAT_DAUER_MS, ladeVerlauf, merkeTicket, merkeVerlassen, merkeVerlauf, vergissVerlauf, type Speicher } from "../lib/chat-speicher.ts";
+import { CHAT_DAUER_MS, ladeVerlauf, merkeTicket, merkeVerlassen, merkeVerlauf, protokollNoetig, vergissVerlauf, type Speicher } from "../lib/chat-speicher.ts";
 import { GREETING, type Message } from "../lib/chat-text.ts";
 
 function speicher(): Speicher & { map: Map<string, string> } {
@@ -81,4 +81,14 @@ test("merkeTicket(null) und merkeVerlassen(false) entfernen die Einträge", () =
   merkeVerlassen(s, false);
   assert.equal(s.getItem("ag-support-ticket"), null);
   assert.equal(s.getItem("ag-support-left"), null);
+});
+
+// Das Gesprächsprotokoll beim Verlassen geht nur raus, wenn seit dem Laden etwas Neues dazukam.
+test("Protokoll: nicht erneut für einen nur geladenen Verlauf", () => {
+  const verlauf: Message[] = [GREETING, frage, { role: "assistant", content: "a" }, { role: "user", content: "b" }];
+  assert.equal(protokollNoetig(verlauf, verlauf, false), false);
+  assert.equal(protokollNoetig([...verlauf, { role: "user", content: "c" }], verlauf, false), true);
+  assert.equal(protokollNoetig(verlauf, null, false), true);
+  assert.equal(protokollNoetig(verlauf, null, true), false);
+  assert.equal(protokollNoetig([GREETING, frage], null, false), false);
 });

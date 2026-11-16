@@ -85,3 +85,13 @@ export function vergissVerlauf(s: Speicher): void {
     }
   }
 }
+
+/**
+ * Soll das Gesprächsprotokoll beim Verlassen an uns gehen? Nur bei mindestens zwei Fragen des Besuchers,
+ * nur einmal je Seitenaufruf und nicht für einen Verlauf, der nur geladen wurde (sonst käme dasselbe
+ * Gespräch bei jedem Besuch innerhalb der 24 Stunden erneut).
+ */
+export function protokollNoetig(messages: Message[], geladen: Message[] | null, schonGesendet: boolean): boolean {
+  if (schonGesendet || messages === geladen) return false;
+  return messages.filter((m) => m.role === "user").length >= 2;
+}

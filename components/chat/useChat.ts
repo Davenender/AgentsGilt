@@ -18,7 +18,7 @@ import {
   type Message,
   type Ticket,
 } from "@/lib/chat-text";
-import { ladeVerlauf, merkeTicket, merkeVerlassen, merkeVerlauf, vergissVerlauf } from "@/lib/chat-speicher";
+import { ladeVerlauf, merkeTicket, merkeVerlassen, merkeVerlauf, protokollNoetig, vergissVerlauf } from "@/lib/chat-speicher";
 
 // Die ganze Logik des Website-Chats, aus components/ChatWidget.tsx herausgezogen (14.11.2026;
 // seitdem einzige Änderung: Antworten merken sich, was der Assistent unter ihnen anbietet, dazu
@@ -246,9 +246,8 @@ export function useChat() {
         }
       }
       const state = stateRef.current;
-      if (state.sent) return;
       if (ticketRef.current) return; // Support-Chats gehen bereits an das Team
-      if (state.messages.filter((m) => m.role === "user").length < 2) return;
+      if (!protokollNoetig(state.messages, geladenRef.current, state.sent)) return;
       state.sent = true;
       try {
         navigator.sendBeacon?.(
