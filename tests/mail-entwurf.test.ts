@@ -34,3 +34,13 @@ test("Prompt verbietet Preise und verlangt Du-Form", () => {
   assert.match(ENTWURF_PROMPT, /nie Preise/i);
   assert.match(ENTWURF_PROMPT, /Du-Form/);
 });
+
+// 16.11.: Im echten Test kam „Ihre Nachricht an Agents Gilt“ über einem Text mit „du“.
+test("Betreff folgt der Anrede im Text", () => {
+  const du = "Hallo David,\n\ndanke, dass du dich gemeldet hast.\n\nViele Grüße\nOskar\nAgents Gilt";
+  assert.equal(pruefeEntwurf({ betreff: "Ihre Nachricht an Agents Gilt", text: du })?.betreff, "Deine Nachricht an Agents Gilt");
+  assert.equal(pruefeEntwurf({ betreff: "Ihr Projekt bei uns", text: du })?.betreff, "Dein Projekt bei uns");
+  assert.equal(pruefeEntwurf({ betreff: "Wir melden uns bei Ihnen", text: du })?.betreff, "Wir melden uns bei dir");
+  const sie = "Hallo Frau Weber,\n\ndanke für Ihre Nachricht.\n\nViele Grüße\nOskar\nAgents Gilt";
+  assert.equal(pruefeEntwurf({ betreff: "Ihre Nachricht an Agents Gilt", text: sie })?.betreff, "Ihre Nachricht an Agents Gilt");
+});

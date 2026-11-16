@@ -37,6 +37,24 @@ const LAGE: Record<MailOrt, string> = {
 const PREIS = /€|\bEuro\b|\bEUR\b|\d\s*,-/i;
 const kurz = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
+/**
+ * Duzt der Text, darf der Betreff nicht siezen (16.11.: „Ihre Nachricht …“ über einem Text mit „du“).
+ * Siezt der Text, bleibt der Betreff, wie er ist.
+ */
+export function betreffWieText(betreff: string, text: string): string {
+  const duzt = /\b(du|dich|dir|dein|deine|deinen|deinem|deiner)\b/i.test(text);
+  const siezt = /\b(Sie|Ihnen|Ihre?|Ihren|Ihrem|Ihrer)\b/.test(text.replace(/^Hallo[^\n]*\n/, ""));
+  if (!duzt || siezt) return betreff;
+  return betreff
+    .replace(/\bIhre\b/g, "Deine")
+    .replace(/\bIhren\b/g, "Deinen")
+    .replace(/\bIhrem\b/g, "Deinem")
+    .replace(/\bIhrer\b/g, "Deiner")
+    .replace(/\bIhr\b/g, "Dein")
+    .replace(/\bIhnen\b/g, "dir")
+    .replace(/\bSie\b/g, "du");
+}
+
 /** Prüft die Antwort der KI. null heißt: unbrauchbar (kein Text oder ein Preis darin). */
 export function pruefeEntwurf(raw: unknown): Entwurf | null {
   if (!raw || typeof raw !== "object") return null;
@@ -45,7 +63,7 @@ export function pruefeEntwurf(raw: unknown): Entwurf | null {
   if (!text || PREIS.test(text)) return null;
   let betreff = kurz(r.betreff, 200);
   if (betreff.length > 80) betreff = `${betreff.slice(0, 79).trimEnd()}…`;
-  return { zusammenfassung: kurz(r.zusammenfassung, 400), betreff, text };
+  return { zusammenfassung: kurz(r.zusammenfassung, 400), betreff: betreffWieText(betreff, text), text };
 }
 
 /** Schreibt den Entwurf. null, wenn die KI nicht erreichbar war oder nichts Brauchbares kam. */
