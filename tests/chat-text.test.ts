@@ -71,11 +71,19 @@ test("Wörter und Leerräume: zusammengesetzt ergibt sich wieder genau der Text"
 test("was unter einer Antwort angeboten wird: Anruf-Karte bei [ANRUFEN], Mitarbeiter bei [MITARBEITER], [KONTAKT] oder auf Wunsch", () => {
   assert.deepEqual(angebote("Termine machen wir am Telefon aus. [ANRUFEN]", "Habt ihr noch Termine frei?"), { anrufen: true, mitarbeiter: false });
   assert.deepEqual(angebote("Am Telefon. [ANRUFEN] Für weitere Fragen verbinde ich dich gern. [MITARBEITER]", "Wann habt ihr frei?"), { anrufen: true, mitarbeiter: true });
-  assert.deepEqual(angebote("Das kann dir ein Mitarbeiter genau sagen. [MITARBEITER]", "Was kostet das?"), { anrufen: false, mitarbeiter: true });
+  // Preisfrage: Seit Runde 1 (Feinschliff) auch die Anruf-Karte, selbst wenn der Assistent [ANRUFEN] vergisst.
+  assert.deepEqual(angebote("Das kann dir ein Mitarbeiter genau sagen. [MITARBEITER]", "Was kostet das?"), { anrufen: true, mitarbeiter: true });
+  assert.deepEqual(angebote("Ruf uns an. [KONTAKT] [ANRUFEN] [MITARBEITER]", "Was kostet eine Website?"), { anrufen: true, mitarbeiter: true });
   assert.deepEqual(angebote("Dabei hilft dir unser Team. [KONTAKT]", "Geht das auch anders?"), { anrufen: false, mitarbeiter: true });
   // Der Besucher verlangt einen Menschen: Der Knopf kommt auch, wenn der Assistent den Marker vergisst.
   assert.deepEqual(angebote("Gern.", "Ich möchte mit einem Mitarbeiter schreiben"), { anrufen: false, mitarbeiter: true });
   assert.deepEqual(angebote("Wir bauen Websites, Chatbots und Telefon-Assistenten.", "Was macht ihr genau?"), { anrufen: false, mitarbeiter: false });
+  // Wunsch nach Erstgespräch oder Gespräch: Anruf-Karte, auch ohne Marker.
+  assert.equal(angebote("Gern.", "Kann ich ein Erstgespräch bekommen?").anrufen, true);
+  assert.equal(angebote("Gern.", "Kann ich mal mit jemandem von euch sprechen?").anrufen, true);
+  // Fragen zu unseren Leistungen lösen sie nicht aus.
+  assert.equal(angebote("Ja.", "Habt ihr auch Online-Terminbuchung?").anrufen, false);
+  assert.equal(angebote("Ja.", "Kann euer Telefon-Assistent Anrufe annehmen?").anrufen, false);
 });
 
 test("die Welle des Entschlüsselns: jedes Wort bleibt 0,5 bis 0,7 s Zeichen, kurze Antwort rund 2 s, normale 2,5 bis 3 s, nie über 3,5 s", () => {
@@ -147,9 +155,10 @@ test("E-Mail-Adressen und Adressen im Netz werden Links, Satzzeichen bleiben Tex
 test("das Wissen des Assistenten: Termine über [ANRUFEN] ohne Nummer im Satz, Tieferes zum Mitarbeiter, WhatsApp kein Kontaktweg", () => {
   const wissen = readFileSync(new URL("../lib/chatbot-knowledge.ts", import.meta.url), "utf8");
   // Termine: ein kurzer Satz und der Marker; die Nummer steht in der Anruf-Karte, nicht im Text.
-  assert.ok(wissen.includes("Termine: immer anrufen (Marker [ANRUFEN])"));
+  // Seit Runde 1 (Feinschliff) auch bei Gesprächen und Preisfragen.
+  assert.ok(wissen.includes("Termine und Gespräche: immer anrufen (Marker [ANRUFEN])"));
   assert.ok(/keine Telefonnummer in den Text/i.test(wissen));
-  const regeln = wissen.slice(wissen.indexOf("Termine: immer anrufen"));
+  const regeln = wissen.slice(wissen.indexOf("Termine und Gespräche: immer anrufen"));
   const terminRegel = regeln.slice(0, regeln.indexOf("\n10."));
   assert.ok(!/\+49|06108/.test(terminRegel), "keine Nummer in der Termin-Regel");
   // Tiefergehende Fragen und der Wunsch nach einem Menschen: kurz antworten, dann [MITARBEITER].

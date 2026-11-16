@@ -38,5 +38,6 @@ body {
 }
 
 /* Die Stile der alten Startseite (Gold-Text, Diamant, Schreib-Cursor, Füllknopf, Chat-Punkte)
-   sind seit dem 15.11.2026 entfernt: Die Startseite ist die neue Seite (components/neu). Hier
-   bleiben die Grundwerte für die Seiten im alten Aussehen (Terminseite). */
+   sind seit dem 15.11.2026 entfernt: Die Startseite ist die neue Seite (components/neu). Seit dem
+   16.11.2026 hat auch die Terminseite das neue Aussehen. Hier bleiben die Grundwerte für alle
+   Seiten (etwa „nicht gefunden“). */

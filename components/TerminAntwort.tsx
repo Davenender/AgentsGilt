@@ -1,8 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import { GoldMarke } from "@/components/neu/Marke";
 
-// Die beiden Antworten des Kunden auf einen Terminvorschlag.
+// Die beiden Antworten des Kunden auf einen Terminvorschlag. Was gesendet wird und wohin
+// (POST /api/termin, accept bzw. wish mit Datum und Uhrzeit) ist unverändert; seit der
+// Feinschliff-Runde 1 (16.11.2026) im Design der neuen Startseite (components/neu/termin/termin.css).
+
+function Haken() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12.5l4.2 4.2L19 7" />
+    </svg>
+  );
+}
+
+function Kalender() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+      <path d="M3.5 9.5h17M8 3v4M16 3v4" />
+    </svg>
+  );
+}
 
 export default function TerminAntwort({
   code,
@@ -43,19 +63,23 @@ export default function TerminAntwort({
     }
   }
 
-  const knopf =
-    "rounded-full px-6 py-3 text-sm font-semibold transition disabled:opacity-60";
+  const drehen = <i className="ag-ts__dreht" />;
 
   if (modus === "fertig") {
     return (
-      <p className="mt-8 rounded-2xl bg-cream-dark p-5 text-ink">{ergebnis}</p>
+      <div className="ag-ts__ergebnis" role="status">
+        <span className="ag-ts__zeichen" aria-hidden="true">
+          <GoldMarke />
+        </span>
+        <p>{ergebnis}</p>
+      </div>
     );
   }
 
   return (
-    <div className="mt-8">
+    <div>
       {modus === "start" && (
-        <div className="flex flex-wrap gap-3">
+        <div className="ag-ts__knoepfe">
           <button
             type="button"
             disabled={busy}
@@ -65,24 +89,30 @@ export default function TerminAntwort({
                 (t) => `Vielen Dank! Ihr Termin am ${t} ist bestätigt. Wir freuen uns auf das Gespräch.`,
               )
             }
-            className={`${knopf} bg-gold text-ink hover:bg-gold-light`}
+            className="ag-knopf ag-knopf--gold ag-ts__knopf"
           >
-            Passt
+            <span>Passt</span>
+            <span className="ag-kreis" aria-hidden="true">
+              {busy ? drehen : <Haken />}
+            </span>
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={() => setModus("wunsch")}
-            className={`${knopf} border border-line text-ink hover:bg-cream-dark`}
+            className="ag-knopf ag-knopf--linie ag-ts__knopf ag-ts__knopf--leise"
           >
-            Anderer Termin
+            <span>Anderer Termin</span>
+            <span className="ag-kreis" aria-hidden="true">
+              <Kalender />
+            </span>
           </button>
         </div>
       )}
 
       {modus === "wunsch" && (
         <form
-          className="space-y-4"
+          className="ag-ts__wunsch"
           onSubmit={(e) => {
             e.preventDefault();
             void senden(
@@ -91,46 +121,29 @@ export default function TerminAntwort({
             );
           }}
         >
-          <p className="text-sm text-ink-soft">
-            Wann passt es Ihnen?
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <label className="text-sm text-ink-soft">
-              Datum
-              <input
-                type="date"
-                required
-                min={fruehestens}
-                value={datum}
-                onChange={(e) => setDatum(e.target.value)}
-                className="mt-1 block rounded-xl border border-line bg-white px-3 py-2 text-ink"
-              />
+          <p className="ag-ts__frage">Wann passt es Ihnen?</p>
+          <div className="ag-ts__felder">
+            <label>
+              <span>Datum</span>
+              <input type="date" required min={fruehestens} value={datum} onChange={(e) => setDatum(e.target.value)} />
             </label>
-            <label className="text-sm text-ink-soft">
-              Uhrzeit
-              <input
-                type="time"
-                required
-                step={300}
-                value={uhrzeit}
-                onChange={(e) => setUhrzeit(e.target.value)}
-                className="mt-1 block rounded-xl border border-line bg-white px-3 py-2 text-ink"
-              />
+            <label>
+              <span>Uhrzeit</span>
+              <input type="time" required step={300} value={uhrzeit} onChange={(e) => setUhrzeit(e.target.value)} />
             </label>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={busy}
-              className={`${knopf} bg-gold text-ink hover:bg-gold-light`}
-            >
-              Wunsch senden
+          <div className="ag-ts__knoepfe">
+            <button type="submit" disabled={busy} className="ag-knopf ag-knopf--gold ag-ts__knopf">
+              <span>Wunsch senden</span>
+              <span className="ag-kreis" aria-hidden="true">
+                {busy ? drehen : <Haken />}
+              </span>
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={() => setModus("start")}
-              className={`${knopf} border border-line text-ink hover:bg-cream-dark`}
+              className="ag-knopf ag-knopf--linie ag-ts__knopf ag-ts__knopf--leise"
             >
               Zurück
             </button>
@@ -138,8 +151,12 @@ export default function TerminAntwort({
         </form>
       )}
 
-      {fehler && <p className="mt-4 text-sm text-red-700">{fehler}</p>}
-      <span className="sr-only">{termin}</span>
+      {fehler && (
+        <p className="ag-ts__fehler" role="alert">
+          {fehler}
+        </p>
+      )}
+      <span className="ag-ts__vorlesen">{termin}</span>
     </div>
   );
 }

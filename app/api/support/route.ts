@@ -6,6 +6,7 @@ import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { ladeTeam } from "@/lib/team-daten";
 import {
   checkTicketToken,
+  hinweisBeiAnrufwunsch,
   openTicket,
   postFromVisitor,
   postPresence,
@@ -71,6 +72,12 @@ export async function POST(request: Request) {
     after(async () => {
       await pushe("💬 Neues Support-Ticket", `ticket-${ticket.nummer}: ${name} möchte mit einem Mitarbeiter sprechen`, messageLink(ticket.channelId, ticket.cardId));
     });
+    // Möchte der Kunde schon in seiner Frage (oder vorher im Chat) sprechen, einen Termin, ein
+    // Erstgespräch oder einen Preis: Hinweis nur fürs Team mit „Anruf anbieten“.
+    const vomKunden = [frage, ...verlauf.filter((m) => m.role === "user").map((m) => m.content).reverse()].join("\n");
+    after(async () => {
+      await hinweisBeiAnrufwunsch(bot, ticket.channelId, vomKunden);
+    });
 
     // Zusätzlich eine Mail, falls im Discord niemand hinschaut.
     try {
@@ -108,6 +115,11 @@ export async function POST(request: Request) {
     if (closed === null) return fehler("Das hat leider nicht geklappt. Bitte versuch es gleich nochmal.", 502);
 
     const ok = await postFromVisitor(bot, channelId, msg);
+    // Möchte der Kunde sprechen, einen Termin, ein Erstgespräch oder einen Preis: Hinweis nur fürs
+    // Team mit „Anruf anbieten“. Läuft nach der Antwort; beim Kunden erscheint dadurch nichts.
+    if (ok) after(async () => {
+      await hinweisBeiAnrufwunsch(bot, channelId, msg);
+    });
     return ok ? NextResponse.json({ ok: true }) : fehler("Die Nachricht ist nicht angekommen.", 502);
   }
 

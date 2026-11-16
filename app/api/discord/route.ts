@@ -43,6 +43,7 @@ import { handleAntwortBefehl } from "@/lib/uebung-handler";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
 import { OWNER_ID, setzeAntwort } from "@/lib/leads";
 import { closeTicketChannel, FOR_CUSTOMER, ticketComponents } from "@/lib/support";
+import { ANRUF_FENSTER, anliegenDerKarte, anrufFenster, leseAnrufKnopf, mitAnrufZeile } from "@/lib/support-anruf";
 import { darfHandeln, nameVon } from "@/lib/team";
 import { handleTeamBefehl, handleTeamKnopf, type TeamInteraction, type TeamKnopfInteraction } from "@/lib/team-handler";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
@@ -75,6 +76,7 @@ interface Interaction {
   token?: string;
   application_id?: string;
   channel_id?: string;
+  channel?: { name?: string };
   data?: {
     name?: string;
     options?: { name: string; value?: unknown }[];
@@ -97,13 +99,40 @@ const DEFERRED_UPDATE = { type: 6 };
 const DEFERRED_EPHEMERAL = { type: 5, data: { flags: 64 } };
 
 
-/** Support-Tickets (Kategorie SUPPORT): Übernehmen, Antworten, Schließen. */
+/** Support-Tickets (Kategorie SUPPORT): Übernehmen, Anruf anbieten, Antworten, Schließen. */
 function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: string | undefined) {
   const id = i.data?.custom_id ?? "";
   // So heißen die Leute im Chat der Besucher, unabhängig vom Discord-Namen.
   const who = nameVon(i.member?.user?.id ?? "") ?? whoRaw;
   const channel = i.channel_id;
   if (!channel) return ephemeral("Der Kanal ist nicht bekannt.");
+
+  // „Anruf anbieten“ (an der Karte oder am Hinweis nur fürs Team): Fenster mit einem fertigen Satz,
+  // der zur Lage passt (Preis, Erstgespräch, Termin, sprechen). Das Team kann ihn vor dem Senden ändern.
+  const knopf = i.type === 3 ? leseAnrufKnopf(id) : null;
+  if (knopf) {
+    if (i.channel?.name?.startsWith("geschlossen-")) return ephemeral("Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.");
+    const anliegen = knopf.anliegen ?? anliegenDerKarte(i.message?.embeds?.[0]?.fields);
+    return NextResponse.json({ type: 9, data: anrufFenster(knopf.quelle, anliegen) });
+  }
+
+  // Fenster „Anruf anbieten“ abgeschickt: Der Kunde sieht die Nachricht und darunter die Anruf-Karte.
+  if (i.type === 5 && id.startsWith(ANRUF_FENSTER)) {
+    const text = i.data?.components?.[0]?.components?.[0]?.value?.trim();
+    if (!text) return ephemeral("Die Nachricht war leer.");
+    if (i.channel?.name?.startsWith("geschlossen-")) return ephemeral("Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.");
+    after(async () => {
+      await postText(token, channel, `${FOR_CUSTOMER} **${who}:** ${mitAnrufZeile(text.slice(0, 1000))}`);
+    });
+    // Am Hinweis: Er wird zur Notiz, wer angeboten hat (ohne Knopf, damit es nicht doppelt geschieht).
+    if (id === `${ANRUF_FENSTER}hinweis` && i.message) {
+      return NextResponse.json({
+        type: 7,
+        data: { content: `📞 Anruf angeboten von ${ownerTag} um ${uhrzeit()}.`, components: [], allowed_mentions: { parse: [] } },
+      });
+    }
+    return ephemeral("Gesendet. Der Kunde sieht die Nachricht gleich im Chat, darunter die Anruf-Karte mit „Jetzt anrufen“.");
+  }
 
   // Fenster "Antworten" abgeschickt
   if (i.type === 5) {

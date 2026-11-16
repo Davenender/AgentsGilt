@@ -1,7 +1,8 @@
 /* ==========================================================================
    Neue Welt „Chromzeichen in der Punktwolke“
-   Gilt nur innerhalb von .ag-neu: Startseite, Impressum, Datenschutz, dazu der
-   Chat auf allen Seiten (.ag-neu--chat). Die Terminseiten bleiben unberührt.
+   Gilt nur innerhalb von .ag-neu: Startseite, Impressum, Datenschutz, seit dem
+   16.11.2026 die Terminseite (components/neu/termin), dazu der Chat auf allen
+   Seiten (.ag-neu--chat).
    Regeln aus der Code-Fehlersuche: keine Leuchtschein-Schatten, keine runden
    Lichthöfe, keine kursive Serife, kein Etikett über Überschriften.
    ========================================================================== */

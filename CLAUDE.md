@@ -31,16 +31,17 @@ npm run lint     # ESLint
 app/
   layout.tsx          Root-Layout, Metadaten, JSON-LD, Statistik, Chat für alle Seiten
   page.tsx            Startseite (die neue Seite, seit 15.11.2026; vorher /varianten/kopf/kern)
-  globals.css         Tailwind-Theme (für die Terminseite im alten Aussehen)
+  globals.css         Tailwind-Theme und Grundwerte (body im Stammlayout, Seite „nicht gefunden“)
   icon.png            Favicon (Gold-Diamant aus dem Logo)
   impressum/page.tsx  Impressum (neues Design, Wortlaut in components/neu/recht/Rechtstexte.tsx)
   datenschutz/page.tsx Datenschutz (neues Design, ebenso)
-  termin/[code], t/[code]  Terminseiten aus der SMS
+  termin/[code], t/[code]  Terminseite aus der SMS (neues Design: components/neu/termin)
   api/…               Schnittstellen (Kontakt, Chat, Support, Termine, Discord, …)
 components/
   neu/                Die neue Welt: Welt.tsx + welt.css (Hülle), Rahmen.tsx (Kopf-/Fußleiste),
                       kopf/ (Licht, Name aus Zeichen, Startanimation), seite/ (Abschnitte der
-                      Startseite), chat/ (Kugel und Glasfenster, ChatUeberall.tsx), recht/
+                      Startseite), chat/ (Kugel und Glasfenster, ChatUeberall.tsx), recht/,
+                      termin/ (Glaskarte der Terminseite)
   chat/               Die Chat-Logik (useChat.ts, ChatAnbieter.tsx), einmal für alle Seiten
   TerminAntwort.tsx   Antwort-Formular der Terminseite
 lib/
@@ -59,7 +60,7 @@ dauerhaft auf `/` weiter (`next.config.ts`). Funktionsliste: `docs/funktionen.md
 ## Konventionen
 
 - **Texte ändern** → in `lib/inhalt-neu.ts` (Startseite) bzw. `lib/content.ts`, nicht in den Komponenten.
-- **Farben** → neue Welt in `components/neu/welt.css` (Variablen an `.ag-neu`); `app/globals.css` (`@theme`) nur für die Terminseite.
+- **Farben** → neue Welt in `components/neu/welt.css` (Variablen an `.ag-neu`); `app/globals.css` (`@theme`) nur noch für die Grundwerte im Stammlayout (z. B. Seite „nicht gefunden“).
 - Komponenten mit Animationen oder State brauchen `"use client"` ganz oben.
 - Server-Komponenten dürfen Client-Komponenten importieren (nicht umgekehrt).
 

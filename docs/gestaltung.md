@@ -1112,6 +1112,43 @@ Durch den Umzug laden die Stylesheets in anderer Reihenfolge. Geprüft, indem au
 - Auf hellen Seiten (Terminseite, „nicht gefunden“) wirkt die Glas-Kugel heller als auf dem dunklen Grund der Startseite; sie ist dieselbe Kugel.
 - Unter 320 px weiter wie in 4s.
 
+## 4u. Feinschliff-Runde 1 vom 16.11.2026
+
+Ausgangsstand: Commit `a65e358`. Am Aussehen der Startseite ändert sich nichts. Sichtbar ist nur, was im Chat und im Support-Ablauf dazukommt. Nichts hochgeladen.
+
+### 1 · Support-Chat: Knopf „📞 Anruf anbieten“
+- **Knöpfe an der Ticket-Karte in Discord:** offen „Übernehmen“, „📞 Anruf anbieten“, „Ticket schließen“; nach dem Übernehmen „📞 Anruf anbieten“ und „Ticket schließen“ (`lib/support-anruf.ts`, `app/api/discord/route.ts` → `handleTicket`, `lib/support.ts`).
+- **Ein Klick** öffnet das Fenster „Anruf anbieten“ mit dem Feld „Nachricht an den Kunden (änderbar)“. Darin steht schon ein fertiger Satz, der zur Lage passt (Preis, Erstgespräch, Termin, sprechen, sonst allgemein; Wortlaut in `docs/texte.md`). An der Karte wird die Lage aus der Frage und den Besucher-Zeilen im „Chat davor“ erkannt, am Hinweis steht sie im Knopf.
+- **Abgeschickt** schreibt der Bot „💬 **Name:** Satz“ ins Ticket und darunter eine graue Zeile. Die Website zeigt dem Kunden die Nachricht und direkt darunter dieselbe Anruf-Karte wie beim Chatbot (`useChat.ts` übernimmt `anrufen`, `ChatFenster.tsx` zeigt die Karte). Am Hinweis wird dieser danach zur Notiz „📞 Anruf angeboten von @Name um HH:MM.“ ohne Knopf; an der Karte bekommt nur der Klickende eine Bestätigung. In einem geschlossenen Ticket wird nichts gesendet.
+
+### 2 · Automatischer Hinweis nur fürs Team
+- Beim Eröffnen des Tickets (Frage und Besucher-Zeilen davor) und bei jeder Nachricht des Kunden im Ticket: Erkennt `erkenneAnliegen`, dass er sprechen, telefonieren, ein Erstgespräch, einen Termin oder einen Preis bzw. ein Angebot möchte, schreibt der Bot „📞 **Der Kunde möchte sprechen.** Anruf anbieten?“ (je nach Lage auch Erstgespräch, Termin, „fragt nach dem Preis“) mit dem Knopf und einer grauen Zeile „Nur fürs Team, der Kunde sieht das nicht. Erst nach dem Klick bekommt er eine Nachricht.“ (`lib/support.ts` → `hinweisBeiAnrufwunsch`, `app/api/support/route.ts`).
+- Der Hinweis hat kein 💬 davor und geht darum nie an den Kunden. Solange in den letzten 15 Nachrichten ein offener Hinweis oder schon ein Angebot steht, kommt kein zweiter. Fragen zu unseren Leistungen („Online-Terminbuchung“, „Kann euer Telefon-Assistent Anrufe annehmen?“) lösen keinen Hinweis aus.
+
+### 3 · Chatbot: Anruf-Karte auch bei Preisfragen
+- Bei Preisfragen hängt der Assistent jetzt `[KONTAKT] [ANRUFEN] [MITARBEITER]` an (Anruf-Karte und Mitarbeiter-Knopf); vorher gab es nur den Mitarbeiter-Knopf. Regel 9 heißt „Termine und Gespräche: immer anrufen“ und gilt auch, wenn jemand mit uns sprechen, telefonieren oder zurückgerufen werden möchte (`lib/chatbot-knowledge.ts` Regeln 3, 8, 9).
+- Zusätzlich zeigt die Website die Anruf-Karte auch, wenn der Assistent den Marker vergisst, sobald die Frage des Besuchers nach Preis, Erstgespräch, Termin oder Gespräch fragt (`lib/chat-text.ts` → `angebote`, dieselbe Erkennung wie im Support-Chat).
+
+### 4 · Fehler behoben: Chat scrollt nicht immer ans Ende
+- **Ursache:** Jedes Scroll-Ereignis wurde bewertet, auch das zu unserem eigenen Nachziehen. Es kommt ein Bild später und wurde gegen die schon gewachsene Höhe gemessen. Wuchs der Inhalt dazwischen um mehr als 48 px (lange Antwort, Anruf-Karte), galt der Besucher als hochgescrollt, und nichts zog mehr nach. Gemessen im Vorher-Stand: Nach einer langen Antwort mit Karte blieb die Liste 177 px über dem Ende stehen; beim mehrzeiligen Tippen verschwanden 80 px (Computer) bzw. 58 px (Handy) unter dem wachsenden Eingabefeld, weil nur der Inhalt, nicht die Liste beobachtet wurde. Zudem holte jede Team-Nachricht einen Besucher, der hochgescrollt hatte, zwangsweise nach unten.
+- **Jetzt:** Eigenes Nachziehen zählt nicht. Der Beobachter sieht auch die Liste selbst (Eingabefeld, Tastatur am Handy). Antworten von Assistent und Team halten die Liste nur am Ende, wenn sie dort ist; eigene Nachrichten und das Formular für den Mitarbeiter holen sie wieder ans Ende (`components/neu/chat/endeHalten.ts`, `ChatFenster.tsx`, Test `tests/chat-ende.test.ts`).
+
+### 5 · Nebenbei gefunden und behoben
+- Beim Kunden stand als Absender eines Bot-Textes „David:“ mit Doppelpunkt (Format „**David:** Text“). Jetzt liest `lib/support-anruf.ts` → `leseKundenNachricht` den Namen ohne Doppelpunkt.
+
+### 6 · Terminseite im neuen Design (Davids Wahl 5 A)
+- Zur Wahl standen drei Entwürfe auf einer Auswahlseite (nur lokal, nie im Repo, danach gelöscht): A Glaskarte, B große Schrift mit dem Termin als Zeile, C Kalenderblatt aus Glas. David hat **5 A** gewählt.
+- Eingebaut: Die Terminseite (`/termin/…`, `/t/…` leitet weiter) steht in der neuen Welt. Dunkler Grund, oben Logo, „Agents Gilt“, „KI-Lösungen für lokale Unternehmen“ und rechts „Terminvorschlag“. Darunter eine Glaskarte wie die Glaskarten der Startseite (Milchglas, Lichtkante, goldener Rand, der unter der Maus glimmt), dahinter der kleine Stern. Die Begrüßung entschlüsselt sich, der Vorschlag steht in einem goldenen Feld, darunter „Passt“ (Gold) und „Anderer Termin“ (Glas). „Anderer Termin“ öffnet Datum und Uhrzeit in der Karte, der Vorschlag tritt dabei zurück; nach „Passt“ oder „Wunsch senden“ steht nur noch die Antwort mit dem Logo in der Karte. Die übrigen Zustände (bestätigt, Wunsch erhalten, nicht mehr aktuell, ungültig) stehen als Satz in derselben Karte (`components/neu/termin/termin.css`, `TerminKarte.tsx`, `components/TerminAntwort.tsx`, `app/termin/[code]/page.tsx`).
+- Texte, Zustände und was gesendet wird (POST `/api/termin`, accept bzw. wish mit Datum und Uhrzeit) sind unverändert (Test `tests/terminseite.test.ts`). Geprüft mit nachgestelltem Discord und einer Anruf-Meldung mit Vorschlag; „Passt“ und „Wunsch senden“ hat der Browser selbst beantwortet. axe ohne Verstöße (vorher 2 Kontrastfehler), kein Überlauf, am Handy alle Tippflächen mindestens 44 px.
+
+### Geprüft
+- Tests: `tests/support-anruf.test.ts` (neu), `tests/chat-ende.test.ts` (neu), `tests/chat-text.test.ts` angepasst.
+- Ablauf gegen ein nachgestelltes Discord (Speicher statt echtem Discord, alles nach draußen gesperrt): 17 Prüfungen des ganzen Ablaufs grün, 0 echte Tickets oder Nachrichten.
+- Bildraten im Chat, während sich eine lange Antwort mit Anruf-Karte aufbaut (echtes Chrome-Fenster, Prozessor 4-fach gebremst, Netz nachgestellt, abwechselnd vorher und nachher, gezählt im 60-Hz-Takt): Reihe 1 mit je 3 Paaren: Computer vorher 53,4, nachher 46,9 Bilder/s (lange Bilder über 50 ms: 2 gegen 10), Unterschied über der Streuung; Handy 53,2 gegen 55,9, innerhalb der Streuung. Reihe 2 am Computer mit 4 Paaren, getrennt vor und nach dem Erscheinen der Karte: vorher 44,2, nachher 48,9 Bilder/s, weder vor noch nach der Karte ein Unterschied über der Streuung. In beiden Reihen lag die Last des Macs über der halben Kernzahl (Reihe 2 bis 86, unter anderem iCloud), der Bildschirmtakt wechselte (12 und 18 ms). Ergebnis am Computer damit nicht eindeutig.
+
+### Offen
+- Bildraten im Chat am Computer nicht eindeutig (Reihe 1 nachher niedriger, Reihe 2 nicht, beide unter hoher Last). Eine Messung bei ruhigem Mac steht aus.
+
 ## 5. Bewegung (Bewegung hoch, Abweichung hoch, Dichte niedrig)
 - **Kennzeichen „Das Licht folgt“:** Das Licht in der Form unseres Logos kippt als langer, schmaler Kegel zum Zeiger, der Schimmer wandert über den Namen; die Zeichen weichen aus, ein Klick schickt eine Welle hindurch (4d). Kein 3D-Zeichen mehr.
 - Ein Bewegungs-Vokabular: Teile gleiten auf geraden Bahnen herein und rasten ein; Zeilen steigen aus einer Maske; Text färbt sich Wort für Wort.

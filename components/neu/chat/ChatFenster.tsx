@@ -10,6 +10,7 @@ import { glimme } from "../glimmrand";
 import { GoldMarke } from "../Marke";
 import { LADEN_FERTIG, LADEN_FERTIG_KLASSE } from "../umgebung";
 import { enthuelleText, richteVerwuerfelnEin } from "../verwuerfeln";
+import { erstelleEndeHalter } from "./endeHalten";
 import { DAUER, KUGEL, PHASEN, SCHLIESSEN, zeitleiste, type Bild, type Masse } from "./kugel";
 import "./chat.css";
 
@@ -395,41 +396,47 @@ export function ChatFenster() {
 
   // Immer am Ende des Verlaufs bleiben: bei jeder neuen Nachricht, und auch wenn der Inhalt
   // nachträglich wächst (die Blase wächst, unter einer Antwort erscheinen Knöpfe, im Ticket ein
-  // Hinweis). Hat der Besucher selbst hochgescrollt, bleibt die Liste, wo er sie hingestellt hat.
-  const amEnde = useRef(true);
+  // Hinweis) oder die Liste kleiner wird (Eingabefeld wächst, Tastatur am Handy). Hat der Besucher
+  // selbst hochgescrollt, bleibt die Liste, wo er sie hingestellt hat, bis er selbst etwas schreibt.
+  // Die Regel und die Ursache des alten Fehlers (Runde 1, Feinschliff): endeHalten.ts.
+  const [ende] = useState(erstelleEndeHalter);
   const offenZuletzt = useRef(offen);
+  const zahlZuletzt = useRef(chat.messages.length);
+  const formularZuletzt = useRef(chat.handoff);
   useEffect(() => {
     const el = liste.current;
     if (!el) return;
-    amEnde.current = true;
+    // Eigene Nachricht oder das Formular für den Mitarbeiter: wieder ans Ende, auch wenn er
+    // hochgescrollt war. Antworten (Assistent, Team) holen ihn dagegen nicht zurück.
+    const neu = chat.messages.length > zahlZuletzt.current;
+    zahlZuletzt.current = chat.messages.length;
+    const eigene = neu && chat.messages[chat.messages.length - 1]?.role === "user";
+    const formular = chat.handoff && !formularZuletzt.current;
+    formularZuletzt.current = chat.handoff;
     // Im Klick, der das Fenster öffnet oder schließt, wird nichts gemessen (das hielte die Bewegung
     // auf): Die Liste rückt im nächsten Bild ans Ende, dort rechnet der Browser ohnehin.
     if (offenZuletzt.current !== offen) {
       offenZuletzt.current = offen;
-      const bild = requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight;
-      });
+      const bild = requestAnimationFrame(() => ende.neu(el, true));
       return () => cancelAnimationFrame(bild);
     }
-    el.scrollTop = el.scrollHeight;
-  }, [chat.messages, chat.streaming, chat.handoff, chat.error, offen, begruessungSteht]);
+    ende.neu(el, eigene || formular);
+  }, [chat.messages, chat.streaming, chat.handoff, chat.error, offen, begruessungSteht, ende]);
   useEffect(() => {
     const el = liste.current;
     const inhalt = el?.firstElementChild;
     if (!el || !inhalt || !gebaut) return;
-    const gescrollt = () => {
-      amEnde.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-    };
-    const waechter = new ResizeObserver(() => {
-      if (amEnde.current) el.scrollTop = el.scrollHeight;
-    });
+    const gescrollt = () => ende.gescrollt(el);
+    const waechter = new ResizeObserver(() => ende.groesse(el));
+    // Der Inhalt wächst, oder die Liste selbst wird kleiner (Eingabefeld, Tastatur am Handy).
     waechter.observe(inhalt);
+    waechter.observe(el);
     el.addEventListener("scroll", gescrollt, { passive: true });
     return () => {
       waechter.disconnect();
       el.removeEventListener("scroll", gescrollt);
     };
-  }, [gebaut]);
+  }, [gebaut, ende]);
 
   // Der Inhalt baut sich auf: Name und Rolle setzen sich aus Zeichen zusammen; am Computer bekommt
   // das Eingabefeld den Fokus (am Handy nicht: Dort schöbe die Tastatur sofort Begrüßung und

@@ -2,6 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { nameVon } from "@/lib/team";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { linkSecret } from "@/lib/termin";
+import {
+  erkenneAnliegen,
+  hinweisKomponenten,
+  hinweisNoetig,
+  hinweisText,
+  leseKundenNachricht,
+  ticketComponents,
+} from "./support-anruf.ts";
 
 // Support-Chats: Ein Besucher der Website lässt sich im Chat mit einem
 // Mitarbeiter verbinden. Dafür legt der Bot in Discord unter der Kategorie
@@ -193,24 +201,9 @@ export async function openTicket(
   return { token: t, nummer, channelId: channel.id, cardId: card.id };
 }
 
-export function ticketComponents(state: "open" | "claimed" | "closed") {
-  const button = (label: string, id: string, style: 1 | 2 | 3 | 4) => ({
-    type: 2,
-    label,
-    style,
-    custom_id: `ticket:${id}`,
-  });
-  if (state === "closed") return [];
-  return [
-    {
-      type: 1,
-      components:
-        state === "open"
-          ? [button("Übernehmen", "claim", 3), button("Ticket schließen", "close", 2)]
-          : [button("Ticket schließen", "close", 2)],
-    },
-  ];
-}
+// Die Knöpfe der Ticket-Karte (Übernehmen, Anruf anbieten, Ticket schließen) stehen mit dem
+// Anruf-Angebot in lib/support-anruf.ts.
+export { ticketComponents } from "./support-anruf.ts";
 
 // ------------------------------------------------------------------ Nachrichten
 
@@ -220,12 +213,15 @@ export interface Relayed {
   id: string;
   von: string;
   text: string;
+  // Das Team hat einen Anruf angeboten („Anruf anbieten“): Unter der Nachricht steht im Chat die Anruf-Karte.
+  anrufen?: true;
 }
 
 interface DiscordMessage {
   id: string;
   content: string;
   author: { id?: string; bot?: boolean; global_name?: string | null; username?: string };
+  components?: unknown[];
 }
 
 /** Ob das Ticket geschlossen ist (der Kanal heißt dann "geschlossen-ticket-…"). */
@@ -258,13 +254,10 @@ export async function relayMessages(
   for (const m of sorted) {
     if (m.author.bot) {
       if (!m.content.startsWith(FOR_CUSTOMER)) continue;
-      const body = m.content.slice(FOR_CUSTOMER.length).trim();
-      const named = body.match(/^\*\*(.+?)\*\*:?\s*([\s\S]*)$/);
-      out.push(
-        named && named[2]
-          ? { id: m.id, von: named[1], text: named[2].trim() } // feste Systemtexte des Bots, keine Korrektur nötig
-          : { id: m.id, von: "Agents Gilt", text: body.replace(/\*\*/g, "") },
-      );
+      // Feste Systemtexte des Bots, keine Korrektur nötig. Ein Anruf-Angebot trägt unten eine kleine
+      // Zeile; sie geht nicht an den Kunden, sondern wird zur Anruf-Karte (lib/support-anruf.ts).
+      const { von, text, anrufen } = leseKundenNachricht(m.content.slice(FOR_CUSTOMER.length));
+      out.push({ id: m.id, von, text, ...(anrufen ? { anrufen: true as const } : {}) });
     } else {
       const text = m.content.trim();
       if (!text) {
@@ -288,6 +281,24 @@ export async function postFromVisitor(token: string, channelId: string, text: st
   const res = await call(token, "POST", `/channels/${channelId}/messages`, {
     content: `🗨️ **Besucher:** ${clip(text, 1500)}`,
     allowed_mentions: { parse: [] },
+  });
+  return Boolean(res);
+}
+
+/**
+ * Möchte der Kunde sprechen, einen Termin, ein Erstgespräch oder einen Preis, schreibt der Bot einen
+ * Hinweis nur fürs Team mit dem Knopf „Anruf anbieten“ (ohne 💬, darum sieht der Kunde ihn nie).
+ * Steht in den letzten Nachrichten schon ein offener Hinweis oder ein Angebot, kommt kein zweiter.
+ */
+export async function hinweisBeiAnrufwunsch(token: string, channelId: string, text: string): Promise<boolean> {
+  const anliegen = erkenneAnliegen(text);
+  if (!anliegen) return false;
+  const letzte = await call<DiscordMessage[]>(token, "GET", `/channels/${channelId}/messages?limit=15`);
+  if (!letzte || !hinweisNoetig(letzte)) return false;
+  const res = await call(token, "POST", `/channels/${channelId}/messages`, {
+    content: hinweisText(anliegen),
+    allowed_mentions: { parse: [] },
+    components: hinweisKomponenten(anliegen),
   });
   return Boolean(res);
 }

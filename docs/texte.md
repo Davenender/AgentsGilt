@@ -112,6 +112,12 @@ Die genaue Formulierung entsteht in Schritt 2 in `lib/content.ts` (gesiezt). Hin
 - Nach Übergabe: Danke, <Name>! Ich habe dein Anliegen an unser Team übergeben. Hier im Chat antwortet dir bald ein Mitarbeiter. Du kannst in der Zwischenzeit gern weiterschreiben.
 - Chat beendet: Der Chat mit dem Team wurde beendet. Bei weiteren Fragen helfe ich dir wieder gern, oder du verbindest dich erneut mit einem Mitarbeiter.
 
+**Chat-Assistent: Regeln zu Preisen, Terminen und Gesprächen (16.11.2026, `lib/chatbot-knowledge.ts` Regeln 3, 8, 9; Anruf-Karte siehe oben „Kontakt-Knöpfe“)**
+- Regel 3 (Preise, nie eine Zahl): Der Preis „wird in einem kurzen Gespräch festgelegt“. Am schnellsten geht das am Telefon, dort nimmt der KI-Telefonassistent ab und macht direkt einen Termin aus; zusätzlich Angebot, mit einem Mitarbeiter zu verbinden. Marker am Ende immer `[KONTAKT] [ANRUFEN] [MITARBEITER]` (vorher nur `[KONTAKT] [MITARBEITER]`).
+- Regel 8 ([MITARBEITER]): bei Preisen, Zeitplänen, Interna zusätzlich `[ANRUFEN]` (Regel 3).
+- Regel 9, jetzt „Termine und Gespräche: immer anrufen“: gilt auch, wenn jemand mit uns sprechen, telefonieren oder zurückgerufen werden möchte. Neues Beispiel: „Kann ich mal mit jemandem von euch sprechen?“ → „Sehr gern! Gespräche machen wir am liebsten direkt am Telefon aus, dort nimmt unser KI-Telefonassistent ab und findet sofort einen passenden Termin. [ANRUFEN] [MITARBEITER]“
+- Die Website zeigt die Anruf-Karte auch, wenn der Assistent den Marker vergisst und die Frage nach Preis, Erstgespräch, Termin oder Gespräch fragt (`angebote()` in `lib/chat-text.ts`).
+
 (Emojis 👋 ✨ stehen heute im Text. Brief: keine Emojis als Symbole – beim Neubau als Gestaltungsfrage behandeln; die Begrüßung ist Inhalt des Chat-Widgets.)
 
 ## Terminseite `/termin/<code>` (siezt bereits)
@@ -234,6 +240,27 @@ Feste Texte, die Besucher sehen können. Davon zu unterscheiden: **dynamische** 
 - `app/api/support/route.ts` · Senden (send) / Abholen: Token ungültig „Diese Verbindung ist nicht mehr gültig.“ · Sendelimit „Bitte einen Moment warten, bevor du weiterschreibst.“ · „Leere Nachricht“ · beendet „Der Chat wurde beendet.“ · Senden fehlgeschlagen „Das hat leider nicht geklappt. Bitte versuch es gleich nochmal.“
 - `components/ChatWidget.tsx`: „Das hat leider nicht geklappt.“ · „Die Nachricht ist nicht angekommen.“
 - `app/api/discord/route.ts` · Mitarbeiter übernimmt das Ticket in Discord → im Besucher-Chat: „Du bist jetzt mit einem Mitarbeiter verbunden und kannst direkt schreiben.“
+
+**Support-Chat: „Anruf anbieten“ (neu am 16.11.2026, Wortlaut aus `lib/support-anruf.ts` und `app/api/discord/route.ts`)**
+- Knopf an der Ticket-Karte und am Hinweis (Discord, nur fürs Team): „📞 Anruf anbieten“ (neben „Übernehmen“ und „Ticket schließen“)
+- Fenstertitel: „Anruf anbieten“ · Feldbeschriftung: „Nachricht an den Kunden (änderbar)“
+- Die fünf fertigen Sätze im Feld (Lage → Satz):
+  - Preis: „Den genauen Preis legen wir am besten in einem kurzen Gespräch fest, dann passt er genau zu dir. Ruf uns einfach an: Unser Telefon-Assistent nimmt sofort ab und trägt dir direkt einen Termin ein.“
+  - Erstgespräch: „Sehr gern! Ruf uns für das Erstgespräch einfach an: Unser Telefon-Assistent nimmt sofort ab und trägt dir direkt einen passenden Termin ein.“
+  - Termin: „Gern! Ruf uns einfach an: Unser Telefon-Assistent nimmt sofort ab und findet mit dir direkt einen passenden Termin.“
+  - Sprechen: „Klar, lass uns sprechen! Ruf uns einfach an: Unser Telefon-Assistent nimmt sofort ab und trägt dir direkt einen Termin ein, an dem wir uns Zeit für dich nehmen.“
+  - Allgemein (sonst): „Am besten besprechen wir das kurz am Telefon. Ruf uns einfach an: Unser Telefon-Assistent nimmt sofort ab und trägt dir direkt einen Termin ein.“
+- Ins Ticket geschrieben (Format): „💬 **Name:** Satz“, darunter die graue Zeile: „-# 📞 Darunter sieht der Kunde die Anruf-Karte mit „Jetzt anrufen“.“ (beim Kunden wird sie nicht angezeigt, dort steht die Anruf-Karte)
+- Automatischer Hinweis nur fürs Team (die erste Zeile je nach Lage), darunter immer die graue Zeile:
+  - „📞 **Der Kunde möchte sprechen.** Anruf anbieten?“
+  - „📞 **Der Kunde möchte ein Erstgespräch.** Anruf anbieten?“
+  - „📞 **Der Kunde möchte einen Termin.** Anruf anbieten?“
+  - „📞 **Der Kunde fragt nach dem Preis.** Anruf anbieten?“
+  - Graue Zeile: „-# Nur fürs Team, der Kunde sieht das nicht. Erst nach dem Klick bekommt er eine Nachricht.“
+- Notiz am Hinweis nach dem Angebot (ohne Knopf): „📞 Anruf angeboten von <@Name> um HH:MM.“
+- Bestätigung nur an den Klickenden (Karte): „Gesendet. Der Kunde sieht die Nachricht gleich im Chat, darunter die Anruf-Karte mit „Jetzt anrufen“.“
+- Meldung bei geschlossenem Ticket (beim Klick und beim Abschicken): „Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.“
+- Leeres Fenster: „Die Nachricht war leer.“
 
 **Terminseite** (`app/api/termin/route.ts`, `lib/termin-antwort.ts`)
 - `lib/termin.ts` · Eingabeprüfung der Wunschzeit: „Das Datum habe ich nicht verstanden. Bitte so: 28.10. oder 28.10.2026.“ · „Das ist ein Wochenende. Termine gibt es nur werktags.“ · „Die Uhrzeit habe ich nicht verstanden. Bitte so: 10:00.“ · „Dieser Zeitpunkt liegt in der Vergangenheit.“ (weitergereicht über `lib/termin-antwort.ts` → `/api/termin` → `TerminAntwort.tsx`)

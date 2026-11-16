@@ -5,6 +5,7 @@
 // (components/neu/chat): Wörter für das Entschlüsseln, Links und Telefonnummern in Antworten.
 // Tests: tests/chat-text.test.ts.
 import type { PrefillContactDetail } from "./events";
+import { erkenneAnliegen } from "./support-anruf.ts";
 
 export interface Message {
   // "team" sind Antworten eines Mitarbeiters aus dem Support-Chat.
@@ -130,11 +131,13 @@ export function parseDaten(text: string): PrefillContactDetail | null {
 /**
  * Was der Assistent mit seinen Markern unter einer Antwort anbietet. `mitarbeiter` gilt auch,
  * wenn der Besucher ausdrücklich einen Menschen verlangt hat (falls der Assistent den Marker
- * vergisst) und beim älteren Marker [KONTAKT].
+ * vergisst) und beim älteren Marker [KONTAKT]. `anrufen` gilt auch, wenn der Besucher nach dem
+ * Preis, einem Erstgespräch, einem Termin oder einem Gespräch fragt (dieselbe Erkennung wie im
+ * Support-Chat, lib/support-anruf.ts): Dann soll daraus über den Telefon-Assistenten ein Termin werden.
  */
 export function angebote(antwort: string, frage: string): { anrufen: boolean; mitarbeiter: boolean } {
   return {
-    anrufen: antwort.includes(ANRUFEN_MARKER),
+    anrufen: antwort.includes(ANRUFEN_MARKER) || erkenneAnliegen(frage) !== null,
     mitarbeiter: antwort.includes(KONTAKT_MARKER) || antwort.includes(MITARBEITER_MARKER) || WANTS_HUMAN.test(frage),
   };
 }

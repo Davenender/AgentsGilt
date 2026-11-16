@@ -168,14 +168,17 @@ export function useChat() {
         );
         if (res.ok) {
           const data = (await res.json()) as {
-            messages?: { text: string; von: string }[];
+            messages?: { text: string; von: string; anrufen?: boolean }[];
             last?: string;
             closed?: boolean;
           };
+          // Hat das Team einen Anruf angeboten („Anruf anbieten“ in Discord), steht unter der
+          // Nachricht dieselbe Anruf-Karte wie beim Assistenten.
           const neu: Message[] = (data.messages ?? []).map((x) => ({
             role: "team",
             content: x.text,
             von: x.von,
+            ...(x.anrufen ? { anrufen: true } : {}),
           }));
           if (data.closed) {
             neu.push({

@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import TerminAntwort from "@/components/TerminAntwort";
+import { GoldMarke, GoldVerlauf } from "@/components/neu/Marke";
+import { Entschluesselt } from "@/components/neu/seite/Entschluesselt";
+import { Leuchtstern } from "@/components/neu/seite/Leuchtstern";
+import { TerminKarte } from "@/components/neu/termin/TerminKarte";
+import { Welt } from "@/components/neu/Welt";
 import { kundenName } from "@/lib/discord-calls";
 import { site } from "@/lib/content";
 import { berlinNow } from "@/lib/termin";
 import { ladeVorschlag } from "@/lib/termin-kunde";
+import "@/components/neu/seite/seite.css";
+import "@/components/neu/termin/termin.css";
 
 export const metadata: Metadata = {
   title: "Ihr Terminvorschlag – Agents Gilt",
@@ -13,6 +19,9 @@ export const metadata: Metadata = {
 };
 
 // Jeder Aufruf liest den aktuellen Stand aus Discord.
+// Aussehen seit der Feinschliff-Runde 1 (16.11.2026, Davids Wahl 5 A): die neue Welt der Startseite,
+// eine Glaskarte ruhig in der Mitte, dahinter der kleine Stern (components/neu/termin/termin.css).
+// Texte, Zustände und was gesendet wird sind unverändert.
 export const dynamic = "force-dynamic";
 
 const feld = (embed: { fields?: { name: string; value: string }[] }, name: string) =>
@@ -32,7 +41,7 @@ export default async function TerminSeite({ params }: { params: Promise<{ code: 
     ? `Sie haben am ${/\d{2}:\d{2}$/.test(zeit) ? `${zeit} Uhr` : zeit} bei uns angerufen.`
     : "Sie haben bei uns angerufen.";
 
-  const hinweis = (text: string) => <p className="mt-5 text-ink-soft/80">{text}</p>;
+  const hinweis = (text: string) => <p className="ag-ts__text">{text}</p>;
 
   let inhalt: React.ReactNode;
   if (!v.ok) {
@@ -46,15 +55,13 @@ export default async function TerminSeite({ params }: { params: Promise<{ code: 
   } else {
     inhalt = (
       <>
-        <p className="mt-5 leading-relaxed text-ink-soft/80">
+        <p className="ag-ts__text ag-ts__anlass">
           {anlass} Dazu haben wir einen Terminvorschlag für Sie:
         </p>
-        <div className="mt-5 rounded-2xl border border-gold/40 bg-cream p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-dark">
-            Unser Vorschlag
-          </p>
-          <p className="mt-2 font-display text-3xl font-extrabold text-ink">{v.termin}</p>
-          <p className="mt-1 text-sm text-ink-soft/70">Erstgespräch mit Agents Gilt</p>
+        <div className="ag-ts__vorschlag">
+          <p className="ag-ts__marke">Unser Vorschlag</p>
+          <p className="ag-versal ag-ts__termin">{v.termin}</p>
+          <p className="ag-ts__klein">Erstgespräch mit Agents Gilt</p>
         </div>
         <TerminAntwort code={code} termin={v.termin} fruehestens={fruehestens} />
       </>
@@ -64,53 +71,62 @@ export default async function TerminSeite({ params }: { params: Promise<{ code: 
   const vertrauen = ["Persönlicher Link, nur für Sie.", "Keine Anmeldung, keine Zahlungsdaten."];
 
   return (
-    <main className="min-h-screen bg-cream-dark/60 px-5 py-10 sm:py-16">
-      <div className="mx-auto max-w-xl">
-        <header className="flex items-center gap-3">
-          <Image src="/logo-mark.png" alt="" width={44} height={44} className="h-11 w-11" priority />
-          <div>
-            <p className="font-display text-[15px] font-bold uppercase tracking-[0.12em] text-ink">
-              Agents Gilt
-            </p>
-            <p className="text-xs text-ink-soft/60">KI-Lösungen für lokale Unternehmen</p>
+    <Welt>
+      <main className="ag-ts">
+        <GoldVerlauf />
+        <div className="ag-ts__grund" aria-hidden="true" />
+        <div className="ag-ts__spalte">
+          <header className="ag-ts__kopf">
+            <span className="ag-ts__logo">
+              <GoldMarke />
+            </span>
+            <span className="ag-ts__wer">
+              <span className="ag-ts__name">Agents Gilt</span>
+              <span className="ag-ts__zeile">KI-Lösungen für lokale Unternehmen</span>
+            </span>
+            <span className="ag-ts__art">Terminvorschlag</span>
+          </header>
+
+          <div className="ag-ts__buehne">
+            <span className="ag-ts__stern" aria-hidden="true">
+              <Leuchtstern />
+            </span>
+            <TerminKarte>
+              <Entschluesselt als="h1" className="ag-versal ag-ts__titel">
+                {name ? `Guten Tag, ${name}` : "Guten Tag"}
+              </Entschluesselt>
+              {inhalt}
+            </TerminKarte>
           </div>
-        </header>
 
-        <section className="mt-8 rounded-3xl border border-line bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-dark">
-            Terminvorschlag
+          <ul className="ag-ts__vertrauen">
+            {vertrauen.map((t) => (
+              <li key={t}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 12.5l4.2 4.2L19 7" />
+                </svg>
+                <span>{t}</span>
+              </li>
+            ))}
+          </ul>
+
+          <p className="ag-ts__fragen">
+            Fragen? <a href={`tel:${site.phone}`}>{site.phoneDisplay}</a>
+            {" · "}
+            <a href={`mailto:${site.email}`}>{site.email}</a>
           </p>
-          <h1 className="mt-2 font-display text-3xl font-extrabold text-ink">
-            {name ? `Guten Tag, ${name}` : "Guten Tag"}
-          </h1>
-          {inhalt}
-        </section>
 
-        <ul className="mt-6 space-y-2.5 px-1 text-sm text-ink-soft/80">
-          {vertrauen.map((t) => (
-            <li key={t} className="flex gap-2.5">
-              <span aria-hidden className="mt-0.5 text-gold-dark">✓</span>
-              <span>{t}</span>
-            </li>
-          ))}
-        </ul>
-
-        <p className="mt-6 px-1 text-sm text-ink-soft/80">
-          Fragen? <a className="font-medium text-ink underline-offset-2 hover:underline" href={`tel:${site.phone}`}>{site.phoneDisplay}</a>
-          {" · "}
-          <a className="font-medium text-ink underline-offset-2 hover:underline" href={`mailto:${site.email}`}>{site.email}</a>
-        </p>
-
-        <footer className="mt-10 border-t border-line px-1 pt-5 text-xs text-ink-soft/60">
-          <p>
-            Sie sind auf <span className="font-medium">agentsgilt.com</span>, der Website von Agents Gilt.
-          </p>
-          <p className="mt-2 flex gap-4">
-            <Link href="/impressum" className="hover:text-ink">Impressum</Link>
-            <Link href="/datenschutz" className="hover:text-ink">Datenschutz</Link>
-          </p>
-        </footer>
-      </div>
-    </main>
+          <footer className="ag-ts__fuss">
+            <p>
+              Sie sind auf <span>agentsgilt.com</span>, der Website von Agents Gilt.
+            </p>
+            <p className="ag-ts__links">
+              <Link href="/impressum">Impressum</Link>
+              <Link href="/datenschutz">Datenschutz</Link>
+            </p>
+          </footer>
+        </div>
+      </main>
+    </Welt>
   );
 }
