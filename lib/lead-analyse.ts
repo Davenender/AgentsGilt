@@ -223,6 +223,22 @@ function leer(v: unknown, max: number): string | null {
   return s && !/^(null|n\/a|unbekannt|nicht angegeben)$/i.test(s) ? s : null;
 }
 
+/**
+ * Text der Website (Startseite und bis zu zwei Unterseiten) für die Recherche-Mappe (Etappe 3, 16.11.2026).
+ * Gleicher geschützter Abruf wie die Analyse. null, wenn die Seite nicht lesbar ist.
+ */
+export async function seitenText(eingabe: string, maxZeichen = 8000): Promise<{ url: string; text: string; html: string } | null> {
+  const url = normalizeUrl(eingabe);
+  if (!url) return null;
+  // Manche kleinen Seiten laufen nur ohne Verschlüsselung (16.11.: Restaurant-Lead mit kaputtem Zertifikat).
+  const start = (await ladeSeite(url)) ?? (url.startsWith("https://") ? await ladeSeite(`http://${url.slice(8)}`) : null);
+  if (!start) return null;
+  const subs = unterseiten(start.html, start.url).slice(0, 2);
+  const weitere = (await Promise.all(subs.map((u) => ladeSeite(u)))).filter((p): p is { url: string; html: string } => Boolean(p));
+  const text = [start, ...weitere].map((p) => `### ${p.url}\n${zuText(p.html).slice(0, 3000)}`).join("\n\n");
+  return { url: start.url, text: text.slice(0, maxZeichen), html: start.html.slice(0, 200_000) };
+}
+
 export async function analysiere(
   eingabe: string,
 ): Promise<{ ok: true; analyse: Analyse; url: string; domain: string } | { ok: false; fehler: string }> {
