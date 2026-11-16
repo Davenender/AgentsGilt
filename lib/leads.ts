@@ -1,6 +1,7 @@
 import { findCategoryId, findChannelId } from "@/lib/discord";
 import { kanalWahl } from "./kanalwahl.ts";
 import { entscheide, NOETIG } from "./abstimmung.ts";
+import { kontaktiertErlaubt } from "./lead-arbeit.ts";
 import type { EmbedLike } from "@/lib/discord-calls";
 import type { Analyse } from "@/lib/lead-analyse";
 
@@ -473,7 +474,8 @@ export function leadComponents(state: LeadState, status = "Offen", besitzer: str
       const row = [
         s("Offen", "open", status === "Offen"),
         s("In Arbeit", "work", status === "In Arbeit"),
-        s("Kontaktiert", "contacted", status === "Kontaktiert"),
+        // Etappe 3 (16.11.): „Kontaktiert“ erst nach „In Arbeit“
+        { ...s("Kontaktiert", "contacted", status === "Kontaktiert"), disabled: !kontaktiertErlaubt(status) },
         ...(status === "Kontaktiert" ? [button("Lead aktiv", "st:active", 3)] : []),
         button("Kunde: Kein Interesse", "st:nointerest", 4),
       ];

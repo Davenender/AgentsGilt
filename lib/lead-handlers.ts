@@ -4,6 +4,7 @@ import { analysiere, domainKey, normalizeUrl } from "@/lib/lead-analyse";
 import {
   call,
   ablageKanal,
+  alleNachrichten,
   besitzerId,
   mitBesitzer,
   letzterFehler,
@@ -29,6 +30,7 @@ import {
   vergissAbgelehnt,
 } from "@/lib/leads";
 import { nameVon } from "@/lib/team";
+import { andererInArbeit, pruefeSchritt } from "@/lib/lead-arbeit";
 import { legeKundenZeileAn, notionConfigured } from "@/lib/notion-api";
 import type { Analyse } from "@/lib/lead-analyse";
 import { analyseAusFormular, analyseAusPlatz, formularModal, formularWerte, manuellerSchluessel, webArt, type Platz, erkenneEingabe, kandidatenSchluessel, trefferAuswahl } from "@/lib/lead-ohne-website";
@@ -297,7 +299,7 @@ export function handleLeadCommand(i: LeadInteraction, token: string | undefined,
 
 // ---------------------------------------------------------------- Knöpfe
 
-export function handleLeadButton(i: LeadInteraction, token: string | undefined) {
+export async function handleLeadButton(i: LeadInteraction, token: string | undefined) {
   const user = i.member?.user;
   const embed = i.message?.embeds?.[0];
   const messageId = i.message?.id;
@@ -457,6 +459,20 @@ export function handleLeadButton(i: LeadInteraction, token: string | undefined) 
   const zeit = uhrzeit();
 
   if (st === "open" || st === "work" || st === "contacted") {
+    // Etappe 3 (16.11.): Reihenfolge Offen → In Arbeit → Kontaktiert, und pro Person nur eine Firma in Arbeit
+    const fehler = pruefeSchritt(statusWort(embed), st);
+    if (fehler) return ephemeral(fehler);
+    if (st === "work" && statusWort(embed) !== "In Arbeit") {
+      const wer = besitzer ?? user.id;
+      const karten = (await alleNachrichten(token, channelId, 300))
+        .filter((m) => m.embeds?.[0])
+        .map((m) => ({ id: m.id, firma: m.embeds?.[0]?.title ?? "", besitzer: besitzerId(m.embeds![0]), status: statusWort(m.embeds![0]) }));
+      const andere = andererInArbeit(karten, wer, messageId);
+      if (andere) {
+        const name = andere.replace(/[*_~`|>@]/g, "");
+        return ephemeral(wer === user.id ? `Du hast schon **${name}** in Arbeit. Setz sie erst auf Kontaktiert oder Offen.` : `<@${wer}> hat schon **${name}** in Arbeit.`);
+      }
+    }
     const wort = st === "open" ? "Offen" : st === "work" ? "In Arbeit" : "Kontaktiert";
     return update(mitStatus(embed, wort, zeit), leadComponents("accepted", wort, besitzerId(embed)));
   }
