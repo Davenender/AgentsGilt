@@ -5,7 +5,7 @@ import { seitenId } from "@/lib/notion-api";
 import { einnahmeProps, gebuehrProps, rechnungsNummer, typFuer, type Einnahme } from "@/lib/finanzen-regeln";
 import type { Meldung, StripeKunde } from "@/lib/stripe-meldung";
 
-const DB = {
+export const DB = {
   rechnungen: process.env.NOTION_RECHNUNGEN_DB || "8f55e3b1-186d-4e81-855c-75f604512731",
   ausgaben: process.env.NOTION_AUSGABEN_DB || "41a03fa2-27fb-81b9-a6cf-f2d6ed303ef9",
   jahre: process.env.NOTION_FINANZJAHRE_DB || "41a03fa2-27fb-8120-a4a7-ed63698a56d4",
@@ -13,7 +13,8 @@ const DB = {
 
 const heute = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
 
-async function notion<T>(pfad: string, method: "GET" | "POST" | "PATCH", body?: unknown): Promise<T | null> {
+/** Notion-Aufruf mit dem Bot-Schlüssel (auch für lib/belege.ts). null bei Fehler (steht im Protokoll). */
+export async function notion<T>(pfad: string, method: "GET" | "POST" | "PATCH", body?: unknown): Promise<T | null> {
   const token = process.env.NOTION_TOKEN?.trim();
   if (!token) return null;
   try {

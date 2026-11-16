@@ -9,6 +9,9 @@ import { ladeFaeden } from "@/lib/mail-faeden-speicher";
 import { oeffneTicketWieder } from "@/lib/support";
 import { labelFuerNr } from "@/lib/mail-bruecke";
 import { listeKunden, type KundeKurz } from "@/lib/notion-api";
+import { istBelegKandidat, belegZeile, type Anhang } from "@/lib/belege-regeln";
+import { bucheBeleg } from "@/lib/belege";
+import { rufeSkript } from "@/lib/mail-bruecke";
 import { kanalName } from "@/lib/notion-kunden";
 
 // Neue Mails aus Gmail (kommen vom Google-Skript an /api/mail/eingang).
@@ -23,6 +26,9 @@ export interface EingehendeMail {
   text: string;
   datum?: string;
   link?: string;
+  /** Finanzen A3 (Skriptstand 16.11.2026): an wen die Mail ging und welche Anhänge sie hat */
+  an?: string;
+  anhaenge?: Anhang[];
 }
 
 export type MailErgebnis =
@@ -30,6 +36,7 @@ export type MailErgebnis =
   | { aktion: "kunde"; label: string; kanal: string }
   | { aktion: "posteingang" }
   | { aktion: "faden"; kanal: string }
+  | { aktion: "beleg" }
   | { aktion: "fehler"; grund: string };
 
 const EIGENE_ADRESSE = /kontakt@agentsgilt\.com/i;
@@ -214,9 +221,26 @@ export async function verarbeiteMail(token: string, m: EingehendeMail): Promise<
     if (gepostet) return { aktion: "faden", kanal: faden.kanal };
   }
 
+  // Finanzen A3: Rechnung eines Anbieters? Dann Zeile in Notion „Ausgaben“, Label „Belege“ und eine kurze Zeile statt Karte.
+  // Keine Rechnung, privat oder Fehler: wie bisher als Karte in #posteingang (nichts geht verloren).
+  let belegHinweis = "";
+  if (istBelegKandidat(m)) {
+    const b = await bucheBeleg(m);
+    if (b.art === "schon") return { aktion: "beleg" };
+    if (b.art === "gebucht") {
+      const pe = await posteingangKanal(token);
+      if (pe) await call(token, "POST", `/channels/${pe}/messages`, { content: belegZeile(b.beleg, b.cent, b.url), allowed_mentions: { parse: [] }, flags: 4 });
+      await rufeSkript("label", m.id, "Belege");
+      return { aktion: "beleg" };
+    }
+    if (b.art === "privat") belegHinweis = "🧾 Sieht nach einer privaten Rechnung aus, deshalb nicht in „Ausgaben“ gebucht.";
+    if (b.art === "fehler") belegHinweis = `🧾 Sieht nach einer Rechnung aus, konnte aber nicht gebucht werden (${b.grund}). Bitte von Hand in „Ausgaben“ eintragen.`;
+  }
+
   const urteil = await beurteile(m);
   const kanal = await posteingangKanal(token);
   if (!kanal) return { aktion: "fehler", grund: "Der Kanal #posteingang ist nicht erreichbar." };
+  if (belegHinweis && urteil) urteil.zusammenfassung = `${belegHinweis}\n${urteil.zusammenfassung}`.slice(0, 600);
   const id = await postKarte(token, kanal, posteingangsKarte(m, urteil), posteingangKomponenten("gmail"));
   return id ? { aktion: "posteingang" } : { aktion: "fehler", grund: "Die Karte konnte nicht angelegt werden." };
 }

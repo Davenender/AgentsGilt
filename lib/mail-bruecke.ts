@@ -52,3 +52,27 @@ export async function rufeSkript(
     return { ok: false, fehler: "Das Google-Skript war nicht erreichbar." };
   }
 }
+
+/**
+ * Finanzen A3: das erste PDF einer Mail (Rechnung) über das Google-Skript holen. null, wenn das Skript das noch nicht kann
+ * (alter Stand), kein PDF da ist oder es zu groß ist. Braucht den Skriptstand vom 16.11.2026 (Auftrag „anhang“).
+ */
+export async function holeAnhang(mailId: string): Promise<{ name: string; typ: string; daten: Uint8Array } | null> {
+  const url = process.env.MAIL_SCRIPT_URL?.trim();
+  const secret = process.env.MAIL_BRIDGE_SECRET?.trim();
+  if (!url || !secret) return null;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ secret, aktion: "anhang", id: mailId }),
+      redirect: "follow",
+      signal: AbortSignal.timeout(25_000),
+    });
+    const a = (await res.json().catch(() => ({}))) as { ok?: boolean; name?: string; typ?: string; daten?: string };
+    if (!res.ok || !a.ok || !a.daten) return null;
+    return { name: (a.name ?? "Beleg.pdf").slice(0, 120), typ: a.typ ?? "application/pdf", daten: Uint8Array.from(Buffer.from(a.daten, "base64")) };
+  } catch {
+    return null;
+  }
+}

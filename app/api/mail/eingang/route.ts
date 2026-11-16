@@ -16,6 +16,9 @@ const schema = z.object({
   text: z.string().max(20_000).default(""),
   datum: z.string().max(60).optional(),
   link: z.string().url().max(500).optional(),
+  // Finanzen A3 (Skriptstand 16.11.2026)
+  an: z.string().max(500).optional(),
+  anhaenge: z.array(z.object({ name: z.string().max(200), typ: z.string().max(100), groesse: z.number() })).max(20).optional(),
 });
 
 function geheimOk(given: string | null): boolean {
