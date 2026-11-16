@@ -9,8 +9,8 @@ import { ladeFaeden } from "@/lib/mail-faeden-speicher";
 import { oeffneTicketWieder } from "@/lib/support";
 import { labelFuerNr } from "@/lib/mail-bruecke";
 import { listeKunden, type KundeKurz } from "@/lib/notion-api";
-import { istBelegKandidat, belegZeile, type Anhang } from "@/lib/belege-regeln";
-import { bucheBeleg } from "@/lib/belege";
+import { istBelegKandidat, type Anhang } from "@/lib/belege-regeln";
+import { bucheBeleg, meldeBeleg } from "@/lib/belege";
 import { rufeSkript } from "@/lib/mail-bruecke";
 import { kanalName } from "@/lib/notion-kunden";
 
@@ -228,8 +228,7 @@ export async function verarbeiteMail(token: string, m: EingehendeMail): Promise<
     const b = await bucheBeleg(m);
     if (b.art === "schon") return { aktion: "beleg" };
     if (b.art === "gebucht") {
-      const pe = await posteingangKanal(token);
-      if (pe) await call(token, "POST", `/channels/${pe}/messages`, { content: belegZeile(b.beleg, b.cent, b.url), allowed_mentions: { parse: [] }, flags: 4 });
+      await meldeBeleg(token, b);
       await rufeSkript("label", m.id, "Belege");
       return { aktion: "beleg" };
     }

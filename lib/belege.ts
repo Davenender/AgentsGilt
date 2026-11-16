@@ -4,6 +4,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ausgabeProps, BELEG_PROMPT, euroCent, postfachAus, pruefeBeleg, type Anhang, type Beleg } from "@/lib/belege-regeln";
 import { DB, jahrSeite, notion } from "@/lib/finanzen";
 import { holeAnhang } from "@/lib/mail-bruecke";
+import { call, posteingangKanal } from "@/lib/leads";
+import { belegZeile } from "@/lib/belege-regeln";
 
 export type BelegMail = { id: string; von: string; betreff: string; text: string; an?: string; anhaenge?: Anhang[]; link?: string };
 export type BelegErgebnis =
@@ -76,14 +78,17 @@ async function ladeHoch(pdf: { name: string; typ: string; daten: Uint8Array }): 
   }
 }
 
-/** Liest und bucht eine Rechnungsmail (doppelt-sicher über die Mail-Kennung). */
-export async function bucheBeleg(m: BelegMail): Promise<BelegErgebnis> {
+/**
+ * Liest und bucht eine Rechnungsmail (doppelt-sicher über die Mail-Kennung). Das PDF kommt entweder mit (Skript im
+ * privaten Postfach) oder wird über die Gmail-Brücke von kontakt@ geholt.
+ */
+export async function bucheBeleg(m: BelegMail, mitgegeben?: { name: string; daten: Uint8Array } | null): Promise<BelegErgebnis> {
   const schon = await notion<{ results?: unknown[] }>(`/databases/${DB.ausgaben}/query`, "POST", { filter: { property: "Notiz", rich_text: { contains: `Mail ${m.id}` } }, page_size: 1 });
   if (!schon) return { art: "fehler", grund: "Notion „Ausgaben“ nicht erreichbar" };
   if (schon.results?.length) return { art: "schon" };
 
   const hatPdf = (m.anhaenge ?? []).some((a) => /pdf/i.test(a.typ));
-  const pdf = hatPdf ? await holeAnhang(m.id) : null;
+  const pdf = mitgegeben ? { ...mitgegeben, typ: "application/pdf" } : hatPdf ? await holeAnhang(m.id) : null;
   const beleg = await liesBeleg(m, pdf);
   if (!beleg) return { art: "fehler", grund: "KI hat die Rechnung nicht lesen können" };
   if (!beleg.istRechnung) return { art: "keinBeleg" };
@@ -98,4 +103,10 @@ export async function bucheBeleg(m: BelegMail): Promise<BelegErgebnis> {
   });
   if (!zeile) return { art: "fehler", grund: "Zeile in „Ausgaben“ nicht angelegt" };
   return { art: "gebucht", beleg, cent, url: zeile.url ?? null };
+}
+
+/** Kurze Zeile in #posteingang, dass ein Beleg gebucht wurde. */
+export async function meldeBeleg(token: string, b: Extract<BelegErgebnis, { art: "gebucht" }>): Promise<void> {
+  const pe = await posteingangKanal(token);
+  if (pe) await call(token, "POST", `/channels/${pe}/messages`, { content: belegZeile(b.beleg, b.cent, b.url), allowed_mentions: { parse: [] }, flags: 4 });
 }
