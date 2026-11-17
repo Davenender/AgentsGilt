@@ -126,7 +126,7 @@ export const ZEIG_VORLAGEN = ["ort", "route", "wetter", "bahn", "treffpunkt", "s
 export type Brief =
   | { typ: "zeigen"; vorlage: string; wunsch?: string }
   | { typ: "auftrag"; text: string }
-  | { typ: "rueckruf"; minuten?: number; uhrzeit?: string; pause?: boolean; text: string; thema?: string }
+  | { typ: "rueckruf"; minuten?: number; uhrzeit?: string; pause?: boolean; morgen?: boolean; text: string; thema?: string }
   | { typ: "antwort"; nr: number; text: string; stand: string }
   | { typ: "freigabe"; nr: number; erlauben: boolean; stand: string }
   | { typ: "nachschauen"; frage: string }
@@ -223,7 +223,7 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     // 13.11.: „ruf mich um 15:40 an“ als Uhrzeit – Luca rechnete selbst Minuten aus und machte „dreiviertel vier“ daraus
     const thema = kurzText(args.thema, 60);
     // 17.11. (Davids Wunsch): „ruf mich in der Pause an“ – wann genau, rechnet die Zentrale aus dem Stundenplan
-    if (args.pause === true) return { typ: "rueckruf", pause: true, text: text || "Rückruf, wie besprochen", ...(thema ? { thema } : {}) };
+    if (args.pause === true) return { typ: "rueckruf", pause: true, ...(args.morgen === true ? { morgen: true } : {}), text: text || "Rückruf, wie besprochen", ...(thema ? { thema } : {}) };
     if (typeof args.uhrzeit === "string" && args.uhrzeit.trim()) {
       const uhrzeit = uhrzeitAus(args.uhrzeit);
       return uhrzeit ? { typ: "rueckruf", uhrzeit, text: text || "Rückruf, wie besprochen", ...(thema ? { thema } : {}) } : null;
@@ -810,13 +810,14 @@ export const LUCA_WERKZEUGE = [
     type: "function",
     function: {
       name: "rueckruf_planen",
-      description: "Plant, dass Luca David später noch einmal anruft. Nennt David eine Uhrzeit („ruf um 15:40 an“), nimm uhrzeit genau so, nie umgerechnet; sagt er „in 30 Minuten“, nimm minuten; sagt er „ruf mich in der Pause an“ oder „erzähl mir das in der Pause“, nimm pause true (die Zentrale ruft in der nächsten Pause an, 5 Minuten nach Beginn; ist heute keine Pause mehr, nach der Schule). Nur auf Davids Wunsch. Zum selben Thema gibt es nur einen Anruf: Ein neuer Rückruf ersetzt einen alten.",
+      description: "Plant, dass Luca David später noch einmal anruft. Nennt David eine Uhrzeit („ruf um 15:40 an“), nimm uhrzeit genau so, nie umgerechnet; sagt er „in 30 Minuten“, nimm minuten; sagt er „ruf mich in der Pause an“ oder „erzähl mir das in der Pause“, nimm pause true (die Zentrale ruft in der nächsten Pause an, 5 Minuten nach Beginn; ist heute keine Pause mehr, nach der Schule: 5 Minuten, nachdem David zu Hause ist, oder 10 Minuten, nachdem er die Schule verlassen hat); „morgen in der Pause“: dazu morgen true. Nur auf Davids Wunsch. Zum selben Thema gibt es nur einen Anruf: Ein neuer Rückruf ersetzt einen alten.",
       parameters: {
         type: "object",
         properties: {
           uhrzeit: { type: "string", description: "Uhrzeit in Berliner Zeit, genau wie David sie sagt: HH:MM, zum Beispiel 15:40." },
           minuten: { type: "number", description: "Nur wenn David keine Uhrzeit nennt: in wie vielen Minuten (1 bis 720)." },
-          pause: { type: "boolean", description: "true = in der nächsten Schulpause anrufen („ruf mich in der Pause an“); heute keine mehr: nach der Schule." },
+          pause: { type: "boolean", description: "true = in der nächsten Schulpause anrufen („ruf mich in der Pause an“); heute keine mehr: nach der Schule (zu Hause + 5 Min. oder Schule verlassen + 10 Min.)." },
+          morgen: { type: "boolean", description: "Mit pause: „morgen in der Pause“, heute zählt nicht." },
           text: { type: "string", description: "Worum es beim Rückruf gehen soll, als Satz an David („Wir klären, was wegen Marc zu tun ist“)." },
           thema: { type: "string", description: "Stichwort aus ein, zwei Wörtern, zum Beispiel „Marc Mail“." },
         },

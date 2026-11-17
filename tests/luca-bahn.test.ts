@@ -97,4 +97,6 @@ test("Rückruf in der Pause: „ruf mich in der Pause an“ wird ein Pausen-Rüc
   // Pause schlägt Minuten: David sagte „in der Pause“
   assert.deepEqual(briefAus("rueckruf_planen", { pause: true, minuten: 30, text: "x" }, ""), { typ: "rueckruf", pause: true, text: "x" });
   assert.deepEqual(briefAus("rueckruf_planen", { minuten: 30, text: "x" }, ""), { typ: "rueckruf", minuten: 30, text: "x" });
+  // „ruf mich morgen in der Pause an“
+  assert.deepEqual(briefAus("rueckruf_planen", { pause: true, morgen: true, text: "x" }, ""), { typ: "rueckruf", pause: true, morgen: true, text: "x" });
 });
