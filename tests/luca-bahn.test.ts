@@ -100,3 +100,15 @@ test("Rückruf in der Pause: „ruf mich in der Pause an“ wird ein Pausen-Rüc
   // „ruf mich morgen in der Pause an“
   assert.deepEqual(briefAus("rueckruf_planen", { pause: true, morgen: true, text: "x" }, ""), { typ: "rueckruf", pause: true, morgen: true, text: "x" });
 });
+
+// Ü1 (17.11.): „Erst machen, dann sagen“ – die Erinnerung ist erst eingetragen, wenn die Zentrale es bestätigt (kommt ins
+// Gespräch). Vorher sagte die Sofort-Antwort „ist eingeplant: Luca ruft David an“, auch bei „nur als Nachricht“.
+test("Sofort-Antwort zur Erinnerung: noch nicht „fest drin“, und bei „nur als Nachricht“ kein Anruf", async () => {
+  const { briefAntwort } = await import("../lib/luca-logik.ts");
+  const a = briefAntwort({ typ: "erinnerung", text: "Trink Wasser", minuten: 10, wie: "nachricht" }, "STANDARD");
+  assert.match(a, /Nachricht/);
+  assert.doesNotMatch(a, /ruft David an/);
+  assert.match(a, /bestätigt|Bestätigung/);
+  assert.match(briefAntwort({ typ: "erinnerung", text: "x", minuten: 5 }, "STANDARD"), /Anruf/);
+  assert.equal(briefAntwort({ typ: "idee", text: "x" }, "STANDARD"), "STANDARD");
+});

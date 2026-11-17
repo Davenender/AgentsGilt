@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { briefAus, gespraechBrief } from "@/lib/luca-logik";
+import { briefAntwort, briefAus, gespraechBrief } from "@/lib/luca-logik";
 import { kostenStand } from "@/lib/kosten";
 import { lucaLive } from "@/lib/luca-live";
 import { aufsHandy, ortsname } from "@/lib/luca-unterwegs";
@@ -156,7 +156,7 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
       if (!brief) return "Das hat nicht geklappt: Angaben unvollständig. Frag David noch einmal.";
       const ok = await posteBrief({ ...brief, zeit: new Date().toISOString(), ...(msg?.call?.id ? { anruf: msg.call.id } : {}) });
       if (brief.typ === "zeigen") after(() => setzeGespraech(true).then(() => undefined));
-      return ok ? ANTWORT[brief.typ] : "Der Briefkasten ist gerade nicht erreichbar. Sag David, er soll es in der Zentrale eintragen.";
+      return ok ? briefAntwort(brief, ANTWORT[brief.typ]) : "Der Briefkasten ist gerade nicht erreichbar. Sag David, er soll es in der Zentrale eintragen.";
     };
     // Gleichzeitig und mit Frist: Ein langsames Werkzeug hält die anderen nicht auf, und Vapi bekommt immer eine Antwort
     const results = await Promise.all(

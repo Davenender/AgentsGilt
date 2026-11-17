@@ -930,6 +930,14 @@ export const MAILBOX = {
 } as const;
 
 export const ERSTER_SATZ_EINGEHEND = "Hey David, was gibt's?";
+/** Ü1 (17.11.): Die Sofort-Antwort an Luca, bevor die Zentrale den Brief verarbeitet hat. Bei Erinnerungen ehrlich: Die
+ * Bestätigung (oder was nicht ging, etwa ein unbekannter Ort) kommt gleich ins Gespräch; „nur als Nachricht“ ist kein Anruf. */
+export function briefAntwort(b: Brief, standard: string): string {
+  if (b.typ !== "erinnerung") return standard;
+  const weg = b.wie === "nachricht" ? "per Nachricht aufs Handy (kein Anruf)" : b.wie === "abends" ? "gesammelt abends um acht per Nachricht" : "als Anruf";
+  return `Ist an die Zentrale raus. Sie trägt die Erinnerung ein und bestätigt es gleich im Gespräch, oder sagt, was fehlt (zum Beispiel ein unbekannter Ort). Sag David kurz „trag ich ein“ und wann sie kommt (${weg}), aber noch nicht, dass sie fest drin ist. Zwischen 2 und 6 Uhr nachts und im Unterricht kommt kein Anruf, dann danach.`;
+}
+
 export function ersterSatzAusgehend(grund: string): string {
   return `Hey David, Luca hier. ${grund.replace(/\s+/g, " ").trim().slice(0, 240)}`;
 }
