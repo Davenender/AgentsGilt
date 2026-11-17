@@ -155,15 +155,40 @@ const UHR = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, hour
 const TAG = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, weekday: "long" }).format(d);
 const LOS_PUFFER = 10;
 
-/** Nächster Termin mit Ort: Fahrzeit mit Verkehr und wann David los muss. */
-export async function losSatz(termine: { titel: string; start: string; ganztags: boolean; ort?: string }[] | null, w: Welt, jetzt = new Date(), abruf: Abruf = fetch): Promise<string> {
+const ohneZeichen = (t: string) => t.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+/** 17.11.: Davids Termine haben oft keinen Ort („Tanzschule“, „Gym“). Steht einer seiner Orte (oder ein zweiter Name) als
+ * ganzes Wort im Titel, gilt dieser Ort. Der längste Treffer gewinnt, und „Schule“ steckt nicht in „Tanzschule“. */
+export function ortImTitel(titel: string, orte: Welt["orte"]): Welt["orte"][number] | null {
+  const t = ohneZeichen(titel);
+  let best: { ort: Welt["orte"][number]; laenge: number } | null = null;
+  for (const o of orte)
+    for (const n of [o.name, ...(o.auch ?? [])]) {
+      const k = ohneZeichen(n.trim());
+      if (k.length < 3) continue;
+      const re = new RegExp(`(?<![\\p{L}])${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}])`, "u");
+      if (re.test(t) && (!best || k.length > best.laenge)) best = { ort: o, laenge: k.length };
+    }
+  return best?.ort ?? null;
+}
+
+/** Nächster Termin mit Ort: Fahrzeit mit Verkehr und wann David los muss. Mit ziel: der nächste Termin dorthin. */
+export async function losSatz(termine: { titel: string; start: string; ganztags: boolean; ort?: string }[] | null, w: Welt, jetzt = new Date(), abruf: Abruf = fetch, ziel?: string): Promise<string> {
   if (termine === null) return "Der Kalender antwortet gerade nicht.";
-  const t = termine.filter((x) => !x.ganztags && x.ort && Date.parse(x.start) > jetzt.getTime()).sort((a, b) => a.start.localeCompare(b.start))[0];
-  if (!t) return "In den nächsten 36 Stunden steht kein Termin mit Ort im Kalender.";
+  const z = ziel?.trim() ? ohneZeichen(ziel.trim()) : "";
+  const zielOrt = z ? ortImTitel(ziel!, w.orte) : null;
+  const passt = (x: { titel: string; ort?: string }, bekannt: Welt["orte"][number] | null) =>
+    !z || ohneZeichen(`${x.titel} ${x.ort ?? ""}`).includes(z) || Boolean(zielOrt && bekannt && bekannt.name === zielOrt.name);
+  const t = termine
+    .filter((x) => !x.ganztags && Date.parse(x.start) > jetzt.getTime())
+    .map((x) => ({ ...x, bekannt: x.ort ? null : ortImTitel(x.titel, w.orte) }))
+    .filter((x) => (x.ort || x.bekannt) && passt(x, x.bekannt))
+    .sort((a, b) => a.start.localeCompare(b.start))[0];
+  if (!t) return z ? `In den nächsten 36 Stunden steht kein Termin „${ziel!.trim()}“ im Kalender. Die reine Fahrzeit sagt route_berechnen.` : "In den nächsten 36 Stunden steht kein Termin mit Ort im Kalender.";
   const start = new Date(t.start);
   const wann = `${TAG(start)} um ${UHR(start)} Uhr`;
-  const s = await strecke({ nach: t.ort }, w, abruf);
-  if (typeof s === "string") return `Nächster Termin: ${t.titel}, ${wann}, ${t.ort}. Die Fahrzeit kann ich nicht ausrechnen: ${s}`;
+  const zielText = t.ort ?? t.bekannt!.name;
+  const s = await strecke({ nach: zielText }, w, abruf);
+  if (typeof s === "string") return `Nächster Termin: ${t.titel}, ${wann}, ${zielText}. Die Fahrzeit kann ich nicht ausrechnen: ${s}`;
   let min: number | null = null;
   let stau = 0;
   let live = false;
@@ -180,8 +205,8 @@ export async function losSatz(termine: { titel: string; start: string; ganztags:
     const j = await holeJson<{ code?: string; routes?: { duration: number }[] }>(`https://routing.openstreetmap.de/${PROFIL.auto}/route/v1/driving/${s.von.lon},${s.von.lat};${s.nach.lon},${s.nach.lat}?overview=false`, abruf);
     if (j?.code === "Ok" && j.routes?.[0]) min = Math.max(1, Math.round(j.routes[0].duration / 60));
   }
-  if (min === null) return `Nächster Termin: ${t.titel}, ${wann}, ${t.ort}. Die Fahrzeit kann ich gerade nicht ausrechnen.`;
+  if (min === null) return `Nächster Termin: ${t.titel}, ${wann}, ${zielText}. Die Fahrzeit kann ich gerade nicht ausrechnen.`;
   const los = new Date(start.getTime() - (min + LOS_PUFFER) * 60_000);
   const zuSpaet = los.getTime() <= jetzt.getTime();
-  return `Nächster Termin: ${t.titel}, ${wann}, ${t.ort}. Fahrt etwa ${dauer(min)}${live ? (stau ? ` mit dem aktuellen Verkehr, davon ${dauer(stau)} Stau` : " mit dem aktuellen Verkehr") : ", ohne Stau gerechnet"}. ${zuSpaet ? "Er müsste jetzt los." : `Er muss um ${UHR(los)} Uhr los, mit ${LOS_PUFFER} Minuten Puffer.`}`;
+  return `Nächster Termin: ${t.titel}, ${wann}, ${zielText}. Fahrt etwa ${dauer(min)}${live ? (stau ? ` mit dem aktuellen Verkehr, davon ${dauer(stau)} Stau` : " mit dem aktuellen Verkehr") : ", ohne Stau gerechnet"}. ${zuSpaet ? "Er müsste jetzt los." : `Er muss um ${UHR(los)} Uhr los, mit ${LOS_PUFFER} Minuten Puffer.`}`;
 }

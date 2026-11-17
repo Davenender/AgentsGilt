@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { findChannelId } from "@/lib/discord";
 import { listeKunden } from "@/lib/notion-api";
-import { entschluessele, LEERER_SPEICHER, passendKlein, standortText, verschluessele, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
+import { entschluessele, LEERER_SPEICHER, passendKlein, setzeOrteNoetig, standortText, verschluessele, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
 import {
   anrufErlaubt,
   anrufNachricht,
@@ -397,9 +397,9 @@ export async function schreibeStandortSpeicher(s: StandortSpeicher): Promise<boo
 }
 
 /** Die Orte (Zuhause, Schule …) kommen von der Zentrale. Geändert: Die App bekommt sie bei ihrer nächsten Meldung. */
-export async function setzeOrte(orte: OrtMarke[]): Promise<boolean> {
+export async function setzeOrte(orte: OrtMarke[], erneut = false): Promise<boolean> {
   const s = await holeStandortSpeicher();
-  if (JSON.stringify(s.orte) === JSON.stringify(orte)) return true;
+  if (!setzeOrteNoetig(s.orte, orte, erneut)) return true;
   return schreibeStandortSpeicher({ ...s, orte, orteNeu: true, drin: s.drin.filter((n) => orte.some((o) => o.name === n)) });
 }
 

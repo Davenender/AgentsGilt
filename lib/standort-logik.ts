@@ -144,6 +144,9 @@ export function owntracksKonfig(o: { url: string; benutzer: string; passwort: st
 
 export const owntracksLink = (k: unknown) => `owntracks:///config?inline=${encodeURIComponent(Buffer.from(JSON.stringify(k)).toString("base64"))}`;
 
+/** Müssen die Orte (wieder) an die App? Geändert, oder auf Wunsch noch einmal (17.11.: Regionen am Handy gelöscht). */
+export const setzeOrteNoetig = (alt: OrtMarke[], neu: OrtMarke[], erneut: boolean) => erneut || JSON.stringify(alt) !== JSON.stringify(neu);
+
 /** Antwort an die App, wenn sich die Orte geändert haben: legt die Regionen an. */
 export function wegpunkteBefehl(orte: OrtMarke[], tst = Math.floor(Date.now() / 1000)) {
   return { _type: "cmd" as const, action: "setWaypoints" as const, waypoints: { _type: "waypoints" as const, waypoints: wegpunkte(orte, tst) } };

@@ -280,7 +280,7 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
         .filter((o) => typeof o.name === "string" && o.name.trim() && Number.isFinite(o.lat) && Number.isFinite(o.lon))
         .slice(0, 20)
         .map((o) => ({ name: String(o.name).trim().slice(0, 60), lat: Number(o.lat), lon: Number(o.lon), rad: Math.min(1000, Math.max(50, Number(o.rad) || 150)), ...(Array.isArray(o.auch) && o.auch.length ? { auch: o.auch.filter((a): a is string => typeof a === "string").slice(0, 6).map((a) => a.slice(0, 40)) } : {}) }));
-      const ok = await setzeOrte(orte);
+      const ok = await setzeOrte(orte, body.erneut === true);
       return NextResponse.json({ ok }, { status: ok ? 200 : 502 });
     }
     if (aktion === "standort-name") {

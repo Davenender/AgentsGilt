@@ -38,7 +38,7 @@ export async function lucaLive(name: string, a: Record<string, unknown>): Promis
   if (name === "wann_muss_ich_los") {
     const jetzt = new Date();
     const t = await listeTermine(jetzt, new Date(jetzt.getTime() + 36 * 3600_000)).catch(() => null);
-    return losSatz(t, welt, jetzt);
+    return losSatz(t, welt, jetzt, fetch, text(a.ziel));
   }
   if (name === "route_berechnen") return routeText({ von: text(a.von), nach: text(a.nach), modus: text(a.modus) }, welt);
   if (name === "verbindung_suchen") return verbindungText({ von: text(a.von), nach: text(a.nach) }, welt);
