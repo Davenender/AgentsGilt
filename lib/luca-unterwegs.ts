@@ -155,6 +155,55 @@ const UHR = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, hour
 const TAG = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, weekday: "long" }).format(d);
 const LOS_PUFFER = 10;
 
+type Termin = { titel: string; start: string; ganztags: boolean; ort?: string };
+const berlinTag = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: ZONE }).format(d);
+/** „2026-11-18“ + „17:30“ (Berliner Zeit) → ISO in UTC, auch über die Zeitumstellung hinweg. */
+function berlinZuIso(tag: string, uhr: string): string {
+  const [y, m, d] = tag.split("-").map(Number);
+  const [h, mi] = uhr.split(":").map(Number);
+  const geraten = Date.UTC(y, m - 1, d, h, mi);
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(geraten)).map((x) => [x.type, x.value]));
+  const wand = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute));
+  return new Date(geraten - (wand - geraten)).toISOString();
+}
+
+/** 17.11.: Davids Privatkalender kennt nur der Mac. Die Zentrale schreibt heute und morgen in den Lagebericht
+ * („- morgen 17:30 Tanzschule (Ort)“); daraus werden wieder Termine, bezogen auf den Tag des Berichts. */
+export function lageTermine(lage: { stand: string; text: string } | null): Termin[] {
+  if (!lage) return [];
+  const stand = new Date(lage.stand);
+  if (Number.isNaN(stand.getTime())) return [];
+  const heute = berlinTag(stand);
+  const [y, m, d] = heute.split("-").map(Number);
+  const morgen = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  const aus: Termin[] = [];
+  let drin = false;
+  for (const z of lage.text.split("\n")) {
+    if (/^Termine \(/.test(z)) {
+      drin = true;
+      continue;
+    }
+    if (!drin) continue;
+    const t = z.match(/^- (heute|morgen) (ganztags|\d{1,2}:\d{2}) (.+?)(?: \(([^()]+)\))?\s*$/);
+    if (!t) {
+      if (!z.trim() || !z.startsWith("- ")) drin = false;
+      continue;
+    }
+    const tag = t[1] === "heute" ? heute : morgen;
+    aus.push({ titel: t[3].trim(), start: t[2] === "ganztags" ? tag : berlinZuIso(tag, t[2].padStart(5, "0")), ganztags: t[2] === "ganztags", ...(t[4] ? { ort: t[4].trim() } : {}) });
+  }
+  return aus;
+}
+
+/** Geschäftskalender (voller Ort) und Lagebericht zusammen, gleiche Termine nur einmal. null, wenn beides fehlt. */
+export function mischeTermine(geschaeft: Termin[] | null, lage: Termin[]): Termin[] | null {
+  if (geschaeft === null && !lage.length) return null;
+  const zeit = (t: Termin) => (t.ganztags || Number.isNaN(Date.parse(t.start)) ? t.start.slice(0, 10) : new Date(t.start).toISOString().slice(0, 16));
+  const schluessel = (t: Termin) => `${t.titel.trim().toLowerCase()}|${zeit(t)}`;
+  const da = new Set((geschaeft ?? []).map(schluessel));
+  return [...(geschaeft ?? []), ...lage.filter((t) => !da.has(schluessel(t)))];
+}
+
 const ohneZeichen = (t: string) => t.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 /** 17.11.: Davids Termine haben oft keinen Ort („Tanzschule“, „Gym“). Steht einer seiner Orte (oder ein zweiter Name) als
  * ganzes Wort im Titel, gilt dieser Ort. Der längste Treffer gewinnt, und „Schule“ steckt nicht in „Tanzschule“. */

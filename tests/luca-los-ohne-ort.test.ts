@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { losSatz } from "../lib/luca-unterwegs.ts";
+import { lageTermine, losSatz, mischeTermine } from "../lib/luca-unterwegs.ts";
 import { setzeOrteNoetig } from "../lib/standort-logik.ts";
 
 // 17.11.2026, Test-Anruf 18:52: „Wann muss ich morgen zur Tanzschule los?“ – Im Kalender steht nur „Tanzschule“ ohne Ort,
@@ -55,4 +55,33 @@ test("OwnTracks: Orte noch einmal schicken, wenn sie gleich sind, nur mit „ern
   assert.equal(setzeOrteNoetig(orte, orte, false), false);
   assert.equal(setzeOrteNoetig(orte, orte, true), true);
   assert.equal(setzeOrteNoetig(orte, [{ ...orte[0], rad: 150 }], false), true);
+});
+
+// Zweiter Test-Anruf 19:33: wann_muss_ich_los(ziel Tanzschule) → „kein Termin“. Die Tanzschule steht in Davids
+// Privatkalender, der Server liest nur den Geschäftskalender. Die Zentrale schreibt beide in den Lagebericht.
+const LAGE = {
+  stand: "2026-11-17T18:30:00.000Z",
+  text: "Schule morgen: …\n\nTermine (Geschäft und privat):\n- heute 21:00 Abendessen\n- morgen 17:30 Tanzschule\n- morgen ganztags Feiertag\n- morgen 09:00 Zahnarzt (Bahnhofstraße 1)\n\nKunden: …",
+};
+
+test("Termine aus dem Lagebericht (auch privat) mit Berliner Uhrzeit", () => {
+  assert.deepEqual(lageTermine(LAGE), [
+    { titel: "Abendessen", start: "2026-11-17T20:00:00.000Z", ganztags: false },
+    { titel: "Tanzschule", start: "2026-11-18T16:30:00.000Z", ganztags: false },
+    { titel: "Feiertag", start: "2026-11-18", ganztags: true },
+    { titel: "Zahnarzt", start: "2026-11-18T08:00:00.000Z", ganztags: false, ort: "Bahnhofstraße 1" },
+  ]);
+  assert.deepEqual(lageTermine({ stand: "x", text: "Termine heute und morgen: keine." }), []);
+  assert.deepEqual(lageTermine(null), []);
+});
+
+test("Geschäfts- und Privattermine zusammen, ohne Doppelte; Tanzschule wird gefunden", async () => {
+  // Google liefert die Zeit mit Versatz (+01:00), der Lagebericht in UTC: trotzdem derselbe Termin
+  const geschaeft = [{ titel: "Zahnarzt", start: "2026-11-18T09:00:00+01:00", ganztags: false, ort: "Bahnhofstraße 1, 63165 Mühlheim" }];
+  const alle = mischeTermine(geschaeft, lageTermine(LAGE));
+  assert.equal(alle!.filter((t) => t.titel === "Zahnarzt").length, 1);
+  assert.equal(alle!.find((t) => t.titel === "Zahnarzt")!.ort, "Bahnhofstraße 1, 63165 Mühlheim", "der Geschäftskalender hat den vollen Ort");
+  assert.equal(mischeTermine(null, []), null, "ohne beides: Kalender antwortet nicht");
+  assert.equal(mischeTermine(null, lageTermine(LAGE))!.length, 4);
+  assert.match(await losSatz(alle, welt, JETZT, netz(), "Tanzschule"), /^Nächster Termin: Tanzschule, Mittwoch um 17:30 Uhr/);
 });

@@ -2,7 +2,7 @@ import { legeTerminAn, listeTermine } from "@/lib/google-calendar";
 import { kostenStand } from "@/lib/kosten";
 import { holeLage, standortOderLeer } from "@/lib/luca";
 import { kundeAenderung, lageText, terminAus } from "@/lib/luca-logik";
-import { kostenSatz, losSatz, routeText, verbindungText, wetterText, type Welt } from "@/lib/luca-unterwegs";
+import { kostenSatz, lageTermine, losSatz, mischeTermine, routeText, verbindungText, wetterText, type Welt } from "@/lib/luca-unterwegs";
 import { aendereKunde } from "@/lib/notion-api";
 import { standortText } from "@/lib/standort-logik";
 
@@ -37,8 +37,9 @@ export async function lucaLive(name: string, a: Record<string, unknown>): Promis
   const welt: Welt = { standort: s.standort, orte: s.orte, stauSchluessel: process.env.TOMTOM_KEY };
   if (name === "wann_muss_ich_los") {
     const jetzt = new Date();
-    const t = await listeTermine(jetzt, new Date(jetzt.getTime() + 36 * 3600_000)).catch(() => null);
-    return losSatz(t, welt, jetzt, fetch, text(a.ziel));
+    // 17.11.: dazu Davids Privatkalender aus dem Lagebericht (Tanzschule, Gym stehen nur dort)
+    const [geschaeft, lage] = await Promise.all([listeTermine(jetzt, new Date(jetzt.getTime() + 36 * 3600_000)).catch(() => null), holeLage().catch(() => null)]);
+    return losSatz(mischeTermine(geschaeft, lageTermine(lage)), welt, jetzt, fetch, text(a.ziel));
   }
   if (name === "route_berechnen") return routeText({ von: text(a.von), nach: text(a.nach), modus: text(a.modus) }, welt);
   if (name === "verbindung_suchen") return verbindungText({ von: text(a.von), nach: text(a.nach) }, welt);
