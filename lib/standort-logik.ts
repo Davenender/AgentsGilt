@@ -114,7 +114,14 @@ export function entschluessele<T = unknown>(text: string, geheim: string): T | n
   }
 }
 
-const wegpunkte = (orte: OrtMarke[], tst: number) => orte.slice(0, 20).map((o, i) => ({ _type: "waypoint" as const, desc: o.name, lat: o.lat, lon: o.lon, rad: o.rad, tst: tst + i }));
+/** 17.11.: OwnTracks erkennt eine Region an ihrem tst. Er hängt deshalb nur am Namen (nie an der Uhrzeit), sonst legt die
+ * App bei jedem neuen Befehl dieselbe Region noch einmal an (David bekam „Schule betreten“ doppelt). */
+export function wegpunktKennung(name: string): number {
+  let h = 0x811c9dc5;
+  for (const c of name.trim().toLowerCase()) h = Math.imul(h ^ c.codePointAt(0)!, 0x01000193) >>> 0;
+  return 1_600_000_000 + (h % 100_000_000);
+}
+const wegpunkte = (orte: OrtMarke[], _tst?: number) => orte.slice(0, 20).map((o) => ({ _type: "waypoint" as const, desc: o.name, lat: o.lat, lon: o.lon, rad: o.rad, tst: wegpunktKennung(o.name) }));
 
 /** Einrichtung der App: HTTP an unseren Server, sparsame Ortung („Significant“: etwa alle 5 Minuten oder 500 Meter). */
 export function owntracksKonfig(o: { url: string; benutzer: string; passwort: string; orte: OrtMarke[] }, tst = Math.floor(Date.now() / 1000)) {

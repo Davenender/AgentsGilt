@@ -1,7 +1,7 @@
 // Tests für Davids Standort (OwnTracks): `npm test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { abstandM, entschluessele, LEERER_SPEICHER, leseOwnTracks, neuerStand, owntracksKonfig, owntracksLink, standortText, verschluessele, wegpunkteBefehl, type StandortSpeicher } from "../lib/standort-logik.ts";
+import { abstandM, entschluessele, LEERER_SPEICHER, leseOwnTracks, neuerStand, owntracksKonfig, owntracksLink, standortText, verschluessele, wegpunktKennung, wegpunkteBefehl, type StandortSpeicher } from "../lib/standort-logik.ts";
 
 const TST = 1793913600; // 05.11.2026
 const ort = (lat: number, lon: number, tst = TST, mehr: Record<string, unknown> = {}) => ({ _type: "location", lat, lon, tst, tid: "DH", acc: 20, ...mehr });
@@ -95,7 +95,7 @@ test("App-Einrichtung per Link: HTTP-Modus, Passwort, sparsame Ortung, Orte als 
   assert.equal(k.monitoring, 1);
   assert.equal(k.tid, "DH");
   assert.equal(k.cmd, true);
-  assert.deepEqual(k.waypoints, [{ _type: "waypoint", desc: "Zuhause", lat: 50.12, lon: 8.83, rad: 120, tst: TST }]);
+  assert.deepEqual(k.waypoints, [{ _type: "waypoint", desc: "Zuhause", lat: 50.12, lon: 8.83, rad: 120, tst: wegpunktKennung("Zuhause") }]);
   const l = owntracksLink(k);
   assert.ok(l.startsWith("owntracks:///config?inline="));
   assert.equal(JSON.parse(Buffer.from(decodeURIComponent(l.split("inline=")[1]), "base64").toString()).url, "https://agentsgilt.com/api/standort");
@@ -125,4 +125,17 @@ test("Speicher passt immer in eine Nachricht: Erst fällt das Älteste, dann die
   assert.equal(klein.ereignisse.length, 0);
   assert.equal(klein.orte[0].auch, undefined);
   assert.equal(passendKlein(s, laenge, 10), null);
+});
+
+// 17.11.2026: OwnTracks erkennt eine Region an ihrem tst. Bekam jeder Befehl neue Werte, legte die App die Schule ein
+// zweites Mal an (David bekam „Schule betreten“ doppelt). Jetzt: fester Wert je Ortsname, egal wann gesendet.
+test("Wegpunkte behalten ihre Kennung: gleicher Ort, gleicher tst – zu jeder Zeit", () => {
+  const a = wegpunkteBefehl([ZUHAUSE, SCHULE], TST).waypoints.waypoints;
+  const b = wegpunkteBefehl([SCHULE, ZUHAUSE], TST + 86_400).waypoints.waypoints;
+  const tstVon = (l: { desc: string; tst: number }[], n: string) => l.find((w) => w.desc === n)!.tst;
+  assert.equal(tstVon(a, "Schule"), tstVon(b, "Schule"));
+  assert.equal(tstVon(a, "Zuhause"), tstVon(b, "Zuhause"));
+  assert.notEqual(tstVon(a, "Schule"), tstVon(a, "Zuhause"));
+  const k = owntracksKonfig({ url: "https://agentsgilt.com/api/standort", benutzer: "david", passwort: "pw", orte: [SCHULE] }, TST + 5);
+  assert.equal(k.waypoints[0].tst, tstVon(a, "Schule"));
 });
