@@ -122,3 +122,18 @@ test("Wiederkehrende Erinnerung: Füllwörter wie „jeden“ stören nicht, Uns
   assert.deepEqual(b("Mo")?.wiederholen, { tage: [1], nachStunde: 6 });
   assert.equal(b("irgendwann"), null);
 });
+
+// 17.11. 22:25: Luca legte im Anruf einen Termin direkt an (termin_anlegen läuft auf der Website, ohne Brief). Die Zentrale
+// sah das nicht, hielt die Zusage für offen und trug zusätzlich eine Erinnerung ein. Der Gesprächs-Brief nennt die Werkzeuge.
+test("Gesprächs-Brief nennt die Werkzeuge des Anrufs (ohne delegate)", async () => {
+  const { gespraechBrief } = await import("../lib/luca-logik.ts");
+  const b = gespraechBrief(
+    {
+      call: { id: "c1", type: "inboundPhoneCall", startedAt: "2026-11-17T21:25:41Z" },
+      durationSeconds: 48,
+      artifact: { transcript: "AI: Hey", messages: [{ role: "tool_calls", toolCalls: [{ function: { name: "delegate" } }, { function: { name: "termin_anlegen" } }] }, { role: "bot", message: "Ist eingetragen" }, { role: "tool_calls", toolCalls: [{ function: { name: "termin_anlegen" } }] }] },
+    } as never,
+    "2026-11-17T21:26:30Z",
+  );
+  assert.deepEqual(b.werkzeuge, ["termin_anlegen"]);
+});

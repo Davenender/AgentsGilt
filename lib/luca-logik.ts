@@ -159,7 +159,7 @@ export type Brief =
   /** Etappe 3: „Mach Nummer 1 um 18 Uhr“ */
   | { typ: "erinnerung_aendern"; nr: number; uhrzeit?: string; minuten?: number; text?: string }
   /** 13.11.: Ein Gespräch ist zu Ende – die Zentrale weiß dann, dass David mit Luca gesprochen hat (oder nur die Mailbox dran war) */
-  | { typ: "gespraech"; start: string; sekunden: number; mailbox: boolean; richtung: "rein" | "raus"; anruf?: string }
+  | { typ: "gespraech"; start: string; sekunden: number; mailbox: boolean; richtung: "rein" | "raus"; anruf?: string; werkzeuge?: string[] }
   /** 13.11.: „Erledigt“, „mach ich später“, „ruf deswegen nicht mehr an“ */
   | { typ: "erledigt"; thema: string; minuten?: number; uhrzeit?: string; text?: string; erstMorgen?: boolean }
   /** 13.11.: geplanten Anruf mit seiner Nummer löschen */
@@ -908,7 +908,7 @@ export function istMailbox(mitschrift: string): boolean {
   return ANSAGE.test(anfang);
 }
 
-type GespraechsBericht = { call?: { id?: string; type?: string; startedAt?: string }; durationSeconds?: number; artifact?: { transcript?: string }; transcript?: string };
+type GespraechsBericht = { call?: { id?: string; type?: string; startedAt?: string }; durationSeconds?: number; artifact?: { transcript?: string; messages?: { role?: string; toolCalls?: { function?: { name?: string } }[] }[] }; messages?: { role?: string; toolCalls?: { function?: { name?: string } }[] }[]; transcript?: string };
 /** Der Brief an die Zentrale nach einem Gespräch: Hat David mit Luca gesprochen? */
 export function gespraechBrief(m: GespraechsBericht, zeit: string): Extract<Brief, { typ: "gespraech" }> & { zeit: string; anruf?: string } {
   const sekunden = Math.max(0, Math.round(Number(m.durationSeconds) || 0));
@@ -921,6 +921,11 @@ export function gespraechBrief(m: GespraechsBericht, zeit: string): Extract<Brie
     richtung: /outbound/i.test(m.call?.type ?? "") ? "raus" : "rein",
     zeit,
     ...(m.call?.id ? { anruf: m.call.id } : {}),
+    // 17.11.: Werkzeuge, die direkt auf der Website liefen (termin_anlegen, kunde_aendern …), kennt die Zentrale sonst nicht
+    ...(() => {
+      const namen = [...new Set((m.artifact?.messages ?? m.messages ?? []).flatMap((x) => (x.toolCalls ?? []).map((t) => t.function?.name ?? "")).filter((n) => n && n !== "delegate"))];
+      return namen.length ? { werkzeuge: namen.slice(0, 40) } : {};
+    })(),
   };
 }
 
