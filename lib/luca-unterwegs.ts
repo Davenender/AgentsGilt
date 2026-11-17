@@ -110,25 +110,111 @@ export async function routeText(o: { von?: string; nach?: string; modus?: string
   return `Von ${s.von.name} nach ${s.nach.name} ${MITTEL[modus]}: ${komma(r.distance / 1000)} Kilometer, etwa ${dauer(Math.max(1, Math.round(r.duration / 60)))}${modus === "auto" ? ", ohne Stau gerechnet" : ""}.`;
 }
 
-type Bein = { mode?: string; startTime?: string; endTime?: string; routeShortName?: string; headsign?: string; from?: { name?: string }; to?: { name?: string } };
+type Halt = { name?: string; departure?: string; scheduledDeparture?: string; arrival?: string; track?: string };
+type Bein = { mode?: string; startTime?: string; endTime?: string; scheduledStartTime?: string; routeShortName?: string; headsign?: string; distance?: number; realTime?: boolean; cancelled?: boolean; from?: Halt; to?: Halt };
+type Reise = { startTime?: string; endTime?: string; transfers?: number; legs?: Bein[] };
 const minuten = (a?: string, b?: string) => (a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 60_000) : 0);
+const ART: Record<string, string> = { BUS: "Bus", TRAM: "Straßenbahn", SUBWAY: "U-Bahn", SUBURBAN: "S-Bahn", METRO: "S-Bahn", REGIONAL_RAIL: "Regionalbahn", REGIONAL_FAST_RAIL: "Regionalexpress", RAIL: "Zug", HIGHSPEED_RAIL: "ICE", LONG_DISTANCE: "Fernzug", FERRY: "Fähre" };
+const linie = (b: Bein) => b.routeShortName || ART[b.mode ?? ""] || "Bahn";
+const plusTage = (tag: string, n: number) => {
+  const [y, m, d] = tag.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
 
-export async function verbindungText(o: { von?: string; nach?: string }, w: Welt, abruf: Abruf = fetch): Promise<string> {
+/** 17.11.: „morgen 17:30“, „17:30“, „18.11. 9 Uhr“ (Berliner Zeit) → ISO. Ohne Tag und schon vorbei: morgen. Worte („halb sechs“) nicht. */
+export function zeitAus(text: string | undefined, jetzt: Date): string | null {
+  let t = (text ?? "").trim().toLowerCase();
+  if (!t) return null;
+  const datum = t.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})?/);
+  if (datum) t = t.replace(datum[0], " ");
+  const u = t.match(/\b(\d{1,2})[:.](\d{2})\b/) ?? t.match(/\b(\d{1,2})\s*uhr\b/);
+  if (!u) return null;
+  const h = Number(u[1]);
+  const mi = Number(u[2] ?? 0);
+  if (h > 23 || mi > 59) return null;
+  const heute = berlinTag(jetzt);
+  const tag = datum
+    ? `${datum[3] ?? heute.slice(0, 4)}-${datum[2].padStart(2, "0")}-${datum[1].padStart(2, "0")}`
+    : /übermorgen/.test(t) ? plusTage(heute, 2) : /morgen/.test(t) ? plusTage(heute, 1) : heute;
+  const iso = berlinZuIso(tag, `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`);
+  const ohneTag = !datum && !/morgen|heute/.test(t);
+  return ohneTag && Date.parse(iso) <= jetzt.getTime() ? berlinZuIso(plusTage(tag, 1), `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`) : iso;
+}
+
+/** Eine Verbindung ganz genau, zum Sagen und Schicken: Fußweg zur Haltestelle, Linie, Richtung, Gleis, Verspätung, Umstieg, Ankunft. */
+function genau(r: Reise): string {
+  const beine = r.legs ?? [];
+  const teile: string[] = [];
+  let fahrten = 0;
+  beine.forEach((b, i) => {
+    if (b.mode === "WALK") {
+      const min = minuten(b.startTime, b.endTime);
+      const weg = b.distance ? ` (${Math.round(b.distance / 10) * 10} m)` : "";
+      if (i === 0) {
+        if (min > 0) teile.push(`Um ${uhr(b.startTime!)} Uhr los, ${min} Minuten zu Fuß${weg} zur Haltestelle ${b.to?.name ?? "Haltestelle"}.`);
+      } else if (i < beine.length - 1 && min > 0) {
+        const vorher = beine[i - 1]?.to?.name;
+        teile.push(`Umsteigen: ${min} Minuten zu Fuß${b.to?.name && b.to.name !== vorher ? ` zu ${b.to.name}` : ""}.`);
+      }
+      return;
+    }
+    const zuFuss = i > 0 && beine[i - 1].mode === "WALK" && minuten(beine[i - 1].startTime, beine[i - 1].endTime) > 0;
+    if (fahrten > 0 && !zuFuss) teile.push(`Umsteigen in ${b.from?.name ?? "der Haltestelle"}.`);
+    const plan = b.from?.scheduledDeparture ?? b.scheduledStartTime ?? b.startTime ?? "";
+    const echt = b.from?.departure ?? b.startTime ?? plan;
+    const ab = fahrten === 0 && !zuFuss && b.from?.name ? ` ab ${b.from.name}` : "";
+    const gleis = b.from?.track ? ` von Gleis ${b.from.track}` : "";
+    const kopf = `${plan ? `${uhr(plan)} Uhr ` : ""}${linie(b)}${b.headsign ? ` Richtung ${b.headsign}` : ""}${ab}${gleis}`;
+    fahrten++;
+    if (b.cancelled) {
+      teile.push(`${kopf} fällt aus. Frag nach einer anderen Verbindung.`);
+      return;
+    }
+    const spaet = b.realTime && plan && echt ? Math.round((Date.parse(echt) - Date.parse(plan)) / 60_000) : 0;
+    const stand = b.realTime ? (spaet >= 1 ? `, heute ${spaet} Minuten Verspätung (fährt ${uhr(echt)} Uhr),` : ", pünktlich,") : "";
+    teile.push(`${kopf}${stand} bis ${b.to?.name ?? "zum Ziel"} (an ${uhr(b.to?.arrival ?? b.endTime!)} Uhr).`);
+  });
+  const letztes = beine.at(-1);
+  const um = r.transfers ?? Math.max(0, fahrten - 1);
+  const umsteigen = um ? `${um}-mal umsteigen` : "ohne Umstieg";
+  const ende = r.endTime ?? letztes?.endTime;
+  const schluss = letztes?.mode === "WALK" && minuten(letztes.startTime, letztes.endTime) > 0 ? `Dann ${minuten(letztes.startTime, letztes.endTime)} Minuten zu Fuß, Ankunft ${ende ? uhr(ende) : "?"} Uhr, ${umsteigen}.` : `Ankunft ${ende ? uhr(ende) : "?"} Uhr, ${umsteigen}.`;
+  return [...teile, schluss].join(" ");
+}
+
+/** Eine weitere Verbindung in einem Satz. */
+function kurzReise(r: Reise): string {
+  const fahrten = (r.legs ?? []).filter((b) => b.mode && b.mode !== "WALK");
+  const ab = fahrten[0]?.from?.scheduledDeparture ?? fahrten[0]?.startTime;
+  return `${ab ? `${uhr(ab)} Uhr ` : ""}mit ${fahrten.map(linie).join(", dann ")}, Ankunft ${r.endTime ? uhr(r.endTime) : "?"} Uhr.`;
+}
+
+/** Bus und Bahn: ab jetzt, ab einer Uhrzeit (abfahrt) oder mit Ankunft bis (ankunft, für Termine). */
+export async function verbindungText(o: { von?: string; nach?: string; ankunft?: string; abfahrt?: string }, w: Welt, abruf: Abruf = fetch): Promise<string> {
+  const jetzt = w.jetzt ?? new Date();
   const s = await strecke(o, w, abruf);
   if (typeof s === "string") return s;
-  const j = await holeJson<{ itineraries?: { startTime?: string; endTime?: string; transfers?: number; legs?: Bein[] }[] }>(`https://api.transitous.org/api/v1/plan?fromPlace=${s.von.lat},${s.von.lon}&toPlace=${s.nach.lat},${s.nach.lon}&numItineraries=3`, abruf, 10_000);
+  const an = zeitAus(o.ankunft, jetzt);
+  const ab = an ? null : zeitAus(o.abfahrt, jetzt);
+  const zeit = an ?? ab;
+  const j = await holeJson<{ itineraries?: Reise[] }>(`https://api.transitous.org/api/v1/plan?fromPlace=${s.von.lat},${s.von.lon}&toPlace=${s.nach.lat},${s.nach.lon}&numItineraries=3${zeit ? `&time=${encodeURIComponent(zeit)}${an ? "&arriveBy=true" : ""}` : ""}`, abruf, 10_000);
   if (!j) return "Die Fahrplanauskunft ist gerade nicht erreichbar. Frag in ein paar Minuten nochmal.";
-  const saetze = (j.itineraries ?? []).slice(0, 3).flatMap((r, i) => {
-    const beine = r.legs ?? [];
-    const fahrten = beine.filter((b) => b.mode && b.mode !== "WALK");
-    if (!fahrten.length) return [];
-    const erste = fahrten[0];
-    const weg = beine[0]?.mode === "WALK" ? minuten(beine[0].startTime, beine[0].endTime) : 0;
-    const um = r.transfers ?? fahrten.length - 1;
-    const linien = fahrten.map((b) => b.routeShortName || b.mode).join(", dann ");
-    return [`${i === 0 ? "Nächste Verbindung" : "Danach"}: ${uhr(erste.startTime!)} ab ${erste.from?.name ?? "Haltestelle"}${weg ? ` (${weg} Minuten zu Fuß dorthin, also ${uhr(beine[0].startTime!)} loslaufen)` : ""} mit ${linien}${erste.headsign ? ` Richtung ${erste.headsign}` : ""}, Ankunft ${uhr(r.endTime!)}, ${um ? `${um}-mal umsteigen` : "ohne Umstieg"}.`];
-  });
-  return saetze.length ? `Von ${s.von.name} nach ${s.nach.name}. ${saetze.join(" ")}` : `Von ${s.von.name} nach ${s.nach.name} habe ich gerade keine Verbindung gefunden.`;
+  let liste = (j.itineraries ?? []).filter((r) => (r.legs ?? []).some((b) => b.mode && b.mode !== "WALK"));
+  // Für einen Termin: die späteste, die noch rechtzeitig ankommt, zuerst
+  if (an) liste = liste.filter((r) => !r.endTime || Date.parse(r.endTime) <= Date.parse(an)).sort((a, b) => Date.parse(b.endTime ?? "") - Date.parse(a.endTime ?? ""));
+  const wann = (iso: string) => `${TAG(new Date(iso))} ${UHR(new Date(iso))} Uhr`;
+  const kopf = `Von ${s.von.name} nach ${s.nach.name}${an ? `, Ankunft bis ${wann(an)}` : ab ? `, ab ${wann(ab)}` : ""}.`;
+  if (!liste.length) return `Von ${s.von.name} nach ${s.nach.name} habe ich gerade keine Verbindung gefunden.`;
+  const erste = `${an ? "" : "Nächste Verbindung: "}${genau(liste[0])}`;
+  const zweite = liste[1] ? ` ${an ? "Eine früher" : "Danach"}: ${kurzReise(liste[1])}` : "";
+  return `${kopf} ${erste}${zweite}`;
+}
+
+/** 17.11.: Will David es aufs Handy („schick mir die Verbindung“), geht das Ergebnis auch per iMessage raus. Nie Fehlermeldungen. */
+const SCHICKBAR = new Set(["verbindung_suchen", "route_berechnen", "wann_muss_ich_los"]);
+const FEHLERTEXT = /nicht erreichbar|nicht gefunden|keine Verbindung|kann ich (gerade )?nicht|antwortet gerade nicht|kein Termin|nicht bekannt/i;
+export function aufsHandy(name: string, args: Record<string, unknown>, text: string): string | null {
+  return args.schicken === true && SCHICKBAR.has(name) && text.trim() && !FEHLERTEXT.test(text) ? text.trim() : null;
 }
 
 export async function wetterText(o: { ort?: string }, w: Welt, abruf: Abruf = fetch): Promise<string> {

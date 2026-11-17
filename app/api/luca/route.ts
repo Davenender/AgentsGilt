@@ -2,7 +2,7 @@ import { after, NextResponse } from "next/server";
 import { briefAus, gespraechBrief } from "@/lib/luca-logik";
 import { kostenStand } from "@/lib/kosten";
 import { lucaLive } from "@/lib/luca-live";
-import { ortsname } from "@/lib/luca-unterwegs";
+import { aufsHandy, ortsname } from "@/lib/luca-unterwegs";
 import { lesePrompts, rufeTeamAn, setzePrompts } from "@/lib/luca";
 import { owntracksKonfig, owntracksLink, standortText } from "@/lib/standort-logik";
 import {
@@ -144,7 +144,13 @@ async function vonVapi(req: Request, body: { message?: VapiNachricht }) {
         console.error(`[luca] ${name}:`, err);
         return FEHLER;
       });
-      if (live !== null) return live;
+      if (live !== null) {
+        // 17.11.: „Schick mir die Verbindung“: dasselbe Ergebnis auch per iMessage (über die Zentrale)
+        const handy = aufsHandy(name, argumente(c), live);
+        if (!handy) return live;
+        const ok = await posteBrief({ typ: "nachricht", text: handy, zeit: new Date().toISOString(), ...(msg?.call?.id ? { anruf: msg.call.id } : {}) });
+        return ok ? `${live} Das ist jetzt auch per iMessage auf Davids Handy.` : `${live} Aufs Handy ging es gerade nicht, sag es David.`;
+      }
       lage ??= holeLage();
       const brief = briefAus(name, argumente(c), (await lage)?.stand ?? "");
       if (!brief) return "Das hat nicht geklappt: Angaben unvollständig. Frag David noch einmal.";

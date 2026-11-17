@@ -42,6 +42,6 @@ export async function lucaLive(name: string, a: Record<string, unknown>): Promis
     return losSatz(mischeTermine(geschaeft, lageTermine(lage)), welt, jetzt, fetch, text(a.ziel));
   }
   if (name === "route_berechnen") return routeText({ von: text(a.von), nach: text(a.nach), modus: text(a.modus) }, welt);
-  if (name === "verbindung_suchen") return verbindungText({ von: text(a.von), nach: text(a.nach) }, welt);
+  if (name === "verbindung_suchen") return verbindungText({ von: text(a.von), nach: text(a.nach), ankunft: text(a.ankunft), abfahrt: text(a.abfahrt) }, welt);
   return wetterText({ ort: text(a.ort) }, welt);
 }
