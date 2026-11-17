@@ -810,13 +810,13 @@ export const LUCA_WERKZEUGE = [
     type: "function",
     function: {
       name: "rueckruf_planen",
-      description: "Plant, dass Luca David später noch einmal anruft. Nennt David eine Uhrzeit („ruf um 15:40 an“), nimm uhrzeit genau so, nie umgerechnet; sagt er „in 30 Minuten“, nimm minuten; sagt er „ruf mich in der Pause an“ oder „erzähl mir das in der Pause“, nimm pause true (die Zentrale ruft in der nächsten Pause an, 5 Minuten nach Beginn). Nur auf Davids Wunsch. Zum selben Thema gibt es nur einen Anruf: Ein neuer Rückruf ersetzt einen alten.",
+      description: "Plant, dass Luca David später noch einmal anruft. Nennt David eine Uhrzeit („ruf um 15:40 an“), nimm uhrzeit genau so, nie umgerechnet; sagt er „in 30 Minuten“, nimm minuten; sagt er „ruf mich in der Pause an“ oder „erzähl mir das in der Pause“, nimm pause true (die Zentrale ruft in der nächsten Pause an, 5 Minuten nach Beginn; ist heute keine Pause mehr, nach der Schule). Nur auf Davids Wunsch. Zum selben Thema gibt es nur einen Anruf: Ein neuer Rückruf ersetzt einen alten.",
       parameters: {
         type: "object",
         properties: {
           uhrzeit: { type: "string", description: "Uhrzeit in Berliner Zeit, genau wie David sie sagt: HH:MM, zum Beispiel 15:40." },
           minuten: { type: "number", description: "Nur wenn David keine Uhrzeit nennt: in wie vielen Minuten (1 bis 720)." },
-          pause: { type: "boolean", description: "true = in der nächsten Schulpause anrufen („ruf mich in der Pause an“)." },
+          pause: { type: "boolean", description: "true = in der nächsten Schulpause anrufen („ruf mich in der Pause an“); heute keine mehr: nach der Schule." },
           text: { type: "string", description: "Worum es beim Rückruf gehen soll, als Satz an David („Wir klären, was wegen Marc zu tun ist“)." },
           thema: { type: "string", description: "Stichwort aus ein, zwei Wörtern, zum Beispiel „Marc Mail“." },
         },
