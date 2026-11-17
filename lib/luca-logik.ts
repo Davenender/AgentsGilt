@@ -133,7 +133,7 @@ export type Brief =
   | { typ: "schule" }
   | ({ typ: "erinnerung"; text: string; minuten?: number; uhrzeit?: string; ort?: string; ereignis?: "ankunft" | "abfahrt"; warten?: number; ab?: string; ueberblick?: boolean; nachSchule?: boolean; thema?: string } & ErinnerungExtra)
   /** Etappe 9: Luca selbst */
-  | { typ: "selbst"; was: "vorliebe" | "vergessen" | "weiss" | "woche" | "heute" | "check"; text?: string }
+  | { typ: "selbst"; was: "vorliebe" | "vergessen" | "weiss" | "woche" | "heute" | "check" | "punkt_erledigt"; text?: string }
   /** Etappe 8: Alltag */
   | { typ: "alltag"; was: "liste" | "diktat" | "karte" | "sprache" | "gewohnheit" | "geburtstag" | "notfall" | "notfallkontakt" | "wo_war_ich" | "geparkt" | "frei" | "besprochen" | "limit"; name?: string; aktion?: "dazu" | "weg" | "leeren" | "schicken"; eintraege?: string[]; text?: string; ziel?: string; modus?: "auto" | "bahn" | "zu_fuss"; anzahl?: number; datum?: string; weg?: boolean; nummer?: string; tag?: string; uhrzeit?: string; tage?: number }
   /** Etappe 7: Agents Gilt II und Team */
@@ -236,6 +236,8 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
   if (werkzeug === "woche_geschafft") return { typ: "selbst", was: "woche" };
   if (werkzeug === "heute_gemacht") return { typ: "selbst", was: "heute" };
   if (werkzeug === "systemcheck") return { typ: "selbst", was: "check" };
+  // Punkt 6, Etappe 5 (17.11.): Davids offenen Punkt abhaken (die Zentrale sucht ihn über die Stichworte)
+  if (werkzeug === "punkt_erledigt") return kurzText(args.punkt, 200) ? { typ: "selbst", was: "punkt_erledigt", text: kurzText(args.punkt, 200) } : null;
   // ── Etappe 8: Alltag
   if (werkzeug === "liste") {
     const aktion = args.aktion === "weg" || args.aktion === "leeren" || args.aktion === "schicken" ? args.aktion : "dazu";
@@ -703,6 +705,7 @@ const WERKZEUGE_LIVE = [
   fn("woche_geschafft", "„Was hab ich diese Woche geschafft?“: Erledigtes, Team, Lernzeit, Gewohnheiten, Gespräche."),
   fn("heute_gemacht", "„Was hast du heute für mich gemacht?“: Anrufe, Nachrichten, fertige Team-Aufträge."),
   fn("systemcheck", "„Läuft alles?“: prüft Telefon, Briefkasten, Standort und iMessage."),
+  fn("punkt_erledigt", "David sagt, einer seiner offenen Punkte ist erledigt („das mit GitHub ist erledigt“, „die Vapi-Karte hab ich eingetragen“). Hakt ihn in der Zentrale ab. Seine offenen Punkte stehen im Wissen.", { punkt: txt("Stichworte aus dem Punkt") }, ["punkt"]),
   fn("liste", "Einkaufs- oder Merkliste per Zuruf: aktion dazu oder weg (eintraege), leeren, oder schicken (kommt aufs Handy). Ohne eintraege bei dazu: sagt, was draufsteht.", { aktion: { type: "string", enum: ["dazu", "weg", "leeren", "schicken"] }, name: txt("Name der Liste, Standard Einkauf"), eintraege: { type: "array", items: { type: "string" } } }, ["aktion"]),
   fn("diktat", "David diktiert einen Text für jemanden (zum Beispiel für WhatsApp). Formulier ihn sauber in Davids Ton und schreib ihn hier ganz hin; er kommt pur aufs Handy zum Kopieren. Luca schickt ihn nie selbst an andere.", { text: txt("Der fertige Text") }, ["text"]),
   fn("karte_schicken", "Schickt David einen Karten-Link zum Ziel aufs Handy (Apple Karten mit Wegbeschreibung).", { ziel: txt("Ziel, Name oder Adresse"), modus: { type: "string", enum: ["auto", "bahn", "zu_fuss"] } }, ["ziel"]),
