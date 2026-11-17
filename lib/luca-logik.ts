@@ -197,7 +197,8 @@ function tageAus(x: string): number[] | "schultage" | null {
   const t = x.toLowerCase();
   if (/schul/.test(t)) return "schultage";
   if (/t(a|ä|ae)glich|jeden tag|alle/.test(t)) return [0, 1, 2, 3, 4, 5, 6];
-  const teile = t.split(/[\s,;]+|und/).map((y) => y.trim().slice(0, 2)).filter(Boolean);
+  // Ü2 (17.11.): Füllwörter („jeden Montag“, „immer montags“) machen das Feld nicht ungültig
+  const teile = t.split(/[\s,;]+|und/).map((y) => y.trim()).filter((y) => y && !/^(jede[nrms]?|immer|am|an|den|der|die|woche|wöchentlich|woechentlich)$/.test(y)).map((y) => y.slice(0, 2));
   const tage = teile.map((y) => TAGE[y]).filter((y): y is number => y !== undefined);
   return tage.length && tage.length === teile.length ? [...new Set(tage)].sort() : null;
 }

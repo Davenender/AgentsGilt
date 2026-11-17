@@ -112,3 +112,13 @@ test("Sofort-Antwort zur Erinnerung: noch nicht „fest drin“, und bei „nur 
   assert.match(briefAntwort({ typ: "erinnerung", text: "x", minuten: 5 }, "STANDARD"), /Anruf/);
   assert.equal(briefAntwort({ typ: "idee", text: "x" }, "STANDARD"), "STANDARD");
 });
+
+// Ü2 (17.11.): „jeden Montag nach der 6. Stunde“ am Telefon – das Wort „jeden“ machte das ganze Tage-Feld ungültig.
+test("Wiederkehrende Erinnerung: Füllwörter wie „jeden“ stören nicht, Unsinn bleibt ungültig", async () => {
+  const { briefAus } = await import("../lib/luca-logik.ts");
+  const b = (tage: string) => briefAus("erinnerung_wiederkehrend", { text: "Mathe-Hausaufgaben", tage, nach_stunde: 6 }, "") as { wiederholen?: unknown } | null;
+  assert.deepEqual(b("jeden Montag")?.wiederholen, { tage: [1], nachStunde: 6 });
+  assert.deepEqual(b("montags und mittwochs")?.wiederholen, { tage: [1, 3], nachStunde: 6 });
+  assert.deepEqual(b("Mo")?.wiederholen, { tage: [1], nachStunde: 6 });
+  assert.equal(b("irgendwann"), null);
+});
