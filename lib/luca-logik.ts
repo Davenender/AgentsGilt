@@ -135,7 +135,7 @@ export type Brief =
   /** Etappe 9: Luca selbst */
   | { typ: "selbst"; was: "vorliebe" | "vergessen" | "weiss" | "woche" | "heute" | "check" | "punkt_erledigt"; text?: string }
   /** Etappe 8: Alltag */
-  | { typ: "alltag"; was: "liste" | "diktat" | "karte" | "sprache" | "gewohnheit" | "geburtstag" | "notfall" | "notfallkontakt" | "wo_war_ich" | "geparkt" | "frei" | "besprochen" | "limit" | "tanken"; name?: string; aktion?: "dazu" | "weg" | "leeren" | "schicken"; eintraege?: string[]; text?: string; ziel?: string; modus?: "auto" | "bahn" | "zu_fuss"; anzahl?: number; datum?: string; weg?: boolean; nummer?: string; tag?: string; uhrzeit?: string; tage?: number }
+  | { typ: "alltag"; was: "liste" | "diktat" | "karte" | "sprache" | "gewohnheit" | "geburtstag" | "notfall" | "notfallkontakt" | "wo_war_ich" | "geparkt" | "frei" | "besprochen" | "limit" | "tanken" | "tagesplan"; name?: string; aktion?: "dazu" | "weg" | "leeren" | "schicken"; eintraege?: string[]; text?: string; ziel?: string; modus?: "auto" | "bahn" | "zu_fuss"; anzahl?: number; datum?: string; weg?: boolean; nummer?: string; tag?: string; uhrzeit?: string; tage?: number; erinnern?: boolean; wie?: string; schicken?: boolean }
   /** Etappe 7: Agents Gilt II und Team */
   | { typ: "teamaufgabe"; wer: string; was: string; bis?: string; erledigt?: boolean }
   | { typ: "teamnachricht"; wer: string; text: string }
@@ -275,6 +275,11 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     return uhrzeit ? { typ: "alltag", was: "wo_war_ich", tag: kurzText(args.tag, 10) || "heute", uhrzeit } : null;
   }
   if (werkzeug === "freie_zeiten") return { typ: "alltag", was: "frei", tage: Number.isFinite(Number(args.tage)) ? Math.max(1, Math.min(14, Math.round(Number(args.tage)))) : 7 };
+  // N3 (18.11.): „Plan mir morgen“ – die Zentrale rechnet den Tagesplan mit festen Zeiten
+  if (werkzeug === "tagesplan") {
+    const tag = kurzText(args.tag, 10).toLowerCase();
+    return { typ: "alltag", was: "tagesplan", tag: /^(heute|morgen|übermorgen|\d{4}-\d{2}-\d{2})$/.test(tag) ? tag : "morgen", ...(args.erinnern === true ? { erinnern: true } : {}), ...(args.wie === "nachricht" ? { wie: "nachricht" } : {}), ...(args.schicken === true ? { schicken: true } : {}) };
+  }
   if (werkzeug === "heute_besprochen") return { typ: "alltag", was: "besprochen" };
   if (werkzeug === "claude_limit") return { typ: "alltag", was: "limit" };
   // 18.11.: günstige Tankstelle (Standard Diesel)
@@ -728,6 +733,7 @@ const WERKZEUGE_LIVE = [
   fn("geburtstag", "Geburtstag merken (name, datum wie 21.11.), mit weg true entfernen, ohne Angaben: wer bald Geburtstag hat. Luca erinnert 7 Tage vorher, am Vortag und am Tag.", { name: txt("Name"), datum: txt("Tag und Monat, zum Beispiel 21.11."), weg: { type: "boolean" } }),
   fn("notfall", "Notfall: schickt David seinen Notfallkontakt und seinen Standort aufs Handy. Mit kontakt_name und kontakt_nummer wird der Notfallkontakt eingetragen. Im echten Notfall immer zuerst 112.", { kontakt_name: txt("Nur zum Eintragen: Name"), kontakt_nummer: txt("Nur zum Eintragen: Nummer") }),
   fn("wo_war_ich", "Davids eigener Standort-Verlauf (drei Tage): wo er an einem Tag um eine Uhrzeit war, oder mit geparkt true, wo seine letzte Fahrt endete.", { tag: txt("heute, gestern oder vorgestern"), uhrzeit: txt("HH:MM"), geparkt: { type: "boolean" } }),
+  fn("tagesplan", "„Plan mir morgen“, „Plan mir den Tag“ oder „den Nachmittag“: Die Zentrale rechnet Davids Tag mit festen Zeiten (Schule mit Ausfall, wann er los muss, Termine mit Losfahrzeit, Hausaufgaben, Lernblock aus dem Lernplan, was frei ist). Erfinde keine Zeiten, warte auf das Ergebnis; es kommt gleich ins Gespräch. erinnern true, wenn David an Lernblock und Hausaufgaben erinnert werden will (wie nachricht statt Anruf), schicken true für den Plan per iMessage.", { tag: txt("heute, morgen, übermorgen oder JJJJ-MM-TT; Standard morgen"), erinnern: { type: "boolean" }, wie: { type: "string", enum: ["anruf", "nachricht"] }, schicken: { type: "boolean" } }),
   fn("freie_zeiten", "Freie Zeiten aus Davids Kalender und Stundenplan für die nächsten Tage („Wann passt es Ferdi und mir?“, Davids Seite). Das Ergebnis kommt ins Gespräch.", { tage: { type: "number", description: "Wie viele Tage, Standard 7" } }),
   fn("heute_besprochen", "Was David und Luca heute am Telefon abgemacht haben."),
   fn("claude_limit", "Wie weit Davids Claude-Limit verbraucht ist und wann es sich zurücksetzt."),

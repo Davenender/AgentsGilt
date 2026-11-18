@@ -163,3 +163,13 @@ test("erinnerung_planen mit nach_der_schule: heute, morgen, übermorgen oder Dat
   assert.deepEqual(briefAus("erinnerung_planen", { text: "x", nach_der_schule: "2026-11-20" }, ""), { typ: "erinnerung", text: "x", nachDerSchule: "2026-11-20" });
   assert.equal(briefAus("erinnerung_planen", { text: "x", nach_der_schule: "irgendwann" }, ""), null);
 });
+
+// N3 (18.11.): „Plan mir morgen“ am Telefon – die Zentrale rechnet den Plan mit festen Zeiten
+test("tagesplan: Tag, erinnern, Nachricht statt Anruf, aufs Handy", async () => {
+  const { briefAus, LUCA_WERKZEUGE } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("tagesplan", { tag: "morgen" }, ""), { typ: "alltag", was: "tagesplan", tag: "morgen" });
+  assert.deepEqual(briefAus("tagesplan", { tag: "2026-11-20", erinnern: true, wie: "nachricht", schicken: true }, ""), { typ: "alltag", was: "tagesplan", tag: "2026-11-20", erinnern: true, wie: "nachricht", schicken: true });
+  assert.deepEqual(briefAus("tagesplan", {}, ""), { typ: "alltag", was: "tagesplan", tag: "morgen" });
+  const w = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "tagesplan");
+  assert.match(w?.function?.description ?? "", /Plan mir morgen/);
+});
