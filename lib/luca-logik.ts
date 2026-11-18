@@ -1076,3 +1076,22 @@ export function teamAnrufAssistent(vorlage: { model?: Record<string, unknown>; v
     metadata: { luca: true, team: true, wer: o.name },
   };
 }
+
+// ── M2 (18.11.): Namen für Lucas Spracherkennung (AssemblyAI „keytermsPrompt“, höchstens 100 Wörter zu je 50 Zeichen)
+export function keytermsAus(x: unknown): string[] | null {
+  if (!Array.isArray(x)) return null;
+  const aus: string[] = [];
+  for (const w of x) {
+    if (typeof w !== "string") continue;
+    const t = w.replace(/\s+/g, " ").trim();
+    if (!t || t.length > 50 || aus.some((a) => a.toLowerCase() === t.toLowerCase())) continue;
+    aus.push(t);
+    if (aus.length >= 100) break;
+  }
+  return aus;
+}
+/** Nur bei AssemblyAI; alles andere an der Spracherkennung bleibt, wie es ist. */
+export function transcriberMitWoertern(t: Record<string, unknown> | undefined, woerter: string[]): Record<string, unknown> | null {
+  if (!t || t.provider !== "assembly-ai") return null;
+  return { ...t, keytermsPrompt: woerter };
+}

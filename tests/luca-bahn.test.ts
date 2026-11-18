@@ -195,3 +195,15 @@ test("systemcheck: nennt den ganzen Umfang und behauptet vorher nichts", async (
   assert.match(w?.function?.description ?? "", /Vertretungsplan/);
   assert.match(w?.function?.description ?? "", /Das Ergebnis kommt gleich ins Gespräch; vorher nichts behaupten/);
 });
+
+// M2 (18.11.): Namen für die Spracherkennung (AssemblyAI keytermsPrompt, kostenlos auf universal-3-6-pro, höchstens 100 × 50 Zeichen)
+test("Erkennungs-Wörter: geprüft, ohne Doppelte, nur bei AssemblyAI; alles andere bleibt", async () => {
+  const { keytermsAus, transcriberMitWoertern } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(keytermsAus(["Mijo", " Oskar ", "mijo", "", 5, "x".repeat(60)]), ["Mijo", "Oskar"]);
+  assert.equal(keytermsAus("Mijo"), null);
+  assert.equal(keytermsAus(Array.from({ length: 150 }, (_, i) => `N${i}`))?.length, 100);
+  const t = { provider: "assembly-ai", speechModel: "universal-3-6-pro", languageCodes: ["de"], confidenceThreshold: 0.4 };
+  assert.deepEqual(transcriberMitWoertern(t, ["Mijo"]), { ...t, keytermsPrompt: ["Mijo"] });
+  assert.equal(transcriberMitWoertern({ provider: "deepgram" }, ["Mijo"]), null);
+  assert.equal(transcriberMitWoertern(undefined, ["Mijo"]), null);
+});

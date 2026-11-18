@@ -1,9 +1,9 @@
 import { after, NextResponse } from "next/server";
-import { briefAntwort, briefAus, gespraechBrief } from "@/lib/luca-logik";
+import { briefAntwort, briefAus, gespraechBrief, keytermsAus } from "@/lib/luca-logik";
 import { kostenStand } from "@/lib/kosten";
 import { lucaLive } from "@/lib/luca-live";
 import { aufsHandy, ortsname } from "@/lib/luca-unterwegs";
-import { lesePrompts, rufeTeamAn, setzePrompts } from "@/lib/luca";
+import { lesePrompts, rufeTeamAn, setzeErkennungsWoerter, setzePrompts } from "@/lib/luca";
 import { owntracksKonfig, owntracksLink, standortText } from "@/lib/standort-logik";
 import {
   assistentFuerEingang,
@@ -262,6 +262,13 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
     }
     if (aktion === "einrichten") return NextResponse.json(await einrichten());
     if (aktion === "werkzeuge") return NextResponse.json({ assistent: await aktualisiereWerkzeuge() });
+    // M2 (18.11.): Namen für die Spracherkennung (von der Zentrale, einmal am Tag, wenn sich die Liste ändert)
+    if (aktion === "woerter") {
+      const woerter = keytermsAus(body.woerter);
+      if (!woerter) return NextResponse.json({ ok: false, grund: "woerter fehlt" }, { status: 400 });
+      const r = await setzeErkennungsWoerter(woerter);
+      return NextResponse.json(r, { status: r.ok ? 200 : 409 });
+    }
     if (aktion === "mitteilung") {
       const anruf = typeof body.anruf === "string" ? body.anruf : "";
       const text = typeof body.text === "string" ? body.text.trim().slice(0, 4000) : "";

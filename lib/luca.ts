@@ -45,6 +45,7 @@ import {
   LUCA_WERKZEUGE,
   type BriefMitZeit,
   type Lage,
+  transcriberMitWoertern,
 } from "@/lib/luca-logik";
 
 // Luca am Telefon – die Teile, die mit Vapi und Discord reden. Logik und Texte: lib/luca-logik.ts.
@@ -426,6 +427,17 @@ export async function aktualisiereWerkzeuge() {
   const model = { ...a.model, tools: [...LUCA_WERKZEUGE, { type: "endCall" }], toolIds: [] };
   const neu = await vapi<VapiAssistent>(`/assistant/${id}`, { method: "PATCH", body: JSON.stringify({ model }) });
   return assistentUeberblick(neu as Parameters<typeof assistentUeberblick>[0]);
+}
+
+/** M2 (18.11.): Namen für die Spracherkennung setzen (nur keytermsPrompt; Stimme, Prompts und Werkzeuge bleiben). */
+export async function setzeErkennungsWoerter(woerter: string[]): Promise<{ ok: boolean; anzahl?: number; grund?: string }> {
+  const id = lucaAssistent();
+  if (!id) throw new Error("LUCA_ASSISTANT fehlt");
+  const a = await vapi<VapiAssistent>(`/assistant/${id}`);
+  const transcriber = transcriberMitWoertern(a.transcriber, woerter);
+  if (!transcriber) return { ok: false, grund: "Die Spracherkennung ist nicht AssemblyAI" };
+  await vapi<VapiAssistent>(`/assistant/${id}`, { method: "PATCH", body: JSON.stringify({ transcriber }) });
+  return { ok: true, anzahl: woerter.length };
 }
 
 /** Prompts von Stimme und Reasoner ersetzen (GPT Live); alles andere bleibt. Beide müssen die Variablen behalten. */
