@@ -732,7 +732,7 @@ const WERKZEUGE_LIVE = [
   fn("was_weisst_du", "„Was weißt du über mich?“: Vorlieben (mit Nummern), Gemerktes, Geburtstage, Notfallkontakt, Listen. Das Ergebnis kommt ins Gespräch."),
   fn("woche_geschafft", "„Was hab ich diese Woche geschafft?“: Erledigtes, Team, Lernzeit, Gewohnheiten, Gespräche."),
   fn("heute_gemacht", "„Was hast du heute für mich gemacht?“: Anrufe, Nachrichten, fertige Team-Aufträge. Immer über dieses Werkzeug beantworten, nie aus dem Gedächtnis."),
-  fn("systemcheck", "„Läuft alles?“: prüft Telefon, Briefkasten, Standort und iMessage."),
+  fn("systemcheck", "„Läuft alles?“: Die Zentrale prüft Telefon, Briefkasten, Standort, iMessage, Vertretungsplan, Stundenplan, Privatkalender und Erinnerungen und probiert „Plan mir morgen“, Bus und Wetter aus. Das Ergebnis kommt gleich ins Gespräch; vorher nichts behaupten."),
   fn("punkt_erledigt", "David sagt, einer seiner offenen Punkte ist erledigt („das mit GitHub ist erledigt“, „die Vapi-Karte hab ich eingetragen“). Hakt ihn in der Zentrale ab. Seine offenen Punkte stehen im Wissen.", { punkt: txt("Stichworte aus dem Punkt") }, ["punkt"]),
   fn("liste", "Einkaufs- oder Merkliste per Zuruf: aktion dazu oder weg (eintraege), leeren, oder schicken (kommt aufs Handy). Ohne eintraege bei dazu: sagt, was draufsteht.", { aktion: { type: "string", enum: ["dazu", "weg", "leeren", "schicken"] }, name: txt("Name der Liste, Standard Einkauf"), eintraege: { type: "array", items: { type: "string" } } }, ["aktion"]),
   fn("diktat", "David diktiert einen Text für jemanden (zum Beispiel für WhatsApp). Formulier ihn sauber in Davids Ton und schreib ihn hier ganz hin; er kommt pur aufs Handy zum Kopieren. Luca schickt ihn nie selbst an andere.", { text: txt("Der fertige Text") }, ["text"]),

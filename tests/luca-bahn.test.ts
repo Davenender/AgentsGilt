@@ -186,3 +186,12 @@ test("privattermin: nur mit Ja, Tag und Uhrzeit; Dauer und Ort optional", async 
   const g = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "termin_anlegen");
   assert.match(g?.function?.description ?? "", /privattermin/);
 });
+
+// Telefon-Test 18.11.: Luca sagte „Ich prüfe Telefon, Briefkasten, Standort und iMessage“ und gleich „Läuft alles“ –
+// der Systemcheck prüft mehr, und das Ergebnis kommt erst noch ins Gespräch
+test("systemcheck: nennt den ganzen Umfang und behauptet vorher nichts", async () => {
+  const { LUCA_WERKZEUGE } = await import("../lib/luca-logik.ts");
+  const w = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "systemcheck");
+  assert.match(w?.function?.description ?? "", /Vertretungsplan/);
+  assert.match(w?.function?.description ?? "", /Das Ergebnis kommt gleich ins Gespräch; vorher nichts behaupten/);
+});
