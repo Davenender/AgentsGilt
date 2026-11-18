@@ -202,13 +202,14 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
         const zeit = new Date().toISOString();
         await merke(token, ak.speicher, zeileTest(user.id, einheit, a.richtig, a.gesamt, a.bestanden, zeit));
         p.tests.push({ einheit, richtig: a.richtig, gesamt: a.gesamt, bestanden: a.bestanden, zeit });
+        const neuBestanden = a.bestanden && !p.bestanden.has(einheit);
         if (a.bestanden) p.bestanden.add(einheit);
         await ersetze(appId, itoken, ergebnisAnsicht(a, inhalt.lektionen, einheit));
         await nachher(token, user.id, p, ak.personen, inhalt);
         // Ein bestandener Test kann Übungen frei machen.
         if (a.bestanden && inhalt.uebungen.some((u) => u.voraussetzung === einheit)) await zeichneUebung(token, user.id, p, inhalt);
         // Plan 4: Anwärter, die damit den Aufnahmetest geschafft haben, kommen ins Team
-        if (a.bestanden) await pruefeAufnahme(token, user.id, { p, inhalt });
+        if (a.bestanden) await pruefeAufnahme(token, user.id, { p, inhalt }, { testGerade: neuBestanden });
       }),
     );
     return NextResponse.json(isPrivat(i) ? DEFER_UPDATE : DEFER_PRIVAT);

@@ -1,4 +1,4 @@
-import { aufnahmeStand } from "@/lib/akademie";
+import { aufnahmeStand, uebungenHinweis } from "@/lib/akademie";
 import { holeInhalt, leseAkademie, schritteVon, zeichne, type Inhalt } from "@/lib/akademie-daten";
 import { call } from "@/lib/leads";
 import { pusheDavid } from "@/lib/ntfy";
@@ -24,12 +24,18 @@ export async function hatBestanden(token: string, userId: string, vorab?: { p: P
 }
 
 /** Nach einem Test oder einer Übung: Anwärter, die bestanden haben, ins Team holen. */
-export async function pruefeAufnahme(token: string, userId: string, vorab?: { p: Person; inhalt: Inhalt }): Promise<boolean> {
+export async function pruefeAufnahme(token: string, userId: string, vorab?: { p: Person; inhalt: Inhalt }, o: { testGerade?: boolean } = {}): Promise<boolean> {
   const m = mitglied(userId);
   if (!m || m.status !== "anwaerter") return false;
   if (!(await hatBestanden(token, userId, vorab))) {
     // Stand im Lernpfad aktualisieren (Zeile „Aufnahmetest: …“)
-    if (vorab) await zeichne(token, userId, vorab.p, vorab.inhalt);
+    if (vorab) {
+      await zeichne(token, userId, vorab.p, vorab.inhalt);
+      // 18.11. (Davids Wunsch): Nach dem letzten Test der Hinweis, dass es mit 3 Übungen weitergeht, dann automatisch Team
+      const stand = aufnahmeStand(schritteVon(vorab.p, vorab.inhalt), vorab.p.bestanden, vorab.p.uebungen ?? []);
+      const text = uebungenHinweis(stand, { gerade: !!o.testGerade, kanal: vorab.p.uebKanal?.kanal });
+      if (text && vorab.p.lernpfad) await call(token, "POST", `/channels/${vorab.p.lernpfad}/messages`, { content: text, allowed_mentions: { parse: [] } });
+    }
     return false;
   }
   await befoerdere(token, userId, vorab);

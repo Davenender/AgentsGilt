@@ -388,6 +388,21 @@ test("Aufnahmetest: alle Tests des Team-Pfads und 3 Übungen ab 70 Punkten", () 
   assert.equal(aufnahmeStand([], new Set(), []).bestanden, false, "ohne Tests im Pfad nie automatisch bestanden");
 });
 
+// 18.11. (Davids Wunsch): Am Ende des letzten Tests (Test 9) kommt eine Nachricht: noch 3 Übungen, dann automatisch Team
+import { uebungenHinweis } from "../lib/akademie.ts";
+test("Nach dem letzten Test: Hinweis auf die Übungen – nur beim gerade bestandenen letzten Test und solange Übungen fehlen", () => {
+  const stand = (tests: number, uebungen: number) => ({ tests, testsGesamt: 9, uebungen, uebungenGesamt: 3, bestanden: tests === 9 && uebungen >= 3 });
+  const t = uebungenHinweis(stand(9, 0), { gerade: true, kanal: "123" });
+  assert.match(t ?? "", /Alle Tests geschafft/);
+  assert.match(t ?? "", /3 Übungen in <#123>/);
+  assert.match(t ?? "", /mindestens 70 Punkten/);
+  assert.match(t ?? "", /automatisch die Rolle Team/);
+  assert.match(uebungenHinweis(stand(9, 2), { gerade: true }) ?? "", /noch 1 Übung im Übungen-Kanal/);
+  assert.equal(uebungenHinweis(stand(8, 0), { gerade: true }), null, "erst nach dem letzten Test");
+  assert.equal(uebungenHinweis(stand(9, 0), { gerade: false }), null, "nicht bei jeder Übung oder Wiederholung");
+  assert.equal(uebungenHinweis(stand(9, 3), { gerade: true }), null, "Übungen schon fertig: dann kommt gleich der Glückwunsch");
+});
+
 test("Pfad-Karte zeigt den Stand des Aufnahmetests oben, wenn mitgegeben", () => {
   const sch = schritte(pfadLektionen(alle, "team"), fragen, "team");
   const k = pfadKarte("Oskar", sch, new Set(), new Set(), "🎓 **Aufnahmetest:** 0 von 1 Tests");

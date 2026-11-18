@@ -230,6 +230,13 @@ export function aufnahmeStand(sch: Schritt[], bestanden: Set<number>, uebungen: 
   const gut = Math.min(AUFNAHME_UEBUNGEN, uebungen.filter((u) => u.punkte >= AUFNAHME_PUNKTE).length);
   return { tests, testsGesamt: noetig.length, uebungen: gut, uebungenGesamt: AUFNAHME_UEBUNGEN, bestanden: noetig.length > 0 && tests === noetig.length && gut >= AUFNAHME_UEBUNGEN };
 }
+/** 18.11. (Davids Wunsch): Direkt nach dem letzten Test, solange Übungen fehlen: der Hinweis, dass es mit den Übungen weitergeht. */
+export function uebungenHinweis(a: ReturnType<typeof aufnahmeStand>, o: { gerade: boolean; kanal?: string }): string | null {
+  if (!o.gerade || a.testsGesamt === 0 || a.tests < a.testsGesamt || a.uebungen >= a.uebungenGesamt) return null;
+  const fehlt = a.uebungenGesamt - a.uebungen;
+  const wo = o.kanal ? `<#${o.kanal}>` : "im Übungen-Kanal";
+  return `🎯 **Alle Tests geschafft!** Jetzt noch ${fehlt} ${fehlt === 1 ? "Übung" : "Übungen"} ${o.kanal ? "in " : ""}${wo} mit mindestens ${AUFNAHME_PUNKTE} Punkten. Dann bekommst du automatisch die Rolle Team und siehst alle Arbeitskanäle.`;
+}
 export const aufnahmeZeile = (a: ReturnType<typeof aufnahmeStand>) =>
   `🎓 **Aufnahmetest:** ${a.tests} von ${a.testsGesamt} Tests · ${a.uebungen} von ${a.uebungenGesamt} Übungen (ab ${AUFNAHME_PUNKTE} Punkten). Danach bist du automatisch im Team.`;
 
