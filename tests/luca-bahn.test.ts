@@ -155,3 +155,11 @@ test("tankstelle_suchen wird ein Alltags-Brief „tanken“ mit Sorte", async ()
   const w = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "tankstelle_suchen");
   assert.match(w?.function?.description ?? "", /Diesel/);
 });
+
+// N1 (18.11.): „morgen nach der Schule“ am Telefon (Davids Regel rechnet die Zentrale aus)
+test("erinnerung_planen mit nach_der_schule: heute, morgen, übermorgen oder Datum; Unsinn nicht", async () => {
+  const { briefAus } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "Bio lernen", thema: "Bio", nach_der_schule: "morgen" }, ""), { typ: "erinnerung", text: "Bio lernen", nachDerSchule: "morgen", thema: "Bio" });
+  assert.deepEqual(briefAus("erinnerung_planen", { text: "x", nach_der_schule: "2026-11-20" }, ""), { typ: "erinnerung", text: "x", nachDerSchule: "2026-11-20" });
+  assert.equal(briefAus("erinnerung_planen", { text: "x", nach_der_schule: "irgendwann" }, ""), null);
+});
