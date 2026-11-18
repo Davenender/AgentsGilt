@@ -146,3 +146,12 @@ test("Werkzeug-Texte: preis_rechnen nennt keine Preise, termin_anlegen nur fürs
   assert.match(beschr("preis_rechnen"), /nie|keine/);
   assert.match(beschr("termin_anlegen"), /erinnerung_planen/);
 });
+
+// 18.11.: günstige Tankstelle am Telefon – Standard Diesel, „Super E10“ auf Zuruf; rechnet die Zentrale (Tankerkönig-Schlüssel dort)
+test("tankstelle_suchen wird ein Alltags-Brief „tanken“ mit Sorte", async () => {
+  const { briefAus, LUCA_WERKZEUGE } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("tankstelle_suchen", {}, ""), { typ: "alltag", was: "tanken", text: "diesel" });
+  assert.deepEqual(briefAus("tankstelle_suchen", { sorte: "e10" }, ""), { typ: "alltag", was: "tanken", text: "e10" });
+  const w = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "tankstelle_suchen");
+  assert.match(w?.function?.description ?? "", /Diesel/);
+});

@@ -135,7 +135,7 @@ export type Brief =
   /** Etappe 9: Luca selbst */
   | { typ: "selbst"; was: "vorliebe" | "vergessen" | "weiss" | "woche" | "heute" | "check" | "punkt_erledigt"; text?: string }
   /** Etappe 8: Alltag */
-  | { typ: "alltag"; was: "liste" | "diktat" | "karte" | "sprache" | "gewohnheit" | "geburtstag" | "notfall" | "notfallkontakt" | "wo_war_ich" | "geparkt" | "frei" | "besprochen" | "limit"; name?: string; aktion?: "dazu" | "weg" | "leeren" | "schicken"; eintraege?: string[]; text?: string; ziel?: string; modus?: "auto" | "bahn" | "zu_fuss"; anzahl?: number; datum?: string; weg?: boolean; nummer?: string; tag?: string; uhrzeit?: string; tage?: number }
+  | { typ: "alltag"; was: "liste" | "diktat" | "karte" | "sprache" | "gewohnheit" | "geburtstag" | "notfall" | "notfallkontakt" | "wo_war_ich" | "geparkt" | "frei" | "besprochen" | "limit" | "tanken"; name?: string; aktion?: "dazu" | "weg" | "leeren" | "schicken"; eintraege?: string[]; text?: string; ziel?: string; modus?: "auto" | "bahn" | "zu_fuss"; anzahl?: number; datum?: string; weg?: boolean; nummer?: string; tag?: string; uhrzeit?: string; tage?: number }
   /** Etappe 7: Agents Gilt II und Team */
   | { typ: "teamaufgabe"; wer: string; was: string; bis?: string; erledigt?: boolean }
   | { typ: "teamnachricht"; wer: string; text: string }
@@ -277,6 +277,8 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
   if (werkzeug === "freie_zeiten") return { typ: "alltag", was: "frei", tage: Number.isFinite(Number(args.tage)) ? Math.max(1, Math.min(14, Math.round(Number(args.tage)))) : 7 };
   if (werkzeug === "heute_besprochen") return { typ: "alltag", was: "besprochen" };
   if (werkzeug === "claude_limit") return { typ: "alltag", was: "limit" };
+  // 18.11.: günstige Tankstelle (Standard Diesel)
+  if (werkzeug === "tankstelle_suchen") return { typ: "alltag", was: "tanken", text: args.sorte === "e10" || args.sorte === "e5" ? args.sorte : "diesel" };
   // ── Etappe 7
   if (werkzeug === "team_aufgabe") {
     const wer = kurzText(args.wer, 40);
@@ -711,6 +713,7 @@ const WERKZEUGE_LIVE = [
   fn("punkt_erledigt", "David sagt, einer seiner offenen Punkte ist erledigt („das mit GitHub ist erledigt“, „die Vapi-Karte hab ich eingetragen“). Hakt ihn in der Zentrale ab. Seine offenen Punkte stehen im Wissen.", { punkt: txt("Stichworte aus dem Punkt") }, ["punkt"]),
   fn("liste", "Einkaufs- oder Merkliste per Zuruf: aktion dazu oder weg (eintraege), leeren, oder schicken (kommt aufs Handy). Ohne eintraege bei dazu: sagt, was draufsteht.", { aktion: { type: "string", enum: ["dazu", "weg", "leeren", "schicken"] }, name: txt("Name der Liste, Standard Einkauf"), eintraege: { type: "array", items: { type: "string" } } }, ["aktion"]),
   fn("diktat", "David diktiert einen Text für jemanden (zum Beispiel für WhatsApp). Formulier ihn sauber in Davids Ton und schreib ihn hier ganz hin; er kommt pur aufs Handy zum Kopieren. Luca schickt ihn nie selbst an andere.", { text: txt("Der fertige Text") }, ["text"]),
+  fn("tankstelle_suchen", "Günstigste offene Tankstelle in Davids Nähe mit Preis, Entfernung und Route über Apple Karten; kommt auch per iMessage. Standard Diesel; Super E10 (e10) oder Super (e5) nur, wenn David es sagt. Spritpreise darfst du nennen. Das Ergebnis kommt gleich ins Gespräch.", { sorte: { type: "string", enum: ["diesel", "e10", "e5"], description: "Standard diesel" } }),
   fn("karte_schicken", "Schickt David Adresse und Karten-Link zum Ziel aufs Handy (Apple Karten mit Wegbeschreibung). Auch für „schick mir die Adresse vom Gym“: Davids Orte aus dem Adressbuch kommen mit genauer Adresse.", { ziel: txt("Ziel, Name oder Adresse"), modus: { type: "string", enum: ["auto", "bahn", "zu_fuss"] } }, ["ziel"]),
   fn("sprachnachricht", "Schickt David etwas als Sprachnachricht aufs Handy, wenn er lieber hört als liest.", { text: txt("Was gesagt werden soll, kurz") }, ["text"]),
   fn("gewohnheit", "Zählt Gewohnheiten: was (Wasser, Gym, Lernen, Lesen …) und anzahl (Standard 1). Ohne was: sagt, was heute gezählt ist. Gym zählt auch von selbst über den Standort.", { was: txt("Gewohnheit"), anzahl: { type: "number" } }),
