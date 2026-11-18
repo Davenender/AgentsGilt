@@ -307,8 +307,13 @@ export function ortImTitel(titel: string, orte: Welt["orte"]): Welt["orte"][numb
 }
 
 /** Nächster Termin mit Ort: Fahrzeit mit Verkehr und wann David los muss. Mit ziel: der nächste Termin dorthin. */
-export async function losSatz(termine: { titel: string; start: string; ganztags: boolean; ort?: string }[] | null, w: Welt, jetzt = new Date(), abruf: Abruf = fetch, ziel?: string): Promise<string> {
+export async function losSatz(termine: { titel: string; start: string; ganztags: boolean; ort?: string }[] | null, w: Welt, jetzt = new Date(), abruf: Abruf = fetch, ziel?: string, tag?: string): Promise<string> {
   if (termine === null) return "Der Kalender antwortet gerade nicht.";
+  // 18.11.: „Wann muss ich morgen los?“ – nur Termine dieses Tages (heute, morgen, übermorgen oder JJJJ-MM-TT)
+  const heuteTag = berlinTag(jetzt);
+  const t0 = (tag ?? "").trim().toLowerCase();
+  const nurTag = /^\d{4}-\d{2}-\d{2}$/.test(t0) ? t0 : t0 === "übermorgen" ? plusTage(heuteTag, 2) : t0 === "morgen" ? plusTage(heuteTag, 1) : t0 === "heute" ? heuteTag : null;
+  if (nurTag) termine = termine.filter((x) => (x.ganztags ? x.start.slice(0, 10) : berlinTag(new Date(x.start))) === nurTag);
   const z = ziel?.trim() ? ohneZeichen(ziel.trim()) : "";
   const zielOrt = z ? ortImTitel(ziel!, w.orte) : null;
   const passt = (x: { titel: string; ort?: string }, bekannt: Welt["orte"][number] | null) =>

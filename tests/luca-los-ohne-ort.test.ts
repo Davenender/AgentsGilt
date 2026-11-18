@@ -85,3 +85,17 @@ test("Geschäfts- und Privattermine zusammen, ohne Doppelte; Tanzschule wird gef
   assert.equal(mischeTermine(null, lageTermine(LAGE))!.length, 4);
   assert.match(await losSatz(alle, welt, JETZT, netz(), "Tanzschule"), /^Nächster Termin: Tanzschule, Mittwoch um 17:30 Uhr/);
 });
+
+// 18.11. 07:32: „Wann muss ich morgen los?“ – das Werkzeug nahm den nächsten Termin (heute 08:00 Schule) statt morgen.
+test("Mit tag „morgen“: nur Termine von morgen (heute früh zählt nicht)", async () => {
+  const jetzt = new Date("2026-11-18T06:32:00Z"); // Mi 07:32
+  const termine = [
+    { titel: "Schule: 1. Stunde Geschichte", start: "2026-11-18T07:00:00.000Z", ganztags: false },
+    { titel: "Schule: 3. Stunde Deutsch", start: "2026-11-19T08:55:00.000Z", ganztags: false },
+  ];
+  const w = { ...welt, jetzt };
+  assert.match(await losSatz(termine, w, jetzt, netz(), undefined, "morgen"), /^Nächster Termin: Schule: 3\. Stunde Deutsch, Donnerstag um 09:55 Uhr/);
+  assert.match(await losSatz(termine, w, jetzt, netz(), "Schule", "morgen"), /Donnerstag um 09:55 Uhr/);
+  assert.match(await losSatz(termine, w, jetzt, netz(), undefined, "heute"), /Mittwoch um 08:00 Uhr/);
+  assert.match(await losSatz(termine, w, jetzt, netz()), /Mittwoch um 08:00 Uhr/);
+});

@@ -39,7 +39,7 @@ export async function lucaLive(name: string, a: Record<string, unknown>): Promis
     const jetzt = new Date();
     // 17.11.: dazu Davids Privatkalender aus dem Lagebericht (Tanzschule, Gym stehen nur dort)
     const [geschaeft, lage] = await Promise.all([listeTermine(jetzt, new Date(jetzt.getTime() + 36 * 3600_000)).catch(() => null), holeLage().catch(() => null)]);
-    return losSatz(mischeTermine(geschaeft, lageTermine(lage)), welt, jetzt, fetch, text(a.ziel));
+    return losSatz(mischeTermine(geschaeft, lageTermine(lage)), welt, jetzt, fetch, text(a.ziel), text(a.tag));
   }
   if (name === "route_berechnen") return routeText({ von: text(a.von), nach: text(a.nach), modus: text(a.modus) }, welt);
   if (name === "verbindung_suchen") return verbindungText({ von: text(a.von), nach: text(a.nach), ankunft: text(a.ankunft), abfahrt: text(a.abfahrt) }, welt);
