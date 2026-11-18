@@ -207,3 +207,15 @@ test("Erkennungs-Wörter: geprüft, ohne Doppelte, nur bei AssemblyAI; alles and
   assert.equal(transcriberMitWoertern({ provider: "deepgram" }, ["Mijo"]), null);
   assert.equal(transcriberMitWoertern(undefined, ["Mijo"]), null);
 });
+
+// M6 (18.11.): Personen – „Ferdi ist unser Fotograf“, „Ferdi schickt die Fotos bis Freitag“, „Ferdi hat die Fotos geschickt“
+test("person_merken: Name plus wer, offen oder erledigt", async () => {
+  const { briefAus, LUCA_WERKZEUGE } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("person_merken", { name: "Ferdi", wer: "Fotograf für unsere Kunden" }, ""), { typ: "alltag", was: "person", name: "Ferdi", text: "Fotograf für unsere Kunden" });
+  assert.deepEqual(briefAus("person_merken", { name: "Ferdi", offen: "schickt die Fotos bis Freitag" }, ""), { typ: "alltag", was: "person", name: "Ferdi", offen: "schickt die Fotos bis Freitag" });
+  assert.deepEqual(briefAus("person_merken", { name: "Ferdi", erledigt: "Fotos geschickt" }, ""), { typ: "alltag", was: "person", name: "Ferdi", erledigt: "Fotos geschickt" });
+  assert.equal(briefAus("person_merken", { name: "Ferdi" }, ""), null);
+  assert.equal(briefAus("person_merken", { wer: "Fotograf" }, ""), null);
+  const w = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "person_merken");
+  assert.match(w?.function?.description ?? "", /nur Davids eigene Angaben/);
+});

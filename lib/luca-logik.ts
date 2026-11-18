@@ -135,7 +135,7 @@ export type Brief =
   /** Etappe 9: Luca selbst */
   | { typ: "selbst"; was: "vorliebe" | "vergessen" | "weiss" | "woche" | "heute" | "check" | "punkt_erledigt"; text?: string }
   /** Etappe 8: Alltag */
-  | { typ: "alltag"; was: "liste" | "diktat" | "karte" | "sprache" | "gewohnheit" | "geburtstag" | "notfall" | "notfallkontakt" | "wo_war_ich" | "geparkt" | "frei" | "besprochen" | "limit" | "tanken" | "tagesplan" | "termin"; name?: string; aktion?: "dazu" | "weg" | "leeren" | "schicken"; eintraege?: string[]; text?: string; ziel?: string; modus?: "auto" | "bahn" | "zu_fuss"; anzahl?: number; datum?: string; weg?: boolean; nummer?: string; tag?: string; uhrzeit?: string; tage?: number; erinnern?: boolean; wie?: string; schicken?: boolean; /** N5 */ titel?: string; minuten?: number; ort?: string }
+  | { typ: "alltag"; was: "liste" | "diktat" | "karte" | "sprache" | "gewohnheit" | "geburtstag" | "notfall" | "notfallkontakt" | "wo_war_ich" | "geparkt" | "frei" | "besprochen" | "limit" | "tanken" | "tagesplan" | "termin" | "person"; name?: string; aktion?: "dazu" | "weg" | "leeren" | "schicken"; eintraege?: string[]; text?: string; ziel?: string; modus?: "auto" | "bahn" | "zu_fuss"; anzahl?: number; datum?: string; weg?: boolean; nummer?: string; tag?: string; uhrzeit?: string; tage?: number; erinnern?: boolean; wie?: string; schicken?: boolean; /** N5 */ titel?: string; minuten?: number; ort?: string; /** M6 */ offen?: string; erledigt?: string }
   /** Etappe 7: Agents Gilt II und Team */
   | { typ: "teamaufgabe"; wer: string; was: string; bis?: string; erledigt?: boolean }
   | { typ: "teamnachricht"; wer: string; text: string }
@@ -289,6 +289,15 @@ export function briefAus(werkzeug: string, args: Record<string, unknown>, stand:
     const minuten = Number(args.minuten);
     const ort = kurzText(args.ort, 120);
     return { typ: "alltag", was: "termin", titel, datum, uhrzeit, ...(Number.isFinite(minuten) && minuten > 0 ? { minuten: Math.round(minuten) } : {}), ...(ort ? { ort } : {}) };
+  }
+  // M6 (18.11.): Personen – wer jemand ist, was offen ist, was erledigt ist (nur Davids eigene Angaben)
+  if (werkzeug === "person_merken") {
+    const name = kurzText(args.name, 40);
+    const wer = kurzText(args.wer, 120);
+    const offen = kurzText(args.offen, 160);
+    const erledigt = kurzText(args.erledigt, 160);
+    if (!name || (!wer && !offen && !erledigt)) return null;
+    return { typ: "alltag", was: "person", name, ...(wer ? { text: wer } : {}), ...(offen ? { offen } : {}), ...(erledigt ? { erledigt } : {}) };
   }
   if (werkzeug === "heute_besprochen") return { typ: "alltag", was: "besprochen" };
   if (werkzeug === "claude_limit") return { typ: "alltag", was: "limit" };
@@ -745,6 +754,7 @@ const WERKZEUGE_LIVE = [
   fn("wo_war_ich", "Davids eigener Standort-Verlauf (drei Tage): wo er an einem Tag um eine Uhrzeit war, oder mit geparkt true, wo seine letzte Fahrt endete.", { tag: txt("heute, gestern oder vorgestern"), uhrzeit: txt("HH:MM"), geparkt: { type: "boolean" } }),
   fn("tagesplan", "„Plan mir morgen“, „Plan mir den Tag“ oder „den Nachmittag“: Die Zentrale rechnet Davids Tag mit festen Zeiten (Schule mit Ausfall, wann er los muss, Termine mit Losfahrzeit, Hausaufgaben, Lernblock aus dem Lernplan, was frei ist). Erfinde keine Zeiten, warte auf das Ergebnis; es kommt gleich ins Gespräch. erinnern true, wenn David an Lernblock und Hausaufgaben erinnert werden will (wie nachricht statt Anruf), schicken true für den Plan per iMessage.", { tag: txt("heute, morgen, übermorgen oder JJJJ-MM-TT; Standard morgen"), erinnern: { type: "boolean" }, wie: { type: "string", enum: ["anruf", "nachricht"] }, schicken: { type: "boolean" } }),
   fn("privattermin", "Nennt David einen privaten Termin mit Tag und Uhrzeit („Donnerstag um 4 hab ich Zahnarzt“): Luca fragt zuerst mit Wochentag, Datum und Uhrzeit, ob er ihn eintragen soll. Nach Davids Ja trägt die Zentrale ihn in Davids privaten Apple-Kalender ein (bestaetigt true). „Um 4“ heißt 16 Uhr, außer es passt nur morgens. Das Ergebnis kommt ins Gespräch. Kunden- und Teamtermine mit termin_anlegen.", { titel: txt("Wofür, zum Beispiel Zahnarzt"), datum: txt("JJJJ-MM-TT (oder heute, morgen, Wochentag)"), uhrzeit: txt("HH:MM"), minuten: { type: "number", description: "Dauer, Standard 60" }, ort: txt("Ort, wenn David ihn nennt"), bestaetigt: { type: "boolean", description: "Nur true, wenn David klar zugestimmt hat" } }, ["titel", "datum", "uhrzeit", "bestaetigt"]),
+  fn("person_merken", "Erzählt David etwas über eine Person (wer sie ist, was mit ihr offen ist oder dass etwas davon erledigt ist), merkt die Zentrale es sich – ohne Nachfrage, nur Davids eigene Angaben, nichts dazuerfinden. Genau eins von wer, offen oder erledigt.", { name: txt("Name der Person"), wer: txt("Wer die Person ist, zum Beispiel Fotograf für unsere Kunden"), offen: txt("Was mit ihr offen ist"), erledigt: txt("Was davon erledigt ist") }, ["name"]),
   fn("freie_zeiten", "Freie Zeiten aus Davids Kalender und Stundenplan für die nächsten Tage („Wann passt es Ferdi und mir?“, Davids Seite). Das Ergebnis kommt ins Gespräch.", { tage: { type: "number", description: "Wie viele Tage, Standard 7" } }),
   fn("heute_besprochen", "Was David und Luca heute am Telefon abgemacht haben."),
   fn("claude_limit", "Wie weit Davids Claude-Limit verbraucht ist und wann es sich zurücksetzt."),
