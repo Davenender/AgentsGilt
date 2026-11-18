@@ -137,3 +137,12 @@ test("Gesprächs-Brief nennt die Werkzeuge des Anrufs (ohne delegate)", async ()
   );
   assert.deepEqual(b.werkzeuge, ["termin_anlegen"]);
 });
+
+// Ü3/Ü4 (17.11.): keine Preise (David rechnet im Preisrechner), private Lernblöcke nicht in den Geschäftskalender
+test("Werkzeug-Texte: preis_rechnen nennt keine Preise, termin_anlegen nur fürs Geschäft", async () => {
+  const { LUCA_WERKZEUGE } = await import("../lib/luca-logik.ts");
+  const beschr = (n: string) => (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((w) => w.function?.name === n)?.function?.description ?? "";
+  assert.match(beschr("preis_rechnen"), /Preisrechner/);
+  assert.match(beschr("preis_rechnen"), /nie|keine/);
+  assert.match(beschr("termin_anlegen"), /erinnerung_planen/);
+});
