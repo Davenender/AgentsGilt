@@ -173,3 +173,16 @@ test("tagesplan: Tag, erinnern, Nachricht statt Anruf, aufs Handy", async () => 
   const w = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "tagesplan");
   assert.match(w?.function?.description ?? "", /Plan mir morgen/);
 });
+
+// N5 (18.11.): „Donnerstag um 4 hab ich Zahnarzt“ – nach Davids Ja in seinen privaten Kalender (die Zentrale trägt ein)
+test("privattermin: nur mit Ja, Tag und Uhrzeit; Dauer und Ort optional", async () => {
+  const { briefAus, LUCA_WERKZEUGE } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(briefAus("privattermin", { titel: "Zahnarzt", datum: "2026-11-26", uhrzeit: "16:00", bestaetigt: true }, ""), { typ: "alltag", was: "termin", titel: "Zahnarzt", datum: "2026-11-26", uhrzeit: "16:00" });
+  assert.deepEqual(briefAus("privattermin", { titel: "Zahnarzt", datum: "morgen", uhrzeit: "9:30", minuten: 30, ort: "Praxis Dr. Müller", bestaetigt: true }, ""), { typ: "alltag", was: "termin", titel: "Zahnarzt", datum: "morgen", uhrzeit: "9:30", minuten: 30, ort: "Praxis Dr. Müller" });
+  assert.equal(briefAus("privattermin", { titel: "Zahnarzt", datum: "2026-11-26", uhrzeit: "16:00" }, ""), null); // ohne Ja nichts
+  assert.equal(briefAus("privattermin", { titel: "Zahnarzt", datum: "2026-11-26", bestaetigt: true }, ""), null); // ohne Uhrzeit nichts
+  const w = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "privattermin");
+  assert.match(w?.function?.description ?? "", /Zahnarzt/);
+  const g = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "termin_anlegen");
+  assert.match(g?.function?.description ?? "", /privattermin/);
+});
