@@ -224,9 +224,9 @@ export const ANLEITUNGEN: Anleitung[] = [
     text: z(
       "**Vorher:** Im Kundenkanal **📝 Gesprächsbogen** drücken. Der Bogen öffnet sich in Notion (auch am Handy in der Notion-App).",
       "",
-      "**Während des Gesprächs:** Die Fragen im Bogen abhaken und ganz unten unter **Notizen** alles mitschreiben: Bedarf, Wünsche, wer entscheidet, Einwände, was als Nächstes passiert und wann, dazu E-Mail und Telefon, falls sie fehlen. Aufnahmen nur mit ausdrücklicher Zustimmung des Kunden.",
+      "**Während des Gesprächs:** Die Fragen im Bogen abhaken und ganz unten unter **Notizen** alles mitschreiben: Bedarf, Wünsche, wer entscheidet, Einwände, was als Nächstes passiert und wann, wie der Kunde auf uns kam (z. B. Empfehlung von …), dazu E-Mail und Telefon, falls sie fehlen. Aufnahmen nur mit ausdrücklicher Zustimmung des Kunden.",
       "",
-      "**Direkt danach:** Im Kundenkanal **🧠 Gespräch auswerten** drücken. Der Bot liest deine Notizen und fasst zusammen. Das Ergebnis steht im Bogen und als Karte im Kanal. Er trägt **Nächster Schritt** und das **Follow-up** ein (nur mit Datum), füllt fehlende **E-Mail** und **Telefon**, **Angebot** und **Quelle**. Vorhandenes überschreibt er nicht. Status, Preise, Zuständige und Häkchen ändert er nie.",
+      "**Direkt danach:** Im Kundenkanal **🧠 Gespräch auswerten** drücken. Der Bot liest deine Notizen und fasst zusammen. Das Ergebnis steht im Bogen und als Karte im Kanal. Er trägt **Nächster Schritt** und das **Follow-up** ein (nur mit Datum), füllt fehlende **E-Mail** und **Telefon**, **Angebot** und **Quelle**. Vorhandenes überschreibt er nicht, nur eine Quelle „Sonstiges“ ersetzt er (z. B. durch „Empfehlung“). Zeilen mit **Referenz:** am Anfang liest er nicht mit. Status, Preise, Zuständige und Häkchen ändert er nie.",
       "",
       "**Danach:** Mit den Knöpfen weiterarbeiten: ✅ Checkliste, 📌 Nächster Schritt, 📧 E-Mail.",
     ),

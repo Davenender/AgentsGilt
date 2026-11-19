@@ -125,7 +125,7 @@ test("Felder: Nächster Schritt und Follow-up ersetzen, Angebot und Quelle nur w
   assert.deepEqual(Object.keys(leer.properties).sort(), ["Angebot", "Nächster Schritt", "Nächstes Follow-up", "Quelle"]);
   assert.deepEqual(leer.properties["Nächstes Follow-up"], { date: { start: "2026-11-12" } });
   assert.deepEqual(leer.properties["Angebot"], { select: { name: "Voice-Agent" } });
-  const voll = feldAenderungen(a, { angebot: "Websites und Landingpages", quelle: "Sonstiges" });
+  const voll = feldAenderungen(a, { angebot: "Websites und Landingpages", quelle: "Website / Chatbot" });
   assert.deepEqual(Object.keys(voll.properties).sort(), ["Nächster Schritt", "Nächstes Follow-up"]);
   assert.deepEqual(voll.geaendert, ["Nächster Schritt", "Nächstes Follow-up"]);
   for (const nie of ["Status", "Zuständig", "Setup-Preis (€)", "Retainer (€/Monat)", "Angebot raus"]) assert.equal(nie in leer.properties, false, nie);
@@ -174,4 +174,40 @@ test("Kontakt aus dem Gespräch: nur leere Felder füllen", () => {
   assert.equal(kaputt.telefon, null);
   assert.match(AUSWERTUNG_PROMPT, /"email"/);
   assert.match(AUSWERTUNG_PROMPT, /"telefon"/);
+});
+
+// 19.11.2026 (Akademie 9.3, Davids Wunsch): „Sonstiges“ setzt /lead von selbst, es heißt nur „noch nicht bekannt“.
+// Steht in den Notizen, wie der Kunde kam (z. B. Empfehlung), trägt die Auswertung das ein. Andere Werte bleiben.
+test("Quelle: „Sonstiges“ gilt als unbekannt und wird ersetzt, andere Werte bleiben", () => {
+  const opt = { ...OPT, quellen: [...OPT.quellen, "Empfehlung"] };
+  const empf = pruefeAuswertung({ zusammenfassung: "x", quelle: "Empfehlung" }, opt, "2026-11-19")!;
+  const ersetzt = feldAenderungen(empf, { angebot: null, quelle: "Sonstiges" });
+  assert.deepEqual(ersetzt.properties["Quelle"], { select: { name: "Empfehlung" } });
+  assert.deepEqual(ersetzt.geaendert, ["Quelle"]);
+  assert.equal("Quelle" in feldAenderungen(empf, { angebot: null, quelle: "Website / Chatbot" }).properties, false, "echter Wert bleibt");
+  assert.equal("Quelle" in feldAenderungen(empf, { angebot: null, quelle: "Empfehlung" }).properties, false, "schon richtig: nichts zu tun");
+  const sonst = pruefeAuswertung({ zusammenfassung: "x", quelle: "Sonstiges" }, opt, "2026-11-19")!;
+  assert.deepEqual(feldAenderungen(sonst, { angebot: null, quelle: "Sonstiges" }).geaendert, [], "Sonstiges durch Sonstiges ist keine Änderung");
+  const ohne = pruefeAuswertung({ zusammenfassung: "x" }, opt, "2026-11-19")!;
+  assert.deepEqual(feldAenderungen(ohne, { angebot: null, quelle: "Sonstiges" }).geaendert, [], "ohne Angabe bleibt Sonstiges");
+  assert.match(AUSWERTUNG_PROMPT, /Empfehlung/, "die KI weiß, woran sie eine Empfehlung erkennt");
+});
+
+// 19.11.2026 (Akademie 9.2): Referenz-Material (Zahlen, Kundenstimmen) steht auch unter „4. Notizen“. Zeilen, die mit
+// „Referenz:“ beginnen, liest die Auswertung nicht mit, sonst landet z. B. eine Kundenstimme im „Nächsten Schritt“.
+test("Referenz-Zeilen: liest die Auswertung nicht mit", () => {
+  const mitReferenz: RohBlock[] = [
+    ...seite.slice(0, 8),
+    b("r1", "paragraph", "Referenz: 40 % mehr Termine seit dem Voice-Agent"),
+    { ...b("r2", "bulleted_list_item", " referenz : Kundenstimme von Frau Graziella"), kinder: [b("r3", "bulleted_list_item", "„Endlich klingelt es nicht mehr ständig.“")] },
+    b("r4", "paragraph", "Referenz erlaubt laut Chefin, Logo darf auf die Website"),
+    ...seite.slice(8),
+  ];
+  const ganz = bloeckeAlsText(mitReferenz);
+  for (const weg of ["40 % mehr Termine", "Kundenstimme", "Endlich klingelt"]) assert.equal(ganz.includes(weg), false, weg);
+  assert.match(ganz, /Chefin: Frau Graziella/, "das Gespräch bleibt");
+  assert.match(ganz, /Referenz erlaubt laut Chefin/, "nur „Referenz:“ am Anfang zählt");
+  assert.equal(notizenText(mitReferenz).includes("Kundenstimme"), false);
+  const nurReferenz: RohBlock[] = [b("h3n", "heading_3", "4. Notizen"), b("r1", "paragraph", "Referenz: 40 % mehr Termine")];
+  assert.equal(notizenText(nurReferenz), "", "nur Referenz-Zeilen heißt: nichts zum Auswerten");
 });

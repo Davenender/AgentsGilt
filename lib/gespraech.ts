@@ -92,9 +92,13 @@ function zeile(bl: RohBlock): string {
   }
 }
 
+/** 19.11.2026 (Akademie 9.2): Zeilen mit „Referenz:“ am Anfang sind Material für Referenzen, kein Gesprächsinhalt. */
+const istReferenz = (bl: RohBlock) => /^\s*referenz\s*:/i.test(blockText(bl));
+
 function zeilen(bloecke: RohBlock[], tiefe = 0): string[] {
   const out: string[] = [];
   for (const bl of bloecke) {
+    if (istReferenz(bl)) continue; // samt Unterpunkten
     const z = zeile(bl);
     if (z.trim()) out.push(`${"  ".repeat(tiefe)}${z}`);
     if (bl.kinder?.length) out.push(...zeilen(bl.kinder, tiefe + 1));
@@ -141,7 +145,7 @@ Antworte ausschließlich mit einem JSON-Objekt mit diesen Feldern (auf Deutsch, 
 - "email": geschäftliche E-Mail-Adresse des Kunden, nur wenn sie im Gespräch genannt wurde
 - "telefon": geschäftliche Telefonnummer des Kunden, nur wenn sie im Gespräch genannt wurde
 - "angebot": genau einer dieser Werte oder null: {ANGEBOTE}
-- "quelle": genau einer dieser Werte oder null (wie der Kontakt zustande kam): {QUELLEN}
+- "quelle": wie der Kontakt zustande kam, nur wenn es auf der Seite steht (z. B. „kam über Empfehlung von …“ → Empfehlung). Genau einer dieser Werte oder null: {QUELLEN}
 
 Heute ist {HEUTE}.`;
 
@@ -201,13 +205,15 @@ export function pruefeAuswertung(raw: unknown, opt: { angebote: string[]; quelle
 /**
  * Welche Notion-Felder die Auswertung setzt: „Nächster Schritt“ und „Nächstes Follow-up“ werden ersetzt,
  * „Angebot“, „Quelle“, „E-Mail“ und „Telefon“ nur gefüllt, wenn sie leer sind. Status, Preise, Zuständige und Häkchen nie.
+ * Bei „Quelle“ zählt „Sonstiges“ als leer: das setzt /lead von selbst (19.11.2026, Akademie 9.3).
  */
 export function feldAenderungen(a: Auswertung, aktuell: { angebot: string | null; quelle: string | null; email?: string | null; telefon?: string | null }) {
   const properties: Record<string, unknown> = {};
   if (a.naechsterSchritt) properties["Nächster Schritt"] = { rich_text: rich(a.naechsterSchritt) };
   if (a.followUp) properties["Nächstes Follow-up"] = { date: { start: a.followUp } };
   if (a.angebot && !aktuell.angebot) properties["Angebot"] = { select: { name: a.angebot } };
-  if (a.quelle && !aktuell.quelle) properties["Quelle"] = { select: { name: a.quelle } };
+  const quelleOffen = !aktuell.quelle || aktuell.quelle === "Sonstiges";
+  if (a.quelle && quelleOffen && a.quelle !== aktuell.quelle) properties["Quelle"] = { select: { name: a.quelle } };
   // Etappe 4: fehlende Kontaktdaten aus dem Gespräch, vorhandene nie überschreiben
   if (a.email && !aktuell.email) properties["E-Mail"] = { email: a.email };
   if (a.telefon && !aktuell.telefon) properties["Telefon"] = { phone_number: a.telefon };

@@ -169,7 +169,7 @@ export function handleKundenKnopf(i: AnfInteraction, token: string | undefined) 
       const bloecke = seite ? await leseBloecke(seite) : null;
       if (!seite || !bloecke) return void (await antwort("⚠️ Die Notion-Seite konnte ich gerade nicht lesen. Bitte gleich nochmal versuchen."));
       if (!findeBogen(bloecke)) return void (await antwort("Diese Seite hat noch keinen Gesprächsbogen. Drück erst „📝 Gesprächsbogen“ und schreib die Notizen dort hinein."));
-      if (!notizenText(bloecke)) return void (await antwort("Unter „4. Notizen“ im Gesprächsbogen steht noch nichts. Erst mitschreiben, dann auswerten."));
+      if (!notizenText(bloecke)) return void (await antwort("Unter „4. Notizen“ im Gesprächsbogen steht noch nichts zum Gespräch (Zeilen mit „Referenz:“ zählen nicht). Erst mitschreiben, dann auswerten."));
       const apiKey = process.env.ANTHROPIC_API_KEY;
       const [werte, aktuell] = await Promise.all([auswahlWerte(), leseAngebotQuelle(seite)]);
       if (!apiKey || !werte || !aktuell) return void (await antwort("Die Auswertung ist gerade nicht möglich. Bitte später nochmal versuchen."));
