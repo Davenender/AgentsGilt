@@ -303,22 +303,94 @@ export function seiten(t: string, max = 3500): string[] {
 
 export const ANZEIGE = "📚 Anzeige";
 
+// ------------------------------------------------- Lesesperre (22.11.2026)
+// „Weiter ▶“ und „✅ Gelesen“ gehen im Lernpfad erst nach einer kurzen Lesezeit. Der Lesestand steckt im Knopf
+// (weiteste Seite f, wann sie zuerst gezeigt wurde t in Unix-Sekunden); im Merkzettel kommt nichts dazu.
+
+export type Lesestand = { f: number; t: number };
+
+/** Sperre einer Seite in Sekunden: Zeit bei 300 Wörtern pro Minute, davon 40 % ab (mindestens 20 s), 5 s bis 3 Min. */
+export function sperrSekunden(seite: string): number {
+  const woerter = seite.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+  const grund = (woerter / 300) * 60;
+  return Math.round(Math.min(180, Math.max(5, Math.min(grund - 20, grund * 0.6))));
+}
+
+const letzteSeite = (seiten: string[]) => Math.max(0, seiten.length - 1);
+const begrenzt = (n: number, max: number) => Math.min(Math.max(0, n), max);
+
+/** Ab wann es auf der weitesten Seite weitergeht (Unix-Sekunden). */
+export const freiAb = (seiten: string[], s: Lesestand) => s.t + sperrSekunden(seiten[begrenzt(s.f, letzteSeite(seiten))] ?? "");
+
+/**
+ * „Weiter ▶“ / „◀ Zurück“: Gesehene Seiten gehen sofort, eine neue Seite erst nach der Sperre (dann höchstens eine).
+ * Alte Knöpfe ohne Stand gehen ohne Sperre; die Zeit beginnt auf der neuen Seite.
+ */
+export function blaettern(seiten: string[], ziel: number, alt: Lesestand | null, jetzt: number): { seite: number; stand: Lesestand; zuFrueh: boolean } {
+  const max = letzteSeite(seiten);
+  const z = begrenzt(ziel, max);
+  if (!alt) return { seite: z, stand: { f: z, t: jetzt }, zuFrueh: false };
+  const stand = { f: begrenzt(alt.f, max), t: alt.t };
+  if (z <= stand.f) return { seite: z, stand, zuFrueh: false };
+  if (jetzt < freiAb(seiten, stand)) return { seite: stand.f, stand, zuFrueh: true };
+  return { seite: stand.f + 1, stand: { f: stand.f + 1, t: jetzt }, zuFrueh: false };
+}
+
+/** „✅ Gelesen“: erst auf der letzten Seite nach ihrer Sperre. Alte Knöpfe ohne Stand gehen wie bisher. */
+export function gelesenPruefen(seiten: string[], alt: Lesestand | null, jetzt: number): { ok: true } | { ok: false; seite: number; stand: Lesestand } {
+  if (!alt) return { ok: true };
+  const stand = { f: begrenzt(alt.f, letzteSeite(seiten)), t: alt.t };
+  if (stand.f === letzteSeite(seiten) && jetzt >= freiAb(seiten, stand)) return { ok: true };
+  return { ok: false, seite: stand.f, stand };
+}
+
+const standAus = (f?: string, t?: string): Lesestand | null => (f && t && /^\d+$/.test(f) && /^\d+$/.test(t) ? { f: Number(f), t: Number(t) } : null);
+
+/** Knopf „s:<lektion>:<seite>[:<f>:<t>]“ lesen (ohne „ak:“). */
+export function leseKnopf(id: string): { lid: string; ziel: number; stand: Lesestand | null } {
+  const [, lid = "", ziel, f, t] = id.split(":");
+  return { lid, ziel: Number(ziel) || 0, stand: standAus(f, t) };
+}
+
+/** Knopf „g:<lektion>[:<f>:<t>]“ lesen (ohne „ak:“). */
+export function gelesenKnopf(id: string): { lid: string; stand: Lesestand | null } {
+  const [, lid = "", f, t] = id.split(":");
+  return { lid, stand: standAus(f, t) };
+}
+
 /**
  * Eine Seite einer Lektion. Modus „lernen“: Gelesen auf der letzten Seite. „lesen“: Nachlesen nach einem Test,
  * danach weiter. „bib“: Anzeige in der Bibliothek für alle im Kanal, mit Schließen.
+ * Mit `sperre` (Lernpfad) tragen die Knöpfe den Lesestand, und auf der weitesten Seite steht der Countdown.
  */
-export function lektionsAnsicht(l: Lektion, s: string[], i: number, entwurf: boolean, modus: "lernen" | "lesen" = "lernen") {
+export function lektionsAnsicht(
+  l: Lektion,
+  s: string[],
+  i: number,
+  entwurf: boolean,
+  modus: "lernen" | "lesen" = "lernen",
+  sperre?: { stand: Lesestand; jetzt: number; zuFrueh?: boolean },
+) {
   const letzte = i >= s.length - 1;
   const p = modus === "lernen" ? "s" : "z";
+  const st = modus === "lernen" && sperre ? `:${sperre.stand.f}:${sperre.stand.t}` : "";
   const fuss = `${l.einheitName} · Seite ${i + 1} von ${s.length}${l.minuten ? ` · etwa ${l.minuten} Min.` : ""}${entwurf ? " · ✏️ Entwurf, noch nicht freigegeben" : ""}`;
-  const zurueck = { type: 2, style: 2, label: "◀ Zurück", custom_id: `ak:${p}:${l.id}:${Math.max(0, i - 1)}`, disabled: i === 0 };
-  const weiter = { type: 2, style: 1, label: "Weiter ▶", custom_id: `ak:${p}:${l.id}:${i + 1}`, disabled: letzte };
+  const zurueck = { type: 2, style: 2, label: "◀ Zurück", custom_id: `ak:${p}:${l.id}:${Math.max(0, i - 1)}${st}`, disabled: i === 0 };
+  const weiter = { type: 2, style: 1, label: "Weiter ▶", custom_id: `ak:${p}:${l.id}:${i + 1}${st}`, disabled: letzte };
   const knoepfe = !letzte
     ? [zurueck, weiter]
     : modus === "lernen"
-      ? [zurueck, { type: 2, style: 3, label: "Gelesen", emoji: { name: "✅" }, custom_id: `ak:g:${l.id}` }]
+      ? [zurueck, { type: 2, style: 3, label: "Gelesen", emoji: { name: "✅" }, custom_id: `ak:g:${l.id}${st}` }]
       : [zurueck, WEITER_KNOPF];
+  let content: string | undefined;
+  if (st && sperre) {
+    const frei = freiAb(s, sperre.stand);
+    const knopf = letzte ? "Gelesen" : "Weiter";
+    content =
+      i !== sperre.stand.f || sperre.jetzt >= frei ? "" : sperre.zuFrueh ? `⏳ Noch zu früh. Lies in Ruhe, frei <t:${frei}:R>.` : `⏳ ${knopf} frei <t:${frei}:R>`;
+  }
   return {
+    ...(content !== undefined ? { content } : {}),
     embeds: [{ title: `${l.nr} · ${l.titel}`, color: FARBE, description: s[i] ?? "", footer: { text: fuss } } as EmbedLike],
     components: [{ type: 1, components: knoepfe }],
   };
