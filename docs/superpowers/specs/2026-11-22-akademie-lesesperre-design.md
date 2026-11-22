@@ -22,9 +22,10 @@ Im Lernpfad kann man heute jede Lektion in Sekunden durchklicken. Man soll die E
 
 ## Dauer (Davids Vorgabe, Rechnung meine Wahl)
 - Grundzeit = Wörter der Seite bei 300 Wörtern pro Minute.
-- Davon ab: 40 %, mindestens aber 20 Sekunden (`min(grund − 20, grund × 0,6)`).
+- Davon ab: 15 % (`grund × 0,85`; anfangs 40 % und mindestens 20 s, David wollte es am 22.11. abends länger).
 - Nie unter 5 Sekunden, nie über 3 Minuten.
-- Beispiele: volle Seite (500 Wörter) 60 s statt 100 s; 200 Wörter 20 s; kurze Seite 5 s.
+- Beispiele: volle Seite (500 Wörter) 85 s statt 100 s; 200 Wörter 34 s; kurze Seite 5 s.
+- Countdown über der Karte zählt jede Sekunde herunter (der Bot schreibt den Text neu, `lib/akademie-countdown.ts`).
 - Gilt für alle, auch für David.
 
 ## Verhalten
@@ -32,7 +33,7 @@ Im Lernpfad kann man heute jede Lektion in Sekunden durchklicken. Man soll die E
 - „Weiter ▶“ auf eine neue Seite: erst ab `t + sperre(seite f)`. Zu früh → gleiche Seite, Hinweis mit Countdown.
 - Zurückblättern und schon gesehene Seiten: ohne Warten.
 - „✅ Gelesen“: erst ab `t + sperre(letzte Seite)`, sonst Hinweis.
-- Über der Seite steht live „⏳ Weiter frei in … Sekunden“ (Discord-Zeitstempel `<t:…:R>`).
+- Über der Seite steht „⏳ Weiter frei in N Sek.“; der Bot zählt jede Sekunde herunter (Discords `<t:…:R>` zeigte nur „in ein paar Sekunden“).
 - Alte Knöpfe ohne Zeit (Lektionen, die gerade offen sind) laufen ohne Sperre weiter.
 - „📖 Weiterlernen“ öffnet wie bisher Seite 1, die Zeit beginnt dann neu.
 

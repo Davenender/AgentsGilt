@@ -309,11 +309,11 @@ export const ANZEIGE = "📚 Anzeige";
 
 export type Lesestand = { f: number; t: number };
 
-/** Sperre einer Seite in Sekunden: Zeit bei 300 Wörtern pro Minute, davon 40 % ab (mindestens 20 s), 5 s bis 3 Min. */
+/** Sperre einer Seite in Sekunden: Zeit bei 300 Wörtern pro Minute, davon 15 % ab, 5 s bis 3 Min. (David, 22.11. abends). */
 export function sperrSekunden(seite: string): number {
   const woerter = seite.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
   const grund = (woerter / 300) * 60;
-  return Math.round(Math.min(180, Math.max(5, Math.min(grund - 20, grund * 0.6))));
+  return Math.round(Math.min(180, Math.max(5, grund * 0.85)));
 }
 
 const letzteSeite = (seiten: string[]) => Math.max(0, seiten.length - 1);

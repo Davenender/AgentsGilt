@@ -6,17 +6,17 @@ import { blaettern, countdown, countdownText, freiAb, gelesenKnopf, gelesenPruef
 import { zaehleRunter, zeigtKnopf, type PatchAntwort } from "../lib/akademie-countdown.ts";
 
 const woerter = (n: number) => Array.from({ length: n }, (_, i) => `wort${i}`).join(" ");
-const S500 = woerter(500); // Sperre 60 s
-const S200 = woerter(200); // Sperre 20 s
+const S500 = woerter(500); // Sperre 85 s
+const S200 = woerter(200); // Sperre 34 s
 const S10 = woerter(10); // Sperre 5 s
 const L: Lektion = { id: "id-1.1", nr: "1.1", titel: "Lektion 1.1", einheit: 1, einheitName: "Einheit 1", reihenfolge: 1, fuer: ["Team"], minuten: 6, freigegeben: true };
 const ids = (a: ReturnType<typeof lektionsAnsicht>) => a.components[0].components.map((c) => c.custom_id);
 
-test("Sperrzeit: 300 Wörter pro Minute, davon 40 % ab (mindestens 20 s), 5 s bis 3 Min.", () => {
-  assert.equal(sperrSekunden(S500), 60, "volle Seite: 100 s → 60 s");
-  assert.equal(sperrSekunden(woerter(300)), 36, "60 s → 36 s");
-  assert.equal(sperrSekunden(woerter(250)), 30, "50 s → 30 s");
-  assert.equal(sperrSekunden(S200), 20, "40 s → 20 s (20 s ab)");
+test("Sperrzeit: 300 Wörter pro Minute, davon 15 % ab, 5 s bis 3 Min.", () => {
+  assert.equal(sperrSekunden(S500), 85, "volle Seite: 100 s → 85 s");
+  assert.equal(sperrSekunden(woerter(300)), 51, "60 s → 51 s");
+  assert.equal(sperrSekunden(woerter(240)), 41, "48 s → 41 s");
+  assert.equal(sperrSekunden(S200), 34, "40 s → 34 s");
   assert.equal(sperrSekunden(S10), 5, "kurze Seite: mindestens 5 s");
   assert.equal(sperrSekunden(""), 5, "leere Seite: 5 s");
   assert.equal(sperrSekunden(woerter(2000)), 180, "höchstens 3 Min.");
@@ -24,15 +24,15 @@ test("Sperrzeit: 300 Wörter pro Minute, davon 40 % ab (mindestens 20 s), 5 s bi
 });
 
 test("freiAb: Zeit der weitesten Seite plus deren Sperre", () => {
-  assert.equal(freiAb([S500, S200], { f: 0, t: 1000 }), 1060);
-  assert.equal(freiAb([S500, S200], { f: 1, t: 1000 }), 1020);
-  assert.equal(freiAb([S500, S200], { f: 7, t: 1000 }), 1020, "Lektion kürzer geworden: letzte Seite zählt");
+  assert.equal(freiAb([S500, S200], { f: 0, t: 1000 }), 1085);
+  assert.equal(freiAb([S500, S200], { f: 1, t: 1000 }), 1034);
+  assert.equal(freiAb([S500, S200], { f: 7, t: 1000 }), 1034, "Lektion kürzer geworden: letzte Seite zählt");
 });
 
 test("Blättern: neue Seite erst nach der Sperre, sonst bleibt die Seite stehen", () => {
   const s = [S500, S200, S10];
-  assert.deepEqual(blaettern(s, 1, { f: 0, t: 1000 }, 1059), { seite: 0, stand: { f: 0, t: 1000 }, zuFrueh: true });
-  assert.deepEqual(blaettern(s, 1, { f: 0, t: 1000 }, 1060), { seite: 1, stand: { f: 1, t: 1060 }, zuFrueh: false });
+  assert.deepEqual(blaettern(s, 1, { f: 0, t: 1000 }, 1084), { seite: 0, stand: { f: 0, t: 1000 }, zuFrueh: true });
+  assert.deepEqual(blaettern(s, 1, { f: 0, t: 1000 }, 1085), { seite: 1, stand: { f: 1, t: 1085 }, zuFrueh: false });
 });
 
 test("Blättern: zurück und wieder vor auf gesehene Seiten ohne Warten", () => {
@@ -59,9 +59,9 @@ test("Blättern: Seitenzahl außerhalb (Lektion in Notion kürzer geworden) wird
 
 test("Gelesen: erst nach der Sperre der letzten Seite", () => {
   const s = [S500, S200];
-  assert.deepEqual(gelesenPruefen(s, { f: 1, t: 1000 }, 1019), { ok: false, seite: 1, stand: { f: 1, t: 1000 } });
-  assert.deepEqual(gelesenPruefen(s, { f: 1, t: 1000 }, 1020), { ok: true });
-  assert.deepEqual(gelesenPruefen(s, { f: 9, t: 1000 }, 1020), { ok: true }, "Lektion kürzer geworden: letzte Seite zählt");
+  assert.deepEqual(gelesenPruefen(s, { f: 1, t: 1000 }, 1033), { ok: false, seite: 1, stand: { f: 1, t: 1000 } });
+  assert.deepEqual(gelesenPruefen(s, { f: 1, t: 1000 }, 1034), { ok: true });
+  assert.deepEqual(gelesenPruefen(s, { f: 9, t: 1000 }, 1034), { ok: true }, "Lektion kürzer geworden: letzte Seite zählt");
 });
 
 test("Gelesen: noch nicht auf der letzten Seite (Lektion länger geworden) → zurück auf die weiteste Seite", () => {
@@ -84,20 +84,20 @@ test("Knöpfe lesen: alte und neue Form", () => {
 test("Ansicht mit Sperre: Knöpfe tragen den Stand, oben steht der Countdown", () => {
   const a = lektionsAnsicht(L, [S500, S200], 0, false, "lernen", { stand: { f: 0, t: 1000 }, jetzt: 1000 });
   assert.deepEqual(ids(a), ["ak:s:id-1.1:0:0:1000", "ak:s:id-1.1:1:0:1000"]);
-  assert.equal(a.content, "⏳ Weiter frei in 60 Sek.");
+  assert.equal(a.content, "⏳ Weiter frei in 85 Sek.");
   const z = lektionsAnsicht(L, [S500, S200], 1, false, "lernen", { stand: { f: 1, t: 2000 }, jetzt: 2000 });
   assert.deepEqual(ids(z), ["ak:s:id-1.1:0:1:2000", "ak:g:id-1.1:1:2000"]);
-  assert.equal(z.content, "⏳ Gelesen frei in 20 Sek.");
+  assert.equal(z.content, "⏳ Gelesen frei in 34 Sek.");
 });
 
 test("Ansicht mit Sperre: Hinweis bei zu frühem Klick", () => {
   const a = lektionsAnsicht(L, [S500, S200], 0, false, "lernen", { stand: { f: 0, t: 1000 }, jetzt: 1030, zuFrueh: true });
-  assert.equal(a.content, "⏳ Noch zu früh. Weiter frei in 30 Sek.");
+  assert.equal(a.content, "⏳ Noch zu früh. Weiter frei in 55 Sek.");
 });
 
 test("Ansicht mit Sperre: kein Countdown auf gesehenen Seiten und nach Ablauf", () => {
   assert.equal(lektionsAnsicht(L, [S500, S200], 0, false, "lernen", { stand: { f: 1, t: 2000 }, jetzt: 2001 }).content, "");
-  assert.equal(lektionsAnsicht(L, [S500, S200], 0, false, "lernen", { stand: { f: 0, t: 1000 }, jetzt: 1060 }).content, "");
+  assert.equal(lektionsAnsicht(L, [S500, S200], 0, false, "lernen", { stand: { f: 0, t: 1000 }, jetzt: 1085 }).content, "");
 });
 
 test("Ansicht ohne Sperre (Nachlesen) bleibt wie bisher", () => {
@@ -126,10 +126,10 @@ test("Countdown-Text: Sekunden bis frei, leer wenn frei", () => {
 });
 
 test("countdown: nur auf der weitesten Seite, solange gesperrt", () => {
-  assert.deepEqual(countdown(L, [S500, S200], 0, { stand: { f: 0, t: 1000 }, jetzt: 1000 }), { frei: 1060, knopf: "Weiter", knopfId: "ak:s:id-1.1:1:0:1000" });
-  assert.deepEqual(countdown(L, [S500, S200], 1, { stand: { f: 1, t: 2000 }, jetzt: 2019 }), { frei: 2020, knopf: "Gelesen", knopfId: "ak:g:id-1.1:1:2000" });
+  assert.deepEqual(countdown(L, [S500, S200], 0, { stand: { f: 0, t: 1000 }, jetzt: 1000 }), { frei: 1085, knopf: "Weiter", knopfId: "ak:s:id-1.1:1:0:1000" });
+  assert.deepEqual(countdown(L, [S500, S200], 1, { stand: { f: 1, t: 2000 }, jetzt: 2019 }), { frei: 2034, knopf: "Gelesen", knopfId: "ak:g:id-1.1:1:2000" });
   assert.equal(countdown(L, [S500, S200], 0, { stand: { f: 1, t: 2000 }, jetzt: 2001 }), null, "gesehene Seite");
-  assert.equal(countdown(L, [S500, S200], 0, { stand: { f: 0, t: 1000 }, jetzt: 1060 }), null, "schon frei");
+  assert.equal(countdown(L, [S500, S200], 0, { stand: { f: 0, t: 1000 }, jetzt: 1085 }), null, "schon frei");
 });
 
 test("zeigtKnopf: erkennt, ob die Karte noch dieselbe Seite zeigt", () => {
