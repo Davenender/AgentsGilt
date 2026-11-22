@@ -176,7 +176,7 @@ const START_TEXT = [
   "**📖 So funktioniert der Lernpfad**",
   "1. Oben im Kanal steht deine Karte: alle Einheiten, die du geschafft hast, und der Abschnitt, der gerade dran ist (✅ fertig · 📖 jetzt dran · 🔒 kommt noch). Die nächste Einheit erscheint darunter, sobald du ihren Test davor bestanden hast. Der Balken zeigt, wie weit du im ganzen Lernpfad bist.",
   "2. Drück **„📖 Weiterlernen“**. Die nächste Lektion erscheint, und nur du siehst sie.",
-  "3. Lies sie in Ruhe. Mit **„Weiter ▶“** und **„◀ Zurück“** blätterst du zwischen den Seiten.",
+  "3. Lies sie in Ruhe. Mit **„Weiter ▶“** und **„◀ Zurück“** blätterst du zwischen den Seiten. **„Weiter ▶“** und **„✅ Gelesen“** gehen erst nach einer kurzen Lesezeit, je nach Länge der Seite. Über der Seite steht, wie lange noch. Zurückblättern geht immer sofort.",
   "4. Auf der letzten Seite drückst du **„✅ Gelesen“**. Die Lektion verschwindet, ist auf deiner Karte abgehakt und steht ab jetzt in deiner Bibliothek. Die nächste ist frei.",
   "5. Mit **„📖 Weiterlernen“** geht es weiter, so lange du willst.",
   "",

@@ -2,9 +2,13 @@ import { after, NextResponse } from "next/server";
 import { call } from "@/lib/leads";
 import {
   auswertung,
+  blaettern,
   ergebnisAnsicht,
   fortschritt,
   frageAnsicht,
+  gelesenKnopf,
+  gelesenPruefen,
+  leseKnopf,
   lektionAuswahl,
   lektionNachrichten,
   lektionsAnsicht,
@@ -55,6 +59,8 @@ interface AkInteraction {
 }
 
 const API = "https://discord.com/api/v10";
+/** Jetzt in Unix-Sekunden (für die Lesesperre). */
+const jetztSek = () => Math.floor(Date.now() / 1000);
 const ephemeral = (content: string) => NextResponse.json({ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } });
 const DEFER_PRIVAT = { type: 5, data: { flags: 64 } };
 const DEFER_UPDATE = { type: 6 };
@@ -143,39 +149,62 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
         if (s.art === "test") return void (await ersetze(appId, itoken, frageAnsicht(s.einheitName, s.fragen, "")));
         const seiten = await holeSeiten(s.lektion);
         if (!seiten) return void (await ersetze(appId, itoken, FEHLER));
-        await ersetze(appId, itoken, lektionsAnsicht(s.lektion, seiten, 0, !s.lektion.freigegeben));
+        const jetzt = jetztSek();
+        await ersetze(appId, itoken, lektionsAnsicht(s.lektion, seiten, 0, !s.lektion.freigegeben, "lernen", { stand: { f: 0, t: jetzt }, jetzt }));
       }),
     );
     // Aus einer privaten Antwort heraus (Knopf nach „Gelesen“ oder Test) wird diese ersetzt, sonst kommt eine neue.
     return NextResponse.json(i.message && isPrivat(i) ? DEFER_UPDATE : DEFER_PRIVAT);
   }
 
-  // Blättern (lernen) und Nachlesen
-  if (id.startsWith("s:") || id.startsWith("z:")) {
-    const modus = id.startsWith("s:") ? "lernen" : "lesen";
+  // Blättern im Lernpfad: neue Seiten erst nach der Lesesperre (Stand steckt im Knopf)
+  if (id.startsWith("s:")) {
+    const k = leseKnopf(id);
+    const jetzt = jetztSek();
+    after(async () => {
+      const inhalt = await holeInhalt();
+      const l = inhalt?.lektionen.find((x) => x.id === k.lid);
+      const seiten = l ? await holeSeiten(l) : null;
+      if (!l || !seiten) return void (await ersetze(appId, itoken, FEHLER));
+      const b = blaettern(seiten, k.ziel, k.stand, jetzt);
+      await ersetze(appId, itoken, lektionsAnsicht(l, seiten, b.seite, !l.freigegeben, "lernen", { stand: b.stand, jetzt, zuFrueh: b.zuFrueh }));
+    });
+    return NextResponse.json(DEFER_UPDATE);
+  }
+
+  // Nachlesen nach einem Test: ohne Sperre
+  if (id.startsWith("z:")) {
     const [lid, nr] = id.slice(2).split(":");
     after(async () => {
       const inhalt = await holeInhalt();
       const l = inhalt?.lektionen.find((x) => x.id === lid);
       const seiten = l ? await holeSeiten(l) : null;
       if (!l || !seiten) return void (await ersetze(appId, itoken, FEHLER));
-      await ersetze(appId, itoken, lektionsAnsicht(l, seiten, Math.min(Math.max(0, Number(nr) || 0), seiten.length - 1), !l.freigegeben, modus));
+      await ersetze(appId, itoken, lektionsAnsicht(l, seiten, Math.min(Math.max(0, Number(nr) || 0), seiten.length - 1), !l.freigegeben, "lesen"));
     });
     return NextResponse.json(DEFER_UPDATE);
   }
 
   // ✅ Gelesen: abhaken, private Lektion verschwindet, Karten neu
   if (id.startsWith("g:")) {
-    const lid = id.slice(2);
+    const k = gelesenKnopf(id);
+    const jetzt = jetztSek();
     after(() =>
       imLernpfad(async (ak, inhalt, p) => {
         const sch = schritteVon(p, inhalt);
         const st = standSchritte(sch, p.gelesen, p.bestanden);
-        const l = inhalt.lektionen.find((x) => x.id === lid);
+        const l = inhalt.lektionen.find((x) => x.id === k.lid);
         if (!l) return void (await ersetze(appId, itoken, FEHLER));
         if (!p.gelesen.has(l.id)) {
           if (st.aktuelle?.art !== "lektion" || st.aktuelle.lektion.id !== l.id) {
             return void (await ersetze(appId, itoken, { content: "Diese Lektion ist noch gesperrt. Mach erst die vorigen Schritte." }));
+          }
+          // Lesesperre: zu früh → gleiche Seite mit Hinweis, nichts wird gemerkt (alte Knöpfe ohne Stand gehen wie bisher)
+          if (k.stand) {
+            const seiten = await holeSeiten(l);
+            if (!seiten) return void (await ersetze(appId, itoken, FEHLER));
+            const g = gelesenPruefen(seiten, k.stand, jetzt);
+            if (!g.ok) return void (await ersetze(appId, itoken, lektionsAnsicht(l, seiten, g.seite, !l.freigegeben, "lernen", { stand: g.stand, jetzt, zuFrueh: true })));
           }
           const zeit = new Date().toISOString();
           await merke(token, ak.speicher, zeileGelesen(user.id, l.id, l.nr, zeit));
