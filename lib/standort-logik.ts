@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { deflateRawSync, inflateRawSync } from "node:zlib";
 
 // Davids eigener Standort (OwnTracks auf seinem iPhone, nur auf seinen Wunsch). Reine Logik, getestet: lesen, Ankunft und
 // Abfahrt erkennen, verschlüsseln. Gespeichert wird nur der letzte Standort, nie ein Verlauf – andere Personen nie.
@@ -6,7 +7,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 export type Standort = { lat: number; lon: number; tst: number; acc?: number; vel?: number; batt?: number; ort?: string };
 export type OrtMarke = { name: string; lat: number; lon: number; rad: number; auch?: string[] };
 export type OrtEreignis = { art: "ankunft" | "abfahrt"; ort: string; tst: number };
-export type StandortSpeicher = { standort: Standort | null; orte: OrtMarke[]; drin: string[]; ereignisse: OrtEreignis[]; orteNeu?: boolean };
+export type StandortSpeicher = { standort: Standort | null; orte: OrtMarke[]; drin: string[]; ereignisse: OrtEreignis[]; orteNeu?: boolean; /** F2: abgewählte Orte, die das iPhone noch löschen soll */ weg?: string[] };
 export type OwnTracks = { art: "ort"; standort: Standort } | { art: "uebergang"; ereignis: OrtEreignis };
 
 export const LEERER_SPEICHER: StandortSpeicher = { standort: null, orte: [], drin: [], ereignisse: [] };
@@ -103,12 +104,23 @@ export function verschluessele(wert: unknown, geheim: string): string {
   return Buffer.concat([iv, c.getAuthTag(), inhalt]).toString("base64url");
 }
 
+/** F2 (23.11.): wie verschluessele, aber vorher gepackt (Kennzeichen „~“) – mit bis zu 20 Orten passt der Speicher sonst
+ *  nicht in die Discord-Nachricht (2000 Zeichen). */
+export function packe(wert: unknown, geheim: string): string {
+  const iv = randomBytes(12);
+  const c = createCipheriv("aes-256-gcm", schluessel(geheim), iv);
+  const inhalt = Buffer.concat([c.update(deflateRawSync(Buffer.from(JSON.stringify(wert), "utf8"), { level: 9 })), c.final()]);
+  return `~${Buffer.concat([iv, c.getAuthTag(), inhalt]).toString("base64url")}`;
+}
+
 export function entschluessele<T = unknown>(text: string, geheim: string): T | null {
   try {
-    const b = Buffer.from(text, "base64url");
+    const gepackt = text.startsWith("~");
+    const b = Buffer.from(gepackt ? text.slice(1) : text, "base64url");
     const d = createDecipheriv("aes-256-gcm", schluessel(geheim), b.subarray(0, 12));
     d.setAuthTag(b.subarray(12, 28));
-    return JSON.parse(Buffer.concat([d.update(b.subarray(28)), d.final()]).toString("utf8")) as T;
+    const roh = Buffer.concat([d.update(b.subarray(28)), d.final()]);
+    return JSON.parse((gepackt ? inflateRawSync(roh) : roh).toString("utf8")) as T;
   } catch {
     return null;
   }
@@ -147,7 +159,15 @@ export const owntracksLink = (k: unknown) => `owntracks:///config?inline=${encod
 /** Müssen die Orte (wieder) an die App? Geändert, oder auf Wunsch noch einmal (17.11.: Regionen am Handy gelöscht). */
 export const setzeOrteNoetig = (alt: OrtMarke[], neu: OrtMarke[], erneut: boolean) => erneut || JSON.stringify(alt) !== JSON.stringify(neu);
 
-/** Antwort an die App, wenn sich die Orte geändert haben: legt die Regionen an. */
-export function wegpunkteBefehl(orte: OrtMarke[], tst = Math.floor(Date.now() / 1000)) {
-  return { _type: "cmd" as const, action: "setWaypoints" as const, waypoints: { _type: "waypoints" as const, waypoints: wegpunkte(orte, tst) } };
+/** F2: Orte, die nicht mehr dabei sind (bisher abgewählte bleiben, bis sie gesendet sind; wieder gewählte fallen raus). */
+export function wegNeu(alt: OrtMarke[], neu: OrtMarke[], bisher: string[]): string[] {
+  const da = new Set(neu.map((o) => o.name));
+  return [...new Set([...bisher, ...alt.map((o) => o.name)])].filter((n) => !da.has(n)).slice(-25);
+}
+
+/** Antwort an die App, wenn sich die Orte geändert haben: legt die Regionen an. F2: abgewählte mit ungültigen Koordinaten –
+ *  so löscht iOS sie (laut OwnTracks: „invalid lat or lon deletes the waypoint“), sonst stieße die App an Apples 20er-Grenze. */
+export function wegpunkteBefehl(orte: OrtMarke[], tst = Math.floor(Date.now() / 1000), weg: string[] = []) {
+  const loeschen = weg.filter((n) => !orte.some((o) => o.name === n)).map((n) => ({ _type: "waypoint" as const, desc: n, lat: -1000000, lon: -1000000, rad: 0, tst: wegpunktKennung(n) }));
+  return { _type: "cmd" as const, action: "setWaypoints" as const, waypoints: { _type: "waypoints" as const, waypoints: [...wegpunkte(orte, tst), ...loeschen] } };
 }

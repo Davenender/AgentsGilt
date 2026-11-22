@@ -139,3 +139,32 @@ test("Wegpunkte behalten ihre Kennung: gleicher Ort, gleicher tst – zu jeder Z
   const k = owntracksKonfig({ url: "https://agentsgilt.com/api/standort", benutzer: "david", passwort: "pw", orte: [SCHULE] }, TST + 5);
   assert.equal(k.waypoints[0].tst, tstVon(a, "Schule"));
 });
+
+// F2 Adressen (23.11.2026): bis zu 20 Orte (feste + die nächsten Freunde) – der Speicher wird gepackt, damit er in die
+// Discord-Nachricht passt, und Orte, die nicht mehr dabei sind, löscht das iPhone (ungültige Koordinaten).
+test("F2: gepackter Speicher – passt mit 20 Orten; alter, ungepackter Speicher bleibt lesbar", async () => {
+  const { packe } = await import("../lib/standort-logik.ts");
+  const orte = Array.from({ length: 20 }, (_, i) => ({ name: `Person ${i}s Haus`, lat: 50.1 + i / 100, lon: 8.8 + i / 100, rad: 100, auch: [`Person ${i}`] }));
+  const s: StandortSpeicher = { ...LEERER_SPEICHER, orte, standort: { lat: 50.11797, lon: 8.85932, tst: 1795900000, ort: "Dieselstraße 12, 63165 Mühlheim am Main" }, ereignisse: Array.from({ length: 8 }, (_, i) => ({ art: "ankunft" as const, ort: "Person 1s Haus", tst: 1795900000 + i })) };
+  const g = packe(s, "geheim");
+  assert.ok(g.startsWith("~"));
+  assert.ok(g.length < 1500, `zu lang: ${g.length}`);
+  assert.deepEqual(entschluessele(g, "geheim"), s);
+  assert.deepEqual(entschluessele(verschluessele({ a: 1 }, "geheim"), "geheim"), { a: 1 });
+  assert.equal(entschluessele("~kaputt", "geheim"), null);
+});
+
+test("F2: abgewählte Orte werden mit ungültigen Koordinaten mitgeschickt – so löscht das iPhone sie", async () => {
+  const { wegNeu } = await import("../lib/standort-logik.ts");
+  const a = { name: "Zuhause", lat: 50.1, lon: 8.8, rad: 120 };
+  const b = { name: "Quirins Haus", lat: 50.2, lon: 8.7, rad: 100 };
+  const c = { name: "Alaras Haus", lat: 50.3, lon: 8.6, rad: 100 };
+  assert.deepEqual(wegNeu([a, b], [a, c], []), ["Quirins Haus"]);
+  assert.deepEqual(wegNeu([a, c], [a, b], ["Quirins Haus"]), ["Alaras Haus"]);
+  const befehl = wegpunkteBefehl([a, c], 1795900000, ["Quirins Haus"]);
+  const w = befehl.waypoints.waypoints;
+  assert.deepEqual(w.map((x) => x.desc), ["Zuhause", "Alaras Haus", "Quirins Haus"]);
+  assert.equal(w[2].lat, -1000000);
+  assert.equal(w[2].lon, -1000000);
+  assert.equal(w[2].tst, wegpunktKennung("Quirins Haus"));
+});

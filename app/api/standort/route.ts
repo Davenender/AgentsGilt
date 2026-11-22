@@ -37,8 +37,9 @@ export async function POST(req: Request) {
     const name = await ortsname(neu.standort.lat, neu.standort.lon);
     if (name) neu = { ...neu, standort: { ...neu.standort, ort: name } };
   }
-  const befehl = neu.orteNeu && neu.orte.length ? [wegpunkteBefehl(neu.orte)] : [];
+  // F2: mit den abgewählten Orten (das iPhone löscht sie); danach ist die Liste leer
+  const befehl = neu.orteNeu && (neu.orte.length || neu.weg?.length) ? [wegpunkteBefehl(neu.orte, undefined, neu.weg ?? [])] : [];
   // Schlägt das Speichern fehl, schickt die App es später noch einmal
-  if (!(await schreibeStandortSpeicher({ ...neu, orteNeu: false }))) return NextResponse.json({ error: "Speichern fehlgeschlagen" }, { status: 503 });
+  if (!(await schreibeStandortSpeicher({ ...neu, orteNeu: false, ...(befehl.length ? { weg: [] } : {}) }))) return NextResponse.json({ error: "Speichern fehlgeschlagen" }, { status: 503 });
   return NextResponse.json(befehl);
 }

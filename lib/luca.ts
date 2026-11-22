@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { findChannelId } from "@/lib/discord";
 import { listeKunden } from "@/lib/notion-api";
-import { entschluessele, LEERER_SPEICHER, passendKlein, setzeOrteNoetig, standortText, verschluessele, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
+import { entschluessele, LEERER_SPEICHER, packe, passendKlein, setzeOrteNoetig, standortText, wegNeu, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
 import {
   anrufErlaubt,
   anrufNachricht,
@@ -385,7 +385,8 @@ export const standortOderLeer = () => holeStandortSpeicher().catch((err) => {
 export async function schreibeStandortSpeicher(s: StandortSpeicher): Promise<boolean> {
   const kanal = await lucaKanal();
   if (!kanal) return false;
-  const text = (x: StandortSpeicher) => `${STANDORT_MARKE} ${verschluessele(x, geheimnis())}`;
+  // F2: gepackt, damit bis zu 20 Orte in die Discord-Nachricht passen
+  const text = (x: StandortSpeicher) => `${STANDORT_MARKE} ${packe(x, geheimnis())}`;
   const klein = passendKlein(s, (x) => text(x).length, 2000);
   if (!klein) return false;
   const content = text(klein);
@@ -401,7 +402,7 @@ export async function schreibeStandortSpeicher(s: StandortSpeicher): Promise<boo
 export async function setzeOrte(orte: OrtMarke[], erneut = false): Promise<boolean> {
   const s = await holeStandortSpeicher();
   if (!setzeOrteNoetig(s.orte, orte, erneut)) return true;
-  return schreibeStandortSpeicher({ ...s, orte, orteNeu: true, drin: s.drin.filter((n) => orte.some((o) => o.name === n)) });
+  return schreibeStandortSpeicher({ ...s, orte, orteNeu: true, weg: wegNeu(s.orte, orte, s.weg ?? []), drin: s.drin.filter((n) => orte.some((o) => o.name === n)) });
 }
 
 /** Ein Ergebnis mitten ins laufende Gespräch geben: Die Stimme sagt es in eigenen Worten (GPT Live). Klassisch: kein Weg, dann steht es nur im Stand. */
