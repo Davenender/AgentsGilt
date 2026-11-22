@@ -11,3 +11,10 @@ test("nachschauen: auch WhatsApp und Personen-Notizen; Antwort-Entwürfe kommen 
   assert.match(d, /Antwort-Entwürfe für WhatsApp kommen mit Link aufs Handy/);
   assert.match(d, /nachricht_schicken/);
 });
+
+// Telefon-Test 22.11.: „Schreib mal 'nen Entwurf an Maxi“ landete bei diktat („zum Beispiel für WhatsApp“) – Text ohne Link.
+test("diktat: nicht für WhatsApp-Kontakte, verweist auf nachschauen (Entwurf mit Link)", () => {
+  const d = LUCA_WERKZEUGE.find((w) => w.function.name === "diktat")?.function.description ?? "";
+  assert.doesNotMatch(d, /zum Beispiel für WhatsApp/);
+  assert.match(d, /Für einen WhatsApp-Kontakt nimm stattdessen nachschauen/);
+});
