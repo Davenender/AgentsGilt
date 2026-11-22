@@ -358,6 +358,23 @@ export function gelesenKnopf(id: string): { lid: string; stand: Lesestand | null
   return { lid, stand: standAus(f, t) };
 }
 
+/** Text über der Karte, solange gesperrt (Sekunden zählt der Bot selbst herunter, siehe akademie-countdown.ts). */
+export const countdownText = (knopf: "Weiter" | "Gelesen", rest: number, zuFrueh = false) =>
+  rest > 0 ? `⏳ ${zuFrueh ? "Noch zu früh. " : ""}${knopf} frei in ${rest} Sek.` : "";
+
+/** Läuft auf dieser Seite ein Countdown? Dann: bis wann, für welchen Knopf und dessen custom_id. */
+export function countdown(
+  l: Lektion,
+  s: string[],
+  i: number,
+  sperre: { stand: Lesestand; jetzt: number },
+): { frei: number; knopf: "Weiter" | "Gelesen"; knopfId: string } | null {
+  const frei = freiAb(s, sperre.stand);
+  if (i !== sperre.stand.f || sperre.jetzt >= frei) return null;
+  const st = `:${sperre.stand.f}:${sperre.stand.t}`;
+  return i >= s.length - 1 ? { frei, knopf: "Gelesen", knopfId: `ak:g:${l.id}${st}` } : { frei, knopf: "Weiter", knopfId: `ak:s:${l.id}:${i + 1}${st}` };
+}
+
 /**
  * Eine Seite einer Lektion. Modus „lernen“: Gelesen auf der letzten Seite. „lesen“: Nachlesen nach einem Test,
  * danach weiter. „bib“: Anzeige in der Bibliothek für alle im Kanal, mit Schließen.
@@ -384,10 +401,8 @@ export function lektionsAnsicht(
       : [zurueck, WEITER_KNOPF];
   let content: string | undefined;
   if (st && sperre) {
-    const frei = freiAb(s, sperre.stand);
-    const knopf = letzte ? "Gelesen" : "Weiter";
-    content =
-      i !== sperre.stand.f || sperre.jetzt >= frei ? "" : sperre.zuFrueh ? `⏳ Noch zu früh. Lies in Ruhe, frei <t:${frei}:R>.` : `⏳ ${knopf} frei <t:${frei}:R>`;
+    const c = countdown(l, s, i, sperre);
+    content = c ? countdownText(c.knopf, c.frei - sperre.jetzt, sperre.zuFrueh) : "";
   }
   return {
     ...(content !== undefined ? { content } : {}),

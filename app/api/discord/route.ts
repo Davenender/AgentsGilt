@@ -56,7 +56,8 @@ import { handleAnruferName } from "@/lib/anrufer-name-handler";
 
 export const runtime = "nodejs";
 // /lead liest Webseiten und lässt sie auswerten, das dauert länger als ein Knopfdruck.
-export const maxDuration = 60;
+// Akademie (22.11.): Der Countdown über einer Lesekarte läuft bis zu 3 Min. weiter (lib/akademie-handler.ts, COUNTDOWN_MS).
+export const maxDuration = 240;
 
 // Discord ruft diese Adresse bei jedem Knopfdruck unter einer Anruf-Meldung auf
 // und wenn jemand das Fenster für einen Terminvorschlag abschickt.

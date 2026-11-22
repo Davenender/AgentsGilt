@@ -2,7 +2,8 @@
 // Nur reine Logik. Der Lesestand steckt im Knopf, der Merkzettel bleibt unverändert.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { blaettern, freiAb, gelesenKnopf, gelesenPruefen, leseKnopf, lektionsAnsicht, sperrSekunden, type Lektion } from "../lib/akademie.ts";
+import { blaettern, countdown, countdownText, freiAb, gelesenKnopf, gelesenPruefen, leseKnopf, lektionsAnsicht, sperrSekunden, type Lektion } from "../lib/akademie.ts";
+import { zaehleRunter, zeigtKnopf, type PatchAntwort } from "../lib/akademie-countdown.ts";
 
 const woerter = (n: number) => Array.from({ length: n }, (_, i) => `wort${i}`).join(" ");
 const S500 = woerter(500); // Sperre 60 s
@@ -83,15 +84,15 @@ test("Knöpfe lesen: alte und neue Form", () => {
 test("Ansicht mit Sperre: Knöpfe tragen den Stand, oben steht der Countdown", () => {
   const a = lektionsAnsicht(L, [S500, S200], 0, false, "lernen", { stand: { f: 0, t: 1000 }, jetzt: 1000 });
   assert.deepEqual(ids(a), ["ak:s:id-1.1:0:0:1000", "ak:s:id-1.1:1:0:1000"]);
-  assert.equal(a.content, "⏳ Weiter frei <t:1060:R>");
+  assert.equal(a.content, "⏳ Weiter frei in 60 Sek.");
   const z = lektionsAnsicht(L, [S500, S200], 1, false, "lernen", { stand: { f: 1, t: 2000 }, jetzt: 2000 });
   assert.deepEqual(ids(z), ["ak:s:id-1.1:0:1:2000", "ak:g:id-1.1:1:2000"]);
-  assert.equal(z.content, "⏳ Gelesen frei <t:2020:R>");
+  assert.equal(z.content, "⏳ Gelesen frei in 20 Sek.");
 });
 
 test("Ansicht mit Sperre: Hinweis bei zu frühem Klick", () => {
   const a = lektionsAnsicht(L, [S500, S200], 0, false, "lernen", { stand: { f: 0, t: 1000 }, jetzt: 1030, zuFrueh: true });
-  assert.equal(a.content, "⏳ Noch zu früh. Lies in Ruhe, frei <t:1060:R>.");
+  assert.equal(a.content, "⏳ Noch zu früh. Weiter frei in 30 Sek.");
 });
 
 test("Ansicht mit Sperre: kein Countdown auf gesehenen Seiten und nach Ablauf", () => {
@@ -112,4 +113,91 @@ test("Knöpfe bleiben unter 100 Zeichen (echte Notion-ID, viele Seiten)", () => 
     const a = lektionsAnsicht(lang, s, i, false, "lernen", { stand: { f: 99, t: 1763800000 }, jetzt: 1763800000 });
     for (const id of ids(a)) assert.ok(id.length <= 100, `${id} (${id.length})`);
   }
+});
+
+// ------------------------------------------------ Countdown jede Sekunde (22.11. abends)
+
+test("Countdown-Text: Sekunden bis frei, leer wenn frei", () => {
+  assert.equal(countdownText("Weiter", 12), "⏳ Weiter frei in 12 Sek.");
+  assert.equal(countdownText("Gelesen", 1), "⏳ Gelesen frei in 1 Sek.");
+  assert.equal(countdownText("Weiter", 12, true), "⏳ Noch zu früh. Weiter frei in 12 Sek.");
+  assert.equal(countdownText("Weiter", 0), "");
+  assert.equal(countdownText("Weiter", -3, true), "");
+});
+
+test("countdown: nur auf der weitesten Seite, solange gesperrt", () => {
+  assert.deepEqual(countdown(L, [S500, S200], 0, { stand: { f: 0, t: 1000 }, jetzt: 1000 }), { frei: 1060, knopf: "Weiter", knopfId: "ak:s:id-1.1:1:0:1000" });
+  assert.deepEqual(countdown(L, [S500, S200], 1, { stand: { f: 1, t: 2000 }, jetzt: 2019 }), { frei: 2020, knopf: "Gelesen", knopfId: "ak:g:id-1.1:1:2000" });
+  assert.equal(countdown(L, [S500, S200], 0, { stand: { f: 1, t: 2000 }, jetzt: 2001 }), null, "gesehene Seite");
+  assert.equal(countdown(L, [S500, S200], 0, { stand: { f: 0, t: 1000 }, jetzt: 1060 }), null, "schon frei");
+});
+
+test("zeigtKnopf: erkennt, ob die Karte noch dieselbe Seite zeigt", () => {
+  const msg = { components: [{ components: [{ custom_id: "ak:s:id-1.1:0:0:1000" }, { custom_id: "ak:s:id-1.1:1:0:1000" }] }] };
+  assert.equal(zeigtKnopf(msg, "ak:s:id-1.1:1:0:1000"), true);
+  assert.equal(zeigtKnopf(msg, "ak:s:id-1.1:2:1:1060"), false);
+  assert.equal(zeigtKnopf(null, "x"), false);
+  assert.equal(zeigtKnopf({ components: "kaputt" }, "x"), false);
+});
+
+/** Uhr und Discord zum Testen: schlafen schiebt die Uhr vor, patch merkt sich den Text. */
+function bauHelfer(startMs: number, antworten: (n: number, text: string) => PatchAntwort | null = () => ({ status: 200, nachricht: MSG })) {
+  let uhr = startMs;
+  const texte: string[] = [];
+  const schlaf: number[] = [];
+  return {
+    texte,
+    schlaf,
+    deps: {
+      jetzt: () => uhr,
+      schlafe: async (ms: number) => {
+        schlaf.push(ms);
+        uhr += ms;
+      },
+      patch: async (text: string) => {
+        texte.push(text);
+        return antworten(texte.length, text);
+      },
+    },
+  };
+}
+const KNOPF = "ak:s:id-1.1:1:0:1000";
+const MSG = { components: [{ components: [{ custom_id: "ak:s:id-1.1:0:0:1000" }, { custom_id: KNOPF }] }] };
+
+test("zaehleRunter: jede volle Sekunde neu, am Ende verschwindet die Zeile", async () => {
+  const h = bauHelfer(1_000_400);
+  const ende = await zaehleRunter(h.deps, { knopf: "Weiter", knopfId: KNOPF, frei: 1003, bisMs: 2_000_000 });
+  assert.equal(ende, "frei");
+  assert.deepEqual(h.texte, ["⏳ Weiter frei in 2 Sek.", "⏳ Weiter frei in 1 Sek.", ""]);
+  assert.deepEqual(h.schlaf, [600, 1000, 1000], "immer bis zur nächsten vollen Sekunde");
+});
+
+test("zaehleRunter: Person hat geblättert → eigene Zeile wieder weg, Schluss", async () => {
+  const h = bauHelfer(1_000_000, (n) => ({ status: 200, nachricht: n === 1 ? { components: [{ components: [{ custom_id: "ak:s:id-1.1:1:1:1001" }] }] } : MSG }));
+  assert.equal(await zaehleRunter(h.deps, { knopf: "Weiter", knopfId: KNOPF, frei: 1010, bisMs: 2_000_000 }), "geblaettert");
+  assert.deepEqual(h.texte, ["⏳ Weiter frei in 9 Sek.", ""]);
+});
+
+test("zaehleRunter: Karte weg (verworfen, abgelaufen) → Schluss", async () => {
+  const h = bauHelfer(1_000_000, () => ({ status: 404 }));
+  assert.equal(await zaehleRunter(h.deps, { knopf: "Weiter", knopfId: KNOPF, frei: 1010, bisMs: 2_000_000 }), "weg");
+  assert.equal(h.texte.length, 1);
+});
+
+test("zaehleRunter: Discord bremst (429) → warten und weiterzählen", async () => {
+  const h = bauHelfer(1_000_000, (n) => (n === 1 ? { status: 429, retryAfter: 2 } : { status: 200, nachricht: MSG }));
+  assert.equal(await zaehleRunter(h.deps, { knopf: "Weiter", knopfId: KNOPF, frei: 1005, bisMs: 2_000_000 }), "frei");
+  assert.deepEqual(h.texte, ["⏳ Weiter frei in 4 Sek.", "⏳ Weiter frei in 1 Sek.", ""]);
+});
+
+test("zaehleRunter: hört vor dem Zeitlimit der Funktion auf", async () => {
+  const h = bauHelfer(1_000_000);
+  assert.equal(await zaehleRunter(h.deps, { knopf: "Weiter", knopfId: KNOPF, frei: 1100, bisMs: 1_003_500 }), "zeit");
+  assert.deepEqual(h.texte, ["⏳ Weiter frei in 99 Sek.", "⏳ Weiter frei in 98 Sek.", "⏳ Weiter frei in 97 Sek."]);
+});
+
+test("zaehleRunter: dreimal kein Netz → Schluss", async () => {
+  const h = bauHelfer(1_000_000, () => null);
+  assert.equal(await zaehleRunter(h.deps, { knopf: "Weiter", knopfId: KNOPF, frei: 1100, bisMs: 2_000_000 }), "fehler");
+  assert.equal(h.texte.length, 3);
 });

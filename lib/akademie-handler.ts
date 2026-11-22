@@ -3,6 +3,7 @@ import { call } from "@/lib/leads";
 import {
   auswertung,
   blaettern,
+  countdown,
   ergebnisAnsicht,
   fortschritt,
   frageAnsicht,
@@ -40,6 +41,7 @@ import { handleUebung, type UeInteraction } from "@/lib/uebung-handler";
 import { CHEF_ID } from "@/lib/zustaendige";
 import { team } from "@/lib/team";
 import { pruefeAufnahme } from "@/lib/aufnahme-daten";
+import { zaehleRunter, type PatchAntwort } from "@/lib/akademie-countdown";
 
 // Knöpfe der Akademie (ak:).
 //   Lernpfad: ak:weiter, ak:s (blättern), ak:g (gelesen), ak:z (nachlesen), ak:t (Test), ak:pw/ak:pe (wiederholen).
@@ -61,6 +63,10 @@ interface AkInteraction {
 const API = "https://discord.com/api/v10";
 /** Jetzt in Unix-Sekunden (für die Lesesperre). */
 const jetztSek = () => Math.floor(Date.now() / 1000);
+/** Countdown höchstens bis kurz vor dem Ende der Funktion (/api/discord: maxDuration 240 s). */
+const COUNTDOWN_MS = 225_000;
+/** Laufende Countdowns je Karte und Knopf (nur diese Instanz), damit ein zweiter Klick keinen zweiten startet. */
+const laufend = new Map<string, number>();
 const ephemeral = (content: string) => NextResponse.json({ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } });
 const DEFER_PRIVAT = { type: 5, data: { flags: 64 } };
 const DEFER_UPDATE = { type: 6 };
@@ -74,6 +80,32 @@ async function ersetze(appId: string, itoken: string, body: Record<string, unkno
     body: JSON.stringify({ content: "", embeds: [], components: [], ...body, allowed_mentions: { parse: [] } }),
     signal: AbortSignal.timeout(8000),
   }).catch(() => {});
+}
+
+/** Nur den Text über der Karte ersetzen (Karte und Knöpfe bleiben). */
+async function nurText(appId: string, itoken: string, content: string): Promise<PatchAntwort | null> {
+  const res = await fetch(`${API}/webhooks/${appId}/${itoken}/messages/@original`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+    signal: AbortSignal.timeout(8000),
+  }).catch(() => null);
+  if (!res) return null;
+  if (res.status === 429) return { status: 429, retryAfter: Number(((await res.json().catch(() => ({}))) as { retry_after?: number }).retry_after) || 1 };
+  return { status: res.status, nachricht: res.ok ? await res.json().catch(() => null) : null };
+}
+
+/** Nach dem Zeigen einer Seite: Countdown jede Sekunde neu, solange „Weiter ▶“ / „✅ Gelesen“ gesperrt ist. */
+async function zaehle(appId: string, itoken: string, c: ReturnType<typeof countdown>, bisMs: number, karte?: string) {
+  if (!c) return;
+  const schluessel = karte ? `${karte}|${c.knopfId}` : null;
+  if (schluessel && (laufend.get(schluessel) ?? 0) > Date.now()) return;
+  if (schluessel) laufend.set(schluessel, c.frei * 1000);
+  try {
+    await zaehleRunter({ jetzt: Date.now, schlafe: (ms) => new Promise((r) => setTimeout(r, ms)), patch: (t) => nurText(appId, itoken, t) }, { ...c, bisMs });
+  } finally {
+    if (schluessel && laufend.get(schluessel) === c.frei * 1000) laufend.delete(schluessel);
+  }
 }
 
 /** Die private Nachricht dieser Interaktion löschen. */
@@ -124,6 +156,7 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
   const appId = i.application_id;
   const itoken = i.token;
   const id = (i.data?.custom_id ?? "").slice("ak:".length);
+  const bis = Date.now() + COUNTDOWN_MS;
   if (!user || !token || !kanal || !appId || !itoken) return ephemeral("Das hat gerade nicht geklappt. Bitte nochmal versuchen.");
   if (id === "us" || id === "uw" || /^u[afmx]:/.test(id)) return handleUebung(i as UeInteraction, token, id);
 
@@ -150,7 +183,9 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
         const seiten = await holeSeiten(s.lektion);
         if (!seiten) return void (await ersetze(appId, itoken, FEHLER));
         const jetzt = jetztSek();
-        await ersetze(appId, itoken, lektionsAnsicht(s.lektion, seiten, 0, !s.lektion.freigegeben, "lernen", { stand: { f: 0, t: jetzt }, jetzt }));
+        const sperre = { stand: { f: 0, t: jetzt }, jetzt };
+        await ersetze(appId, itoken, lektionsAnsicht(s.lektion, seiten, 0, !s.lektion.freigegeben, "lernen", sperre));
+        await zaehle(appId, itoken, countdown(s.lektion, seiten, 0, sperre), bis, i.message && isPrivat(i) ? i.message.id : undefined);
       }),
     );
     // Aus einer privaten Antwort heraus (Knopf nach „Gelesen“ oder Test) wird diese ersetzt, sonst kommt eine neue.
@@ -168,6 +203,7 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
       if (!l || !seiten) return void (await ersetze(appId, itoken, FEHLER));
       const b = blaettern(seiten, k.ziel, k.stand, jetzt);
       await ersetze(appId, itoken, lektionsAnsicht(l, seiten, b.seite, !l.freigegeben, "lernen", { stand: b.stand, jetzt, zuFrueh: b.zuFrueh }));
+      await zaehle(appId, itoken, countdown(l, seiten, b.seite, { stand: b.stand, jetzt }), bis, i.message?.id);
     });
     return NextResponse.json(DEFER_UPDATE);
   }
@@ -204,7 +240,10 @@ export function handleAkademie(i: AkInteraction, token: string | undefined) {
             const seiten = await holeSeiten(l);
             if (!seiten) return void (await ersetze(appId, itoken, FEHLER));
             const g = gelesenPruefen(seiten, k.stand, jetzt);
-            if (!g.ok) return void (await ersetze(appId, itoken, lektionsAnsicht(l, seiten, g.seite, !l.freigegeben, "lernen", { stand: g.stand, jetzt, zuFrueh: true })));
+            if (!g.ok) {
+              await ersetze(appId, itoken, lektionsAnsicht(l, seiten, g.seite, !l.freigegeben, "lernen", { stand: g.stand, jetzt, zuFrueh: true }));
+              return void (await zaehle(appId, itoken, countdown(l, seiten, g.seite, { stand: g.stand, jetzt }), bis, i.message?.id));
+            }
           }
           const zeit = new Date().toISOString();
           await merke(token, ak.speicher, zeileGelesen(user.id, l.id, l.nr, zeit));
