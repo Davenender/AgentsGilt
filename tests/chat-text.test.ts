@@ -68,16 +68,22 @@ test("Wörter und Leerräume: zusammengesetzt ergibt sich wieder genau der Text"
   assert.deepEqual(woerter(""), []);
 });
 
+// Die beiden Angebote von vor Prompt 18 (Anruf-Karte, Mitarbeiter); die neuen Karten prüft der Test weiter unten.
+const zwei = (antwort: string, frage: string) => {
+  const a = angebote(antwort, frage);
+  return { anrufen: a.anrufen, mitarbeiter: a.mitarbeiter };
+};
+
 test("was unter einer Antwort angeboten wird: Anruf-Karte bei [ANRUFEN], Mitarbeiter bei [MITARBEITER], [KONTAKT] oder auf Wunsch", () => {
-  assert.deepEqual(angebote("Termine machen wir am Telefon aus. [ANRUFEN]", "Habt ihr noch Termine frei?"), { anrufen: true, mitarbeiter: false });
-  assert.deepEqual(angebote("Am Telefon. [ANRUFEN] Für weitere Fragen verbinde ich dich gern. [MITARBEITER]", "Wann habt ihr frei?"), { anrufen: true, mitarbeiter: true });
+  assert.deepEqual(zwei("Termine machen wir am Telefon aus. [ANRUFEN]", "Habt ihr noch Termine frei?"), { anrufen: true, mitarbeiter: false });
+  assert.deepEqual(zwei("Am Telefon. [ANRUFEN] Für weitere Fragen verbinde ich dich gern. [MITARBEITER]", "Wann habt ihr frei?"), { anrufen: true, mitarbeiter: true });
   // Preisfrage: Seit Runde 1 (Feinschliff) auch die Anruf-Karte, selbst wenn der Assistent [ANRUFEN] vergisst.
-  assert.deepEqual(angebote("Das kann dir ein Mitarbeiter genau sagen. [MITARBEITER]", "Was kostet das?"), { anrufen: true, mitarbeiter: true });
-  assert.deepEqual(angebote("Ruf uns an. [KONTAKT] [ANRUFEN] [MITARBEITER]", "Was kostet eine Website?"), { anrufen: true, mitarbeiter: true });
-  assert.deepEqual(angebote("Dabei hilft dir unser Team. [KONTAKT]", "Geht das auch anders?"), { anrufen: false, mitarbeiter: true });
+  assert.deepEqual(zwei("Das kann dir ein Mitarbeiter genau sagen. [MITARBEITER]", "Was kostet das?"), { anrufen: true, mitarbeiter: true });
+  assert.deepEqual(zwei("Ruf uns an. [KONTAKT] [ANRUFEN] [MITARBEITER]", "Was kostet eine Website?"), { anrufen: true, mitarbeiter: true });
+  assert.deepEqual(zwei("Dabei hilft dir unser Team. [KONTAKT]", "Geht das auch anders?"), { anrufen: false, mitarbeiter: true });
   // Der Besucher verlangt einen Menschen: Der Knopf kommt auch, wenn der Assistent den Marker vergisst.
-  assert.deepEqual(angebote("Gern.", "Ich möchte mit einem Mitarbeiter schreiben"), { anrufen: false, mitarbeiter: true });
-  assert.deepEqual(angebote("Wir bauen Websites, Chatbots und Telefon-Assistenten.", "Was macht ihr genau?"), { anrufen: false, mitarbeiter: false });
+  assert.deepEqual(zwei("Gern.", "Ich möchte mit einem Mitarbeiter schreiben"), { anrufen: false, mitarbeiter: true });
+  assert.deepEqual(zwei("Wir bauen Websites, Chatbots und Telefon-Assistenten.", "Was macht ihr genau?"), { anrufen: false, mitarbeiter: false });
   // Wunsch nach Erstgespräch oder Gespräch: Anruf-Karte, auch ohne Marker.
   assert.equal(angebote("Gern.", "Kann ich ein Erstgespräch bekommen?").anrufen, true);
   assert.equal(angebote("Gern.", "Kann ich mal mit jemandem von euch sprechen?").anrufen, true);

@@ -7,7 +7,6 @@ import {
   ANRUF_ZEILE,
   HINWEIS_ANFANG,
   angebotsSatz,
-  anliegenDerKarte,
   anrufFenster,
   erkenneAnliegen,
   hinweisKomponenten,
@@ -107,18 +106,14 @@ test("Knopf an der Karte und am Hinweis, Fenster mit dem Satz zum Ändern", () =
   assert.equal(feld.style, 2);
 });
 
-test("an der Karte: das Anliegen aus der Frage, sonst aus den Zeilen des Besuchers davor", () => {
-  assert.equal(anliegenDerKarte([{ name: "Frage", value: "Was kostet eine Website?" }]), "preis");
-  assert.equal(
-    anliegenDerKarte([
-      { name: "Frage", value: "Ich brauche eine neue Website." },
-      { name: "Chat davor (mit dem Assistenten)", value: "Besucher: Was macht ihr?\nAssistent: Termine am Telefon.\nBesucher: Können wir telefonieren?" },
-    ]),
-    "sprechen",
-  );
-  // Was der Assistent schreibt, zählt nicht.
-  assert.equal(anliegenDerKarte([{ name: "Chat davor (mit dem Assistenten)", value: "Assistent: Ruf uns für einen Termin an." }]), null);
-  assert.equal(anliegenDerKarte(undefined), null);
+test("an der Karte: der allgemeine Satz, der Chat mit dem Assistenten zählt nicht mehr (Prompt 18)", () => {
+  // Bis Prompt 18 wählte die Karte den Satz nach Frage und „Chat davor“ (anliegenDerKarte); das gibt es nicht mehr.
+  const src = readFileSync(new URL("../lib/support-anruf.ts", import.meta.url), "utf8");
+  assert.ok(!/export function anliegenDerKarte/.test(src));
+  const handler = readFileSync(new URL("../lib/ticket-handler.ts", import.meta.url), "utf8");
+  assert.match(handler, /anrufFenster\(knopf\.quelle, knopf\.anliegen\)/);
+  assert.equal(leseAnrufKnopf("ticket:call")?.anliegen, null);
+  assert.equal(anrufFenster("karte", null).components[0].components[0].value, angebotsSatz(null));
 });
 
 test("die Zeile unter dem Angebot wird beim Kunden zur Anruf-Karte und nie als Text gezeigt", () => {
@@ -140,12 +135,13 @@ test("die Zeile unter dem Angebot wird beim Kunden zur Anruf-Karte und nie als T
 });
 
 test("Discord: Klick öffnet das Fenster, Absenden schickt Text mit Karte; ohne Klick erfährt der Kunde nichts", () => {
-  const route = lies("app/api/discord/route.ts");
-  assert.match(route, /return NextResponse\.json\(\{ type: 9, data: anrufFenster\(knopf\.quelle, anliegen\) \}\)/);
-  assert.match(route, /postText\(token, channel, `\$\{FOR_CUSTOMER\} \*\*\$\{who\}:\*\* \$\{mitAnrufZeile\(text\.slice\(0, 1000\)\)\}`\)/);
+  const handler = lies("lib/ticket-handler.ts");
+  assert.match(handler, /return NextResponse\.json\(\{ type: 9, data: anrufFenster\(knopf\.quelle, knopf\.anliegen\) \}\)/);
+  assert.match(handler, /schreibeInsTicket\(token, channel, `\$\{FOR_CUSTOMER\} \*\*\$\{who\}:\*\* \$\{mitAnrufZeile\(text\.slice\(0, 1000\)\)\}`\)/);
   const support = lies("app/api/support/route.ts");
-  // Der Hinweis entsteht beim Eröffnen und bei jeder Nachricht des Kunden, nach der Antwort an ihn.
-  assert.equal((support.match(/await hinweisBeiAnrufwunsch\(/g) ?? []).length, 2);
+  // Seit Prompt 18 nur noch bei Nachrichten des Kunden nach dem Wechsel zum Team, und nur, wenn die KI ein Anliegen meldet.
+  assert.equal((support.match(/await hinweisBeiAnrufwunsch\(/g) ?? []).length, 1);
+  assert.match(support, /if \(p\.anliegen\) await hinweisBeiAnrufwunsch\(bot, channelId, p\.anliegen, letzte\);/);
   const lib = lies("lib/support.ts");
   assert.match(lib, /content: hinweisText\(anliegen\),/);
   assert.ok(!/content: `\$\{FOR_CUSTOMER\}[^`]*hinweisText/.test(lib), "der Hinweis geht nie an den Kunden");

@@ -25,7 +25,16 @@ export interface Message {
   paket?: string;
   status?: "fehlt" | "sendet";
   hinweis?: boolean;
+  // Neue Karten unter Antworten des Assistenten (Prompt 18): höchstens zwei Folgefragen ([FRAGEN]), ein Link zur
+  // Leistung auf der Seite ([LEISTUNG:…]) und die Anruf-Karte zum Ausprobieren des Telefon-Assistenten ([ANRUFEN:TESTEN]).
+  fragen?: string[];
+  leistung?: LeistungArt;
+  anrufArt?: "testen";
 }
+
+/** Die Leistungen, zu denen der Assistent einen Link setzen darf (Karten im Abschnitt #leistungen, data-art). */
+export const LEISTUNG_ARTEN = ["web", "chat", "voice", "termin", "auto", "rat"] as const;
+export type LeistungArt = (typeof LEISTUNG_ARTEN)[number];
 
 // Ein laufender Support-Chat: der Schlüssel des Tickets und die letzte Nachricht,
 // die der Besucher schon gesehen hat.
@@ -57,6 +66,15 @@ export const MITARBEITER_MARKER = "[MITARBEITER]";
 // Der Assistent hängt hier Angaben an, die der Besucher im Gespräch genannt
 // hat. Sie werden nie angezeigt, sondern nur ins Kontaktformular übernommen.
 export const DATEN_REGEX = /\[DATEN\]([\s\S]*?)\[\/DATEN\]/;
+// Prompt 18, Karte A: höchstens zwei kurze Folgefragen, die der Assistent selbst beantworten kann.
+// [FRAGEN]["Wie schnell geht das?","Passt das zu meinem Betrieb?"][/FRAGEN]
+export const FRAGEN_REGEX = /\[FRAGEN\]([\s\S]*?)\[\/FRAGEN\]/;
+export const MAX_FRAGEN = 2;
+export const MAX_FRAGE_ZEICHEN = 40;
+// Karte B: Er erklärt eine bestimmte Leistung; darunter steht „Mehr zu … →“. [LEISTUNG:voice]
+export const LEISTUNG_REGEX = /\[LEISTUNG:([a-z]+)\]/;
+// Karte C: Jemand möchte den Telefon-Assistenten hören oder ausprobieren; die Anruf-Karte zeigt eigenen Text.
+export const TESTEN_MARKER = "[ANRUFEN:TESTEN]";
 
 export const GREETING: Message = {
   role: "assistant",
@@ -64,17 +82,17 @@ export const GREETING: Message = {
     "Hey! Ich bin der KI-Assistent von Agents Gilt. Bei Fragen zu unseren Leistungen helfe ich dir gern weiter!",
 };
 
-// Einstiegsfragen. Vor einem leeren Eingabefeld zu sitzen ist die größte
+// Einstiegsfragen (Prompt 18, 23.11.2026). Vor einem leeren Eingabefeld zu sitzen ist die größte
 // Hürde — ein Klick ist leichter als ein erster Satz.
 //
-// Bewusst nur Fragen, die der Assistent aus seinem Wissen wirklich beantworten
-// kann und bei denen sich eine Rückfrage anbietet. Nach dem Preis wird hier
-// nicht gefragt: Darauf darf er keine Zahl nennen, das wäre eine Sackgasse
-// direkt zu Beginn.
+// Bewusst nur Fragen, die der Assistent aus seinem Wissen wirklich beantworten kann: was wir machen
+// (Leistungen), ob es zum Betrieb passt (er fragt freundlich nach der Branche und bietet bei Bedarf einen
+// Mitarbeiter an, Regel dazu in lib/chatbot-knowledge.ts) und wie schnell es geht (Häufige Fragen). Nach dem
+// Preis wird hier nicht gefragt: Darauf darf er keine Zahl nennen, das wäre eine Sackgasse direkt zu Beginn.
 export const STARTER_QUESTIONS = [
   "Was macht ihr genau?",
-  "Wie läuft die Zusammenarbeit ab?",
-  "Was braucht ihr von mir?",
+  "Passt das zu meinem Betrieb?",
+  "Wie schnell geht das?",
 ];
 
 /**
@@ -85,13 +103,18 @@ export const STARTER_QUESTIONS = [
 export function stripMarkers(text: string): string {
   let out = text
     .replace(DATEN_REGEX, "")
+    .replace(new RegExp(FRAGEN_REGEX.source, "g"), "")
+    .replace(new RegExp(LEISTUNG_REGEX.source, "g"), "")
+    .replace(TESTEN_MARKER, "")
     .replace(KONTAKT_MARKER, "")
     .replace(ANRUFEN_MARKER, "")
     .replace(MITARBEITER_MARKER, "");
 
-  // Angefangener Daten-Block: alles ab dort abschneiden.
-  const datenStart = out.indexOf("[DATEN]");
-  if (datenStart !== -1) out = out.slice(0, datenStart);
+  // Angefangener Daten- oder Fragen-Block: alles ab dort abschneiden.
+  for (const anfang of ["[DATEN]", "[FRAGEN]"]) {
+    const start = out.indexOf(anfang);
+    if (start !== -1) out = out.slice(0, start);
+  }
 
   // Angefangene eckige Klammer am Ende (z.B. "[KONT") – die gehört zu einem
   // Marker, der gleich vollständig wird.
@@ -141,11 +164,46 @@ export function parseDaten(text: string): PrefillContactDetail | null {
  * Preis, einem Erstgespräch, einem Termin oder einem Gespräch fragt (dieselbe Erkennung wie im
  * Support-Chat, lib/support-anruf.ts): Dann soll daraus über den Telefon-Assistenten ein Termin werden.
  */
-export function angebote(antwort: string, frage: string): { anrufen: boolean; mitarbeiter: boolean } {
+export function angebote(
+  antwort: string,
+  frage: string,
+): { anrufen: boolean; mitarbeiter: boolean; testen: boolean; leistung: LeistungArt | null; fragen: string[] } {
+  const testen = antwort.includes(TESTEN_MARKER);
+  const anrufen = testen || antwort.includes(ANRUFEN_MARKER) || erkenneAnliegen(frage) !== null;
+  const mitarbeiter = antwort.includes(KONTAKT_MARKER) || antwort.includes(MITARBEITER_MARKER) || WANTS_HUMAN.test(frage);
+  const art = antwort.match(LEISTUNG_REGEX)?.[1];
   return {
-    anrufen: antwort.includes(ANRUFEN_MARKER) || erkenneAnliegen(frage) !== null,
-    mitarbeiter: antwort.includes(KONTAKT_MARKER) || antwort.includes(MITARBEITER_MARKER) || WANTS_HUMAN.test(frage),
+    anrufen,
+    mitarbeiter,
+    testen,
+    leistung: (LEISTUNG_ARTEN as readonly string[]).includes(art ?? "") ? (art as LeistungArt) : null,
+    // Keine Folgefragen unter Antworten mit Anruf-Karte oder Mitarbeiter-Knopf (Prompt 18).
+    fragen: anrufen || mitarbeiter ? [] : parseFragen(antwort),
   };
+}
+
+/**
+ * Liest die Folgefragen aus [FRAGEN][…][/FRAGEN]: ein JSON-Feld mit Texten, höchstens zwei, je höchstens 40
+ * Zeichen (längere fallen weg, nichts wird abgeschnitten). Ungültiges JSON: keine Fragen.
+ */
+export function parseFragen(text: string): string[] {
+  const roh = text.match(FRAGEN_REGEX)?.[1];
+  if (!roh) return [];
+  try {
+    const liste: unknown = JSON.parse(roh.trim());
+    if (!Array.isArray(liste)) return [];
+    const out: string[] = [];
+    for (const f of liste) {
+      if (typeof f !== "string") continue;
+      const t = f.replace(/\s+/g, " ").trim();
+      if (t.length < 3 || t.length > MAX_FRAGE_ZEICHEN || out.includes(t)) continue;
+      out.push(t);
+      if (out.length === MAX_FRAGEN) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 // ───────────── Für das Fenster der neuen Seite ─────────────

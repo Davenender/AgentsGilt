@@ -3,7 +3,6 @@ import {
   editInteractionOriginal,
   followupPrivate,
   getMessage,
-  postText,
   verifyDiscordSignature,
 } from "@/lib/discord";
 import {
@@ -42,25 +41,8 @@ import { handleAkademie } from "@/lib/akademie-handler";
 import { handleAntwortBefehl } from "@/lib/uebung-handler";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
 import { OWNER_ID, setzeAntwort } from "@/lib/leads";
-import { aendereKarte, closeTicketChannel, FOR_CUSTOMER, postSperrKarte, ticketComponents } from "@/lib/support";
-import {
-  SCHNELL_FENSTER,
-  SCHNELL_WAHL,
-  SPERRE_FELD,
-  beendetNachricht,
-  entsperrtNachricht,
-  entsperrtWert,
-  gesperrtVonWert,
-  mitFeld,
-  schnellAuswahl,
-  schnellFenster,
-  sperrNachricht,
-  sperreDerKarte,
-  zustandDerKarte,
-  type Feld,
-} from "@/lib/support-sperre";
-import { ANRUF_FENSTER, anliegenDerKarte, anrufFenster, leseAnrufKnopf, mitAnrufZeile } from "@/lib/support-anruf";
-import { darfHandeln, nameVon } from "@/lib/team";
+import { handleTicket, type TicketInteraction } from "@/lib/ticket-handler";
+import { darfHandeln } from "@/lib/team";
 import { handleTeamBefehl, handleTeamKnopf, type TeamInteraction, type TeamKnopfInteraction } from "@/lib/team-handler";
 import { linkSecret, terminAusEingabe, terminLink } from "@/lib/termin";
 import { ladeTeam } from "@/lib/team-daten";
@@ -122,187 +104,6 @@ function ephemeral(content: string) {
 const DEFERRED_UPDATE = { type: 6 };
 const DEFERRED_EPHEMERAL = { type: 5, data: { flags: 64 } };
 
-
-/**
- * Support-Tickets (Kategorie SUPPORT): Übernehmen, Anruf anbieten, Schnellantwort, Sperren, Antworten,
- * Schließen; an der Sperr-Karte Entsperren und Chat beenden (Chat-Schutz, Prompt 17, lib/support-sperre.ts).
- */
-function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: string | undefined) {
-  const id = i.data?.custom_id ?? "";
-  // So heißen die Leute im Chat der Besucher, unabhängig vom Discord-Namen.
-  const who = nameVon(i.member?.user?.id ?? "") ?? whoRaw;
-  const channel = i.channel_id;
-  if (!channel) return ephemeral("Der Kanal ist nicht bekannt.");
-  const geschlossen = i.channel?.name?.startsWith("geschlossen-") === true;
-  const schonZu = () => ephemeral("Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.");
-
-  // „Anruf anbieten“ (an der Karte oder am Hinweis nur fürs Team): Fenster mit einem fertigen Satz,
-  // der zur Lage passt (Preis, Erstgespräch, Termin, sprechen). Das Team kann ihn vor dem Senden ändern.
-  const knopf = i.type === 3 ? leseAnrufKnopf(id) : null;
-  if (knopf) {
-    if (i.channel?.name?.startsWith("geschlossen-")) return ephemeral("Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.");
-    const anliegen = knopf.anliegen ?? anliegenDerKarte(i.message?.embeds?.[0]?.fields);
-    return NextResponse.json({ type: 9, data: anrufFenster(knopf.quelle, anliegen) });
-  }
-
-  // Fenster „Anruf anbieten“ abgeschickt: Der Kunde sieht die Nachricht und darunter die Anruf-Karte.
-  if (i.type === 5 && id.startsWith(ANRUF_FENSTER)) {
-    const text = i.data?.components?.[0]?.components?.[0]?.value?.trim();
-    if (!text) return ephemeral("Die Nachricht war leer.");
-    if (i.channel?.name?.startsWith("geschlossen-")) return ephemeral("Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.");
-    after(async () => {
-      await postText(token, channel, `${FOR_CUSTOMER} **${who}:** ${mitAnrufZeile(text.slice(0, 1000))}`);
-    });
-    // Am Hinweis: Er wird zur Notiz, wer angeboten hat (ohne Knopf, damit es nicht doppelt geschieht).
-    if (id === `${ANRUF_FENSTER}hinweis` && i.message) {
-      return NextResponse.json({
-        type: 7,
-        data: { content: `📞 Anruf angeboten von ${ownerTag} um ${uhrzeit()}.`, components: [], allowed_mentions: { parse: [] } },
-      });
-    }
-    return ephemeral("Gesendet. Der Kunde sieht die Nachricht gleich im Chat, darunter die Anruf-Karte mit „Jetzt anrufen“.");
-  }
-
-  // Fenster „Schnellantwort“ abgeschickt: geht als ganz normale Antwort mit dem eigenen Namen an den Kunden.
-  if (i.type === 5 && id === SCHNELL_FENSTER) {
-    const text = i.data?.components?.[0]?.components?.[0]?.value?.trim();
-    if (!text) return ephemeral("Die Nachricht war leer.");
-    if (geschlossen) return schonZu();
-    after(async () => {
-      await postText(token, channel, `${FOR_CUSTOMER} **${who}:** ${text.slice(0, 1500)}`);
-    });
-    return ephemeral("Gesendet. Der Kunde sieht die Antwort gleich im Chat.");
-  }
-
-  // Fenster "Antworten" abgeschickt
-  if (i.type === 5) {
-    const text = i.data?.components?.[0]?.components?.[0]?.value?.trim();
-    if (!text) return ephemeral("Die Nachricht war leer.");
-    after(async () => {
-      await postText(token, channel, `${FOR_CUSTOMER} **${who}:** ${text.slice(0, 1500)}`);
-    });
-    return ephemeral("Gesendet. Der Besucher sieht die Antwort gleich im Chat.");
-  }
-
-  const embed = i.message?.embeds?.[0];
-  const action = id.slice("ticket:".length);
-  const setStatus = (status: string, color: number): EmbedLike => ({
-    ...(embed ?? {}),
-    color,
-    fields: (embed?.fields ?? []).map((f) => (f.name === "Status" ? { ...f, value: status } : f)),
-  });
-  const time = uhrzeit();
-
-  if (action === "reply") {
-    return NextResponse.json({
-      type: 9,
-      data: {
-        custom_id: "ticket:reply",
-        title: "Antwort an den Besucher",
-        components: [
-          {
-            type: 1,
-            components: [
-              { type: 4, custom_id: "text", label: "Nachricht", style: 2, required: true, max_length: 1500 },
-            ],
-          },
-        ],
-      },
-    });
-  }
-
-  // „💬 Schnellantwort“: Auswahl der fertigen Sätze (nur für den, der geklickt hat), dann das Fenster zum Ändern.
-  if (action === "schnell") {
-    if (geschlossen) return schonZu();
-    return NextResponse.json({ type: 4, data: schnellAuswahl() });
-  }
-  if (id === SCHNELL_WAHL) {
-    if (geschlossen) return schonZu();
-    return NextResponse.json({ type: 9, data: schnellFenster(i.data?.values?.[0]) });
-  }
-
-  // An der Sperr-Karte: „Entsperren“. Der Kunde kann sofort wieder schreiben (sein Chat merkt es beim nächsten Abruf).
-  if (action === "entsperren") {
-    if (geschlossen) return schonZu();
-    after(async () => {
-      await aendereKarte(token!, channel, (felder: Feld[]) => ({ fields: mitFeld(felder, SPERRE_FELD, entsperrtWert(ownerTag, time)) }));
-    });
-    return NextResponse.json({
-      type: 7,
-      data: { content: entsperrtNachricht(i.message?.content ?? "", ownerTag, time), components: [], allowed_mentions: { parse: [] } },
-    });
-  }
-
-  // An der Sperr-Karte: „Chat beenden“, wie „Ticket schließen“ an der Karte.
-  if (action === "beenden") {
-    if (geschlossen) return schonZu();
-    after(async () => {
-      await closeTicketChannel(token!, channel);
-      await postText(token, channel, `🔒 Ticket geschlossen von ${who}.`);
-      await aendereKarte(
-        token!,
-        channel,
-        (felder: Feld[]) => ({ color: 0x6b7280, fields: felder.map((f) => (f.name === "Status" ? { ...f, value: `Geschlossen von ${ownerTag} um ${time}` } : f)) }),
-        ticketComponents("closed"),
-      );
-    });
-    return NextResponse.json({
-      type: 7,
-      data: { content: beendetNachricht(i.message?.content ?? "", ownerTag, time), components: [], allowed_mentions: { parse: [] } },
-    });
-  }
-
-  if (!embed) return ephemeral("Diese Meldung ist nicht mehr aktuell.");
-
-  // „🔒 Sperren“ an der Karte: Der Kunde kann nicht mehr schreiben, bis jemand entsperrt.
-  if (action === "sperren") {
-    if (geschlossen) return schonZu();
-    const felder = (embed.fields ?? []) as Feld[];
-    if (sperreDerKarte(felder).gesperrt) return ephemeral("Der Kunde ist schon gesperrt. Entsperren geht an der Sperr-Karte im Ticket.");
-    after(async () => {
-      await postSperrKarte(token!, channel, sperrNachricht({ von: who }));
-    });
-    return NextResponse.json({
-      type: 7,
-      data: {
-        embeds: [{ ...embed, fields: mitFeld(felder, SPERRE_FELD, gesperrtVonWert(ownerTag, time)) }],
-        components: ticketComponents(zustandDerKarte(felder)),
-        allowed_mentions: { parse: [] },
-      },
-    });
-  }
-
-  if (action === "claim") {
-    after(async () => {
-      await postText(token, channel, `${FOR_CUSTOMER} **${who}** Du bist jetzt mit einem Mitarbeiter verbunden und kannst direkt schreiben.`);
-    });
-    return NextResponse.json({
-      type: 7,
-      data: {
-        embeds: [setStatus(`Übernommen von ${ownerTag} um ${time}`, 0x3b82f6)],
-        components: ticketComponents("claimed"),
-        allowed_mentions: { parse: [] },
-      },
-    });
-  }
-
-  if (action === "close") {
-    after(async () => {
-      await closeTicketChannel(token!, channel);
-      await postText(token, channel, `🔒 Ticket geschlossen von ${who}.`);
-    });
-    return NextResponse.json({
-      type: 7,
-      data: {
-        embeds: [setStatus(`Geschlossen von ${ownerTag} um ${time}`, 0x6b7280)],
-        components: ticketComponents("closed"),
-        allowed_mentions: { parse: [] },
-      },
-    });
-  }
-
-  return NextResponse.json({ ok: true });
-}
 
 /** Anruf-Karten: Nur der Bearbeiter (oder David) darf weiterarbeiten. Gibt den Hinweistext zurück, wenn nicht. */
 function nurBearbeiter(embed: EmbedLike, userId: string): string | null {
@@ -426,7 +227,7 @@ async function antworte(request: Request) {
   if (customId.startsWith("fin:")) return handleFinanzen(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("vl:")) return handleVerloren(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("anrname:")) return handleAnruferName(interaction as unknown as Parameters<typeof handleAnruferName>[0]);
-  if (customId.startsWith("ticket:")) return handleTicket(interaction, who, ownerTag, token);
+  if (customId.startsWith("ticket:")) return handleTicket(interaction as unknown as TicketInteraction, who, ownerTag, token);
   if (customId.startsWith("knd:")) return handleKundenKnopf(interaction as unknown as AnfInteraction, token);
   if (customId.startsWith("stat:")) return handleStatistikKnopf(interaction, token);
   if (customId.startsWith("ak:")) return handleAkademie(interaction as unknown as Parameters<typeof handleAkademie>[0], token);

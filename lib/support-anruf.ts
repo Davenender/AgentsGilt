@@ -9,6 +9,10 @@
 // Schreibt der Kunde, dass er sprechen, einen Termin, ein Erstgespräch oder einen Preis möchte,
 // schreibt der Bot einen Hinweis nur fürs Team mit demselben Knopf. Beim Kunden erscheint nichts,
 // solange niemand aus dem Team klickt.
+//
+// Seit Prompt 18 (23.11.2026) entscheidet das die KI (lib/chat-beleidigung.ts, pruefeTicket), und nur an dem,
+// was der Kunde NACH dem Wechsel zum Team schreibt. Die Muster unten (erkenneAnliegen) nutzt noch der
+// Assistent auf der Website für seine Anruf-Karte (lib/chat-text.ts); im Ticket gibt es ohne KI keinen Hinweis.
 
 export type Anliegen = "erstgespraech" | "termin" | "preis" | "sprechen";
 
@@ -101,20 +105,9 @@ export function hinweisNoetig(letzte: { content?: string; author?: { bot?: boole
   );
 }
 
-/** Woran das Team auf der Ticket-Karte erkennt, was der Kunde möchte: Frage, dann seine Zeilen im Chat davor (neueste zuerst). */
-export function anliegenDerKarte(felder: { name: string; value: string }[] | undefined): Anliegen | null {
-  const frage = felder?.find((f) => f.name === "Frage")?.value ?? "";
-  const davor = felder?.find((f) => f.name.startsWith("Chat davor"))?.value ?? "";
-  const besucher = davor
-    .split("\n")
-    .filter((z) => z.startsWith("Besucher:"))
-    .reverse();
-  for (const text of [frage, ...besucher]) {
-    const a = erkenneAnliegen(text);
-    if (a) return a;
-  }
-  return null;
-}
+// Bis Prompt 18 wählte der Knopf an der Karte den Satz nach Frage und „Chat davor“ (anliegenDerKarte). Seit dem
+// 23.11.2026 zählt der Verlauf aus dem Assistenten-Chat nicht mehr: Der Knopf an der Karte nimmt den allgemeinen
+// Satz, der Knopf am Hinweis den Satz zum erkannten Anliegen.
 
 // ------------------------------------------------------------------ Knöpfe und Fenster
 

@@ -326,14 +326,56 @@ export const chat = {
    * Server (lib/support.ts), sonst zeigt alles das Fenster (components/neu/chat/ChatFenster.tsx).
    */
   schutz: {
-    // Davor steht die Restzeit nicht, dahinter schon: „Zu viele Nachrichten – wieder frei in 4:32“.
-    sperre: "Zu viele Nachrichten – wieder frei in",
-    gesperrtTeam: "Du kannst gerade nicht schreiben. Ein Mitarbeiter schaltet dich gleich wieder frei.",
+    // Die Zeile über dem gesperrten Eingabefeld nennt den Grund (Prompt 18). Mit Uhr (5 Minuten im Assistenten-Chat,
+    // auch nach dem Wechsel zum Team) steht dahinter die Restzeit: „Zu viele Nachrichten – wieder frei in 4:32“.
+    sperre: {
+      menge: "Zu viele Nachrichten – wieder frei in",
+      wiederholung: "Gleiche Nachricht zu oft – wieder frei in",
+      kauderwelsch: "Bitte nur echte Nachrichten – wieder frei in",
+      beleidigung: "Gesperrt wegen Beleidigung – wieder frei in",
+    },
+    // Im Team-Chat ohne Uhr: frei gibt ein Mitarbeiter in Discord (Davids Variante A vom 23.11.2026, statt immer
+    // „Ein Mitarbeiter hat den Chat gesperrt.“: oft sperrt der Bot selbst). Spam, Drohung und Sonstiges von Hand.
+    team: {
+      menge: "Zu viele Nachrichten – ein Mitarbeiter gibt den Chat wieder frei.",
+      wiederholung: "Gleiche Nachricht zu oft – ein Mitarbeiter gibt den Chat wieder frei.",
+      kauderwelsch: "Bitte nur echte Nachrichten – ein Mitarbeiter gibt den Chat wieder frei.",
+      beleidigung: "Gesperrt wegen Beleidigung.",
+      spam: "Gesperrt wegen Spam.",
+      drohung: "Gesperrt wegen Drohung.",
+      sonstiges: "Der Chat ist gesperrt.",
+    },
+    // Das Team beendet den Chat eines gesperrten Kunden (ohne Abschluss-Satz).
+    beendet: "Der Chat wurde beendet.",
     wiederFrei: "Du kannst wieder schreiben.",
     freundlich: "Bitte bleib freundlich.",
     nichtAngekommen: "nicht angekommen",
     nochmal: "Nochmal senden",
     sendet: "wird gesendet …",
+  },
+  /**
+   * Neue Karten unter Antworten des Assistenten (Prompt 18; nur im Assistenten-Chat). Die Marker stehen in
+   * lib/chat-text.ts, die Regeln für den Assistenten in lib/chatbot-knowledge.ts.
+   */
+  karten: {
+    // A · Weiterfragen ([FRAGEN]): höchstens zwei kleine Vorschläge unter der neuesten Antwort.
+    fragen: "Weiterfragen",
+    // B · Leistung ansehen ([LEISTUNG:…]): schließt den Chat und scrollt zur Karte der Leistung im Abschnitt #leistungen.
+    leistungAnker: "#leistungen",
+    leistung: {
+      web: "Mehr zu Websites",
+      chat: "Mehr zu KI-Chatbots",
+      voice: "Mehr zum Telefon-Assistenten",
+      termin: "Mehr zur Online-Terminbuchung",
+      auto: "Mehr zu Automatisierungen",
+      rat: "Mehr zur KI-Beratung",
+    },
+    // C · Telefon-Assistent selbst testen ([ANRUFEN:TESTEN]): die Anruf-Karte mit eigenem Text.
+    testen: {
+      titel: "Ruf an und hör ihn selbst",
+      zeile: "Unser Telefon-Assistent nimmt sofort ab.",
+      knopf: "Jetzt anrufen",
+    },
   },
 };
 

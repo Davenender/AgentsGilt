@@ -221,6 +221,9 @@ export function restText(ms: number): string {
 export interface SchutzStand {
   sperreBis: number;
   grund: string;
+  /** Art der laufenden Sperre (Prompt 18: die Zeile über dem Eingabefeld nennt den Grund), und wann sie begann (für den Ring). */
+  art: SpamArt | "";
+  sperreAb: number;
   log: Eintrag[];
   logTicket: Eintrag[];
   beleidigungen: number;
@@ -229,7 +232,8 @@ export interface SchutzStand {
 
 const K_SCHUTZ = "ag-chat-schutz";
 
-export const leererSchutz = (): SchutzStand => ({ sperreBis: 0, grund: "", log: [], logTicket: [], beleidigungen: 0, zuletzt: 0 });
+export const leererSchutz = (): SchutzStand => ({ sperreBis: 0, grund: "", art: "", sperreAb: 0, log: [], logTicket: [], beleidigungen: 0, zuletzt: 0 });
+const istArt = (x: unknown): x is SpamArt => x === "menge" || x === "wiederholung" || x === "kauderwelsch" || x === "beleidigung";
 
 const istLog = (x: unknown): x is Eintrag[] =>
   Array.isArray(x) && x.every((e) => e && typeof e === "object" && typeof (e as Eintrag).zeit === "number" && typeof (e as Eintrag).text === "string");
@@ -241,14 +245,18 @@ export function ladeSchutz(s: Speicher, jetzt: number): SchutzStand {
     const stand: SchutzStand = {
       sperreBis: typeof roh.sperreBis === "number" ? roh.sperreBis : 0,
       grund: typeof roh.grund === "string" ? roh.grund : "",
+      art: istArt(roh.art) ? roh.art : "",
+      sperreAb: typeof roh.sperreAb === "number" ? roh.sperreAb : 0,
       log: istLog(roh.log) ? kuerzeLog(roh.log, jetzt) : [],
       logTicket: istLog(roh.logTicket) ? kuerzeLog(roh.logTicket, jetzt) : [],
       beleidigungen: typeof roh.beleidigungen === "number" ? roh.beleidigungen : 0,
       zuletzt: typeof roh.zuletzt === "number" ? roh.zuletzt : 0,
     };
     // Eine laufende Sperre bleibt immer; die Zahl der Beleidigungen gilt nur für denselben Chat (24 Stunden).
-    if (jetzt - stand.zuletzt > CHAT_DAUER_MS) return { ...leererSchutz(), sperreBis: stand.sperreBis > jetzt ? stand.sperreBis : 0, grund: stand.sperreBis > jetzt ? stand.grund : "" };
-    if (stand.sperreBis <= jetzt) return { ...stand, sperreBis: 0, grund: "" };
+    const laeuft = stand.sperreBis > jetzt;
+    const sperre = laeuft ? { sperreBis: stand.sperreBis, grund: stand.grund, art: stand.art, sperreAb: stand.sperreAb } : { sperreBis: 0, grund: "", art: "" as const, sperreAb: 0 };
+    if (jetzt - stand.zuletzt > CHAT_DAUER_MS) return { ...leererSchutz(), ...sperre };
+    if (!laeuft) return { ...stand, ...sperre };
     return stand;
   } catch {
     return leererSchutz();
@@ -271,7 +279,7 @@ export function merkeSchutz(s: Speicher, stand: SchutzStand): void {
  */
 export class Waechter {
   private logs = new Map<string, Eintrag[]>();
-  private sperren = new Map<string, { bis: number; grund: string }>();
+  private sperren = new Map<string, { bis: number; grund: string; art: SpamArt; ab: number }>();
   private beleidigungen = new Map<string, { anzahl: number; zuletzt: number }>();
 
   private readonly maxSchluessel: number;
@@ -280,24 +288,29 @@ export class Waechter {
     this.maxSchluessel = maxSchluessel;
   }
 
-  /** Die laufende Sperre (Restzeit in ms) oder null. */
-  sperre(schluessel: string, jetzt: number): { rest: number; grund: string } | null {
+  /** Die laufende Sperre (Restzeit in ms, Art, Ende) oder null. */
+  sperre(schluessel: string, jetzt: number): { rest: number; grund: string; art: SpamArt; bis: number; ab: number } | null {
     const s = this.sperren.get(schluessel);
     if (!s) return null;
     if (s.bis <= jetzt) {
       this.sperren.delete(schluessel);
       return null;
     }
-    return { rest: s.bis - jetzt, grund: s.grund };
+    return { rest: s.bis - jetzt, grund: s.grund, art: s.art, bis: s.bis, ab: s.ab };
   }
 
-  sperreSetzen(schluessel: string, grund: string, jetzt: number, dauer = SPERRE_CHATBOT_MS): { rest: number; grund: string } {
+  sperreSetzen(schluessel: string, grund: string, jetzt: number, dauer = SPERRE_CHATBOT_MS, art: SpamArt = "menge"): { rest: number; grund: string; art: SpamArt; bis: number; ab: number } {
     const laufend = this.sperre(schluessel, jetzt);
     if (laufend) return laufend;
     this.aufraeumen(jetzt);
-    this.sperren.set(schluessel, { bis: jetzt + dauer, grund });
+    this.sperren.set(schluessel, { bis: jetzt + dauer, grund, art, ab: jetzt });
     this.logs.delete(schluessel);
-    return { rest: dauer, grund };
+    return { rest: dauer, grund, art, bis: jetzt + dauer, ab: jetzt };
+  }
+
+  /** Hebt eine laufende Sperre auf (das Team hat im Ticket entsperrt). */
+  aufheben(schluessel: string): void {
+    this.sperren.delete(schluessel);
   }
 
   /** Prüft die neue Nachricht und merkt sie sich, wenn sie kein Spam ist. */
@@ -360,4 +373,21 @@ export class Waechter {
  */
 export function folgeDerBeleidigung(anzahl: number): "hinweis" | "sperre" {
   return anzahl >= 2 ? "sperre" : "hinweis";
+}
+
+/**
+ * Ein Zähler für den ganzen Server-Prozess (Prompt 18): /api/chat sperrt, /api/support liest dieselbe Sperre,
+ * wenn der Besucher zum Team wechselt. Über globalThis, weil Next.js jede Schnittstelle für sich bündelt und
+ * ein gewöhnlicher Modul-Wert sonst je Schnittstelle getrennt wäre. Weiter nur im Speicher dieser Instanz.
+ */
+export function chatWaechter(): Waechter {
+  const g = globalThis as { __agChatWaechter?: Waechter };
+  return (g.__agChatWaechter ??= new Waechter());
+}
+
+/** Schlüssel des Assistenten-Chats: Adresse plus kurzer Fingerabdruck des Browsers (hinter einer Adresse sitzen oft viele). */
+export function chatSchluessel(ip: string, userAgent: string | null): string {
+  let h = 0;
+  for (const z of userAgent ?? "") h = (Math.imul(h, 31) + z.charCodeAt(0)) | 0;
+  return `chat:${ip}:${(h >>> 0).toString(36)}`;
 }

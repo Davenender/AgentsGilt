@@ -1000,7 +1000,7 @@ html.ag-sparsam .ag-cf__fenster {
   cursor: pointer;
   transition: box-shadow 0.3s linear;
 }
-.ag-cf__senden svg {
+.ag-cf__senden .ag-cf__stern {
   width: 21px;
   height: 21px;
   fill: var(--gold-hell);
@@ -1008,7 +1008,8 @@ html.ag-sparsam .ag-cf__fenster {
   transition:
     fill 0.3s linear,
     filter 0.3s linear,
-    scale 0.3s var(--weich);
+    scale 0.3s var(--weich),
+    opacity 0.3s var(--weich);
 }
 .ag-cf__senden:not(:disabled) {
   box-shadow:
@@ -1018,7 +1019,7 @@ html.ag-sparsam .ag-cf__fenster {
 .ag-cf__senden:disabled {
   cursor: default;
 }
-.ag-cf__senden:disabled svg {
+.ag-cf__senden:disabled .ag-cf__stern {
   fill: #2f3650;
   filter: none;
   scale: 0.86;
@@ -1125,14 +1126,15 @@ html.ag-sparsam .ag-cf__fenster {
     opacity: 0;
   }
 }
-/* Gesperrt: Das Feld tritt zurück, kein Goldschein, auch wenn noch Text darin steht. */
+/* Gesperrt: Das Feld tritt zurück, kein Goldschein, auch wenn noch Text darin steht. Seit Prompt 18 nur der Text
+   blass (das Schloss im Senden-Knopf bleibt gold und gut zu sehen). */
 .ag-cf__feld[data-gesperrt] {
-  opacity: 0.5;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.09),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .ag-cf__feld[data-gesperrt] textarea {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 /* Nicht angekommen: Die eigene Blase wird blass, darunter die Zeile mit „Nochmal senden“. */
@@ -1198,7 +1200,8 @@ html.ag-sparsam .ag-cf__fenster {
   padding: 6px 14px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.26);
+  /* Seit Prompt 18: ein feiner roter Rand, der als ruhiger Hinweis stehen bleibt (das Leuchten: unten). */
+  box-shadow: inset 0 0 0 1px rgba(255, 132, 120, 0.5);
   color: rgba(241, 238, 230, 0.86);
   font-size: 12.5px;
   line-height: 1.4;
@@ -1344,4 +1347,490 @@ html.ag-sparsam .ag-cf__fenster {
     opacity: 0.85;
     scale: 1;
   }
+}
+
+/* ── Chat-Schutz, Runde 2 (Prompt 18): Effekte ──
+   Alles, was sich bewegt, ändert nur transform und opacity: Schein und Ränder stehen fest auf eigenen Ebenen, nur
+   deren Deckkraft oder Lage ändert sich (der Browser rechnet dabei kein Layout und keinen Schatten neu).
+   Das rote Aufleuchten ist dasselbe wie das Aufleuchten der Chat-Kugel beim Darüberfahren über „Jetzt chatten“
+   (@keyframes ag-chat-wink in seite/seite.css): 1,4 s je Aufleuchten, Höhepunkt bei 30 %, Kurve var(--weich),
+   heller Lichtrand innen, feiner Ring und zwei Schein-Stufen außen. Nur in Rot und kleiner (die Kugel ist rund,
+   der Hinweis eine schmale Zeile im Verlauf, dessen Rand den großen Schein abschneiden würde). */
+
+/* „Bitte bleib freundlich.“: leuchtet fünfmal rot, das erste Mal voll, dann jedes Mal schwächer; danach bleibt
+   nur der feine rote Rand (am Hinweis selbst, oben). */
+.ag-cf__hinweis {
+  position: relative;
+  isolation: isolate;
+}
+.ag-cf__hinweis::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  /* Dieselben Werte wie ag-chat-wink auf dem Höhepunkt (Lichtkante innen, 1-px-Ring, Schein 26 und 74 px), in Rot.
+     Die Kugel wird dort zusätzlich 1,55-mal heller, und das verstärkt auch ihren Schein: darum hier die Stärken mal
+     1,55 (höchstens 1), dazu eine rote Tönung der Fläche. Der Rest des Unterschieds ist nur die Farbe (Rot ist bei
+     gleicher Stärke dunkler als Gold). */
+  background: rgba(255, 110, 98, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 0 14px rgba(255, 120, 108, 0.35),
+    0 0 0 1px rgba(255, 138, 126, 0.93),
+    0 0 26px rgba(255, 98, 86, 1),
+    0 0 74px rgba(232, 58, 46, 0.78);
+  opacity: 0;
+  pointer-events: none;
+  animation: ag-cf-rot-abklingend 7s var(--weich) both;
+}
+@keyframes ag-cf-rot-abklingend {
+  /* Je Aufleuchten 1,4 s: Höhepunkt bei 30 % (0,42 s), bei 0,7 s schon fast aus (wie die Kugel: Schein und
+     Helligkeit klingen dort zusammen ab), danach ruhig auf null. Jedes Mal schwächer. */
+  0%,
+  20%,
+  40%,
+  60%,
+  80%,
+  100% {
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  10% {
+    opacity: 0.06;
+  }
+  26% {
+    opacity: 0.74;
+  }
+  30% {
+    opacity: 0.044;
+  }
+  46% {
+    opacity: 0.52;
+  }
+  50% {
+    opacity: 0.031;
+  }
+  66% {
+    opacity: 0.36;
+  }
+  70% {
+    opacity: 0.022;
+  }
+  86% {
+    opacity: 0.22;
+  }
+  90% {
+    opacity: 0.013;
+  }
+}
+
+/* Die Sperr-Zeile bleibt gold und leuchtet etwa alle 8 s einmal rot auf (dasselbe Aufleuchten). */
+.ag-cf__sperre:not(.ag-cf__sperre--frei) {
+  position: relative;
+  isolation: isolate;
+}
+.ag-cf__sperre:not(.ag-cf__sperre--frei)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgba(255, 110, 98, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 0 14px rgba(255, 120, 108, 0.35),
+    0 0 0 1px rgba(255, 138, 126, 0.93),
+    0 0 26px rgba(255, 98, 86, 1),
+    0 0 74px rgba(232, 58, 46, 0.78);
+  opacity: 0;
+  pointer-events: none;
+  animation: ag-cf-rot-alle-8s 8s var(--weich) 0.4s infinite;
+}
+@keyframes ag-cf-rot-alle-8s {
+  0%,
+  17.5%,
+  100% {
+    opacity: 0;
+  }
+  5.25% {
+    opacity: 1;
+  }
+  8.75% {
+    opacity: 0.06;
+  }
+}
+
+/* Kippende Ziffern: Die alte Ziffer klappt nach unten weg, die neue klappt von oben herein. */
+.ag-cf__ziffer {
+  position: relative;
+  display: inline-block;
+  perspective: 60px;
+}
+.ag-cf__ziffer > span {
+  display: inline-block;
+  backface-visibility: hidden;
+  transform-origin: 50% 55%;
+}
+.ag-cf__ziffer-neu {
+  animation: ag-cf-kipp-rein 0.34s var(--weich) both;
+}
+.ag-cf__ziffer-alt {
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: ag-cf-kipp-raus 0.34s var(--weich) both;
+}
+@keyframes ag-cf-kipp-rein {
+  from {
+    opacity: 0;
+    transform: rotateX(-80deg) translate3d(0, -22%, 0);
+  }
+}
+@keyframes ag-cf-kipp-raus {
+  to {
+    opacity: 0;
+    transform: rotateX(80deg) translate3d(0, 22%, 0);
+  }
+}
+
+/* Schloss statt Stern im Senden-Knopf, solange gesperrt. Nach Ablauf springt der Bügel auf, das Schloss vergeht,
+   der Stern kommt zurück, das Feld leuchtet kurz gold, dann steht der gewöhnliche Platzhalter da. */
+.ag-cf__schloss {
+  position: absolute;
+  inset: 0;
+  width: 19px;
+  height: 19px;
+  margin: auto;
+  fill: none;
+  stroke: var(--gold-hell);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transform: scale(0.7);
+  transition:
+    opacity 0.3s var(--weich),
+    transform 0.3s var(--weich);
+  pointer-events: none;
+}
+.ag-cf__buegel {
+  transform-box: fill-box;
+  transform-origin: 100% 100%;
+}
+.ag-cf__feld[data-schloss="zu"] .ag-cf__schloss {
+  opacity: 1;
+  transform: none;
+}
+.ag-cf__feld[data-schloss="zu"] .ag-cf__stern {
+  opacity: 0;
+}
+.ag-cf__feld[data-schloss="auf"] .ag-cf__schloss {
+  animation: ag-cf-schloss-weg 1.25s var(--weich) both;
+}
+.ag-cf__feld[data-schloss="auf"] .ag-cf__buegel {
+  animation: ag-cf-buegel-auf 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.ag-cf__feld[data-schloss="auf"] .ag-cf__stern {
+  animation: ag-cf-stern-zurueck 1.25s var(--weich) both;
+}
+@keyframes ag-cf-buegel-auf {
+  to {
+    transform: translate3d(0, -2.4px, 0) rotate(-24deg);
+  }
+}
+@keyframes ag-cf-schloss-weg {
+  0%,
+  55% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+@keyframes ag-cf-stern-zurueck {
+  0%,
+  60% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.ag-cf__feld::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 210, 122, 0.85),
+    0 0 0 4px rgba(243, 210, 122, 0.1),
+    0 0 30px rgba(243, 210, 122, 0.45);
+  opacity: 0;
+  pointer-events: none;
+}
+.ag-cf__feld[data-schloss="auf"]::after {
+  animation: ag-cf-feld-gold 1.6s var(--weich) 0.35s both;
+}
+@keyframes ag-cf-feld-gold {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+.ag-cf__feld[data-schloss="auf"] .ag-cf__platz {
+  animation: ag-cf-platz-spaet 1.4s linear both;
+}
+@keyframes ag-cf-platz-spaet {
+  0%,
+  60% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Der Ring um den Senden-Knopf leert sich mit der Restzeit (nur bei Sperren mit Uhr): zwei Halbringe, die sich
+   nacheinander aus ihrem Ausschnitt drehen. Er beginnt oben und leert sich im Uhrzeigersinn. */
+.ag-cf__ring {
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+}
+.ag-cf__ring-r,
+.ag-cf__ring-l {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+}
+.ag-cf__ring-r {
+  left: 50%;
+}
+.ag-cf__ring-l {
+  left: 0;
+}
+.ag-cf__ring i {
+  position: absolute;
+  top: 0;
+  box-sizing: border-box;
+  width: 200%;
+  height: 100%;
+  border: 1.5px solid transparent;
+  border-radius: 50%;
+  transform: rotate(45deg);
+}
+.ag-cf__ring-r i {
+  left: -100%;
+  border-top-color: rgba(243, 210, 122, 0.85);
+  border-right-color: rgba(243, 210, 122, 0.85);
+  animation: ag-cf-ring-r var(--dauer, 300s) linear var(--vorbei, 0s) both;
+}
+.ag-cf__ring-l i {
+  left: 0;
+  border-bottom-color: rgba(243, 210, 122, 0.85);
+  border-left-color: rgba(243, 210, 122, 0.85);
+  animation: ag-cf-ring-l var(--dauer, 300s) linear var(--vorbei, 0s) both;
+}
+@keyframes ag-cf-ring-r {
+  0% {
+    transform: rotate(45deg);
+  }
+  50%,
+  100% {
+    transform: rotate(225deg);
+  }
+}
+@keyframes ag-cf-ring-l {
+  0%,
+  50% {
+    transform: rotate(45deg);
+  }
+  100% {
+    transform: rotate(225deg);
+  }
+}
+
+/* Tippen oder Klicken ins gesperrte Feld: Eine Fläche fängt es ab, von der Stelle läuft eine rote Welle durchs
+   Feld (nur innerhalb seiner runden Form), das Schloss ruckt kurz (ChatFenster.tsx). */
+.ag-cf__sperrflaeche {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  cursor: not-allowed;
+}
+.ag-cf__wellen {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.ag-cf__welle {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 110, 98, 0) 36%, rgba(255, 110, 98, 0.6) 55%, rgba(255, 92, 80, 0) 72%);
+  opacity: 0;
+  animation: ag-cf-welle 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes ag-cf-welle {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.25);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(11);
+  }
+}
+
+/* Karte A: Folgefragen, wie die Startvorschläge, nur kleiner. Sie blenden ein wie die übrigen Karten (.ag-cf__angebot). */
+.ag-cf__folgefragen {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.ag-cf__vorschlag--klein {
+  padding: 5px 11px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 18px;
+  opacity: 1;
+}
+/* Beim ersten Öffnen stehen die Startvorschläge einfach da (Prompt 18). */
+.ag-cf__vorschlaege[data-sofort] .ag-cf__vorschlag {
+  opacity: 1;
+  animation: none;
+}
+
+/* Karte B: „Mehr zu … →“, ein goldener Verweis wie die Links in den Antworten. */
+.ag-cf__leistung {
+  justify-self: start;
+  min-height: 32px;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--gold-hell);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: rgba(243, 210, 122, 0.45);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.3s var(--weich);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__leistung:hover {
+    text-decoration-color: var(--gold-hell);
+  }
+}
+
+/* Karte C: die Anruf-Karte mit eigenem Text, wenn jemand den Telefon-Assistenten hören will. */
+.ag-cf__anruf-titel {
+  display: inline-flex;
+  grid-column: 1;
+  align-items: center;
+  gap: 9px;
+  color: var(--elfenbein);
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.ag-cf__anruf-titel i {
+  position: relative;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4fdc92;
+  box-shadow: 0 0 8px rgba(79, 220, 146, 0.75);
+}
+.ag-cf[data-offen="true"] .ag-cf__anruf-titel i::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79, 220, 146, 0.5) 0%, rgba(79, 220, 146, 0) 70%);
+  animation: ag-kon-status 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.ag-cf__anruf-zeile {
+  grid-column: 1;
+  color: var(--nebel);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.ag-cf__anruf-nummer--klein {
+  font-size: 14px;
+}
+.ag-cf__anruf--testen .ag-cf__anruf-knopf {
+  grid-row: 1 / span 3;
+}
+
+@media (max-width: 767px) {
+  .ag-cf__vorschlag--klein {
+    min-height: 36px;
+    font-size: 13px;
+  }
+  .ag-cf__leistung {
+    min-height: 40px;
+  }
+}
+
+/* Weniger Bewegung: Es wechseln nur die Farben (kein Leuchten in Wellen, kein Kippen, keine Welle, kein Ruck). */
+@media (prefers-reduced-motion: reduce) {
+  .ag-cf__hinweis::before,
+  .ag-cf__sperre:not(.ag-cf__sperre--frei)::after {
+    animation: none;
+    opacity: 0;
+  }
+  .ag-cf__ziffer-neu {
+    animation: none;
+  }
+  .ag-cf__ziffer > .ag-cf__ziffer-alt {
+    display: none;
+  }
+  .ag-cf__schloss,
+  .ag-cf__senden .ag-cf__stern {
+    transition: none;
+  }
+  .ag-cf__feld[data-schloss="auf"] .ag-cf__schloss,
+  .ag-cf__feld[data-schloss="auf"] .ag-cf__buegel {
+    animation: none;
+    opacity: 0;
+  }
+  .ag-cf__feld[data-schloss="auf"] .ag-cf__stern,
+  .ag-cf__feld[data-schloss="auf"] .ag-cf__platz {
+    animation: none;
+  }
+  /* Animationen sind hier ganz aus (Regel weiter oben): Das Feld steht gold, solange „Du kannst wieder schreiben.“
+     da ist; beim Tippen ins gesperrte Feld färbt es sich kurz rot (das Fenster nimmt die Farbe nach 0,6 s weg). */
+  .ag-cf__feld[data-schloss="auf"]::after {
+    opacity: 1;
+  }
+}
+.ag-cf__welle--ruhig {
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  border-radius: inherit;
+  background: rgba(255, 96, 84, 0.18);
+  opacity: 1;
+  animation: none;
 }

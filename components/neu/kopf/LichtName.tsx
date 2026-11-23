@@ -60,10 +60,11 @@ import { erzeugeZeichenname } from "./zeichenname";
  *   5. Während die Zeichen landen, erscheinen Kopfleiste, „Anrufen“ und
  *      Chat-Knopf (Stylesheet, über data-start am Kopfbereich).
  *   6. Ist der Name gelandet, ist Scrollen frei (Mausrad, Wischen, Scroll-
- *      Tasten). 250 ms nach der Landung läuft die Welle aus der Namensmitte
- *      (nur mit Maus); sie läuft weiter, auch wenn schon gescrollt wird. Ist sie
- *      durch, ist die Startanimation ganz vorbei („Start vorbei“: danach richtet
- *      sich der Scroll-Hinweis).
+ *      Tasten). 1,55 s nach der Landung ist die Startanimation ganz vorbei
+ *      („Start vorbei“: danach richtet sich der Scroll-Hinweis). Bis Prompt 18
+ *      (23.11.2026) lief in dieser Zeit am Computer einmal von selbst eine Welle
+ *      aus der Namensmitte; dabei hing die Seite kurz, darum ist sie weg. Die
+ *      Welle kommt nur noch beim Klick auf den Namen.
  * Bis der Name gelandet ist, steht die Seite oben: Man kann nicht scrollen und
  * nichts überspringen. Der Browser stellt nach Neuladen oder Zurück keine
  * frühere Lage wieder her (`history.scrollRestoration = "manual"`). Steht ein
@@ -753,18 +754,17 @@ export function LichtName() {
       if (fliegt || fertig || vorbei) return;
       fliegt = true;
       performance.mark("ag-start:flug");
-      // 250 ms nach dem Ende des Flugs läuft einmal von selbst eine Welle aus der Mitte des Namens:
-      // der Hinweis, dass man klicken kann. Nur mit Maus: Am Handy reagiert der Name nicht auf
-      // Tippen, also gibt es auch den Hinweis nicht; der Name bildet sich und steht dann still
-      // (seit dem 15.11.2026). Die Zeiten des Starts bleiben dieselben. (War der Kopfbereich beim
-      // Start nicht zu sehen, fliegen die Zeichen erst ein, wenn er ins Bild kommt.)
+      // Der Name bildet sich und steht dann still, am Computer wie am Handy. Eine Welle von selbst
+      // gibt es seit Prompt 18 (23.11.2026) nicht mehr (am Handy seit dem 15.11.2026): Bei David hing
+      // die Seite dabei kurz. Sie kommt nur noch beim Klick auf den Namen. Die Zeiten des Starts bleiben
+      // dieselben. (War der Kopfbereich beim Start nicht zu sehen, fliegen die Zeichen erst ein, wenn er
+      // ins Bild kommt.)
       feld.starten(() => {
         performance.mark("ag-start:gelandet");
-        const plan = nachLandung(maus);
-        if (plan.welle !== null) spaeter.push(gsap.delayedCall(plan.welle, feld.welleMitte));
+        const plan = nachLandung();
         stehen();
-        // Der Name ist gelandet: Scrollen ist frei (seit dem 16.11.2026 schon jetzt, die Welle läuft
-        // weiter). Ist die Welle durch, ist die Startanimation ganz vorbei.
+        // Der Name ist gelandet: Scrollen ist frei (seit dem 16.11.2026 schon jetzt). 1,55 s danach
+        // ist die Startanimation ganz vorbei (derselbe Zeitpunkt wie früher nach der Welle).
         freigeben(false);
         spaeter.push(gsap.delayedCall(plan.vorbei, startVorbei));
       });

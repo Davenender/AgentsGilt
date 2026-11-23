@@ -3,6 +3,7 @@
 //   „❌ Mail konnte nicht abgeschickt werden: <Grund>“. Davids Name und seine Änderungen sieht es nie.
 // - Die Freigabe-Karte (in #posteingang) trägt alles, was zum Senden nötig ist: Felder und Fußzeile.
 // Reine Logik ohne Netz: tests/mail-antwort.test.ts.
+import { CHEF_DARF_ALLES, NICHT_UEBERNOMMEN, andererHat } from "./support-ablauf.ts";
 import type { EmbedLike } from "./discord-calls.ts";
 import { escapeHtml, shell } from "./mail.ts";
 
@@ -200,8 +201,14 @@ export function ticketBesitzer(karte: EmbedLike | null | undefined): string | nu
  * Zuständigen. David immer. null heißt erlaubt, sonst der Satz für die private Meldung.
  */
 export function darfMailen(ort: MailOrt, userId: string, berechtigt: string[], davidId: string): string | null {
+  // Support-Ticket (Prompt 18): nur wer übernommen hat, auch David erst einmal nicht (Schalter CHEF_DARF_ALLES).
+  if (ort === "ticket") {
+    if (CHEF_DARF_ALLES && userId === davidId) return null;
+    const wer = berechtigt.find(Boolean);
+    if (!wer) return NICHT_UEBERNOMMEN;
+    return wer === userId ? null : andererHat(wer);
+  }
   if (userId === davidId || berechtigt.includes(userId)) return null;
-  if (ort === "ticket") return "Nur wer das Ticket übernommen hat, kann dem Kunden mailen.";
   if (ort === "anfrage") return "Nur wer die Anfrage übernommen hat, kann dem Kunden mailen.";
   return "Nur die Zuständigen können das.";
 }

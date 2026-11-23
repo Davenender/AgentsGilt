@@ -8,10 +8,17 @@ import { mitWiederholung } from "./discord-wiederholen.ts";
 import { folgeDerBeleidigung } from "./chat-schutz.ts";
 import {
   BELEIDIGUNG_FELD,
+  DAUERHAFT_ID,
+  ENTSPERREN_ID,
   SPERRE_FELD,
+  abgelaufenNachricht,
+  abgelaufenWert,
   beleidigungenDerKarte,
   beleidigungsNachricht,
   besucherNachrichten,
+  besucherText,
+  gesperrtBisWert,
+  gesperrtVonWert,
   gesperrtWert,
   mitFeld,
   mitHinweisZeile,
@@ -20,15 +27,34 @@ import {
   sperreDerKarte,
   trenneHinweisZeile,
   type Feld,
+  type SperrArt,
+  type SperrStand,
 } from "./support-sperre.ts";
 import {
-  erkenneAnliegen,
   hinweisKomponenten,
   hinweisNoetig,
   hinweisText,
   leseKundenNachricht,
   ticketComponents,
+  type Anliegen,
 } from "./support-anruf.ts";
+import {
+  WARNUNG_WEG_MS,
+  artDerTeamNachricht,
+  fremdWarnung,
+  hinweisGeloest,
+  hinweisKeineFragen,
+  hinweisNachStand,
+  hinweisOffen,
+  istFremdWarnung,
+  leseAblauf,
+  mitAblauf,
+  uebernehmerDerKarte,
+  warnungenZumLoeschen,
+  type Ablauf,
+} from "./support-ablauf.ts";
+export { verlaufFuerKi } from "./support-ablauf.ts";
+import { kundeImChatDavor } from "./sperr-beleg.ts";
 
 // Support-Chats: Ein Besucher der Website lässt sich im Chat mit einem
 // Mitarbeiter verbinden. Dafür legt der Bot in Discord unter der Kategorie
@@ -46,6 +72,9 @@ export const SUPPORT_CATEGORY = "SUPPORT";
 // Discord-Rechte (Bitfeld): Kanal ansehen, Nachrichten senden, Nachrichtenverlauf,
 // Links einbetten, Dateien anhängen.
 const ALLOW = String(1024 + 2048 + 65536 + 16384 + 32768);
+// Der Bot zusätzlich mit „Nachrichten verwalten“ (8192): Seit Prompt 18 löscht er im Ticket Nachrichten von jemandem,
+// der das Ticket nicht übernommen hat. Gilt nur, wenn er die Kategorie selbst anlegt; sonst in Discord einschalten.
+const BOT_ALLOW = String(1024 + 2048 + 65536 + 16384 + 32768 + 8192);
 const VIEW = "1024";
 
 /** Vorangestelltes Zeichen bei allem, was der Besucher sehen soll. */
@@ -133,7 +162,7 @@ async function supportCategory(token: string, channels: Channel[]): Promise<stri
   const overwrites = [
     { id: GUILD_ID, type: 0, allow: "0", deny: VIEW }, // @everyone
     ...(team ? [{ id: team.id, type: 0, allow: ALLOW, deny: "0" }] : []),
-    ...(bot ? [{ id: bot.id, type: 0, allow: ALLOW, deny: "0" }] : []),
+    ...(bot ? [{ id: bot.id, type: 0, allow: BOT_ALLOW, deny: "0" }] : []),
   ];
   const created = await call<Channel>(token, "POST", `/guilds/${GUILD_ID}/channels`, {
     name: SUPPORT_CATEGORY,
@@ -168,6 +197,8 @@ export interface TicketInput {
   kontakt: string;
   frage: string;
   verlauf: { role: string; content: string }[];
+  /** Läuft beim Wechsel zum Team noch die Sperre des Assistenten-Chats (Prompt 18): Sie geht mit ins Ticket. */
+  sperre?: { art: SperrArt; bis: number } | null;
 }
 
 /** Legt Kanal und Karte an. Gibt Schlüssel und Ticketnummer zurück. */
@@ -209,9 +240,11 @@ export async function openTicket(
           { name: "Frage", value: clip(input.frage, 1000) },
           ...(verlauf ? [{ name: "Chat davor (mit dem Assistenten)", value: clip(verlauf, 1000) }] : []),
           { name: "Status", value: "Offen" },
+          ...(input.sperre ? [{ name: SPERRE_FELD, value: gesperrtBisWert(input.sperre.art, input.sperre.bis) }] : []),
         ],
         footer: {
-          text: "Alles, was hier geschrieben wird, sieht der Besucher im Chat. Interne Notizen mit // beginnen.",
+          // Seit Prompt 18: Nur wer übernommen hat, schreibt an den Kunden; andere Nachrichten löscht der Bot.
+          text: "Erst übernehmen: Nur wer übernommen hat, schreibt dem Kunden. Andere Nachrichten löscht der Bot. Interne Notizen mit // beginnen.",
         },
       },
     ],
@@ -242,11 +275,11 @@ export interface Relayed {
   hinweis?: true;
 }
 
-interface DiscordMessage {
+export interface DiscordMessage {
   id: string;
   content: string;
   author: { id?: string; bot?: boolean; global_name?: string | null; username?: string };
-  components?: unknown[];
+  components?: { components?: { custom_id?: string }[] }[];
   embeds?: EmbedLike[];
 }
 
@@ -258,15 +291,20 @@ export async function ticketClosed(token: string, channelId: string): Promise<bo
 }
 
 /**
- * Nachrichten des Teams seit der letzten, die der Besucher schon hat. Weitergegeben
- * wird, was der Bot mit 💬 gekennzeichnet hat (Knopf "Antworten", Übernehmen) und
- * was Menschen im Kanal schreiben, außer sie beginnen mit //.
+ * Nachrichten des Teams seit der letzten, die der Besucher schon hat. Weitergegeben wird, was der Bot mit 💬
+ * gekennzeichnet hat (Knöpfe wie „Anruf anbieten“, „Noch Fragen?“, Übernehmen) und was der schreibt, der das
+ * Ticket übernommen hat, außer es beginnt mit //.
+ *
+ * Seit Prompt 18: Schreibt jemand anderes oder vor dem Übernehmen, geht die Nachricht nie an den Kunden (`fremd`:
+ * die Schnittstelle löscht sie und warnt, lib/support.ts loescheFremde). Der Zeiger `last` läuft trotzdem über
+ * sie hinweg, darum kommt sie auch später nicht an.
  */
 export async function relayMessages(
   token: string,
   channelId: string,
   after: string,
-): Promise<{ messages: Relayed[]; last: string; contentMissing: boolean } | null> {
+  karte: Karte | null,
+): Promise<{ messages: Relayed[]; last: string; contentMissing: boolean; fremd: Fremd[] } | null> {
   const list = await call<DiscordMessage[]>(
     token,
     "GET",
@@ -275,7 +313,10 @@ export async function relayMessages(
   if (!list) return null;
 
   const sorted = [...list].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  const uebernehmer = uebernehmerDerKarte(karte?.felder);
+  const seit = leseAblauf(karte?.felder).uebernommen ?? 0;
   const out: Relayed[] = [];
+  const fremd: Fremd[] = [];
   let contentMissing = false;
   for (const m of sorted) {
     if (m.author.bot) {
@@ -292,11 +333,17 @@ export async function relayMessages(
       out.push({ id: m.id, von, text, ...(anrufen ? { anrufen: true as const } : {}) });
     } else {
       const text = m.content.trim();
+      const art = artDerTeamNachricht({ id: m.id, text, autor: m.author.id ?? "" }, uebernehmer, seit);
+      if (art === "notiz") continue;
+      // Nicht vom Übernehmer (oder vor dem Übernehmen): nie an den Kunden, auch ohne lesbaren Text.
+      if (art === "fremd") {
+        fremd.push({ id: m.id, autor: m.author.id ?? "" });
+        continue;
+      }
       if (!text) {
         contentMissing = true; // Discord liefert den Text nur mit eingeschaltetem "Message Content Intent"
         continue;
       }
-      if (text.startsWith("//")) continue;
       out.push({
         id: m.id,
         von: nameVon(m.author.id ?? "") ?? "Team",
@@ -305,7 +352,75 @@ export async function relayMessages(
     }
   }
   const last = sorted.length ? sorted[sorted.length - 1].id : after;
-  return { messages: out, last, contentMissing };
+  return { messages: out, last, contentMissing, fremd };
+}
+
+export interface Fremd {
+  id: string;
+  autor: string;
+}
+
+// Schon gelöschte oder gewarnte fremde Nachrichten (je Instanz, für alle Schnittstellen dieses Prozesses):
+// Fragen zwei Tabs gleichzeitig ab oder läuft gerade der Minutentakt, warnt der Bot nicht doppelt.
+const bearbeitet = ((globalThis as { __agFremd?: Map<string, number> }).__agFremd ??= new Map<string, number>());
+const warte = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Löscht Nachrichten von jemandem, der das Ticket nicht übernommen hat (oder von vor dem Übernehmen), und
+ * warnt ohne den Text: „<@Name>, übernimm zuerst das Ticket. Deine Nachricht wurde nicht gesendet.“ Die
+ * Warnung löscht der Bot nach 30 s wieder; klappte das Löschen der Nachricht nicht (fehlendes Recht
+ * „Nachrichten verwalten“), bleibt die Warnung stehen. Läuft im Hintergrund (after()).
+ */
+export async function loescheFremde(token: string, channelId: string, fremd: Fremd[], uebernehmer: string | null, warten = true): Promise<void> {
+  const jetzt = Date.now();
+  for (const [id, zeit] of bearbeitet) if (jetzt - zeit > 10 * 60_000) bearbeitet.delete(id);
+  const neu = fremd.filter((f) => !bearbeitet.has(f.id));
+  for (const f of neu) bearbeitet.set(f.id, jetzt);
+  const warnungen: string[] = [];
+  for (const f of neu) {
+    const weg = await loescheNachricht(token, channelId, f.id);
+    if (!weg) console.error(`[support] Fremde Nachricht nicht gelöscht (Recht „Nachrichten verwalten“?)`);
+    const w = await call<{ id: string }>(token, "POST", `/channels/${channelId}/messages`, {
+      content: fremdWarnung(f.autor, uebernehmer),
+      allowed_mentions: { parse: [], users: f.autor ? [f.autor] : [] },
+    });
+    if (w && weg) warnungen.push(w.id);
+  }
+  // Im Minutentakt wartet niemand 30 s: Dort räumt der nächste Durchgang die Warnung weg (ticketPflege).
+  if (warnungen.length === 0 || !warten) return;
+  await warte(WARNUNG_WEG_MS);
+  for (const id of warnungen) await loescheNachricht(token, channelId, id);
+}
+
+export async function loescheNachricht(token: string, channelId: string, id: string): Promise<boolean> {
+  return Boolean(await call(token, "DELETE", `/channels/${channelId}/messages/${id}`));
+}
+
+/**
+ * Minutentakt (/api/team/takt, Prompt 18) für ein offenes Ticket: fremde Nachrichten löschen und warnen, auch
+ * wenn der Kunde gerade nicht im Chat ist (dann fragt niemand ab); Warnungen nach 30 s wegräumen; eine
+ * abgelaufene Sperre aus dem Assistenten-Chat vermerken.
+ */
+export async function ticketPflege(token: string, channelId: string, jetzt = Date.now()): Promise<void> {
+  const [liste, karte] = await Promise.all([letzteNachrichten(token, channelId, 50), leseKarte(token, channelId)]);
+  if (!liste || !karte) return;
+  const uebernehmer = uebernehmerDerKarte(karte.felder);
+  const seit = leseAblauf(karte.felder).uebernommen ?? 0;
+  const warnungen = liste.filter((m) => m.author.bot && istFremdWarnung(m.content));
+  const fremd = liste
+    .filter((m) => !m.author.bot && artDerTeamNachricht({ id: m.id, text: m.content.trim(), autor: m.author.id ?? "" }, uebernehmer, seit) === "fremd")
+    // Schon gewarnt (eine Warnung an dieselbe Person, jünger als die Nachricht): nicht noch einmal.
+    .filter((m) => !warnungen.some((w) => BigInt(w.id) > BigInt(m.id) && w.content.startsWith(`<@${m.author.id}>`)))
+    .map((m) => ({ id: m.id, autor: m.author.id ?? "" }));
+  for (const id of warnungenZumLoeschen(liste, uebernehmer, seit, jetzt)) await loescheNachricht(token, channelId, id);
+  const sperre = sperreDerKarte(karte.felder, jetzt);
+  if (sperre.abgelaufen && sperre.bis) await markiereAbgelaufen(token, channelId, karte, sperre.bis);
+  if (fremd.length) await loescheFremde(token, channelId, fremd, uebernehmer, false);
+}
+
+/** Die letzten Nachrichten im Kanal (neueste zuerst), oder null bei einem Fehler. */
+export async function letzteNachrichten(token: string, channelId: string, limit = 30): Promise<DiscordMessage[] | null> {
+  return call<DiscordMessage[]>(token, "GET", `/channels/${channelId}/messages?limit=${limit}`);
 }
 
 /**
@@ -329,7 +444,7 @@ export async function postFromVisitor(token: string, channelId: string, zeilen: 
 
 // ------------------------------------------------------------------ Chat-Schutz (Prompt 17)
 
-interface Karte {
+export interface Karte {
   id: string;
   embed: EmbedLike;
   felder: Feld[];
@@ -355,10 +470,14 @@ export async function leseKarte(token: string, channelId: string): Promise<Karte
  * Geschlossen und gesperrt? Für jede Nachricht des Besuchers und jeden Abruf des Chats. Antwortet Discord
  * nicht, ist der Stand unbekannt (null): Dann geht keine Nachricht durch und die Sperre bleibt, wie sie war.
  */
-export async function ticketStand(token: string, channelId: string): Promise<{ closed: boolean; gesperrt: boolean } | null> {
+export async function ticketStand(
+  token: string,
+  channelId: string,
+): Promise<{ closed: boolean; gesperrt: boolean; sperre: SperrStand; karte: Karte | null; ablauf: Ablauf } | null> {
   const [ch, karte] = await Promise.all([call<Channel>(token, "GET", `/channels/${channelId}`), holeKarte(token, channelId)]);
   if (!ch || karte === "fehler") return null;
-  return { closed: ch.name.startsWith("geschlossen-"), gesperrt: karte ? sperreDerKarte(karte.felder).gesperrt : false };
+  const sperre = sperreDerKarte(karte?.felder);
+  return { closed: ch.name.startsWith("geschlossen-"), gesperrt: sperre.gesperrt, sperre, karte, ablauf: leseAblauf(karte?.felder) };
 }
 
 /** Ändert die Felder der Ticket-Karte (Knöpfe bleiben, außer `components` ist angegeben). */
@@ -379,13 +498,105 @@ export async function aendereKarte(
 }
 
 /** Die Sperr-Karte mit „Entsperren“ und „Chat beenden“ ins Ticket. */
-export async function postSperrKarte(token: string, channelId: string, content: string): Promise<boolean> {
+export async function postSperrKarte(token: string, channelId: string, content: string, mitUhr = false): Promise<boolean> {
   const res = await call(token, "POST", `/channels/${channelId}/messages`, {
     content,
-    components: sperrKomponenten(),
+    components: sperrKomponenten(mitUhr),
     allowed_mentions: { parse: [] },
   });
   return Boolean(res);
+}
+
+/** Die Sperr-Karte im Ticket finden (die letzte mit „Entsperren“ oder „Dauerhaft sperren“, noch mit Knöpfen). */
+export function sperrKarteIn(nachrichten: DiscordMessage[]): DiscordMessage | null {
+  return (
+    nachrichten.find((m) => m.author.bot && (m.components ?? []).some((r) => (r.components ?? []).some((k) => k.custom_id === ENTSPERREN_ID || k.custom_id === DAUERHAFT_ID))) ?? null
+  );
+}
+
+/**
+ * Die Uhr der Sperre aus dem Assistenten-Chat ist abgelaufen: Der Kunde ist frei, Feld und Sperr-Karte sagen
+ * „Sperre abgelaufen um …“, die Knöpfe verschwinden. Bemerkt beim Abruf des Kunden und im Minutentakt.
+ */
+export async function markiereAbgelaufen(token: string, channelId: string, karte: Karte, bis: number): Promise<void> {
+  if (!sperreDerKarte(karte.felder).abgelaufen) return;
+  await call(token, "PATCH", `/channels/${channelId}/messages/${karte.id}`, {
+    embeds: [{ ...karte.embed, fields: mitFeld(karte.felder, SPERRE_FELD, abgelaufenWert(bis)) }],
+    allowed_mentions: { parse: [] },
+  });
+  const sk = sperrKarteIn((await letzteNachrichten(token, channelId, 50)) ?? []);
+  if (sk) {
+    await call(token, "PATCH", `/channels/${channelId}/messages/${sk.id}`, {
+      content: abgelaufenNachricht(sk.content, bis),
+      components: [],
+      allowed_mentions: { parse: [] },
+    });
+  }
+}
+
+/** Von Hand mit Beleg gesperrt (lib/sperr-beleg.ts): Feld an der Karte und die Sperr-Karte mit der Stelle. */
+export async function sperreMitBeleg(
+  token: string,
+  channelId: string,
+  b: { grund: string; stelle: string; erklaerung: string; wer: string; tag: string; zeit: string },
+): Promise<"gesperrt" | "schon" | null> {
+  const karte = await leseKarte(token, channelId);
+  if (!karte) return null;
+  if (sperreDerKarte(karte.felder).gesperrt) return "schon";
+  const ok = await call(token, "PATCH", `/channels/${channelId}/messages/${karte.id}`, {
+    embeds: [{ ...karte.embed, fields: mitFeld(karte.felder, SPERRE_FELD, gesperrtVonWert(b.tag, b.zeit, b.grund)) }],
+    allowed_mentions: { parse: [] },
+  });
+  if (!ok) return null;
+  await postSperrKarte(token, channelId, sperrNachricht({ von: b.wer, grund: b.grund, stelle: b.stelle, erklaerung: b.erklaerung }));
+  return "gesperrt";
+}
+
+/**
+ * Alles, was der Kunde geschrieben hat, für die Prüfung mit Beleg: erst seine Zeilen aus dem Assistenten-Chat
+ * (Feld „Chat davor“), dann seine Nachrichten im Ticket (älteste zuerst). Nur der Kunde, ohne Zusätze des Bots.
+ */
+export async function kundenNachrichten(token: string, channelId: string, karte: Karte): Promise<string[] | null> {
+  const liste = await call<DiscordMessage[]>(token, "GET", `/channels/${channelId}/messages?limit=100`);
+  if (!liste) return null;
+  const davor = karte.felder.find((f) => f.name.startsWith("Chat davor"))?.value ?? "";
+  const imTicket = [...liste]
+    .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1))
+    .filter((m) => m.author.bot)
+    .map((m) => besucherText(m.content))
+    .filter((t): t is string => !!t);
+  return [...kundeImChatDavor(davor), ...imTicket];
+}
+
+/** Ändert das Feld „Ablauf“ der Ticket-Karte (übernommen, „Noch Fragen?“, Abschluss, Kunde weg). */
+export async function aendereAblauf(token: string, channelId: string, aenderung: Partial<Record<keyof Ablauf, number | null>>): Promise<boolean> {
+  return aendereKarte(token, channelId, (felder) => ({ fields: mitAblauf(felder, aenderung) }));
+}
+
+/** Eine Nachricht ins Ticket (mit 429-Wiederholung). `users`: wer davon angepingt wird. */
+export async function schreibeInsTicket(token: string, channelId: string, content: string, users: string[] = []): Promise<boolean> {
+  return Boolean(await call(token, "POST", `/channels/${channelId}/messages`, { content, allowed_mentions: { parse: [], users } }));
+}
+
+/** Offene Hinweise (mit Knopf) einer Art schließen: Text ersetzen, Knopf weg (z. B. nach „Noch Fragen?“ aus der privaten Meldung). */
+export async function schliesseHinweise(token: string, channelId: string, anfang: string, text: string): Promise<void> {
+  for (const m of (await letzteNachrichten(token, channelId, 30)) ?? []) {
+    if (!m.author.bot || !m.content.startsWith(anfang) || !(m.components?.length ?? 0)) continue;
+    await call(token, "PATCH", `/channels/${channelId}/messages/${m.id}`, { content: text, components: [], allowed_mentions: { parse: [] } });
+  }
+}
+
+/**
+ * Schickt dem Kunden einen Satz im Namen dessen, der gedrückt hat („Noch Fragen?“, „Abschluss“, Schnellantwort,
+ * Antworten). Im Ticket steht er wie eine eigene Nachricht: „💬 **Name:** …“. Mit 429-Wiederholung (call).
+ */
+export async function postAnKunde(token: string, channelId: string, wer: string, text: string): Promise<boolean> {
+  return Boolean(
+    await call(token, "POST", `/channels/${channelId}/messages`, {
+      content: `${FOR_CUSTOMER} **${wer}:** ${text}`,
+      allowed_mentions: { parse: [] },
+    }),
+  );
 }
 
 /**
@@ -439,20 +650,30 @@ export async function meldeBeleidigung(token: string, channelId: string, message
 }
 
 /**
- * Möchte der Kunde sprechen, einen Termin, ein Erstgespräch oder einen Preis, schreibt der Bot einen
- * Hinweis nur fürs Team mit dem Knopf „Anruf anbieten“ (ohne 💬, darum sieht der Kunde ihn nie).
- * Steht in den letzten Nachrichten schon ein offener Hinweis oder ein Angebot, kommt kein zweiter.
+ * Möchte der Kunde sprechen, einen Termin, ein Erstgespräch oder einen Preis (das entscheidet seit Prompt 18 die
+ * KI, lib/chat-beleidigung.ts), schreibt der Bot einen Hinweis nur fürs Team mit dem Knopf „Anruf anbieten“ (ohne
+ * 💬, darum sieht der Kunde ihn nie). Steht in den letzten Nachrichten schon ein offener Hinweis oder ein Angebot,
+ * kommt kein zweiter.
  */
-export async function hinweisBeiAnrufwunsch(token: string, channelId: string, text: string): Promise<boolean> {
-  const anliegen = erkenneAnliegen(text);
-  if (!anliegen) return false;
-  const letzte = await call<DiscordMessage[]>(token, "GET", `/channels/${channelId}/messages?limit=15`);
-  if (!letzte || !hinweisNoetig(letzte)) return false;
+export async function hinweisBeiAnrufwunsch(token: string, channelId: string, anliegen: Anliegen, letzte: DiscordMessage[]): Promise<boolean> {
+  if (!hinweisNoetig(letzte)) return false;
   const res = await call(token, "POST", `/channels/${channelId}/messages`, {
     content: hinweisText(anliegen),
     allowed_mentions: { parse: [] },
     components: hinweisKomponenten(anliegen),
   });
+  return Boolean(res);
+}
+
+/**
+ * Abschluss-Ablauf (Prompt 18): Meldet die KI, das Anliegen klinge gelöst (oder der Kunde habe nach „Noch
+ * Fragen?“ keine mehr), schreibt der Bot Hinweis 1 bzw. 2 nur fürs Team, mit @ für den, der übernommen hat.
+ */
+export async function abschlussHinweis(token: string, channelId: string, stand: "geloest" | "keine_fragen" | null, karte: Karte | null, letzte: DiscordMessage[]): Promise<boolean> {
+  const art = hinweisNachStand(stand, leseAblauf(karte?.felder));
+  if (!art || hinweisOffen(letzte, art)) return false;
+  const uebernehmer = uebernehmerDerKarte(karte?.felder);
+  const res = await call(token, "POST", `/channels/${channelId}/messages`, art === "geloest" ? hinweisGeloest(uebernehmer) : hinweisKeineFragen(uebernehmer));
   return Boolean(res);
 }
 

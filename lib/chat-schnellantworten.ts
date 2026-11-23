@@ -7,6 +7,8 @@ export const SCHNELLANTWORTEN = [
   "Danke für deine Geduld!",
   "Bitte bleib sachlich, sonst müssen wir den Chat beenden.",
   "Wir melden uns per E-Mail bei dir.",
-  "Möchtest du, dass wir dich anrufen?",
-  "Danke für deine Nachricht – ich beende den Chat jetzt. Schönen Tag noch!",
+  // Wir rufen Kunden nicht zurück: Der Kunde ruft an, der Telefon-Assistent macht den Termin (Prompt 18).
+  "Am schnellsten klären wir das am Telefon: Ruf uns einfach an.",
 ] as const;
+// Der Abschluss-Satz steht nicht mehr hier (Prompt 18): Er kommt nur über den Knopf „Abschluss“
+// (lib/support-ablauf.ts), damit die Reihenfolge „Noch Fragen?“ → „Abschluss“ → „Ticket schließen“ hält.

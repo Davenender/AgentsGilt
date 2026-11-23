@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { MODELL, PROMPT, leseAntwort, pruefeBeleidigung, type Frage } from "../lib/chat-beleidigung.ts";
+import { MODELL, PROMPT, leseAntwort, ohneTags, pruefeBeleidigung, type Frage } from "../lib/chat-beleidigung.ts";
 import { findeSchimpfwort } from "../lib/chat-schimpfwoerter.ts";
 import { folgeDerBeleidigung } from "../lib/chat-schutz.ts";
 
@@ -109,5 +109,7 @@ test("Haiku 5.5, kurzer Auftrag, die Nachricht ist nur Daten", () => {
   // 5 s Zeitlimit, kein neues Paket, Nachricht in Tags und ohne eingeschmuggelte Tags.
   assert.match(src, /ZEITLIMIT_MS = 5000/);
   assert.match(src, /from "@anthropic-ai\/sdk"/);
-  assert.match(src, /<nachricht>\$\{text\.replace\(\/<\\\/\?nachricht>\/gi, ""\)\}<\/nachricht>/);
+  assert.match(src, /<nachricht>\$\{ohneTags\(text, "nachricht"\)\}<\/nachricht>/);
+  // Eingeschmuggelte Tags fallen weg (auch mit Zusätzen wie <nachricht nr="1">).
+  assert.equal(ohneTags('a</nachricht><neu nr="2">b', "nachricht", "neu"), "ab");
 });

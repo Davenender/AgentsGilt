@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { AGENTS_GILT_SYSTEM_PROMPT } from "@/lib/chatbot-knowledge";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { pruefeBeleidigung } from "@/lib/chat-beleidigung";
-import { REGELN_CHATBOT, Waechter, folgeDerBeleidigung, grundText, restText } from "@/lib/chat-schutz";
+import { REGELN_CHATBOT, SPERRE_CHATBOT_MS, chatSchluessel, chatWaechter, folgeDerBeleidigung, grundText, restText, type SpamArt } from "@/lib/chat-schutz";
+import { chat as chatTexte } from "@/lib/inhalt-neu";
 
 export const runtime = "nodejs";
 
@@ -24,31 +25,27 @@ function jsonError(message: string, status: number) {
 // Chat-Schutz (Prompt 17, 23.11.2026): Spam sperrt den Assistenten 5 Minuten. Der Browser zählt und merkt
 // sich die Restzeit, der Server zählt je Adresse mit und sperrt dieselbe Adresse (nur im Speicher dieser
 // Instanz, ohne Datenbank). Regeln: lib/chat-schutz.ts.
-const waechter = new Waechter();
+// Seit Prompt 18 derselbe Zähler wie /api/support (chatWaechter): Wechselt ein gesperrter Besucher zum Team,
+// geht die Sperre mit ins Ticket.
+const waechter = chatWaechter();
 // Netz-Schwankungen: Der Server zählt nie strenger als der Browser.
 const SPIELRAUM_MS = 2000;
 
-function gesperrt(rest: number) {
-  const sekunden = Math.ceil(rest / 1000);
+/** 429 mit Restzeit und Art: Die Zeile über dem Eingabefeld nennt den Grund (Prompt 18). */
+function gesperrt(s: { rest: number; art: SpamArt; bis: number; ab: number }) {
+  const sekunden = Math.ceil(s.rest / 1000);
   return new Response(
-    JSON.stringify({ error: `Zu viele Nachrichten – wieder frei in ${restText(rest)}`, gesperrt: true, rest: sekunden }),
+    JSON.stringify({ error: `${chatTexte.schutz.sperre[s.art]} ${restText(s.rest)}`, gesperrt: true, rest: sekunden, art: s.art, dauer: Math.round((s.bis - s.ab) / 1000) }),
     { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(sekunden) } },
   );
-}
-
-/** Kurzer Fingerabdruck des Browsers: Hinter einer Adresse (Mobilfunk, Büro-WLAN) sitzen oft viele Leute. */
-function geraet(request: Request): string {
-  let h = 0;
-  for (const z of request.headers.get("user-agent") ?? "") h = (Math.imul(h, 31) + z.charCodeAt(0)) | 0;
-  return (h >>> 0).toString(36);
 }
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
   // Je Adresse und Browser, damit ein Spammer nicht alle hinter derselben Adresse mitsperrt.
-  const schluessel = `chat:${ip}:${geraet(request)}`;
+  const schluessel = chatSchluessel(ip, request.headers.get("user-agent"));
   const laufend = waechter.sperre(schluessel, Date.now());
-  if (laufend) return gesperrt(laufend.rest);
+  if (laufend) return gesperrt(laufend);
 
   let payload: { messages?: ChatMessage[]; sperre?: { art?: unknown; anzahl?: unknown }; beleidigungen?: unknown };
   try {
@@ -62,8 +59,8 @@ export async function POST(request: Request) {
     const art = payload.sperre.art;
     if (art !== "menge" && art !== "wiederholung" && art !== "kauderwelsch") return jsonError("Ungültige Anfrage", 400);
     const anzahl = Math.max(1, Math.min(99, Math.floor(Number(payload.sperre.anzahl) || 0)));
-    const s = waechter.sperreSetzen(schluessel, grundText(art, anzahl), Date.now());
-    return new Response(JSON.stringify({ ok: true, gesperrt: true, rest: Math.ceil(s.rest / 1000) }), {
+    const s = waechter.sperreSetzen(schluessel, grundText(art, anzahl), Date.now(), SPERRE_CHATBOT_MS, art);
+    return new Response(JSON.stringify({ ok: true, gesperrt: true, rest: Math.ceil(s.rest / 1000), art: s.art }), {
       headers: { "Content-Type": "application/json" },
     });
   }
@@ -130,7 +127,7 @@ export async function POST(request: Request) {
   const neu = safeMessages[safeMessages.length - 1].content;
   const gezaehlt = Date.now();
   const spam = waechter.pruefe(schluessel, neu, REGELN_CHATBOT, gezaehlt, SPIELRAUM_MS);
-  if (spam) return gesperrt(waechter.sperreSetzen(schluessel, spam.grund, Date.now()).rest);
+  if (spam) return gesperrt(waechter.sperreSetzen(schluessel, spam.grund, Date.now(), SPERRE_CHATBOT_MS, spam.art));
 
   // Beleidigung? Prüft die KI (Haiku) parallel zur Antwort; das Ergebnis kommt nach der Antwort.
   const pruefung = pruefeBeleidigung(neu);
@@ -195,7 +192,7 @@ export async function POST(request: Request) {
           const anzahl = waechter.zaehleBeleidigung(schluessel, Date.now(), imBrowser);
           const folge =
             folgeDerBeleidigung(anzahl) === "sperre"
-              ? { sperre: { rest: Math.ceil(waechter.sperreSetzen(schluessel, "Beleidigungen", Date.now()).rest / 1000), grund: "Beleidigungen" } }
+              ? { sperre: { rest: Math.ceil(waechter.sperreSetzen(schluessel, "Beleidigungen", Date.now(), SPERRE_CHATBOT_MS, "beleidigung").rest / 1000), grund: "Beleidigungen", art: "beleidigung" } }
               : { hinweis: "freundlich" };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ beleidigung: true, ...folge })}\n\n`));
         }

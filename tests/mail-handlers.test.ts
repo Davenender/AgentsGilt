@@ -5,12 +5,15 @@ import { BETREFF_MAX, TEXT_MAX, darfMailen, entwurfKarte, fensterWerte, freigabe
 
 const DAVID = "806859236768088114";
 
-test("Ticket: nur wer übernommen hat, und David", () => {
+test("Ticket: nur wer übernommen hat, seit Prompt 18 auch nicht David (Schalter CHEF_DARF_ALLES aus)", () => {
   const karte = { title: "Support-Anfrage ticket-0009", fields: [{ name: "Status", value: "Übernommen von <@111> um 10:00" }] };
   assert.equal(ticketBesitzer(karte), "111");
   assert.equal(darfMailen("ticket", "111", [ticketBesitzer(karte) ?? ""], DAVID), null);
-  assert.equal(darfMailen("ticket", DAVID, ["111"], DAVID), null);
-  assert.match(darfMailen("ticket", "222", ["111"], DAVID) ?? "", /übernommen/);
+  assert.equal(darfMailen("ticket", DAVID, ["111"], DAVID), "Das Ticket hat <@111> übernommen.");
+  assert.equal(darfMailen("ticket", "222", ["111"], DAVID), "Das Ticket hat <@111> übernommen.");
+  assert.equal(darfMailen("ticket", "222", [""], DAVID), "Übernimm zuerst das Ticket.");
+  // Anfragen bleiben, wie sie sind: Dort darf David weiter alles.
+  assert.equal(darfMailen("anfrage", DAVID, ["111"], DAVID), null);
   assert.equal(ticketBesitzer({ fields: [{ name: "Status", value: "Offen" }] }), null);
 });
 

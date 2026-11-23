@@ -2,21 +2,35 @@
 
 import { Fragment, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useChatZugang } from "@/components/chat/ChatAnbieter";
-import type { ChatZustand } from "@/components/chat/useChat";
+import type { ChatSperre, ChatZustand } from "@/components/chat/useChat";
 import { holeZusammenfassung } from "@/components/chat/zusammenfassung";
-import { CHAT_ZEICHEN, STARTER_QUESTIONS, ZEICHEN_WECHSEL, reichTeile, wellenPlan, woerter, type Message } from "@/lib/chat-text";
+import { CHAT_ZEICHEN, STARTER_QUESTIONS, ZEICHEN_WECHSEL, reichTeile, wellenPlan, woerter, type LeistungArt, type Message } from "@/lib/chat-text";
 import { restText } from "@/lib/chat-schutz";
+import type { SperrArt } from "@/lib/support-sperre";
 import { chat as chatTexte, kontakt, marke } from "@/lib/inhalt-neu";
 import { glimme } from "../glimmrand";
 import { GoldMarke } from "../Marke";
-import { LADEN_FERTIG, LADEN_FERTIG_KLASSE } from "../umgebung";
+import { LADEN_FERTIG, LADEN_FERTIG_KLASSE, scrollZiel } from "../umgebung";
 import { enthuelleText, richteVerwuerfelnEin } from "../verwuerfeln";
-import { erstelleEndeHalter } from "./endeHalten";
+import { SELBST_MS, erstelleEndeHalter } from "./endeHalten";
 import { DAUER, KUGEL, PHASEN, SCHLIESSEN, zeitleiste, type Bild, type Masse } from "./kugel";
 import "./chat.css";
 
 const t = chatTexte.fenster;
 const schutz = chatTexte.schutz;
+const karten = chatTexte.karten;
+
+/**
+ * Wurde der Chat in diesem Besuch (bis die Seite neu geladen wird) schon einmal geöffnet? Beim ersten Öffnen
+ * stehen Begrüßung und Vorschläge sofort da, ohne Glitch (Prompt 18); danach wie bisher.
+ */
+let schonGeoeffnet = false;
+
+/** Wohin „Mehr zu … →“ führt: die Karte der Leistung im Abschnitt #leistungen (sonst der Abschnitt; fehlt er, kein Link). */
+function leistungsZiel(art: LeistungArt): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return document.querySelector<HTMLElement>(`${karten.leistungAnker} .ag-lk[data-art="${art}"]`) ?? document.querySelector<HTMLElement>(karten.leistungAnker);
+}
 const zufall = () => CHAT_ZEICHEN[Math.floor(Math.random() * CHAT_ZEICHEN.length)];
 const klemme = (x: number, von = 0, bis = 1) => Math.min(bis, Math.max(von, x));
 
@@ -68,6 +82,11 @@ export function ChatFenster() {
   // frische Begrüßung (noch kein Gespräch) entschlüsselt sich, und zwar erst, wenn sich der Inhalt
   // beim ersten Öffnen aufbaut.
   const [alt, setAlt] = useState<number | null>(null);
+  // Das erste Öffnen in diesem Besuch: Begrüßung und Vorschläge stehen sofort da (gilt bis zum Neuladen der Seite).
+  const [erstesMal] = useState(() => !schonGeoeffnet);
+  useEffect(() => {
+    if (offen) schonGeoeffnet = true;
+  }, [offen]);
   if (offen && !gebaut) setGebaut(true);
   // Damit das erste Öffnen ohne Wartezeit beginnt, entsteht der Inhalt schon vorher in einer
   // ruhigen Minute (er steht dann nur da: Es läuft nichts, solange das Fenster zu ist).
@@ -81,7 +100,8 @@ export function ChatFenster() {
     const uhr = window.setTimeout(bauen, 3000);
     return () => window.clearTimeout(uhr);
   }, [gebaut]);
-  if (gebaut && alt === null) setAlt(chat.messages.length <= 1 ? 0 : chat.messages.length);
+  // Beim ersten Öffnen zählt auch die frische Begrüßung schon als da (sie entschlüsselt sich nicht), danach wie bisher.
+  if (gebaut && alt === null) setAlt(chat.messages.length <= 1 ? (erstesMal ? 1 : 0) : chat.messages.length);
 
   const wurzel = useRef<HTMLDivElement>(null);
   const rahmen = useRef<HTMLDivElement>(null);
@@ -396,46 +416,80 @@ export function ChatFenster() {
     [],
   );
 
-  // Immer am Ende des Verlaufs bleiben: bei jeder neuen Nachricht, und auch wenn der Inhalt
-  // nachträglich wächst (die Blase wächst, unter einer Antwort erscheinen Knöpfe, im Ticket ein
-  // Hinweis) oder die Liste kleiner wird (Eingabefeld wächst, Tastatur am Handy). Hat der Besucher
-  // selbst hochgescrollt, bleibt die Liste, wo er sie hingestellt hat, bis er selbst etwas schreibt.
-  // Die Regel und die Ursache des alten Fehlers (Runde 1, Feinschliff): endeHalten.ts.
-  const [ende] = useState(erstelleEndeHalter);
+  // Immer ganz unten bleiben (Prompt 18): bei jeder neuen Nachricht und auch, wenn der Inhalt nachträglich wächst
+  // (die Blase wächst, der Text baut sich aus Zeichen auf, darunter erscheinen Karten, Folgefragen, im Ticket ein
+  // Hinweis) oder die Liste kleiner wird (Eingabefeld wächst, Tastatur am Handy). Nur wenn der Besucher gerade
+  // selbst scrollt (Eingabe in den letzten 2 s), zieht der Chat nicht dagegen. Regel und Ursache des alten Fehlers:
+  // endeHalten.ts.
+  const [ende] = useState(() => erstelleEndeHalter());
   const offenZuletzt = useRef(offen);
   const zahlZuletzt = useRef(chat.messages.length);
   const formularZuletzt = useRef(chat.handoff);
+  const oeffnenBild = useRef(0);
   useEffect(() => {
     const el = liste.current;
     if (!el) return;
-    // Eigene Nachricht oder das Formular für den Mitarbeiter: wieder ans Ende, auch wenn er
-    // hochgescrollt war. Antworten (Assistent, Team) holen ihn dagegen nicht zurück.
+    // Eigene Nachricht oder das Formular für den Mitarbeiter: sofort ans Ende, auch wenn er eben noch gescrollt hat.
     const neu = chat.messages.length > zahlZuletzt.current;
     zahlZuletzt.current = chat.messages.length;
     const eigene = neu && chat.messages[chat.messages.length - 1]?.role === "user";
     const formular = chat.handoff && !formularZuletzt.current;
     formularZuletzt.current = chat.handoff;
-    // Im Klick, der das Fenster öffnet oder schließt, wird nichts gemessen (das hielte die Bewegung
-    // auf): Die Liste rückt im nächsten Bild ans Ende, dort rechnet der Browser ohnehin.
+    // Im Klick, der das Fenster öffnet oder schließt, wird nichts gemessen (das hielte die Bewegung auf): Die
+    // Liste rückt im nächsten Bild ans Ende. Das Bild wird nicht abgebrochen, wenn sich gleich danach etwas ändert
+    // (bis Prompt 18 blieb die Liste dann oben stehen).
     if (offenZuletzt.current !== offen) {
       offenZuletzt.current = offen;
-      const bild = requestAnimationFrame(() => ende.neu(el, true));
-      return () => cancelAnimationFrame(bild);
+      cancelAnimationFrame(oeffnenBild.current);
+      oeffnenBild.current = requestAnimationFrame(() => ende.neu(el, true));
+      return;
     }
     ende.neu(el, eigene || formular);
-  }, [chat.messages, chat.streaming, chat.handoff, chat.error, offen, begruessungSteht, ende]);
+  }, [chat.messages, chat.streaming, chat.handoff, chat.error, chat.sperre, offen, begruessungSteht, ende]);
   useEffect(() => {
     const el = liste.current;
     const inhalt = el?.firstElementChild;
     if (!el || !inhalt || !gebaut) return;
-    const gescrollt = () => ende.gescrollt(el);
+    let uhr = 0;
+    // Der Besucher scrollt selbst: 2 s lang zieht nichts dagegen, danach geht Neues wieder ans Ende.
+    const selbst = () => {
+      ende.eingabe();
+      window.clearTimeout(uhr);
+      uhr = window.setTimeout(() => ende.pruefe(el), SELBST_MS + 60);
+    };
+    const rad = (ev: WheelEvent) => {
+      if (ev.deltaY < 0) selbst();
+    };
+    const taste = (ev: KeyboardEvent) => {
+      if (ev.key === "ArrowUp" || ev.key === "PageUp" || ev.key === "Home") selbst();
+    };
+    // Ein Druck auf die Liste selbst, nicht auf ihren Inhalt: der Scrollbalken.
+    const druck = (ev: PointerEvent) => {
+      if (ev.target === el) selbst();
+    };
+    // Solange er selbst scrollt (Nachlauf nach dem Wischen, Ziehen am Balken), zählt jedes Scroll-Ereignis mit.
+    const gescrollt = () => {
+      if (ende.selbst) selbst();
+    };
     const waechter = new ResizeObserver(() => ende.groesse(el));
     // Der Inhalt wächst, oder die Liste selbst wird kleiner (Eingabefeld, Tastatur am Handy).
     waechter.observe(inhalt);
     waechter.observe(el);
+    el.addEventListener("wheel", rad, { passive: true });
+    el.addEventListener("touchstart", selbst, { passive: true });
+    el.addEventListener("touchmove", selbst, { passive: true });
+    el.addEventListener("keydown", taste);
+    el.addEventListener("pointerdown", druck);
     el.addEventListener("scroll", gescrollt, { passive: true });
     return () => {
       waechter.disconnect();
+      window.clearTimeout(uhr);
+      cancelAnimationFrame(oeffnenBild.current);
+      el.removeEventListener("wheel", rad);
+      el.removeEventListener("touchstart", selbst);
+      el.removeEventListener("touchmove", selbst);
+      el.removeEventListener("keydown", taste);
+      el.removeEventListener("pointerdown", druck);
       el.removeEventListener("scroll", gescrollt);
     };
   }, [gebaut, ende]);
@@ -548,8 +602,57 @@ export function ChatFenster() {
       { duration: 520, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
   };
-  // Chat-Schutz (Prompt 17): Assistent 5 Minuten gesperrt (Countdown) oder Support-Chat gesperrt, bis das Team entsperrt.
-  const gesperrt = chat.sperreBis > 0 || chat.teamGesperrt;
+  // Chat-Schutz (Prompt 17): Assistent 5 Minuten gesperrt (Countdown) oder Support-Chat gesperrt, bis das Team
+  // entsperrt. Seit Prompt 18 mit Grund, Schloss im Senden-Knopf, Ring (nur mit Uhr) und roter Welle beim Tippen.
+  const sperre = chat.sperre;
+  const gesperrt = !!sperre;
+  const feldRef = useRef<HTMLDivElement>(null);
+  const wellen = useRef<HTMLSpanElement>(null);
+  const schlossRef = useRef<SVGSVGElement>(null);
+  const letzterStups = useRef(0);
+  // Tippen oder Klicken ins gesperrte Feld: Von der Stelle läuft eine rote Welle durchs Feld, das Schloss ruckt kurz
+  // (höchstens einmal je Sekunde). Bei „Bewegung reduzieren“ färbt sich nur das Feld kurz rot.
+  const stups = (ev: ReactPointerEvent<HTMLElement>) => {
+    const jetzt = ev.timeStamp;
+    if (jetzt - letzterStups.current < 1000 && letzterStups.current) return;
+    letzterStups.current = jetzt;
+    const huelle = wellen.current;
+    const feld = feldRef.current;
+    if (!huelle || !feld) return;
+    const welle = document.createElement("i");
+    if (ruhig) {
+      // Weniger Bewegung: keine Welle, das Feld färbt sich nur kurz rot.
+      welle.className = "ag-cf__welle ag-cf__welle--ruhig";
+      huelle.append(welle);
+      window.setTimeout(() => welle.remove(), 600);
+      return;
+    }
+    const r = feld.getBoundingClientRect();
+    welle.className = "ag-cf__welle";
+    welle.style.left = `${(ev.clientX - r.left).toFixed(1)}px`;
+    welle.style.top = `${(ev.clientY - r.top).toFixed(1)}px`;
+    huelle.append(welle);
+    welle.addEventListener("animationend", () => welle.remove(), { once: true });
+    window.setTimeout(() => welle.remove(), 1400);
+    schlossRef.current?.animate(
+      [
+        { transform: "translate3d(0, 0, 0) rotate(0deg)" },
+        { transform: "translate3d(-1.6px, 0, 0) rotate(-9deg)", offset: 0.2 },
+        { transform: "translate3d(1.4px, 0, 0) rotate(7deg)", offset: 0.45 },
+        { transform: "translate3d(-0.7px, 0, 0) rotate(-3deg)", offset: 0.7 },
+        { transform: "translate3d(0, 0, 0) rotate(0deg)" },
+      ],
+      { duration: 420, easing: "cubic-bezier(0.36, 0.07, 0.19, 0.97)" },
+    );
+  };
+  // Folgefragen verschwinden, sobald der Besucher selbst tippt: Ab welcher Antwort (Stelle im Verlauf) gelten sie als weg.
+  const [fragenAus, setFragenAus] = useState(-1);
+  // „Mehr zu … →“: Der Chat schließt sich (am Handy das Glasblatt), die Seite scrollt weich zur Leistung.
+  const zurLeistung = (art: LeistungArt) => {
+    const ziel = leistungsZiel(art);
+    schliessen();
+    if (ziel) window.setTimeout(() => scrollZiel.zu(ziel), 90);
+  };
   const senden = () => {
     if (!chat.input.trim() || chat.streaming || gesperrt) return;
     lichtstrich();
@@ -700,8 +803,20 @@ export function ChatFenster() {
                           setStand((n) => n + 1);
                         }}
                       >
-                        {/* Bei [ANRUFEN] bietet die Anzeige selbst immer beide Wege an, auch wenn der Assistent [MITARBEITER] vergisst. */}
-                        {(m.anrufen || (m.mitarbeiter && mitarbeiterMoeglich)) && <Angebot anrufen={!!m.anrufen} mitarbeiter={(!!m.mitarbeiter || !!m.anrufen) && mitarbeiterMoeglich} beiMitarbeiter={oeffneTicket} />}
+                        {/* Bei [ANRUFEN] bietet die Anzeige selbst immer beide Wege an, auch wenn der Assistent [MITARBEITER] vergisst.
+                            Bei [ANRUFEN:TESTEN] (Karte C) nur die Anruf-Karte mit eigenem Text. */}
+                        {(m.anrufen || (m.mitarbeiter && mitarbeiterMoeglich)) && (
+                          <Angebot
+                            anrufen={!!m.anrufen}
+                            testen={m.anrufArt === "testen"}
+                            mitarbeiter={(m.anrufArt === "testen" ? !!m.mitarbeiter : !!m.mitarbeiter || !!m.anrufen) && mitarbeiterMoeglich}
+                            beiMitarbeiter={oeffneTicket}
+                          />
+                        )}
+                        {/* Karte B: „Mehr zu … →“, nur wenn es den Abschnitt auf dieser Seite gibt. */}
+                        {m.leistung && <LeistungLink art={m.leistung} beiKlick={zurLeistung} />}
+                        {/* Karte A: Folgefragen unter der neuesten Antwort, bis der Besucher selbst tippt oder sendet. */}
+                        {!!m.fragen?.length && !mitTeam && i === zeilen.length - 1 && i > fragenAus && !chat.streaming && <Folgefragen fragen={m.fragen} beiWahl={waehle} />}
                       </AntwortZeile>
                     ),
                   )}
@@ -712,7 +827,7 @@ export function ChatFenster() {
                   )}
 
                   {/* Die drei Vorschläge: nur solange noch nichts gefragt wurde. Sie erscheinen, sobald die Begrüßung steht. */}
-                  {zeigeVorschlaege && <Vorschlaege key={aufNr} da={begruessungSteht && aufNr > 0} spielt={!ruhig} beiWahl={waehle} />}
+                  {zeigeVorschlaege && <Vorschlaege key={aufNr} da={begruessungSteht && aufNr > 0} spielt={!ruhig && !(erstesMal && aufNr <= 1)} sofort={erstesMal && aufNr <= 1} beiWahl={waehle} />}
 
                   {/* Übergabe an einen Mitarbeiter: das Support-Ticket. */}
                   {chat.handoff && !mitTeam && (
@@ -729,14 +844,21 @@ export function ChatFenster() {
               </div>
 
               <div className="ag-cf__unten">
-                {(gesperrt || chat.wiederFrei) && (
-                  <SperrZeile key={gesperrt ? (chat.teamGesperrt ? "team" : `bis-${chat.sperreBis}`) : "frei"} bis={chat.teamGesperrt ? 0 : chat.sperreBis} frei={!gesperrt} />
-                )}
-                <div className="ag-cf__feld" data-text={chat.input.trim() ? "" : undefined} data-gesperrt={gesperrt ? "" : undefined}>
+                {(gesperrt || chat.wiederFrei) && <SperrZeile key={sperre ? (sperre.team ? `team-${sperre.art}` : `bis-${sperre.bis}`) : "frei"} sperre={sperre} />}
+                <div
+                  ref={feldRef}
+                  className="ag-cf__feld"
+                  data-text={chat.input.trim() ? "" : undefined}
+                  data-gesperrt={gesperrt ? "" : undefined}
+                  data-schloss={gesperrt ? "zu" : chat.wiederFrei ? "auf" : undefined}
+                >
                   <textarea
                     ref={eingabe}
                     value={chat.input}
-                    onChange={(ev) => chat.setInput(ev.target.value)}
+                    onChange={(ev) => {
+                      if (ev.target.value.trim()) setFragenAus(chat.messages.length - 1);
+                      chat.setInput(ev.target.value);
+                    }}
                     onKeyDown={(ev) => {
                       if (ev.key === "Enter" && !ev.shiftKey) {
                         ev.preventDefault();
@@ -748,10 +870,20 @@ export function ChatFenster() {
                     disabled={gesperrt}
                   />
                   {!chat.input && !gesperrt && <Platzhalter texte={mitTeam ? [t.platzTeam] : t.platz} laeuft={offen && !ruhig} />}
+                  {/* Gesperrt: Eine Fläche über dem Feld fängt Tippen und Klicken ab (die Welle läuft von dort). */}
+                  {gesperrt && <span className="ag-cf__sperrflaeche" aria-hidden="true" onPointerDown={stups} />}
+                  <span ref={wellen} className="ag-cf__wellen" aria-hidden="true" />
                   <button type="button" className="ag-cf__senden" aria-label={t.senden} disabled={chat.streaming || !chat.input.trim() || gesperrt} onClick={senden}>
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <svg className="ag-cf__stern" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M12 1.5c.9 7.2 3.3 9.6 10.5 10.5-7.2.9-9.6 3.3-10.5 10.5C11.1 15.3 8.7 12.9 1.5 12 8.7 11.1 11.1 8.7 12 1.5Z" />
                     </svg>
+                    {/* Schloss statt Stern, solange gesperrt; nach Ablauf springt es auf. */}
+                    <svg ref={schlossRef} className="ag-cf__schloss" viewBox="0 0 24 24" aria-hidden="true">
+                      <path className="ag-cf__buegel" d="M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7" />
+                      <rect x="5" y="10.5" width="14" height="10" rx="2.6" />
+                    </svg>
+                    {/* Der Ring leert sich mit der Restzeit (nur bei Sperren mit Uhr). */}
+                    {sperre && !sperre.team && !ruhig && <Ring key={sperre.bis} bis={sperre.bis} ab={sperre.ab} />}
                     <span ref={strich} className="ag-cf__strich" aria-hidden="true" />
                   </button>
                 </div>
@@ -795,19 +927,21 @@ function Haken() {
 }
 
 /**
- * Über dem Eingabefeld (Chat-Schutz, Prompt 17): Der Assistent ist gesperrt (mit Countdown, die Zeit
- * läuft sekundengenau), der Support-Chat ist gesperrt, bis das Team entsperrt, oder kurz „Du kannst
- * wieder schreiben.“ (blendet nach 6 s aus). Vorlesen: einmal beim Erscheinen, nicht jede Sekunde.
+ * Über dem Eingabefeld (Chat-Schutz, Prompt 17; Grund seit Prompt 18): Der Assistent ist gesperrt (mit Countdown,
+ * die Ziffern kippen beim Wechsel), der Support-Chat ist gesperrt, bis das Team entsperrt (ohne Uhr), oder kurz
+ * „Du kannst wieder schreiben.“ (blendet nach 6 s aus). Die Zeile bleibt gold und leuchtet etwa alle 8 s einmal rot
+ * auf (Stylesheet). Vorlesen: einmal beim Erscheinen, nicht jede Sekunde.
  */
-function SperrZeile({ bis, frei }: { bis: number; frei: boolean }) {
+function SperrZeile({ sperre }: { sperre: ChatSperre | null }) {
+  const bis = sperre && !sperre.team ? sperre.bis : 0;
   const [rest, setRest] = useState(() => (bis ? restText(bis - Date.now()) : ""));
   const [anfang] = useState(rest);
   useEffect(() => {
-    if (!bis || frei) return;
+    if (!bis) return;
     const takt = window.setInterval(() => setRest(restText(bis - Date.now())), 250);
     return () => window.clearInterval(takt);
-  }, [bis, frei]);
-  if (frei) {
+  }, [bis]);
+  if (!sperre) {
     return (
       <div className="ag-cf__sperre ag-cf__sperre--frei" role="status">
         <Haken />
@@ -819,18 +953,65 @@ function SperrZeile({ bis, frei }: { bis: number; frei: boolean }) {
     return (
       <div className="ag-cf__sperre" role="status">
         <Schloss />
-        <span>{schutz.gesperrtTeam}</span>
+        <span>{schutz.team[sperre.art]}</span>
       </div>
     );
   }
+  const text = schutz.sperre[sperre.art as SperrArt] ?? schutz.sperre.menge;
   return (
     <div className="ag-cf__sperre" role="status">
       <Schloss />
       <span aria-hidden="true">
-        {schutz.sperre} <span className="ag-cf__rest">{rest}</span>
+        {text} <KippZeit text={rest} />
       </span>
-      <span className="ag-cf__vorlesen">{`${schutz.sperre} ${anfang}`}</span>
+      <span className="ag-cf__vorlesen">{`${text} ${anfang}`}</span>
     </div>
+  );
+}
+
+/** Die Restzeit mit kippenden Ziffern: Jede Ziffer, die wechselt, klappt nach unten weg, die neue klappt herein. */
+function KippZeit({ text }: { text: string }) {
+  return (
+    <span className="ag-cf__rest">
+      {Array.from(text).map((z, i) => (z === ":" ? <span key={`t${i}`}>:</span> : <Ziffer key={`z${i}-${text.length}`} z={z} />))}
+    </span>
+  );
+}
+function Ziffer({ z }: { z: string }) {
+  const [stand, setStand] = useState({ jetzt: z, vorher: "", nr: 0 });
+  if (stand.jetzt !== z) setStand({ jetzt: z, vorher: stand.jetzt, nr: stand.nr + 1 });
+  return (
+    <span className="ag-cf__ziffer">
+      <span key={`n${stand.nr}`} className={stand.nr ? "ag-cf__ziffer-neu" : undefined}>
+        {stand.jetzt}
+      </span>
+      {stand.vorher && (
+        <span key={`a${stand.nr}`} className="ag-cf__ziffer-alt">
+          {stand.vorher}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Der Ring um den Senden-Knopf: leert sich mit der Restzeit. Zwei Halbringe drehen sich nacheinander aus ihrem
+ * Ausschnitt (nur transform): erst die rechte Hälfte, dann die linke. Die Zeit läuft als CSS-Animation über die
+ * ganze Sperre; die schon vergangene Zeit steht als negativer Beginn darin.
+ */
+function Ring({ bis, ab }: { bis: number; ab: number }) {
+  const dauer = Math.max(1000, bis - ab);
+  const [vorbei] = useState(() => Math.min(dauer, Math.max(0, Date.now() - ab)));
+  const stil = { "--dauer": `${dauer}ms`, "--vorbei": `-${vorbei}ms` } as CSSProperties;
+  return (
+    <span className="ag-cf__ring" style={stil} aria-hidden="true">
+      <span className="ag-cf__ring-r">
+        <i />
+      </span>
+      <span className="ag-cf__ring-l">
+        <i />
+      </span>
+    </span>
   );
 }
 
@@ -896,26 +1077,42 @@ function MitarbeiterKnopf({ beiKlick, klein = false, stil }: { beiKlick: () => v
  * Glas, der grüne atmende Punkt mit „KI-Assistent bereit“, die Nummer und der goldene Knopf
  * „Jetzt anrufen“ (tel:). Ihr Rand glimmt unter der Maus (glimmrand.ts).
  */
-function AnrufKarte({ stil }: { stil?: CSSProperties }) {
+function AnrufKarte({ stil, testen = false }: { stil?: CSSProperties; testen?: boolean }) {
   const karte = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!karte.current) return;
     return glimme(karte.current);
   }, []);
   return (
-    <div ref={karte} className="ag-cf__anruf ag-glimm" style={stil} data-glimm>
-      <span className="ag-cf__anruf-status">
-        <i aria-hidden="true" />
-        {kontakt.anrufStatus}
-      </span>
-      <a className="ag-cf__anruf-nummer" href={`tel:${marke.telefon}`}>
-        {marke.telefonAnzeige}
-      </a>
+    <div ref={karte} className={`ag-cf__anruf ag-glimm${testen ? " ag-cf__anruf--testen" : ""}`} style={stil} data-glimm>
+      {testen ? (
+        // Karte C: Wer den Telefon-Assistenten hören will, bekommt dieselbe Karte mit eigenem Text.
+        <>
+          <span className="ag-cf__anruf-titel">
+            <i aria-hidden="true" />
+            {karten.testen.titel}
+          </span>
+          <span className="ag-cf__anruf-zeile">{karten.testen.zeile}</span>
+          <a className="ag-cf__anruf-nummer ag-cf__anruf-nummer--klein" href={`tel:${marke.telefon}`}>
+            {marke.telefonAnzeige}
+          </a>
+        </>
+      ) : (
+        <>
+          <span className="ag-cf__anruf-status">
+            <i aria-hidden="true" />
+            {kontakt.anrufStatus}
+          </span>
+          <a className="ag-cf__anruf-nummer" href={`tel:${marke.telefon}`}>
+            {marke.telefonAnzeige}
+          </a>
+        </>
+      )}
       <a className="ag-cf__gold ag-cf__anruf-knopf" href={`tel:${marke.telefon}`}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M6.6 3.8h2.6l1.5 4-1.9 1.4a11.2 11.2 0 0 0 5.9 5.9l1.4-1.9 4 1.5v2.6a2 2 0 0 1-2.2 2A16.6 16.6 0 0 1 4.6 6a2 2 0 0 1 2-2.2Z" />
         </svg>
-        {t.anrufen}
+        {testen ? karten.testen.knopf : t.anrufen}
       </a>
     </div>
   );
@@ -927,17 +1124,50 @@ function AnrufKarte({ stil }: { stil?: CSSProperties }) {
  * schreiben“ (einmal, auch wenn der Assistent zusätzlich [MITARBEITER] setzt); bei [MITARBEITER]
  * allein nur der Knopf. Es blendet weich ein, nacheinander.
  */
-function Angebot({ anrufen, mitarbeiter, beiMitarbeiter }: { anrufen: boolean; mitarbeiter: boolean; beiMitarbeiter: () => void }) {
+function Angebot({ anrufen, testen = false, mitarbeiter, beiMitarbeiter }: { anrufen: boolean; testen?: boolean; mitarbeiter: boolean; beiMitarbeiter: () => void }) {
   const nr = (n: number) => ({ "--n": n }) as CSSProperties;
   return (
     <div className="ag-cf__angebot">
-      {anrufen && <AnrufKarte stil={nr(0)} />}
+      {anrufen && <AnrufKarte stil={nr(0)} testen={testen} />}
       {anrufen && mitarbeiter && (
         <p className="ag-cf__klein ag-cf__weiter" style={nr(1)}>
           {t.weitereFragen}
         </p>
       )}
       {mitarbeiter && <MitarbeiterKnopf beiKlick={beiMitarbeiter} stil={nr(anrufen ? 2 : 0)} />}
+    </div>
+  );
+}
+
+/**
+ * Karte B (Prompt 18): Erklärt der Assistent eine bestimmte Leistung, steht darunter „Mehr zu … →“. Gibt es den
+ * Abschnitt auf dieser Seite nicht (Impressum, Datenschutz), kommt kein Link. Blendet ein wie die übrigen Karten.
+ */
+function LeistungLink({ art, beiKlick }: { art: LeistungArt; beiKlick: (art: LeistungArt) => void }) {
+  const [da] = useState(() => leistungsZiel(art) !== null);
+  if (!da) return null;
+  return (
+    <div className="ag-cf__angebot">
+      <button type="button" className="ag-cf__leistung" style={{ "--n": 0 } as CSSProperties} onClick={() => beiKlick(art)}>
+        {karten.leistung[art]}
+        <span aria-hidden="true"> →</span>
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Karte A (Prompt 18): höchstens zwei Folgefragen unter der neuesten Antwort, wie die Startvorschläge, nur kleiner.
+ * Ein Klick schickt die Frage ab, als wäre sie getippt. Ohne Glitch; sie blenden ein wie die übrigen Karten.
+ */
+function Folgefragen({ fragen, beiWahl }: { fragen: string[]; beiWahl: (frage: string, knopf: HTMLElement) => void }) {
+  return (
+    <div className="ag-cf__angebot ag-cf__folgefragen" role="group" aria-label={karten.fragen}>
+      {fragen.map((frage, i) => (
+        <button key={frage} type="button" className="ag-cf__vorschlag ag-cf__vorschlag--klein" style={{ "--n": i } as CSSProperties} onClick={(ev) => beiWahl(frage, ev.currentTarget)}>
+          {frage}
+        </button>
+      ))}
     </div>
   );
 }
@@ -1212,7 +1442,7 @@ function Eigene({ text, animiert }: { text: string; animiert: boolean }) {
  * nacheinander hinein, jeder mit einem kurzen Lichtstreif, und ihr Text entschlüsselt sich kurz.
  * Beim Drüberfahren verbuggen sie wie die anderen Texte (`data-wuerfel`).
  */
-function Vorschlaege({ da, spielt, beiWahl }: { da: boolean; spielt: boolean; beiWahl: (frage: string, knopf: HTMLElement) => void }) {
+function Vorschlaege({ da, spielt, sofort = false, beiWahl }: { da: boolean; spielt: boolean; sofort?: boolean; beiWahl: (frage: string, knopf: HTMLElement) => void }) {
   const reihe = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = reihe.current;
@@ -1225,7 +1455,8 @@ function Vorschlaege({ da, spielt, beiWahl }: { da: boolean; spielt: boolean; be
     };
   }, [da, spielt]);
   return (
-    <div ref={reihe} className="ag-cf__vorschlaege" data-da={da}>
+    // `sofort`: beim ersten Öffnen in diesem Besuch stehen sie einfach da (Prompt 18), ohne Hineingleiten und Entschlüsseln.
+    <div ref={reihe} className="ag-cf__vorschlaege" data-da={da} data-sofort={sofort ? "" : undefined}>
       {STARTER_QUESTIONS.map((frage, i) => (
         <button key={frage} type="button" className="ag-cf__vorschlag" style={{ "--i": i } as CSSProperties} onClick={(ev) => beiWahl(frage, ev.currentTarget)} data-wuerfel>
           <span className="ag-wuerfel">

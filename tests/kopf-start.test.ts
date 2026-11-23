@@ -351,22 +351,23 @@ test("wer sich während der Ruhe anmeldet, erfährt sofort davon", () => {
 
 // ───────────── Startanimation-Runde 2 (16.11.2026) ─────────────
 const lies = (pfad: string) => readFileSync(new URL(`../${pfad}`, import.meta.url), "utf8");
+const ohneKommentare = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
-test("Scrollen ist frei, sobald der Name gelandet ist; die Welle läuft weiter, „Start vorbei“ kommt wie bisher nach der Welle", () => {
-  const mitMaus = nachLandung(true);
-  assert.equal(mitMaus.frei, 0, "frei genau bei der Landung");
-  assert.equal(mitMaus.welle, 0.25, "Welle 0,25 s nach der Landung (nur mit Maus)");
-  assert.equal(mitMaus.vorbei, 0.25 + 1.3, "vorbei, wenn die Welle durch ist (wie früher die Freigabe)");
-  const handy = nachLandung(false);
-  assert.equal(handy.frei, 0);
-  assert.equal(handy.welle, null, "am Handy keine Welle");
-  assert.equal(handy.vorbei, 0.25 + 1.3, "derselbe Zeitpunkt für den Scroll-Hinweis");
+test("Scrollen ist frei, sobald der Name gelandet ist; „Start vorbei“ kommt wie bisher 1,55 s danach, ohne Welle von selbst (Prompt 18)", () => {
+  const plan = nachLandung();
+  assert.equal(plan.frei, 0, "frei genau bei der Landung");
+  assert.equal(plan.vorbei, 0.25 + 1.3, "derselbe Zeitpunkt für den Scroll-Hinweis wie früher nach der Welle");
+  assert.ok(!("welle" in plan), "keine Welle von selbst, auch nicht mit Maus");
   // So setzt es der Kopfbereich um: Freigabe direkt im Moment der Landung, nicht über einen Zeitgeber.
   const code = lies("components/neu/kopf/LichtName.tsx");
   const landung = code.slice(code.indexOf("feld.starten(() => {"), code.indexOf("// Während die Zeichen landen, erscheinen Kopfleiste"));
   assert.match(landung, /stehen\(\);\s*\/\/[^\n]*\n[^\n]*\n\s*freigeben\(false\);/);
   assert.match(landung, /gsap\.delayedCall\(plan\.vorbei, startVorbei\)/);
   assert.ok(!/delayedCall\([^)]*freigeben/.test(code), "die Freigabe wartet auf keine Uhr mehr");
+  // Prompt 18: Die Welle läuft nur noch beim Klick auf den Namen, nirgends mehr von selbst.
+  const ohne = ohneKommentare(code);
+  assert.ok(!ohne.includes("welleMitte"), "keine automatische Welle mehr");
+  assert.match(ohne, /feld\.welle\(ev\.clientX - e\.left, ev\.clientY - e\.top\)/, "die Klick-Welle bleibt");
   // Der Scroll-Hinweis richtet sich nach „Start vorbei“, nicht nach der Freigabe: Er kommt so spät wie bisher.
   const hinweis = lies("components/neu/seite/ScrollHinweis.tsx");
   assert.match(hinweis, /window\.addEventListener\(START_VORBEI, planen\);/);

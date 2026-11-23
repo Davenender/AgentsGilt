@@ -157,7 +157,7 @@ test("Support-Chat erklärt Sperre, Entsperren, Schnellantwort, Beleidigung und 
   const gut = text.slice(text.indexOf("**Gut zu wissen**"));
   for (const teil of [
     /• \*\*💬 Schnellantwort:\*\*/,
-    /• \*\*🔒 Sperren:\*\*.*\*\*Entsperren\*\* und \*\*Chat beenden\*\*/,
+    /Sperr-Karte mit \*\*Entsperren\*\* und \*\*Chat beenden\*\*/,
     /mehr als 10 Nachrichten in einer Minute, dreimal dasselbe oder viermal Tastengewirr/,
     /sperrt Spam 5 Minuten lang/,
     /bis zum Entsperren/,
@@ -167,9 +167,33 @@ test("Support-Chat erklärt Sperre, Entsperren, Schnellantwort, Beleidigung und 
   ]) {
     assert.match(gut, teil);
   }
-  // Keine Namen aus dem Team in den neuen Zeilen.
-  const neu = gut.slice(gut.indexOf("💬 Schnellantwort"), gut.indexOf("**Interne Notiz:**"));
-  assert.doesNotMatch(neu, /David|Jakob|Mijo/);
+  // Keine Namen aus dem Team in den Zeilen.
+  assert.doesNotMatch(gut, /David|Jakob|Mijo/);
+  assert.deepEqual(pruefeLaengen([support!]), []);
+});
+
+// Prompt 18 (23.11.2026): erst übernehmen, nur der Übernehmer schreibt, //, Abschluss, 3 Stunden, Dauerhaft sperren, Sperren mit Beleg.
+test("Support-Chat erklärt den Ablauf von Prompt 18 kurz im Stil „Gut zu wissen“ (Karte wird geändert, nicht neu gepostet)", () => {
+  const support = ANLEITUNGEN.find((x) => x.titel === "📖 Anleitung: Support-Chat auf der Website");
+  assert.deepEqual(support?.sucht, ["📖 Anleitung: Support-Chat"]);
+  const text = support?.text ?? "";
+  for (const teil of [
+    /\*\*Erst übernehmen:\*\*/,
+    /• \*\*Nur wer übernommen hat:\*\* Alle Knöpfe am Ticket gehen nur für ihn/,
+    /löscht der Bot die Nachricht\. Sie geht nie an den Kunden/,
+    /• \*\*Interne Notiz:\*\* Nachricht mit `\/\/` beginnen\. Sie bleibt stehen/,
+    /\*\*Noch Fragen\?\*\*.*\*\*Abschluss\*\*.*Erst danach geht \*\*Ticket schließen\*\*/,
+    /• \*\*3 Stunden:\*\*.*Abschluss nach 3 Stunden trotzdem.*Schließen erst nach 3 Stunden/,
+    /• \*\*Dauerhaft sperren:\*\*.*ohne Uhr, bis ihr entsperrt/,
+    /• \*\*🔒 Sperren von Hand, nur mit Beleg:\*\*.*Findet sie nichts, wird nicht gesperrt/,
+    /Chat trotzdem beenden/,
+    /Einen gesperrten Kunden könnt ihr jederzeit beenden/,
+  ]) {
+    assert.match(text, teil);
+  }
+  assert.doesNotMatch(text, /David|Jakob|Mijo/);
+  // Kein Rückruf durch das Team.
+  assert.doesNotMatch(text, /wir rufen (dich|Sie|ihn) (zurück|an)/i);
   assert.deepEqual(pruefeLaengen([support!]), []);
 });
 

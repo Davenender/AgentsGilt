@@ -183,20 +183,26 @@ export const lichtVoll = (pegel: number) => pegel >= LICHT_VOLL;
  */
 export const MAUS_DREHEN = 0.8;
 
-/** Pause zwischen der Landung des Namens und der Welle aus seiner Mitte, und die Dauer der Welle (Sekunden). */
+/**
+ * Wie lange nach der Landung des Namens die Startanimation ganz vorbei ist (Sekunden). Bis Prompt 18 lief in dieser
+ * Zeit am Computer einmal von selbst eine Welle durch die Schrift (0,25 s Pause, 1,3 s Welle); bei David hing die
+ * Seite dabei kurz, darum gibt es sie seit dem 23.11.2026 nirgends mehr (am Handy war sie seit dem 15.11. aus). Die
+ * Welle kommt nur noch beim Klick auf den Namen. Der Zeitpunkt „vorbei“ bleibt derselbe: Danach richtet sich der
+ * Scroll-Hinweis (die Lichtleiste erscheint 3 s später).
+ */
 export const WELLE_PAUSE = 0.25;
 export const WELLE_DAUER = 1.3;
+export const VORBEI_NACH_LANDUNG = WELLE_PAUSE + WELLE_DAUER;
 
 /**
  * Was nach der Landung des Namens geschieht, in Sekunden ab der Landung:
  * - `frei`: Scrollen ist frei (auch Scroll-Tasten und Wischen; ein gemerktes Ziel in der Adresse
- *   wird jetzt angesteuert). Seit der Runde 2 sofort bei der Landung, die Welle läuft einfach weiter.
- * - `welle`: Welle aus der Mitte des Namens (nur mit Maus; am Handy reagiert der Name nicht auf Tippen).
- * - `vorbei`: Die Startanimation ist ganz vorbei (Welle durch). Danach richtet sich der
- *   Scroll-Hinweis (die Lichtleiste erscheint 3 s später); das ist derselbe Zeitpunkt wie bisher.
+ *   wird jetzt angesteuert). Seit der Runde 2 sofort bei der Landung.
+ * - `vorbei`: Die Startanimation ist ganz vorbei. Danach richtet sich der Scroll-Hinweis; das ist
+ *   derselbe Zeitpunkt wie bisher. Eine Welle von selbst gibt es seit Prompt 18 nicht mehr.
  */
-export function nachLandung(maus: boolean): { frei: number; welle: number | null; vorbei: number } {
-  return { frei: 0, welle: maus ? WELLE_PAUSE : null, vorbei: WELLE_PAUSE + WELLE_DAUER };
+export function nachLandung(): { frei: number; vorbei: number } {
+  return { frei: 0, vorbei: VORBEI_NACH_LANDUNG };
 }
 
 /**

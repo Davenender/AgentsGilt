@@ -31,9 +31,19 @@ import {
   merkeSchutz,
   pruefeSpam,
   type SchutzStand,
+  type SpamArt,
   type SpamTreffer,
 } from "@/lib/chat-schutz";
+import type { KundenArt } from "@/lib/support-sperre";
 import { chat as chatTexte } from "@/lib/inhalt-neu";
+
+/**
+ * Die Sperre, wie das Fenster sie zeigt (Prompt 18): die Art (die Zeile nennt den Grund) und, bei der Sperre mit
+ * Uhr, Ende und Beginn (für Restzeit und Ring). `team`: gesperrt im Team-Chat, ohne Uhr, frei gibt ein Mitarbeiter.
+ */
+export type ChatSperre = { art: KundenArt; bis: number; ab: number; team: boolean };
+const istKundenArt = (x: unknown): x is KundenArt =>
+  typeof x === "string" && ["menge", "wiederholung", "kauderwelsch", "beleidigung", "spam", "drohung", "sonstiges"].includes(x);
 
 // Die ganze Logik des Website-Chats, aus components/ChatWidget.tsx herausgezogen (14.11.2026;
 // seitdem einzige Änderung: Antworten merken sich, was der Assistent unter ihnen anbietet, dazu
@@ -97,12 +107,17 @@ export function useChat() {
   // Assistenten 5 Minuten (sperreBis, überlebt neu laden) und den Support-Chat, bis das Team in Discord
   // entsperrt (teamSperre, kommt mit dem Abruf). Danach steht kurz „Du kannst wieder schreiben.“ da.
   const [sperreBis, setSperreBis] = useState(0);
-  const [teamSperre, setTeamSperre] = useState(false);
+  // Art und Beginn der Sperre mit Uhr (Zeile und Ring), Art der Sperre im Team-Chat (null = nicht gesperrt).
+  const [sperreArt, setSperreArt] = useState<SpamArt>("menge");
+  const [sperreAb, setSperreAb] = useState(0);
+  const [teamSperre, setTeamSperre] = useState<KundenArt | null>(null);
   const [wiederFrei, setWiederFrei] = useState(false);
   const schutzRef = useRef<SchutzStand>(leererSchutz());
   // seit: Hat dieser Browser gerade selbst gesperrt, zählt ein „frei“ vom Abruf erst nach 15 s
   // (so lange kann es dauern, bis die Sperre an der Ticket-Karte steht).
   const teamSperreRef = useRef({ an: false, seit: 0 });
+  // Läuft die Sperre mit Uhr gerade (auch für den Abruf, der nur den Anfangszustand sieht).
+  const sperreBisRef = useRef(0);
   const freiTimer = useRef<number | undefined>(undefined);
   // Nachrichten an das Team, die gerade gesammelt werden (3 s), bevor sie als eine nach Discord gehen.
   const paketRef = useRef<{ id: string; texte: string[]; timer: number } | null>(null);
@@ -136,7 +151,12 @@ export function useChat() {
     // Läuft noch eine Sperre des Assistenten? Neu laden hebt sie nicht auf.
     const schutz = s ? ladeSchutz(s, Date.now()) : leererSchutz();
     schutzRef.current = schutz;
-    if (schutz.sperreBis > Date.now()) setSperreBis(schutz.sperreBis);
+    if (schutz.sperreBis > Date.now()) {
+      setSperreBis(schutz.sperreBis);
+      sperreBisRef.current = schutz.sperreBis;
+      if (schutz.art) setSperreArt(schutz.art);
+      setSperreAb(schutz.sperreAb || schutz.sperreBis - SPERRE_CHATBOT_MS);
+    }
     const zeige = (m: Message[] | null) => {
       // Was beim Verlassen noch unterwegs war, gilt als nicht angekommen (dann steht „Nochmal senden“ da).
       const liste = m?.some((x) => x.status === "sendet") ? m.map((x) => (x.status === "sendet" ? { ...x, status: "fehlt" as const } : x)) : m;
@@ -156,12 +176,16 @@ export function useChat() {
     void (async () => {
       let geschlossen = false;
       let gesperrt = false;
+      let art: KundenArt = "sonstiges";
+      let mitUhr = false;
       try {
         const res = await fetch(`/api/support?t=${encodeURIComponent(t.token)}&after=${encodeURIComponent(t.after)}`, { cache: "no-store" });
         if (res.ok) {
-          const d = (await res.json()) as { closed?: boolean; gesperrt?: boolean };
+          const d = (await res.json()) as { closed?: boolean; gesperrt?: boolean; sperre?: { art?: string; rest?: number } };
           geschlossen = d.closed === true;
           gesperrt = d.gesperrt === true;
+          if (istKundenArt(d.sperre?.art)) art = d.sperre.art;
+          mitUhr = typeof d.sperre?.rest === "number";
         }
       } catch {
         /* nicht erreichbar: lieber mit dem alten Stand weiter */
@@ -174,10 +198,10 @@ export function useChat() {
       }
       zeige(gemerkt.messages);
       setTicket(t);
-      // Gesperrt, bis das Team entsperrt: auch nach dem Neuladen.
-      if (gesperrt) {
+      // Gesperrt, bis das Team entsperrt: auch nach dem Neuladen. (Eine Sperre mit Uhr kennt der Browser selbst.)
+      if (gesperrt && !mitUhr) {
         teamSperreRef.current = { an: true, seit: 0 };
-        setTeamSperre(true);
+        setTeamSperre(art);
       }
       // Der Besucher war weg (Tab zu, neu geladen, Seite gewechselt): dem Team sagen, dass er wieder da ist.
       if (gemerkt.verlassen) {
@@ -226,7 +250,10 @@ export function useChat() {
             last?: string;
             closed?: boolean;
             gesperrt?: boolean;
+            sperre?: { art?: string; rest?: number };
           };
+          // War der Kunde gesperrt, als das Team den Chat beendete? Dann nur „Der Chat wurde beendet.“
+          const warGesperrt = teamSperreRef.current.an || sperreBisRef.current > Date.now();
           // Hat das Team einen Anruf angeboten („Anruf anbieten“ in Discord), steht unter der
           // Nachricht dieselbe Anruf-Karte wie beim Assistenten. Ein Hinweis des Chat-Schutzes
           // („Bitte bleib freundlich.“) steht als ruhige Zeile da, nicht als Antwort eines Mitarbeiters.
@@ -240,20 +267,38 @@ export function useChat() {
                   ...(x.anrufen ? { anrufen: true } : {}),
                 },
           );
-          // Gesperrt oder wieder frei (das Team entsperrt in Discord): ohne neu zu laden.
+          // Gesperrt oder wieder frei (das Team entsperrt in Discord): ohne neu zu laden. Mit Uhr ist es die Sperre
+          // aus dem Assistenten-Chat (sie läuft hier weiter); ohne Uhr die Sperre im Team-Chat.
           if (data.closed) {
             teamSperreRef.current = { an: false, seit: 0 };
-            setTeamSperre(false);
-          } else if (typeof data.gesperrt === "boolean" && data.gesperrt !== teamSperreRef.current.an) {
-            const eben = teamSperreRef.current.an && Date.now() - teamSperreRef.current.seit < 15_000;
-            if (!eben) setzeTeamSperre(data.gesperrt);
+            setTeamSperre(null);
+          } else if (typeof data.gesperrt === "boolean") {
+            const art = istKundenArt(data.sperre?.art) ? data.sperre.art : "sonstiges";
+            const rest = data.sperre?.rest;
+            if (data.gesperrt && typeof rest === "number") {
+              // Die Uhr läuft (weiter): Kennt dieser Browser sie nicht (anderes Gerät), übernimmt er sie.
+              if (sperreBisRef.current <= Date.now() && (art === "menge" || art === "wiederholung" || art === "kauderwelsch" || art === "beleidigung")) {
+                sperreAssistent(Date.now() + rest * 1000, art, art);
+              }
+              if (teamSperreRef.current.an) setzeTeamSperre(null);
+            } else if (data.gesperrt) {
+              setzeTeamSperre(art);
+            } else {
+              const eben = teamSperreRef.current.an && Date.now() - teamSperreRef.current.seit < 15_000;
+              if (!eben) {
+                if (teamSperreRef.current.an) setzeTeamSperre(null);
+                // Das Team hat entsperrt: Auch die Uhr aus dem Assistenten-Chat gilt nicht mehr.
+                else if (sperreBisRef.current > Date.now() + 2000) gibFrei();
+              }
+            }
           }
           if (data.closed) {
             neu.push({
               role: "assistant",
               noAi: true,
-              content:
-                "Der Chat mit dem Team wurde beendet. Bei weiteren Fragen helfe ich dir wieder gern, oder du verbindest dich erneut mit einem Mitarbeiter.",
+              content: warGesperrt
+                ? chatTexte.schutz.beendet
+                : "Der Chat mit dem Team wurde beendet. Bei weiteren Fragen helfe ich dir wieder gern, oder du verbindest dich erneut mit einem Mitarbeiter.",
             });
           }
           if (neu.length > 0) {
@@ -469,6 +514,8 @@ export function useChat() {
           frage: hFrage,
           website: hHoney,
           verlauf: aiHistory(messages).slice(-8),
+          // Läuft die Sperre des Assistenten noch, geht sie mit ins Ticket (Prompt 18).
+          ...(sperreBisRef.current > Date.now() ? { sperre: { art: sperreArt, bis: sperreBisRef.current } } : {}),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -476,12 +523,18 @@ export function useChat() {
         token?: string;
         after?: string;
         nummer?: string;
+        sperre?: { art?: string; bis?: number };
       };
       if (!res.ok || !data.token || !data.after) {
         throw new Error(data.error || "Das hat leider nicht geklappt.");
       }
       setTicket({ token: data.token, after: data.after, nummer: data.nummer ?? "" });
       setHandoff(false);
+      // Der Server kannte eine Sperre, die dieser Browser nicht hat (anderer Tab): Sie gilt auch hier.
+      const sa = data.sperre?.art;
+      if (typeof data.sperre?.bis === "number" && data.sperre.bis > sperreBisRef.current + 2000 && (sa === "menge" || sa === "wiederholung" || sa === "kauderwelsch" || sa === "beleidigung")) {
+        sperreAssistent(data.sperre.bis, sa, sa);
+      }
       setMessages((m) => [
         ...m,
         {
@@ -511,10 +564,13 @@ export function useChat() {
     freiTimer.current = window.setTimeout(() => setWiederFrei(false), WIEDER_FREI_MS);
   }
 
-  function setzeTeamSperre(an: boolean, vonHier = false) {
+  /** Sperre im Team-Chat (ohne Uhr) mit ihrer Art, oder null = frei. */
+  function setzeTeamSperre(art: KundenArt | null, vonHier = false) {
+    const an = art !== null;
+    if (an) setTeamSperre(art);
     if (teamSperreRef.current.an === an) return;
     teamSperreRef.current = { an, seit: vonHier ? Date.now() : 0 };
-    setTeamSperre(an);
+    setTeamSperre(art);
     if (an) {
       setWiederFrei(false);
       // Nach dem Entsperren beginnt die Zählung neu, sonst sperrte die nächste Nachricht gleich wieder.
@@ -522,11 +578,22 @@ export function useChat() {
     } else zeigeWiederFrei();
   }
 
-  /** Sperrt den Assistenten bis `bis`. Die Restzeit steht im Browser, neu laden hebt sie nicht auf. */
-  function sperreAssistent(bis: number, grund: string) {
+  /** Sperrt den Assistenten bis `bis` (Art: die Zeile nennt den Grund). Neu laden hebt sie nicht auf. */
+  function sperreAssistent(bis: number, grund: string, art: SpamArt, ab = Math.min(Date.now(), bis - SPERRE_CHATBOT_MS)) {
     setSperreBis(bis);
+    sperreBisRef.current = bis;
+    setSperreArt(art);
+    setSperreAb(ab);
     setWiederFrei(false);
-    merkeStand((s) => ({ ...s, sperreBis: bis, grund, log: [], zuletzt: Date.now() }));
+    merkeStand((s) => ({ ...s, sperreBis: bis, grund, art, sperreAb: ab, log: [], zuletzt: Date.now() }));
+  }
+
+  /** Das Team hat entsperrt: Die Uhr aus dem Assistenten-Chat gilt auch nicht mehr. */
+  function gibFrei() {
+    setSperreBis(0);
+    sperreBisRef.current = 0;
+    merkeStand((s) => ({ ...s, sperreBis: 0, grund: "", art: "", sperreAb: 0 }));
+    zeigeWiederFrei();
   }
 
   // Ist die Sperre des Assistenten abgelaufen: frei, kurz „Du kannst wieder schreiben.“.
@@ -534,8 +601,10 @@ export function useChat() {
     if (!sperreBis) return;
     const t = window.setTimeout(() => {
       setSperreBis(0);
-      merkeStand((s) => ({ ...s, sperreBis: 0, grund: "" }));
-      zeigeWiederFrei();
+      sperreBisRef.current = 0;
+      merkeStand((s) => ({ ...s, sperreBis: 0, grund: "", art: "", sperreAb: 0 }));
+      // Steht noch eine Sperre im Team-Chat (dauerhaft gesperrt), bleibt das Feld zu.
+      if (!teamSperreRef.current.an) zeigeWiederFrei();
     }, Math.max(0, sperreBis - Date.now()));
     return () => window.clearTimeout(t);
   }, [sperreBis]);
@@ -566,12 +635,12 @@ export function useChat() {
         markiere(paket);
         return true;
       }
-      const data = (await res.json().catch(() => ({}))) as { error?: string; closed?: boolean; gesperrt?: boolean };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; closed?: boolean; gesperrt?: boolean; sperre?: { art?: string; rest?: number } };
       if (data.closed) {
         setTicket((cur) => (cur ? { ...cur, closed: true } : cur));
         setError(data.error || "Der Chat wurde beendet.");
       }
-      if (data.gesperrt) setzeTeamSperre(true);
+      if (data.gesperrt && typeof data.sperre?.rest !== "number") setzeTeamSperre(istKundenArt(data.sperre?.art) ? data.sperre.art : "sonstiges");
       markiere(paket, "fehlt");
       return false;
     } catch {
@@ -600,7 +669,7 @@ export function useChat() {
   async function sperreTicketJetzt(treffer: SpamTreffer) {
     const t = ticketRef.current;
     if (!t) return;
-    setzeTeamSperre(true, true);
+    setzeTeamSperre(treffer.art, true);
     await schickePaket();
     try {
       await fetch("/api/support", {
@@ -642,7 +711,7 @@ export function useChat() {
     const text = (preset ?? input).trim();
     if (!text || streaming) return;
     // Gesperrt: nichts geht hinaus (das Fenster sperrt auch das Eingabefeld).
-    if (sperreBis > Date.now() || (ticket && !ticket.closed && teamSperreRef.current.an)) return;
+    if (sperreBisRef.current > Date.now() || (ticket && !ticket.closed && teamSperreRef.current.an)) return;
     if (ticket && !ticket.closed) {
       sendSupport(text);
       return;
@@ -653,7 +722,7 @@ export function useChat() {
     const log = kuerzeLog(schutzRef.current.log, jetzt);
     const treffer = pruefeSpam(log, { zeit: jetzt, text }, REGELN_CHATBOT);
     if (treffer) {
-      sperreAssistent(jetzt + SPERRE_CHATBOT_MS, treffer.grund);
+      sperreAssistent(jetzt + SPERRE_CHATBOT_MS, treffer.grund, treffer.art, jetzt);
       // Der Server sperrt dieselbe Adresse mit.
       void fetch("/api/chat", {
         method: "POST",
@@ -689,7 +758,9 @@ export function useChat() {
         if (data.gesperrt && typeof data.rest === "number") {
           setMessages((m) => (m[m.length - 1]?.role === "user" && m[m.length - 1].content === text ? m.slice(0, -1) : m));
           setInput(text);
-          sperreAssistent(Date.now() + data.rest * 1000, "Server");
+          const art: SpamArt = data.art === "wiederholung" || data.art === "kauderwelsch" || data.art === "beleidigung" ? data.art : "menge";
+          const bis = Date.now() + data.rest * 1000;
+          sperreAssistent(bis, "Server", art, typeof data.dauer === "number" ? bis - data.dauer * 1000 : undefined);
           return;
         }
         throw new Error(data.error || `HTTP ${res.status}`);
@@ -752,7 +823,7 @@ export function useChat() {
   function folgeDerPruefung(data: { sperre?: { rest?: number }; hinweis?: string }) {
     merkeStand((s) => ({ ...s, beleidigungen: s.beleidigungen + 1, zuletzt: Date.now() }));
     if (data.sperre && typeof data.sperre.rest === "number") {
-      sperreAssistent(Date.now() + data.sperre.rest * 1000, "Beleidigungen");
+      sperreAssistent(Date.now() + data.sperre.rest * 1000, "Beleidigungen", "beleidigung");
     } else if (data.hinweis) {
       setMessages((m) => [...m, { role: "assistant", noAi: true, hinweis: true, content: chatTexte.schutz.freundlich }]);
     }
@@ -765,13 +836,17 @@ export function useChat() {
     // Die Antwort merkt es sich; die Fenster zeigen es unter der Nachricht.
     const angebot = angebote(fullText, text);
     const clean = stripMarkers(fullText).trim();
+    // Seit Prompt 18 dazu: Folgefragen, Link zur Leistung, Anruf-Karte zum Ausprobieren (lib/chat-text.ts).
     setMessages((m) => [
       ...m,
       {
         role: "assistant",
         content: clean,
         ...(angebot.anrufen ? { anrufen: true } : {}),
+        ...(angebot.testen ? { anrufArt: "testen" as const } : {}),
         ...(angebot.mitarbeiter ? { mitarbeiter: true } : {}),
+        ...(angebot.leistung ? { leistung: angebot.leistung } : {}),
+        ...(angebot.fragen.length ? { fragen: angebot.fragen } : {}),
       },
     ]);
     setStreamText("");
@@ -844,7 +919,13 @@ export function useChat() {
     handleKey,
     // Chat-Schutz
     sperreBis,
-    teamGesperrt: teamSperre && !!ticket && !ticket.closed,
+    teamGesperrt: !!teamSperre && !!ticket && !ticket.closed,
+    // Was das Fenster zeigt: die Sperre im Team-Chat hat Vorrang (sie hat keine Uhr), sonst die mit Uhr.
+    sperre: (teamSperre && ticket && !ticket.closed
+      ? { art: teamSperre, bis: 0, ab: 0, team: true }
+      : sperreBis > 0
+        ? { art: sperreArt, bis: sperreBis, ab: sperreAb || sperreBis - SPERRE_CHATBOT_MS, team: false }
+        : null) as ChatSperre | null,
     wiederFrei,
     nochmalSenden,
   };
