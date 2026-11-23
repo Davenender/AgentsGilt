@@ -86,8 +86,8 @@ test("der fertige Satz: passt zur Lage, im Du, kurz, ohne Emoji, mit dem Telefon
 
 test("Knopf an der Karte und am Hinweis, Fenster mit dem Satz zum Ändern", () => {
   const offen = ticketComponents("open")[0].components.map((k) => k.custom_id);
-  assert.deepEqual(offen, ["ticket:claim", "ticket:call", "ticket:close"]);
-  assert.deepEqual(ticketComponents("claimed")[0].components.map((k) => k.custom_id), ["ticket:call", "ticket:close"]);
+  assert.deepEqual(offen, ["ticket:claim", "ticket:call", "ticket:schnell", "ticket:sperren", "ticket:close"]);
+  assert.deepEqual(ticketComponents("claimed")[0].components.map((k) => k.custom_id), ["ticket:call", "ticket:schnell", "ticket:sperren", "ticket:close"]);
   assert.deepEqual(ticketComponents("closed"), []);
   const knopf = ticketComponents("open")[0].components[1] as { label: string; emoji?: { name: string } };
   assert.equal(knopf.label, "Anruf anbieten");

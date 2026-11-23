@@ -4,24 +4,39 @@ import { escapeHtml, getMailEnv, sendMail, shell } from "@/lib/mail";
 import { pushe } from "@/lib/ntfy";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { ladeTeam } from "@/lib/team-daten";
+import { pruefeBeleidigung } from "@/lib/chat-beleidigung";
+import { chat as chatTexte } from "@/lib/inhalt-neu";
+import { REGELN_TICKET, Waechter, grundText } from "@/lib/chat-schutz";
 import {
   checkTicketToken,
   hinweisBeiAnrufwunsch,
+  meldeBeleidigung,
   openTicket,
   postFromVisitor,
   postPresence,
   relayMessages,
+  sperreTicket,
   ticketClosed,
+  ticketStand,
 } from "@/lib/support";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Nach der Antwort läuft noch die Beleidigungs-Prüfung (KI bis 5 s) samt Markierung in Discord.
+export const maxDuration = 60;
 
 // Support-Chat der Website: Ticket eröffnen (POST open), Nachricht senden
 // (POST send) und neue Antworten des Teams abholen (GET). Alles landet im
 // Discord-Kanal ticket-XXXX unter SUPPORT, siehe lib/support.ts.
 
 const MAX_TEXT = 1500;
+// Was der Besucher innerhalb von 3 s schreibt, schickt der Chat gebündelt (höchstens so viele Zeilen).
+const MAX_ZEILEN = 30;
+// Chat-Schutz (Prompt 17): Der Server zählt je Ticket mit (nur im Speicher dieser Instanz). Gebündelte
+// Nachrichten kommen bis zu 3 s später an als getippt, darum 5 s Spielraum: nie strenger als der Browser.
+const waechter = new Waechter();
+const SPIELRAUM_MS = 5000;
+const GESPERRT = chatTexte.schutz.gesperrtTeam;
 
 const fehler = (message: string, status: number) =>
   NextResponse.json({ error: message }, { status });
@@ -107,20 +122,59 @@ export async function POST(request: Request) {
     const rl = rateLimit(`support-send:${channelId}`, 20, 5 * 60_000);
     if (!rl.ok) return fehler("Bitte einen Moment warten, bevor du weiterschreibst.", 429);
 
-    const msg = text(body.text, MAX_TEXT);
-    if (!msg) return fehler("Leere Nachricht", 400);
+    // Eine Nachricht (text) oder ein Bündel (texts): Was der Besucher in 3 s schreibt, kommt zusammen.
+    const roh = Array.isArray(body.texts) ? (body.texts as unknown[]) : [body.text];
+    const zeilen = roh.map((t) => text(t, MAX_TEXT)).filter(Boolean).slice(0, MAX_ZEILEN);
+    if (zeilen.length === 0) return fehler("Leere Nachricht", 400);
 
-    const closed = await ticketClosed(bot, channelId);
-    if (closed) return NextResponse.json({ error: "Der Chat wurde beendet.", closed: true }, { status: 409 });
-    if (closed === null) return fehler("Das hat leider nicht geklappt. Bitte versuch es gleich nochmal.", 502);
+    const stand = await ticketStand(bot, channelId);
+    if (stand === null) return fehler("Das hat leider nicht geklappt. Bitte versuch es gleich nochmal.", 502);
+    if (stand.closed) return NextResponse.json({ error: "Der Chat wurde beendet.", closed: true }, { status: 409 });
+    // Gesperrt: Was jetzt kommt, geht nicht nach Discord.
+    if (stand.gesperrt) return NextResponse.json({ error: GESPERRT, gesperrt: true }, { status: 423 });
 
-    const ok = await postFromVisitor(bot, channelId, msg);
+    // Spam, den der Browser nicht abgefangen hat (z. B. ohne die Seite geschickt): sperren statt posten.
+    const jetzt = Date.now();
+    const spam = waechter.pruefeAlle(`ticket:${channelId}`, zeilen, REGELN_TICKET, jetzt, SPIELRAUM_MS);
+    if (spam) {
+      // Nach dem Entsperren beginnt die Zählung neu (sonst sperrte die nächste Nachricht gleich wieder).
+      waechter.leere(`ticket:${channelId}`);
+      await sperreTicket(bot, channelId, spam.grund);
+      return NextResponse.json({ error: GESPERRT, gesperrt: true }, { status: 423 });
+    }
+
+    const ids = await postFromVisitor(bot, channelId, zeilen);
+    if (!ids) return fehler("Die Nachricht ist nicht angekommen.", 502);
+    waechter.merke(`ticket:${channelId}`, zeilen, jetzt);
+    const alles = zeilen.join("\n");
     // Möchte der Kunde sprechen, einen Termin, ein Erstgespräch oder einen Preis: Hinweis nur fürs
     // Team mit „Anruf anbieten“. Läuft nach der Antwort; beim Kunden erscheint dadurch nichts.
-    if (ok) after(async () => {
-      await hinweisBeiAnrufwunsch(bot, channelId, msg);
+    after(async () => {
+      await hinweisBeiAnrufwunsch(bot, channelId, alles);
     });
-    return ok ? NextResponse.json({ ok: true }) : fehler("Die Nachricht ist nicht angekommen.", 502);
+    // Beleidigung? Prüft die KI (Haiku) im Hintergrund; die Nachricht ist schon da, ⚠️ und Hinweis folgen.
+    after(async () => {
+      const p = await pruefeBeleidigung(alles);
+      if (p.beleidigung) await meldeBeleidigung(bot, channelId, ids, p.grund);
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  // ------------------------------------------- der Browser hat Spam erkannt: sperren
+  if (body.action === "sperre") {
+    const channelId = checkTicketToken(text(body.token, 100));
+    if (!channelId) return fehler("Diese Verbindung ist nicht mehr gültig.", 401);
+    const rl = rateLimit(`support-sperre:${channelId}`, 3, 10 * 60_000);
+    if (!rl.ok) return NextResponse.json({ ok: true, gesperrt: (await ticketStand(bot, channelId))?.gesperrt === true });
+    // Den Grund setzt der Server selbst zusammen, der Browser nennt nur Art und Anzahl.
+    const art = body.art === "menge" || body.art === "wiederholung" || body.art === "kauderwelsch" ? body.art : null;
+    const anzahl = Math.max(1, Math.min(99, Math.floor(Number(body.anzahl) || 0)));
+    if (!art) return fehler("Ungültige Anfrage", 400);
+    const stand = await ticketStand(bot, channelId);
+    if (!stand || stand.closed) return NextResponse.json({ ok: true, gesperrt: false });
+    waechter.leere(`ticket:${channelId}`);
+    const gesperrt = stand.gesperrt || (await sperreTicket(bot, channelId, grundText(art, anzahl)));
+    return NextResponse.json({ ok: true, gesperrt });
   }
 
   // ------------------------------------------------- Besucher geht / kommt zurück
@@ -152,15 +206,18 @@ export async function GET(request: Request) {
   const rl = rateLimit(`support-poll:${getClientIp(request)}`, 90, 60_000);
   if (!rl.ok) return fehler("Zu viele Anfragen", 429);
 
-  const [relay, closed] = await Promise.all([
+  const [relay, stand] = await Promise.all([
     relayMessages(bot, channelId, after),
-    ticketClosed(bot, channelId),
+    ticketStand(bot, channelId),
   ]);
   if (!relay) return fehler("Nicht erreichbar", 502);
 
   return NextResponse.json({
     messages: relay.messages,
     last: relay.last,
-    closed: closed === true,
+    closed: stand?.closed === true,
+    // Chat-Schutz: Gesperrt, bis das Team in Discord entsperrt. Der Chat merkt es bei diesem Abruf, ohne neu zu laden.
+    // Antwortete Discord nicht, fehlt der Wert, und der Chat behält seinen Stand.
+    ...(stand ? { gesperrt: stand.gesperrt } : {}),
   });
 }

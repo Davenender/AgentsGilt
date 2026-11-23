@@ -149,6 +149,30 @@ test("Support-Chat erklärt Anruf anbieten und die 24 Stunden", () => {
   assert.match(text, /schreibt er danach wieder mit dem KI-Assistenten/);
 });
 
+// Prompt 17 (23.11.2026): Chat-Schutz. Kurz im Stil „Gut zu wissen“, die Karte wird geändert (sucht), nicht neu gepostet.
+test("Support-Chat erklärt Sperre, Entsperren, Schnellantwort, Beleidigung und Bündeln", () => {
+  const support = ANLEITUNGEN.find((x) => x.titel === "📖 Anleitung: Support-Chat auf der Website");
+  assert.deepEqual(support?.sucht, ["📖 Anleitung: Support-Chat"]);
+  const text = support?.text ?? "";
+  const gut = text.slice(text.indexOf("**Gut zu wissen**"));
+  for (const teil of [
+    /• \*\*💬 Schnellantwort:\*\*/,
+    /• \*\*🔒 Sperren:\*\*.*\*\*Entsperren\*\* und \*\*Chat beenden\*\*/,
+    /mehr als 10 Nachrichten in einer Minute, dreimal dasselbe oder viermal Tastengewirr/,
+    /sperrt Spam 5 Minuten lang/,
+    /bis zum Entsperren/,
+    /• \*\*⚠️ Beleidigung:\*\* Jede Nachricht prüft eine KI/,
+    /„Bitte bleib freundlich\.“, beim zweiten Mal sperrt das Ticket/,
+    /innerhalb von 3 Sekunden schreibt, kommt als eine Nachricht/,
+  ]) {
+    assert.match(gut, teil);
+  }
+  // Keine Namen aus dem Team in den neuen Zeilen.
+  const neu = gut.slice(gut.indexOf("💬 Schnellantwort"), gut.indexOf("**Interne Notiz:**"));
+  assert.doesNotMatch(neu, /David|Jakob|Mijo/);
+  assert.deepEqual(pruefeLaengen([support!]), []);
+});
+
 // Etappe 2 (16.11.2026): Mails an Kunden laufen über Discord, nicht mehr über Gmail.
 test("Anleitung „Mails an Kunden“ und kein Gmail-Antworten mehr", () => {
   const alle = ANLEITUNGEN.map((x) => [x.text ?? "", ...(x.felder ?? []).map((f) => f.value)].join("\n")).join("\n");

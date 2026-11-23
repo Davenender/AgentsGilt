@@ -1065,6 +1065,176 @@ html.ag-sparsam .ag-cf__fenster {
   outline: none;
 }
 
+/* ── Chat-Schutz (Prompt 17): Sperre über dem Eingabefeld, „nicht angekommen“, ruhiger Hinweis ──
+   Ruhig und ohne Vorwurf: dieselbe feine Goldkante wie die übrigen Glasflächen, kein Rot für die Sperre.
+   Nur „nicht angekommen“ trägt den warmen Fehlerton der Fehlerzeile. */
+.ag-cf__sperre {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 9px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(243, 210, 122, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.24);
+  color: rgba(241, 238, 230, 0.9);
+  font-size: 12.5px;
+  line-height: 1.45;
+  animation: ag-cf-sperre 0.5s var(--weich) both;
+}
+.ag-cf__sperre svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--gold-hell);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Die Restzeit: Ziffern gleich breit, damit nichts springt, wenn die Sekunden laufen. */
+.ag-cf__rest {
+  color: var(--gold-hell);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+/* „Du kannst wieder schreiben.“: kommt, steht 6 s und blendet aus. */
+.ag-cf__sperre--frei {
+  animation: ag-cf-frei 6s var(--weich) both;
+}
+@keyframes ag-cf-sperre {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes ag-cf-frei {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  8% {
+    opacity: 1;
+    transform: none;
+  }
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* Gesperrt: Das Feld tritt zurück, kein Goldschein, auch wenn noch Text darin steht. */
+.ag-cf__feld[data-gesperrt] {
+  opacity: 0.5;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.ag-cf__feld[data-gesperrt] textarea {
+  cursor: not-allowed;
+}
+/* Nicht angekommen: Die eigene Blase wird blass, darunter die Zeile mit „Nochmal senden“. */
+.ag-cf__blase--fehlt {
+  opacity: 0.6;
+}
+.ag-cf__zustellung {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: -4px 2px 0;
+  color: #ffb4ab;
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+.ag-cf__zustellung-sendet {
+  color: var(--leise);
+}
+.ag-cf__nochmal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--gold-hell);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: rgba(243, 210, 122, 0.45);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: text-decoration-color 0.3s var(--weich);
+}
+.ag-cf__nochmal svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ag-cf__nochmal:disabled {
+  color: var(--leise);
+  text-decoration: none;
+  cursor: default;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__nochmal:not(:disabled):hover {
+    text-decoration-color: var(--gold-hell);
+  }
+}
+/* Ein Hinweis („Bitte bleib freundlich.“): ruhig in der Mitte des Verlaufs, nicht als Antwort. */
+.ag-cf__hinweis {
+  flex: none;
+  align-self: center;
+  max-width: 86%;
+  margin: 2px 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(243, 210, 122, 0.26);
+  color: rgba(241, 238, 230, 0.86);
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: center;
+  animation: ag-cf-sperre 0.5s var(--weich) both;
+}
+@media (max-width: 767px) {
+  .ag-cf__sperre,
+  .ag-cf__hinweis {
+    font-size: 13px;
+  }
+  /* Am Handy groß genug zum Tippen. */
+  .ag-cf__nochmal {
+    min-height: 40px;
+    padding: 0 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ag-cf__sperre,
+  .ag-cf__hinweis {
+    animation: none;
+  }
+  .ag-cf__sperre--frei {
+    animation: ag-cf-frei-ruhig 6s linear both;
+  }
+}
+@keyframes ag-cf-frei-ruhig {
+  0%,
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* ── Handy: ein Glasblatt, das von unten hochgleitet (fast volle Höhe), mit Griff ── */
 @media (max-width: 767px) {
   .ag-cf {

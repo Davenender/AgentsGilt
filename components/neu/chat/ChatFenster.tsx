@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useChatZugang } from "@/components/chat/ChatAnbieter";
 import type { ChatZustand } from "@/components/chat/useChat";
 import { holeZusammenfassung } from "@/components/chat/zusammenfassung";
 import { CHAT_ZEICHEN, STARTER_QUESTIONS, ZEICHEN_WECHSEL, reichTeile, wellenPlan, woerter, type Message } from "@/lib/chat-text";
+import { restText } from "@/lib/chat-schutz";
 import { chat as chatTexte, kontakt, marke } from "@/lib/inhalt-neu";
 import { glimme } from "../glimmrand";
 import { GoldMarke } from "../Marke";
@@ -15,6 +16,7 @@ import { DAUER, KUGEL, PHASEN, SCHLIESSEN, zeitleiste, type Bild, type Masse } f
 import "./chat.css";
 
 const t = chatTexte.fenster;
+const schutz = chatTexte.schutz;
 const zufall = () => CHAT_ZEICHEN[Math.floor(Math.random() * CHAT_ZEICHEN.length)];
 const klemme = (x: number, von = 0, bis = 1) => Math.min(bis, Math.max(von, x));
 
@@ -546,8 +548,10 @@ export function ChatFenster() {
       { duration: 520, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
   };
+  // Chat-Schutz (Prompt 17): Assistent 5 Minuten gesperrt (Countdown) oder Support-Chat gesperrt, bis das Team entsperrt.
+  const gesperrt = chat.sperreBis > 0 || chat.teamGesperrt;
   const senden = () => {
-    if (!chat.input.trim() || chat.streaming) return;
+    if (!chat.input.trim() || chat.streaming || gesperrt) return;
     lichtstrich();
     void chat.sendMessage();
   };
@@ -666,11 +670,22 @@ export function ChatFenster() {
                 <div className="ag-cf__inhalt">
                   {zeilen.map((m, i) =>
                     m.role === "user" ? (
-                      <div key={`n-${i}`} className="ag-cf__zeile ag-cf__zeile--ich">
-                        <div className="ag-cf__blase ag-cf__blase--ich">
-                          <Eigene text={m.content} animiert={offen && !vorDemErsten && animiert(i)} />
+                      <Fragment key={`n-${i}`}>
+                        <div className="ag-cf__zeile ag-cf__zeile--ich">
+                          <div className={`ag-cf__blase ag-cf__blase--ich${m.status ? " ag-cf__blase--fehlt" : ""}`}>
+                            <Eigene text={m.content} animiert={offen && !vorDemErsten && animiert(i)} />
+                          </div>
                         </div>
-                      </div>
+                        {/* Kam ein Bündel an das Team nicht an: einmal darunter „nicht angekommen · Nochmal senden“. */}
+                        {m.status && m.paket && zeilen[i + 1]?.paket !== m.paket && (
+                          <NichtAngekommen status={m.status} aus={!mitTeam || chat.teamGesperrt} beiKlick={() => void chat.nochmalSenden(m.paket!)} />
+                        )}
+                      </Fragment>
+                    ) : m.hinweis ? (
+                      // Ein Hinweis des Chat-Schutzes („Bitte bleib freundlich.“): ruhig in der Mitte, keine Antwort.
+                      <p key={`n-${i}`} className="ag-cf__hinweis" role="status">
+                        {m.content}
+                      </p>
                     ) : (
                       <AntwortZeile
                         key={`n-${i}`}
@@ -714,7 +729,10 @@ export function ChatFenster() {
               </div>
 
               <div className="ag-cf__unten">
-                <div className="ag-cf__feld" data-text={chat.input.trim() ? "" : undefined}>
+                {(gesperrt || chat.wiederFrei) && (
+                  <SperrZeile key={gesperrt ? (chat.teamGesperrt ? "team" : `bis-${chat.sperreBis}`) : "frei"} bis={chat.teamGesperrt ? 0 : chat.sperreBis} frei={!gesperrt} />
+                )}
+                <div className="ag-cf__feld" data-text={chat.input.trim() ? "" : undefined} data-gesperrt={gesperrt ? "" : undefined}>
                   <textarea
                     ref={eingabe}
                     value={chat.input}
@@ -727,9 +745,10 @@ export function ChatFenster() {
                     }}
                     rows={1}
                     aria-label={mitTeam ? t.eingabeTeam : t.eingabe}
+                    disabled={gesperrt}
                   />
-                  {!chat.input && <Platzhalter texte={mitTeam ? [t.platzTeam] : t.platz} laeuft={offen && !ruhig} />}
-                  <button type="button" className="ag-cf__senden" aria-label={t.senden} disabled={chat.streaming || !chat.input.trim()} onClick={senden}>
+                  {!chat.input && !gesperrt && <Platzhalter texte={mitTeam ? [t.platzTeam] : t.platz} laeuft={offen && !ruhig} />}
+                  <button type="button" className="ag-cf__senden" aria-label={t.senden} disabled={chat.streaming || !chat.input.trim() || gesperrt} onClick={senden}>
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M12 1.5c.9 7.2 3.3 9.6 10.5 10.5-7.2.9-9.6 3.3-10.5 10.5C11.1 15.3 8.7 12.9 1.5 12 8.7 11.1 11.1 8.7 12 1.5Z" />
                     </svg>
@@ -753,6 +772,86 @@ export function ChatFenster() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Dünnes Schloss für die Sperre, im Strich der übrigen Zeichen. */
+function Schloss() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="5" y="10.5" width="14" height="10" rx="2.6" />
+      <path d="M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7" />
+    </svg>
+  );
+}
+
+function Haken() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 12.5l4.2 4.2L19 7" />
+    </svg>
+  );
+}
+
+/**
+ * Über dem Eingabefeld (Chat-Schutz, Prompt 17): Der Assistent ist gesperrt (mit Countdown, die Zeit
+ * läuft sekundengenau), der Support-Chat ist gesperrt, bis das Team entsperrt, oder kurz „Du kannst
+ * wieder schreiben.“ (blendet nach 6 s aus). Vorlesen: einmal beim Erscheinen, nicht jede Sekunde.
+ */
+function SperrZeile({ bis, frei }: { bis: number; frei: boolean }) {
+  const [rest, setRest] = useState(() => (bis ? restText(bis - Date.now()) : ""));
+  const [anfang] = useState(rest);
+  useEffect(() => {
+    if (!bis || frei) return;
+    const takt = window.setInterval(() => setRest(restText(bis - Date.now())), 250);
+    return () => window.clearInterval(takt);
+  }, [bis, frei]);
+  if (frei) {
+    return (
+      <div className="ag-cf__sperre ag-cf__sperre--frei" role="status">
+        <Haken />
+        <span>{schutz.wiederFrei}</span>
+      </div>
+    );
+  }
+  if (!bis) {
+    return (
+      <div className="ag-cf__sperre" role="status">
+        <Schloss />
+        <span>{schutz.gesperrtTeam}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="ag-cf__sperre" role="status">
+      <Schloss />
+      <span aria-hidden="true">
+        {schutz.sperre} <span className="ag-cf__rest">{rest}</span>
+      </span>
+      <span className="ag-cf__vorlesen">{`${schutz.sperre} ${anfang}`}</span>
+    </div>
+  );
+}
+
+/** Unter einem Bündel an das Team, das nicht ankam: „nicht angekommen · Nochmal senden“. */
+function NichtAngekommen({ status, aus, beiKlick }: { status: "fehlt" | "sendet"; aus: boolean; beiKlick: () => void }) {
+  return (
+    <div className="ag-cf__zustellung" role="status">
+      {status === "sendet" ? (
+        <span className="ag-cf__zustellung-sendet">{schutz.sendet}</span>
+      ) : (
+        <>
+          <span>{schutz.nichtAngekommen}</span>
+          <button type="button" className="ag-cf__nochmal" disabled={aus} onClick={beiKlick}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" />
+              <path d="M19.8 4.6v3.6h-3.6" />
+            </svg>
+            {schutz.nochmal}
+          </button>
+        </>
+      )}
     </div>
   );
 }

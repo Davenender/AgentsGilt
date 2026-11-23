@@ -2,6 +2,25 @@ import Anthropic from "@anthropic-ai/sdk";
 import { nameVon } from "@/lib/team";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { linkSecret } from "@/lib/termin";
+import { chat as chatTexte } from "@/lib/inhalt-neu";
+import type { EmbedLike } from "@/lib/discord-calls";
+import { mitWiederholung } from "./discord-wiederholen.ts";
+import { folgeDerBeleidigung } from "./chat-schutz.ts";
+import {
+  BELEIDIGUNG_FELD,
+  SPERRE_FELD,
+  beleidigungenDerKarte,
+  beleidigungsNachricht,
+  besucherNachrichten,
+  gesperrtWert,
+  mitFeld,
+  mitHinweisZeile,
+  sperrKomponenten,
+  sperrNachricht,
+  sperreDerKarte,
+  trenneHinweisZeile,
+  type Feld,
+} from "./support-sperre.ts";
 import {
   erkenneAnliegen,
   hinweisKomponenten,
@@ -43,13 +62,17 @@ async function call<T>(
   body?: unknown,
 ): Promise<T | null> {
   try {
-    const res = await fetch(`${API}${path}`, {
-      method,
-      headers: headers(token),
-      body: body === undefined ? undefined : JSON.stringify(body),
-      cache: "no-store",
-      signal: AbortSignal.timeout(8000),
-    });
+    // Bei 429 wartet es, so lange Discord sagt, und versucht es erneut (höchstens 2-mal, zusammen höchstens
+    // 5 s; lib/discord-wiederholen.ts). Bis Prompt 17 gab es sofort auf, dann ging die Nachricht verloren.
+    const res = await mitWiederholung(() =>
+      fetch(`${API}${path}`, {
+        method,
+        headers: headers(token),
+        body: body === undefined ? undefined : JSON.stringify(body),
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      }),
+    );
     if (!res.ok) {
       console.error(`[support] ${method} ${path.split("?")[0]} -> HTTP ${res.status}`);
       return null;
@@ -215,6 +238,8 @@ export interface Relayed {
   text: string;
   // Das Team hat einen Anruf angeboten („Anruf anbieten“): Unter der Nachricht steht im Chat die Anruf-Karte.
   anrufen?: true;
+  // Automatischer Hinweis des Chat-Schutzes („Bitte bleib freundlich.“): Der Chat zeigt ihn ruhig, nicht als Nachricht eines Mitarbeiters.
+  hinweis?: true;
 }
 
 interface DiscordMessage {
@@ -222,6 +247,7 @@ interface DiscordMessage {
   content: string;
   author: { id?: string; bot?: boolean; global_name?: string | null; username?: string };
   components?: unknown[];
+  embeds?: EmbedLike[];
 }
 
 /** Ob das Ticket geschlossen ist (der Kanal heißt dann "geschlossen-ticket-…"). */
@@ -254,6 +280,12 @@ export async function relayMessages(
   for (const m of sorted) {
     if (m.author.bot) {
       if (!m.content.startsWith(FOR_CUSTOMER)) continue;
+      // Automatischer Hinweis des Chat-Schutzes: steht im Chat als ruhige Zeile, nicht als Nachricht eines Mitarbeiters.
+      const hinweis = trenneHinweisZeile(m.content.slice(FOR_CUSTOMER.length).trim());
+      if (hinweis.hinweis) {
+        out.push({ id: m.id, von: "Agents Gilt", text: hinweis.text, hinweis: true });
+        continue;
+      }
       // Feste Systemtexte des Bots, keine Korrektur nötig. Ein Anruf-Angebot trägt unten eine kleine
       // Zeile; sie geht nicht an den Kunden, sondern wird zur Anruf-Karte (lib/support-anruf.ts).
       const { von, text, anrufen } = leseKundenNachricht(m.content.slice(FOR_CUSTOMER.length));
@@ -276,13 +308,134 @@ export async function relayMessages(
   return { messages: out, last, contentMissing };
 }
 
-/** Nachricht des Besuchers in den Kanal. Mit allowed_mentions leer, damit niemand angepingt wird. */
-export async function postFromVisitor(token: string, channelId: string, text: string): Promise<boolean> {
-  const res = await call(token, "POST", `/channels/${channelId}/messages`, {
-    content: `🗨️ **Besucher:** ${clip(text, 1500)}`,
+/**
+ * Nachrichten des Besuchers in den Kanal. Was er innerhalb von 3 s schreibt, kommt gebündelt als eine
+ * Nachricht, Zeilen untereinander (seit Prompt 17; zu lang für Discord: in mehreren). Mit allowed_mentions
+ * leer, damit niemand angepingt wird. Gibt die Kennungen der Nachrichten zurück, oder null, wenn eine
+ * nicht ankam.
+ */
+export async function postFromVisitor(token: string, channelId: string, zeilen: string | string[]): Promise<string[] | null> {
+  const ids: string[] = [];
+  for (const content of besucherNachrichten((Array.isArray(zeilen) ? zeilen : [zeilen]).map((z) => clip(z, 1500)))) {
+    const res = await call<{ id: string }>(token, "POST", `/channels/${channelId}/messages`, {
+      content,
+      allowed_mentions: { parse: [] },
+    });
+    if (!res) return null;
+    ids.push(res.id);
+  }
+  return ids;
+}
+
+// ------------------------------------------------------------------ Chat-Schutz (Prompt 17)
+
+interface Karte {
+  id: string;
+  embed: EmbedLike;
+  felder: Feld[];
+}
+
+/** Die Ticket-Karte (erste Nachricht im Kanal, Embed „Support-Anfrage …“ vom Bot); „fehler“, wenn Discord nicht antwortete. */
+async function holeKarte(token: string, channelId: string): Promise<Karte | null | "fehler"> {
+  // Nachrichten-Kennungen sind jünger als die Kanal-Kennung: „nach dem Kanal, 1 Stück“ ist die erste.
+  const list = await call<DiscordMessage[]>(token, "GET", `/channels/${channelId}/messages?after=${channelId}&limit=1`);
+  if (!list) return "fehler";
+  const m = list[0];
+  const embed = m?.embeds?.[0];
+  if (!m?.author.bot || !embed?.title?.startsWith("Support-Anfrage")) return null;
+  return { id: m.id, embed, felder: (embed.fields ?? []) as Feld[] };
+}
+
+export async function leseKarte(token: string, channelId: string): Promise<Karte | null> {
+  const karte = await holeKarte(token, channelId);
+  return karte === "fehler" ? null : karte;
+}
+
+/**
+ * Geschlossen und gesperrt? Für jede Nachricht des Besuchers und jeden Abruf des Chats. Antwortet Discord
+ * nicht, ist der Stand unbekannt (null): Dann geht keine Nachricht durch und die Sperre bleibt, wie sie war.
+ */
+export async function ticketStand(token: string, channelId: string): Promise<{ closed: boolean; gesperrt: boolean } | null> {
+  const [ch, karte] = await Promise.all([call<Channel>(token, "GET", `/channels/${channelId}`), holeKarte(token, channelId)]);
+  if (!ch || karte === "fehler") return null;
+  return { closed: ch.name.startsWith("geschlossen-"), gesperrt: karte ? sperreDerKarte(karte.felder).gesperrt : false };
+}
+
+/** Ändert die Felder der Ticket-Karte (Knöpfe bleiben, außer `components` ist angegeben). */
+export async function aendereKarte(
+  token: string,
+  channelId: string,
+  aendern: (felder: Feld[], embed: EmbedLike) => Partial<EmbedLike> & { fields: Feld[] },
+  components?: unknown[],
+): Promise<boolean> {
+  const karte = await leseKarte(token, channelId);
+  if (!karte) return false;
+  const res = await call(token, "PATCH", `/channels/${channelId}/messages/${karte.id}`, {
+    embeds: [{ ...karte.embed, ...aendern(karte.felder, karte.embed) }],
+    ...(components ? { components } : {}),
     allowed_mentions: { parse: [] },
   });
   return Boolean(res);
+}
+
+/** Die Sperr-Karte mit „Entsperren“ und „Chat beenden“ ins Ticket. */
+export async function postSperrKarte(token: string, channelId: string, content: string): Promise<boolean> {
+  const res = await call(token, "POST", `/channels/${channelId}/messages`, {
+    content,
+    components: sperrKomponenten(),
+    allowed_mentions: { parse: [] },
+  });
+  return Boolean(res);
+}
+
+/**
+ * Sperrt den Besucher automatisch (Spam, zweite Beleidigung): Feld „Sperre“ an der Karte, dazu die
+ * Sperr-Karte. Ist er schon gesperrt, passiert nichts. Gibt zurück, ob er jetzt gesperrt ist.
+ */
+export async function sperreTicket(token: string, channelId: string, grund: string): Promise<boolean> {
+  const karte = await leseKarte(token, channelId);
+  if (!karte) return false;
+  if (sperreDerKarte(karte.felder).gesperrt) return true;
+  const ok = await call(token, "PATCH", `/channels/${channelId}/messages/${karte.id}`, {
+    embeds: [{ ...karte.embed, fields: mitFeld(karte.felder, SPERRE_FELD, gesperrtWert(grund)) }],
+    allowed_mentions: { parse: [] },
+  });
+  if (!ok) return false;
+  await postSperrKarte(token, channelId, sperrNachricht({ grund }));
+  return true;
+}
+
+/**
+ * Die KI (oder die Wortliste) hat eine Beleidigung erkannt: Nachricht im Ticket markieren, mitzählen.
+ * Beim ersten Mal bekommt der Kunde einmal „Bitte bleib freundlich.“, beim zweiten Mal im selben Chat
+ * sperrt das Ticket (Grund „Beleidigungen“).
+ */
+export async function meldeBeleidigung(token: string, channelId: string, messageIds: string[], grund: string): Promise<"hinweis" | "gesperrt" | null> {
+  for (const id of messageIds) {
+    const m = await call<DiscordMessage>(token, "GET", `/channels/${channelId}/messages/${id}`);
+    if (m) {
+      await call(token, "PATCH", `/channels/${channelId}/messages/${id}`, {
+        content: beleidigungsNachricht(m.content, grund),
+        allowed_mentions: { parse: [] },
+      });
+    }
+  }
+  const karte = await leseKarte(token, channelId);
+  if (!karte) return null;
+  const anzahl = beleidigungenDerKarte(karte.felder) + 1;
+  await call(token, "PATCH", `/channels/${channelId}/messages/${karte.id}`, {
+    embeds: [{ ...karte.embed, fields: mitFeld(karte.felder, BELEIDIGUNG_FELD, String(anzahl)) }],
+    allowed_mentions: { parse: [] },
+  });
+  if (folgeDerBeleidigung(anzahl) === "sperre") {
+    await sperreTicket(token, channelId, "Beleidigungen");
+    return "gesperrt";
+  }
+  await call(token, "POST", `/channels/${channelId}/messages`, {
+    content: `${FOR_CUSTOMER} ${mitHinweisZeile(chatTexte.schutz.freundlich)}`,
+    allowed_mentions: { parse: [] },
+  });
+  return "hinweis";
 }
 
 /**

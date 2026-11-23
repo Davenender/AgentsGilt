@@ -112,6 +112,21 @@ Die genaue Formulierung entsteht in Schritt 2 in `lib/content.ts` (gesiezt). Hin
 - Nach Übergabe: Danke, <Name>! Ich habe dein Anliegen an unser Team übergeben. Hier im Chat antwortet dir bald ein Mitarbeiter. Du kannst in der Zwischenzeit gern weiterschreiben.
 - Chat beendet: Der Chat mit dem Team wurde beendet. Bei weiteren Fragen helfe ich dir wieder gern, oder du verbindest dich erneut mit einem Mitarbeiter.
 
+**Chat-Assistent: Chat-Schutz (neu am 23.11.2026, Prompt 17; Quelle `lib/inhalt-neu.ts` `chat.schutz`)**
+- Sperre im Assistenten (über dem Eingabefeld, mit Countdown): „Zu viele Nachrichten – wieder frei in 4:32“ · Auslöser: mehr als 8 Nachrichten in 60 s, 3-mal gleiche oder fast gleiche Nachricht, 4 unverständliche Nachrichten in 60 s; 5 Minuten
+- Nach Ablauf (6 s lang): „Du kannst wieder schreiben.“
+- Support-Chat, Besucher gesperrt (`gesperrtTeam`): „Du kannst gerade nicht schreiben. Ein Mitarbeiter schaltet dich gleich wieder frei.“ · danach „Du kannst wieder schreiben.“ (nach dem Entsperren durch das Team)
+- Beleidigung (`freundlich`): „Bitte bleib freundlich.“ · einmal beim ersten Mal, als ruhige Zeile im Chat (nicht als Nachricht eines Mitarbeiters); beim zweiten Mal folgt die Sperre
+- Bündel kam nicht an (`nichtAngekommen`, `nochmal`, `sendet`): „nicht angekommen“ · Knopf „Nochmal senden“ · während des Sendens „wird gesendet …“
+
+**Schnellantworten (Quelle `lib/chat-schnellantworten.ts`; Knopf „💬 Schnellantwort“ an der Ticket-Karte, nur das Team wählt, der Kunde sieht den gewählten Satz als Team-Antwort mit dem Namen des Mitarbeiters; im Fenster änderbar)**
+1. „Einen Moment, ich schaue kurz nach.“
+2. „Danke für deine Geduld!“
+3. „Bitte bleib sachlich, sonst müssen wir den Chat beenden.“
+4. „Wir melden uns per E-Mail bei dir.“
+5. „Möchtest du, dass wir dich anrufen?“
+6. „Danke für deine Nachricht – ich beende den Chat jetzt. Schönen Tag noch!“
+
 **Chat-Assistent: Regeln zu Preisen, Terminen und Gesprächen (16.11.2026, `lib/chatbot-knowledge.ts` Regeln 3, 8, 9; Anruf-Karte siehe oben „Kontakt-Knöpfe“)**
 - Regel 3 (Preise, nie eine Zahl): Der Preis „wird in einem kurzen Gespräch festgelegt“. Am schnellsten geht das am Telefon, dort nimmt der KI-Telefonassistent ab und macht direkt einen Termin aus; zusätzlich Angebot, mit einem Mitarbeiter zu verbinden. Marker am Ende immer `[KONTAKT] [ANRUFEN] [MITARBEITER]` (vorher nur `[KONTAKT] [MITARBEITER]`).
 - Regel 8 ([MITARBEITER]): bei Preisen, Zeitplänen, Interna zusätzlich `[ANRUFEN]` (Regel 3).
@@ -261,6 +276,23 @@ Feste Texte, die Besucher sehen können. Davon zu unterscheiden: **dynamische** 
 - Bestätigung nur an den Klickenden (Karte): „Gesendet. Der Kunde sieht die Nachricht gleich im Chat, darunter die Anruf-Karte mit „Jetzt anrufen“.“
 - Meldung bei geschlossenem Ticket (beim Klick und beim Abschicken): „Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.“
 - Leeres Fenster: „Die Nachricht war leer.“
+
+**Chat-Schutz: Meldungen der Schnittstellen (neu am 23.11.2026)**
+- `app/api/chat/route.ts` · Sperre (HTTP 429, `gesperrt`, `rest` in Sekunden): „Zu viele Nachrichten – wieder frei in <m:ss>“
+- `app/api/support/route.ts` · Besucher im Ticket gesperrt (HTTP 423): „Du kannst gerade nicht schreiben. Ein Mitarbeiter schaltet dich gleich wieder frei.“
+- `app/api/support/route.ts` · Bündel konnte nicht an Discord gehen (auch nach den Wiederholungen, `lib/discord-wiederholen.ts`): „Die Nachricht ist nicht angekommen.“ (im Chat: „nicht angekommen · Nochmal senden“)
+
+**Chat-Schutz: Texte in Discord (nur fürs Team, der Kunde sieht sie nicht; Quelle `lib/support-sperre.ts`, `app/api/discord/route.ts`)**
+- Sperr-Karte, Kopfzeile: „🔒 **Besucher gesperrt** – <Grund>“ (Grund z. B. „12 Nachrichten in 1 Minute“, „3-mal dieselbe Nachricht“, „4 unverständliche Nachrichten in 1 Minute“, „Beleidigungen“) oder „🔒 **Besucher gesperrt** – gesperrt von <Name>“ (Knopf „🔒 Sperren“)
+- Sperr-Karte, graue Zeile: „-# Der Kunde kann erst wieder schreiben, wenn ihr entsperrt. Was er bis dahin schickt, kommt hier nicht an.“
+- Knöpfe an der Sperr-Karte: „🔓 Entsperren“ · „Chat beenden“
+- Nach dem Entsperren, unter der Kopfzeile: „Entsperrt von <Name> um HH:MM“ (Knöpfe weg); Feld „Sperre“ an der Ticket-Karte: „Gesperrt – <Grund>“, „Gesperrt von <Name> um HH:MM“, „Entsperrt von <Name> um HH:MM“
+- Nach „Chat beenden“: „Chat beendet von <Name> um HH:MM“ (Knöpfe weg); im Ticket „🔒 Ticket geschlossen von <Name>.“
+- Beleidigung im Ticket: „⚠️ **Beleidigung** – 🗨️ **Besucher:** <Nachricht>“, darunter „-# Nur fürs Team: <Grund>“ (ohne Grund: „Beleidigung erkannt“)
+- Automatischer Hinweis an den Kunden, im Ticket: „💬 Bitte bleib freundlich.“ mit der grauen Zeile „-# Automatischer Hinweis an den Kunden (Chat-Schutz).“
+- Auswahl „💬 Schnellantwort“ (nur für den Klickenden): „💬 Welche Schnellantwort? Du kannst den Satz danach noch ändern.“ · Platzhalter „Satz auswählen …“ · Fenstertitel „Schnellantwort“ · Feld „Nachricht an den Kunden (änderbar)“ · Bestätigung „Gesendet. Der Kunde sieht die Antwort gleich im Chat.“
+- Klick auf „🔒 Sperren“, wenn schon gesperrt (nur der Klickende): „Der Kunde ist schon gesperrt. Entsperren geht an der Sperr-Karte im Ticket.“
+- Klick bei geschlossenem Ticket (Schnellantwort, Sperren, Entsperren, Chat beenden): „Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.“
 
 **Terminseite** (`app/api/termin/route.ts`, `lib/termin-antwort.ts`)
 - `lib/termin.ts` · Eingabeprüfung der Wunschzeit: „Das Datum habe ich nicht verstanden. Bitte so: 28.10. oder 28.10.2026.“ · „Das ist ein Wochenende. Termine gibt es nur werktags.“ · „Die Uhrzeit habe ich nicht verstanden. Bitte so: 10:00.“ · „Dieser Zeitpunkt liegt in der Vergangenheit.“ (weitergereicht über `lib/termin-antwort.ts` → `/api/termin` → `TerminAntwort.tsx`)

@@ -320,6 +320,21 @@ export const chat = {
       },
     },
   },
+  /**
+   * Chat-Schutz (Prompt 17, 23.11.2026): Spam-Sperre und Beleidigungen, im Assistenten und im Support-Chat.
+   * Kurz, freundlich, ohne Vorwurf und ohne Emoji. „Bitte bleib freundlich.“ schickt im Support-Chat der
+   * Server (lib/support.ts), sonst zeigt alles das Fenster (components/neu/chat/ChatFenster.tsx).
+   */
+  schutz: {
+    // Davor steht die Restzeit nicht, dahinter schon: „Zu viele Nachrichten – wieder frei in 4:32“.
+    sperre: "Zu viele Nachrichten – wieder frei in",
+    gesperrtTeam: "Du kannst gerade nicht schreiben. Ein Mitarbeiter schaltet dich gleich wieder frei.",
+    wiederFrei: "Du kannst wieder schreiben.",
+    freundlich: "Bitte bleib freundlich.",
+    nichtAngekommen: "nicht angekommen",
+    nochmal: "Nochmal senden",
+    sendet: "wird gesendet …",
+  },
 };
 
 export const fuss = {

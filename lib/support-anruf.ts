@@ -126,17 +126,29 @@ function anrufKnopf(anliegen?: Anliegen) {
   return { type: 2, style: 1, label: "Anruf anbieten", emoji: { name: "📞" }, custom_id: anliegen ? `ticket:call:${anliegen}` : "ticket:call" };
 }
 
-/** Die Knöpfe der Ticket-Karte: offen „Übernehmen“, „Anruf anbieten“, „Ticket schließen“; übernommen ohne „Übernehmen“. */
+/**
+ * Die Knöpfe der Ticket-Karte: offen „Übernehmen“, „Anruf anbieten“, „Schnellantwort“, „Sperren“,
+ * „Ticket schließen“ (mehr als fünf gehen in Discord nicht in eine Reihe); übernommen ohne „Übernehmen“.
+ * Schnellantwort und Sperren seit Prompt 17 (23.11.2026, lib/support-sperre.ts).
+ */
 export function ticketComponents(state: "open" | "claimed" | "closed") {
-  const button = (label: string, id: string, style: 1 | 2 | 3 | 4) => ({ type: 2, label, style, custom_id: `ticket:${id}` });
+  const button = (label: string, id: string, style: 1 | 2 | 3 | 4, emoji?: string) => ({
+    type: 2,
+    label,
+    style,
+    ...(emoji ? { emoji: { name: emoji } } : {}),
+    custom_id: `ticket:${id}`,
+  });
   if (state === "closed") return [];
+  const schnell = button("Schnellantwort", "schnell", 2, "💬");
+  const sperren = button("Sperren", "sperren", 4, "🔒");
   return [
     {
       type: 1,
       components:
         state === "open"
-          ? [button("Übernehmen", "claim", 3), anrufKnopf(), button("Ticket schließen", "close", 2)]
-          : [anrufKnopf(), button("Ticket schließen", "close", 2)],
+          ? [button("Übernehmen", "claim", 3), anrufKnopf(), schnell, sperren, button("Ticket schließen", "close", 2)]
+          : [anrufKnopf(), schnell, sperren, button("Ticket schließen", "close", 2)],
     },
   ];
 }

@@ -19,6 +19,12 @@ export interface Message {
   // die Anruf-Karte bzw. den Knopf zum Mitarbeiter. Angezeigt wird es unter der Nachricht.
   anrufen?: boolean;
   mitarbeiter?: boolean;
+  // Chat-Schutz (Prompt 17): Nachrichten an das Team gehen gebündelt (paket); kam ein Bündel nicht an,
+  // steht darunter „nicht angekommen · Nochmal senden“ (status). Ein Hinweis („Bitte bleib freundlich.“)
+  // steht als ruhige Zeile im Verlauf, nicht als Antwort.
+  paket?: string;
+  status?: "fehlt" | "sendet";
+  hinweis?: boolean;
 }
 
 // Ein laufender Support-Chat: der Schlüssel des Tickets und die letzte Nachricht,

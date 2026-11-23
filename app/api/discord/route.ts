@@ -42,7 +42,23 @@ import { handleAkademie } from "@/lib/akademie-handler";
 import { handleAntwortBefehl } from "@/lib/uebung-handler";
 import { handleSuche, handleSucheClose, type SucheInteraction } from "@/lib/lead-suche-handlers";
 import { OWNER_ID, setzeAntwort } from "@/lib/leads";
-import { closeTicketChannel, FOR_CUSTOMER, ticketComponents } from "@/lib/support";
+import { aendereKarte, closeTicketChannel, FOR_CUSTOMER, postSperrKarte, ticketComponents } from "@/lib/support";
+import {
+  SCHNELL_FENSTER,
+  SCHNELL_WAHL,
+  SPERRE_FELD,
+  beendetNachricht,
+  entsperrtNachricht,
+  entsperrtWert,
+  gesperrtVonWert,
+  mitFeld,
+  schnellAuswahl,
+  schnellFenster,
+  sperrNachricht,
+  sperreDerKarte,
+  zustandDerKarte,
+  type Feld,
+} from "@/lib/support-sperre";
 import { ANRUF_FENSTER, anliegenDerKarte, anrufFenster, leseAnrufKnopf, mitAnrufZeile } from "@/lib/support-anruf";
 import { darfHandeln, nameVon } from "@/lib/team";
 import { handleTeamBefehl, handleTeamKnopf, type TeamInteraction, type TeamKnopfInteraction } from "@/lib/team-handler";
@@ -87,13 +103,15 @@ interface Interaction {
     name?: string;
     options?: { name: string; value?: unknown }[];
     custom_id?: string;
+    // Auswahl (Schnellantwort): die gewählten Werte
+    values?: string[];
     components?: { components?: { custom_id: string; value?: string }[] }[];
   };
   member?: {
     nick?: string | null;
     user?: { id: string; username?: string; global_name?: string | null };
   };
-  message?: { id: string; embeds?: EmbedLike[] };
+  message?: { id: string; content?: string; embeds?: EmbedLike[] };
 }
 
 function ephemeral(content: string) {
@@ -105,13 +123,18 @@ const DEFERRED_UPDATE = { type: 6 };
 const DEFERRED_EPHEMERAL = { type: 5, data: { flags: 64 } };
 
 
-/** Support-Tickets (Kategorie SUPPORT): Übernehmen, Anruf anbieten, Antworten, Schließen. */
+/**
+ * Support-Tickets (Kategorie SUPPORT): Übernehmen, Anruf anbieten, Schnellantwort, Sperren, Antworten,
+ * Schließen; an der Sperr-Karte Entsperren und Chat beenden (Chat-Schutz, Prompt 17, lib/support-sperre.ts).
+ */
 function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: string | undefined) {
   const id = i.data?.custom_id ?? "";
   // So heißen die Leute im Chat der Besucher, unabhängig vom Discord-Namen.
   const who = nameVon(i.member?.user?.id ?? "") ?? whoRaw;
   const channel = i.channel_id;
   if (!channel) return ephemeral("Der Kanal ist nicht bekannt.");
+  const geschlossen = i.channel?.name?.startsWith("geschlossen-") === true;
+  const schonZu = () => ephemeral("Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.");
 
   // „Anruf anbieten“ (an der Karte oder am Hinweis nur fürs Team): Fenster mit einem fertigen Satz,
   // der zur Lage passt (Preis, Erstgespräch, Termin, sprechen). Das Team kann ihn vor dem Senden ändern.
@@ -138,6 +161,17 @@ function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: s
       });
     }
     return ephemeral("Gesendet. Der Kunde sieht die Nachricht gleich im Chat, darunter die Anruf-Karte mit „Jetzt anrufen“.");
+  }
+
+  // Fenster „Schnellantwort“ abgeschickt: geht als ganz normale Antwort mit dem eigenen Namen an den Kunden.
+  if (i.type === 5 && id === SCHNELL_FENSTER) {
+    const text = i.data?.components?.[0]?.components?.[0]?.value?.trim();
+    if (!text) return ephemeral("Die Nachricht war leer.");
+    if (geschlossen) return schonZu();
+    after(async () => {
+      await postText(token, channel, `${FOR_CUSTOMER} **${who}:** ${text.slice(0, 1500)}`);
+    });
+    return ephemeral("Gesendet. Der Kunde sieht die Antwort gleich im Chat.");
   }
 
   // Fenster "Antworten" abgeschickt
@@ -177,7 +211,66 @@ function handleTicket(i: Interaction, whoRaw: string, ownerTag: string, token: s
     });
   }
 
+  // „💬 Schnellantwort“: Auswahl der fertigen Sätze (nur für den, der geklickt hat), dann das Fenster zum Ändern.
+  if (action === "schnell") {
+    if (geschlossen) return schonZu();
+    return NextResponse.json({ type: 4, data: schnellAuswahl() });
+  }
+  if (id === SCHNELL_WAHL) {
+    if (geschlossen) return schonZu();
+    return NextResponse.json({ type: 9, data: schnellFenster(i.data?.values?.[0]) });
+  }
+
+  // An der Sperr-Karte: „Entsperren“. Der Kunde kann sofort wieder schreiben (sein Chat merkt es beim nächsten Abruf).
+  if (action === "entsperren") {
+    if (geschlossen) return schonZu();
+    after(async () => {
+      await aendereKarte(token!, channel, (felder: Feld[]) => ({ fields: mitFeld(felder, SPERRE_FELD, entsperrtWert(ownerTag, time)) }));
+    });
+    return NextResponse.json({
+      type: 7,
+      data: { content: entsperrtNachricht(i.message?.content ?? "", ownerTag, time), components: [], allowed_mentions: { parse: [] } },
+    });
+  }
+
+  // An der Sperr-Karte: „Chat beenden“, wie „Ticket schließen“ an der Karte.
+  if (action === "beenden") {
+    if (geschlossen) return schonZu();
+    after(async () => {
+      await closeTicketChannel(token!, channel);
+      await postText(token, channel, `🔒 Ticket geschlossen von ${who}.`);
+      await aendereKarte(
+        token!,
+        channel,
+        (felder: Feld[]) => ({ color: 0x6b7280, fields: felder.map((f) => (f.name === "Status" ? { ...f, value: `Geschlossen von ${ownerTag} um ${time}` } : f)) }),
+        ticketComponents("closed"),
+      );
+    });
+    return NextResponse.json({
+      type: 7,
+      data: { content: beendetNachricht(i.message?.content ?? "", ownerTag, time), components: [], allowed_mentions: { parse: [] } },
+    });
+  }
+
   if (!embed) return ephemeral("Diese Meldung ist nicht mehr aktuell.");
+
+  // „🔒 Sperren“ an der Karte: Der Kunde kann nicht mehr schreiben, bis jemand entsperrt.
+  if (action === "sperren") {
+    if (geschlossen) return schonZu();
+    const felder = (embed.fields ?? []) as Feld[];
+    if (sperreDerKarte(felder).gesperrt) return ephemeral("Der Kunde ist schon gesperrt. Entsperren geht an der Sperr-Karte im Ticket.");
+    after(async () => {
+      await postSperrKarte(token!, channel, sperrNachricht({ von: who }));
+    });
+    return NextResponse.json({
+      type: 7,
+      data: {
+        embeds: [{ ...embed, fields: mitFeld(felder, SPERRE_FELD, gesperrtVonWert(ownerTag, time)) }],
+        components: ticketComponents(zustandDerKarte(felder)),
+        allowed_mentions: { parse: [] },
+      },
+    });
+  }
 
   if (action === "claim") {
     after(async () => {
