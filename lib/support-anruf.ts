@@ -141,7 +141,8 @@ export function ticketComponents(state: "open" | "claimed" | "closed") {
       components:
         state === "open"
           ? [button("Übernehmen", "claim", 3), anrufKnopf(), schnell, sperren, button("Ticket schließen", "close", 2)]
-          : [anrufKnopf(), schnell, sperren, button("Ticket schließen", "close", 2)],
+          : // Prompt 18b: „Freigeben“ (nur wer übernommen hat): Das Ticket ist wieder offen, ein anderer kann übernehmen.
+            [anrufKnopf(), schnell, sperren, button("Freigeben", "freigeben", 2), button("Ticket schließen", "close", 2)],
     },
   ];
 }

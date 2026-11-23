@@ -231,6 +231,20 @@ export interface SchutzStand {
 }
 
 const K_SCHUTZ = "ag-chat-schutz";
+const K_KENNUNG = "ag-chat-kennung";
+
+/** Die zufällige Kennung dieses Browsers für den Chat-Schutz (Prompt 18b); legt sie beim ersten Mal an. */
+export function chatKennung(s: Speicher | null): string {
+  try {
+    const da = s?.getItem(K_KENNUNG);
+    if (da && KENNUNG_MUSTER.test(da)) return da;
+    const neu = Array.from({ length: 20 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+    s?.setItem(K_KENNUNG, neu);
+    return neu;
+  } catch {
+    return "";
+  }
+}
 
 export const leererSchutz = (): SchutzStand => ({ sperreBis: 0, grund: "", art: "", sperreAb: 0, log: [], logTicket: [], beleidigungen: 0, zuletzt: 0 });
 const istArt = (x: unknown): x is SpamArt => x === "menge" || x === "wiederholung" || x === "kauderwelsch" || x === "beleidigung";
@@ -385,8 +399,14 @@ export function chatWaechter(): Waechter {
   return (g.__agChatWaechter ??= new Waechter());
 }
 
-/** Schlüssel des Assistenten-Chats: Adresse plus kurzer Fingerabdruck des Browsers (hinter einer Adresse sitzen oft viele). */
-export function chatSchluessel(ip: string, userAgent: string | null): string {
+/**
+ * Schlüssel des Assistenten-Chats. Seit Prompt 18b zuerst eine zufällige Kennung aus dem Browser (localStorage
+ * `ag-chat-kennung`): Hinter einer Adresse (Büro-WLAN, Mobilfunk) sitzen oft viele Leute mit gleichem Browser, die
+ * sonst eine fremde Sperre mitbekämen. Ohne Kennung wie bisher: Adresse plus kurzer Fingerabdruck des Browsers.
+ */
+export const KENNUNG_MUSTER = /^[a-z0-9]{12,40}$/i;
+export function chatSchluessel(ip: string, userAgent: string | null, kennung?: string | null): string {
+  if (kennung && KENNUNG_MUSTER.test(kennung)) return `chat:k:${kennung.toLowerCase()}`;
   let h = 0;
   for (const z of userAgent ?? "") h = (Math.imul(h, 31) + z.charCodeAt(0)) | 0;
   return `chat:${ip}:${(h >>> 0).toString(36)}`;

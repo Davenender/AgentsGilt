@@ -3,42 +3,180 @@
 // (lib/support.ts, lib/ticket-handler.ts, /api/support, /api/team/takt) und Tests (tests/support-ablauf.test.ts).
 //
 // Der Stand steht an der Ticket-Karte (erste Nachricht im Kanal), wie die Sperre, und gilt so über alle
-// Server-Instanzen: wer übernommen hat (Feld „Status“, wie bisher) und im Feld „Ablauf“, wann übernommen,
-// wann „Noch Fragen?“ und der Abschluss gesendet wurden und seit wann der Kunde den Chat verlassen hat
-// (als Discord-Zeitangaben, die Discord in der Uhrzeit des Lesers zeigt).
-import { BESUCHER, besucherText, discordZeit, mitFeld, ohneFeld, trenneHinweisZeile, zeitAusTag, type Feld } from "./support-sperre.ts";
+// Server-Instanzen: im Feld „Ablauf“, als Discord-Zeitangaben (Discord zeigt sie in der Uhrzeit des Lesers).
+//
+// Prompt 18b (Korrekturen nach der Prüfung): Wer übernommen hat, steht mit Discord-Kennung und Zeit im Feld
+// „Ablauf“ und wird von dort gelesen, nicht aus „Status“ (dort steht nach dem Schließen „Geschlossen von …“; bis
+// dahin galt dann jede Nachricht als fremd, auch die des Übernehmers). Gelöscht wird nur, was neu ist und nie
+// zugestellt wurde: nach „Prüfung ab“ (Ticket angelegt oder wieder geöffnet) und nach „Zuletzt zugestellt“. Auf einer
+// geschlossenen Karte und in Tickets von vor Prompt 18 (ohne „Prüfung ab“) wird nichts gelöscht.
+import { BESUCHER, besucherText, discordZeit, mitFeld, ohneFeld, trenneHinweisZeile, zeitAusTag, zustandDerKarte, type Feld } from "./support-sperre.ts";
 import { leseKundenNachricht } from "./support-anruf.ts";
 import { zeitAusId } from "./team-takt-regeln.ts";
 import type { TicketNachricht } from "./chat-beleidigung.ts";
 
 /**
  * Schalter für eine spätere Ausnahme: Darf der Chef (David) alles, auch ohne das Ticket übernommen zu haben?
- * Erst einmal aus (Davids Entscheidung): Dann gilt die Regel auch für ihn.
+ * Erst einmal aus (Davids Entscheidung, bis er nach seinem Test Ja sagt). Zum Einschalten nur diese Zeile auf true.
  */
 export const CHEF_DARF_ALLES = false;
 
 export const DREI_STUNDEN_MS = 3 * 60 * 60_000;
 /** So lange steht die Warnung „… Deine Nachricht wurde nicht gesendet.“ im Ticket. */
 export const WARNUNG_WEG_MS = 30_000;
+/** Höchstens so viele Nachrichten löscht der Minutentakt je Ticket und Durchgang. */
+export const MAX_LOESCHEN = 5;
+
+/** Ist diese Person noch aktiv im Team (Team-Register: Status „team“)? Ohne Angabe gilt jeder als aktiv. */
+export type Aktiv = (discordId: string) => boolean;
+
+// ------------------------------------------------------------------ Ablauf an der Karte
+
+export const ABLAUF_FELD = "Ablauf";
+export interface Ablauf {
+  /** Discord-Kennung dessen, der übernommen hat. */
+  von?: string;
+  uebernommen?: number;
+  /** Ab hier werden Nachrichten im Kanal geprüft (Ticket angelegt oder wieder geöffnet). */
+  pruefungAb?: number;
+  /** Zeit der letzten Nachricht, die der Kunde bekommen hat. */
+  zugestellt?: number;
+  nachgefragt?: number;
+  abschluss?: number;
+  weg?: number;
+}
+type Zeitwert = Exclude<keyof Ablauf, "von">;
+const ZEILEN: Record<Zeitwert, string> = {
+  uebernommen: "Übernommen",
+  pruefungAb: "Prüfung ab",
+  zugestellt: "Zuletzt zugestellt",
+  nachgefragt: "„Noch Fragen?“ gesendet",
+  abschluss: "Abschluss gesendet",
+  weg: "Kunde weg seit",
+};
+const REIHE = Object.keys(ZEILEN) as Zeitwert[];
+
+export function leseAblauf(felder: Feld[] | undefined): Ablauf {
+  const wert = felder?.find((f) => f.name === ABLAUF_FELD)?.value ?? "";
+  const a: Ablauf = {};
+  for (const zeile of wert.split("\n")) {
+    const schluessel = REIHE.find((k) => zeile.startsWith(ZEILEN[k]));
+    if (!schluessel) continue;
+    // „Übernommen von <@…>“ geht auch ohne Zeit (alte Tickets, beim Schließen festgehalten: übernommenFest).
+    if (schluessel === "uebernommen") {
+      const von = zeile.match(/^Übernommen von <@!?(\d+)>/)?.[1];
+      if (von) a.von = von;
+    }
+    const zeit = zeitAusTag(zeile);
+    if (zeit) a[schluessel] = zeit;
+  }
+  return a;
+}
+
+export function ablaufWert(a: Ablauf): string {
+  return REIHE.filter((k) => a[k])
+    .map((k) => {
+      if (k === "uebernommen" && a.von) return `Übernommen von <@${a.von}> ${discordZeit(a.uebernommen!)}`;
+      return `${ZEILEN[k]} ${discordZeit(a[k]!, k === "zugestellt" ? "T" : "t")}`;
+    })
+    .concat(a.von && !a.uebernommen ? [`Übernommen von <@${a.von}>`] : [])
+    .join("\n");
+}
+
+/** Ändert das Feld „Ablauf“ (null löscht eine Zeile); ohne Zeilen fällt das Feld weg (Discord erlaubt keine leeren Felder). */
+export function mitAblauf(felder: Feld[] | undefined, aenderung: { [K in keyof Ablauf]?: Ablauf[K] | null }): Feld[] {
+  const a: Ablauf = { ...leseAblauf(felder) };
+  for (const k of Object.keys(aenderung) as (keyof Ablauf)[]) {
+    const v = aenderung[k];
+    if (v) (a as Record<string, unknown>)[k] = v;
+    else delete a[k];
+  }
+  const wert = ablaufWert(a);
+  return wert ? mitFeld(felder, ABLAUF_FELD, wert) : ohneFeld(felder, ABLAUF_FELD);
+}
+
+/** Zeit auf die nächste volle Sekunde aufgerundet (die Zeitangabe im Feld ist sekundengenau): lieber eine Sekunde zu spät als zu früh. */
+export const aufSekunde = (ms: number) => Math.ceil(ms / 1000) * 1000;
+/** Wann das Übernehmen zählt (so geht nichts durch, was in derselben Sekunde kurz vor dem Klick geschrieben wurde). */
+export const uebernahmeZeit = aufSekunde;
+
+/** Übernehmen: Kennung und Zeit an der Karte. */
+export const mitUebernahme = (felder: Feld[] | undefined, id: string, jetzt: number) => mitAblauf(felder, { von: id, uebernommen: uebernahmeZeit(jetzt) });
 
 // ------------------------------------------------------------------ Übernehmen
 
-/** Wer das Ticket übernommen hat (aus „Übernommen von <@…> um …“), sonst null. */
-export function uebernehmerDerKarte(felder: Feld[] | undefined): string | null {
-  const s = felder?.find((f) => f.name === "Status")?.value ?? "";
-  return /^Übernommen/.test(s.trim()) ? (s.match(/<@!?(\d+)>/)?.[1] ?? null) : null;
+/**
+ * Wer das Ticket übernommen hat: aus dem Feld „Ablauf“ (seit Prompt 18b), bei Tickets von vor Prompt 18 aus „Übernommen
+ * von <@…> um …“ im Status. Auch nach dem Schließen (dann kommen seine letzten Nachrichten noch an). Mit `aktiv`:
+ * Ist er nicht mehr im Team oder pausiert, gilt das Ticket als frei (null).
+ */
+export function uebernehmerDerKarte(felder: Feld[] | undefined, aktiv?: Aktiv): string | null {
+  const ausAblauf = leseAblauf(felder).von;
+  const status = felder?.find((f) => f.name === "Status")?.value ?? "";
+  const wer = ausAblauf ?? (/^Übernommen/.test(status.trim()) ? (status.match(/<@!?(\d+)>/)?.[1] ?? null) : null);
+  if (wer && aktiv && !aktiv(wer)) return null;
+  return wer;
+}
+
+/**
+ * Beim Schließen: Stand der Übernehmer nur im Status (Tickets von vor Prompt 18b), kommt er ins Feld „Ablauf“, damit
+ * seine letzten Nachrichten nach dem Schließen noch beim Kunden ankommen (der Status heißt dann „Geschlossen von …“).
+ */
+export function uebernommenFest(felder: Feld[] | undefined): Feld[] {
+  const wer = uebernehmerDerKarte(felder);
+  return wer && !leseAblauf(felder).von ? mitAblauf(felder, { von: wer }) : [...(felder ?? [])];
+}
+
+/** Ist ein Übernehmer eingetragen, aber nicht mehr aktiv im Team (dann gibt der Bot das Ticket frei)? */
+export function uebernehmerWeg(felder: Feld[] | undefined, aktiv: Aktiv): string | null {
+  const wer = uebernehmerDerKarte(felder);
+  return wer && !aktiv(wer) && zustandDerKarte(felder) !== "closed" ? wer : null;
 }
 
 export const NICHT_UEBERNOMMEN = "Übernimm zuerst das Ticket.";
+/** Übernehmen nur, wer im Team-Register aktiv ist (sonst gäbe der Bot das Ticket in der nächsten Minute wieder frei). */
+export const NICHT_IM_TEAM = "Du bist im Team-Register nicht als aktiv eingetragen. Übernehmen geht erst danach.";
+/** Der Übernehmer ist nicht mehr aktiv im Team: Der Bot gibt frei, wer geklickt hat, liest das. */
+export const nichtMehrAktiv = (id: string) => `<@${id}> ist nicht mehr aktiv im Team. Das Ticket ist jetzt frei: Übernimm es zuerst.`;
 export const andererHat = (id: string) => `Das Ticket hat <@${id}> übernommen.`;
 
 /** Darf diese Person die Knöpfe benutzen? null heißt ja, sonst die Warnung nur für sie. */
-export function pruefeUebernehmer(felder: Feld[] | undefined, userId: string, chefId: string, chefDarfAlles = CHEF_DARF_ALLES): string | null {
+export function pruefeUebernehmer(
+  felder: Feld[] | undefined,
+  userId: string,
+  chefId: string,
+  chefDarfAlles = CHEF_DARF_ALLES,
+  aktiv?: Aktiv,
+): string | null {
   if (chefDarfAlles && userId === chefId) return null;
-  const wer = uebernehmerDerKarte(felder);
+  const wer = uebernehmerDerKarte(felder, aktiv);
   if (!wer) return NICHT_UEBERNOMMEN;
   return wer === userId ? null : andererHat(wer);
 }
+
+// ------------------------------------------------------------------ Freigeben, wieder öffnen
+
+export const FREIGEBEN_ID = "ticket:freigeben";
+export const freigegebenStatus = (wer: string, zeit: string) => `Freigegeben von ${wer} um ${zeit}`;
+/** Der Übernehmer ist nicht mehr im Team oder pausiert: Der Bot gibt das Ticket frei, die Karte sagt kurz, warum. */
+export const freiStatus = (id: string) => `Frei: <@${id}> ist nicht mehr aktiv im Team. Wer übernimmt?`;
+export const WIEDER_OFFEN = "Wieder offen";
+
+/** Freigeben (Knopf oder automatisch): Übernehmer weg, „Noch Fragen?“ und Abschluss beginnen neu. */
+export function ohneUebernahme(felder: Feld[] | undefined): Feld[] {
+  return mitAblauf(felder, { von: null, uebernommen: null, nachgefragt: null, abschluss: null });
+}
+
+/**
+ * Ticket per Mail wieder geöffnet: Status „Wieder offen“, kein Übernehmer, „Prüfung ab“ neu (ältere Nachrichten bleiben
+ * unberührt), und „Noch Fragen?“, Abschluss und „Kunde weg“ beginnen neu.
+ */
+export function wiederOffenFelder(felder: Feld[] | undefined, jetzt: number): Feld[] {
+  const f = mitAblauf(felder, { von: null, uebernommen: null, nachgefragt: null, abschluss: null, weg: null, pruefungAb: aufSekunde(jetzt) });
+  return f.map((x) => (x.name === "Status" ? { ...x, value: WIEDER_OFFEN } : x));
+}
+
+// ------------------------------------------------------------------ Nachrichten im Kanal
 
 /** Die Warnung im Kanal, wenn jemand schreibt, der das Ticket nicht übernommen hat (ohne den Text der Nachricht). */
 export function fremdWarnung(autorId: string, uebernehmerId: string | null): string {
@@ -47,20 +185,15 @@ export function fremdWarnung(autorId: string, uebernehmerId: string | null): str
     ? `<@${autorId}>, das Ticket hat <@${uebernehmerId}> übernommen. Deine Nachricht wurde nicht gesendet.`
     : `<@${autorId}>, übernimm zuerst das Ticket. Deine Nachricht wurde nicht gesendet.`;
 }
-
-/**
- * Wann das Übernehmen zählt: auf die nächste volle Sekunde aufgerundet (die Discord-Zeitangabe im Feld „Ablauf“ ist
- * sekundengenau). So geht nichts durch, was in derselben Sekunde kurz vor dem Klick geschrieben wurde.
- */
-export const uebernahmeZeit = (jetzt: number) => Math.ceil(jetzt / 1000) * 1000;
 export const istFremdWarnung = (text: string | undefined) => !!text && /^<@\d+>, /.test(text) && text.endsWith("Deine Nachricht wurde nicht gesendet.");
 
 /**
  * Was mit einer Nachricht eines Menschen im Ticket-Kanal geschieht:
  * - „notiz“: beginnt mit // (interne Notiz, bleibt stehen, geht nicht an den Kunden),
  * - „senden“: von dem, der übernommen hat, und nach dem Übernehmen geschrieben,
- * - „fremd“: von jemand anderem oder vor dem Übernehmen: wird gelöscht und geht nie an den Kunden.
- * `seit`: wann übernommen wurde (aus dem Feld „Ablauf“; 0, wenn es fehlt, bei Tickets von vor Prompt 18).
+ * - „fremd“: von jemand anderem oder vor dem Übernehmen: geht nie an den Kunden (gelöscht wird sie nur, wenn
+ *   `pruefbar`).
+ * `seit`: wann übernommen wurde (aus dem Feld „Ablauf“; 0, wenn es fehlt).
  */
 export function artDerTeamNachricht(
   m: { id: string; text: string; autor: string },
@@ -73,49 +206,35 @@ export function artDerTeamNachricht(
   return seit && zeit && zeit < seit ? "fremd" : "senden";
 }
 
-// ------------------------------------------------------------------ Ablauf an der Karte
-
-export const ABLAUF_FELD = "Ablauf";
-export interface Ablauf {
-  uebernommen?: number;
-  nachgefragt?: number;
-  abschluss?: number;
-  weg?: number;
-}
-const ZEILEN: Record<keyof Ablauf, string> = {
-  uebernommen: "Übernommen",
-  nachgefragt: "„Noch Fragen?“ gesendet",
-  abschluss: "Abschluss gesendet",
-  weg: "Kunde weg seit",
-};
-const REIHE = Object.keys(ZEILEN) as (keyof Ablauf)[];
-
-export function leseAblauf(felder: Feld[] | undefined): Ablauf {
-  const wert = felder?.find((f) => f.name === ABLAUF_FELD)?.value ?? "";
-  const a: Ablauf = {};
-  for (const zeile of wert.split("\n")) {
-    const schluessel = REIHE.find((k) => zeile.startsWith(ZEILEN[k]));
-    const zeit = schluessel ? zeitAusTag(zeile) : null;
-    if (schluessel && zeit) a[schluessel] = zeit;
-  }
-  return a;
+/**
+ * Darf eine Nachricht (ihre Zeit) noch geprüft und, wenn fremd, gelöscht werden? Nur neue, nie zugestellte: nach
+ * „Prüfung ab“ und nach „Zuletzt zugestellt“. Nie auf einer geschlossenen Karte, nie in Tickets ohne „Prüfung ab“.
+ */
+export function pruefbar(felder: Feld[] | undefined, zeit: number): boolean {
+  if (zustandDerKarte(felder) === "closed") return false;
+  const a = leseAblauf(felder);
+  if (!a.pruefungAb || !zeit) return false;
+  return zeit >= a.pruefungAb && (!a.zugestellt || zeit > a.zugestellt);
 }
 
-export function ablaufWert(a: Ablauf): string {
-  return REIHE.filter((k) => a[k]).map((k) => `${ZEILEN[k]} ${discordZeit(a[k]!)}`).join("\n");
-}
-
-/** Ändert das Feld „Ablauf“ (null löscht eine Zeile); ohne Zeilen fällt das Feld weg (Discord erlaubt keine leeren Felder). */
-export function mitAblauf(felder: Feld[] | undefined, aenderung: Partial<Record<keyof Ablauf, number | null>>): Feld[] {
-  const a = { ...leseAblauf(felder) };
-  for (const k of REIHE) {
-    if (!(k in aenderung)) continue;
-    const v = aenderung[k];
-    if (v) a[k] = v;
-    else delete a[k];
-  }
-  const wert = ablaufWert(a);
-  return wert ? mitFeld(felder, ABLAUF_FELD, wert) : ohneFeld(felder, ABLAUF_FELD);
+/**
+ * Was der Minutentakt löscht: fremde, neue, nie zugestellte Nachrichten (pruefbar), die noch keine Warnung haben,
+ * älteste zuerst, höchstens 5 je Durchgang.
+ */
+export function zumLoeschen(
+  nachrichten: { id: string; content?: string; author: { id?: string; bot?: boolean } }[],
+  felder: Feld[] | undefined,
+): { id: string; autor: string }[] {
+  const uebernehmer = uebernehmerDerKarte(felder);
+  const seit = leseAblauf(felder).uebernommen ?? 0;
+  const warnungen = nachrichten.filter((m) => m.author.bot && istFremdWarnung(m.content));
+  return nachrichten
+    .filter((m) => !m.author.bot && pruefbar(felder, zeitAusId(m.id)))
+    .filter((m) => artDerTeamNachricht({ id: m.id, text: (m.content ?? "").trim(), autor: m.author.id ?? "" }, uebernehmer, seit) === "fremd")
+    .filter((m) => !warnungen.some((w) => zeitAusId(w.id) >= zeitAusId(m.id) && (w.content ?? "").startsWith(`<@${m.author.id}>`)))
+    .sort((a, b) => zeitAusId(a.id) - zeitAusId(b.id))
+    .slice(0, MAX_LOESCHEN)
+    .map((m) => ({ id: m.id, autor: m.author.id ?? "" }));
 }
 
 // ------------------------------------------------------------------ Abschluss
@@ -165,13 +284,23 @@ export function zuFruehAntwort() {
 }
 export const ERST_NACHFRAGEN = "Schick zuerst „Noch Fragen?“. Danach geht der Abschluss.";
 export const SCHON_ABGESCHLOSSEN = "Der Abschluss ist schon gesendet. Du kannst das Ticket jetzt schließen.";
-export const SCHON_NACHGEFRAGT = "„Noch Fragen?“ ist eben schon gesendet worden.";
+/** Zweiter Klick auf „Noch Fragen?“ oder „Abschluss“ (Prompt 18b: nur das, sonst nichts). */
+export const SCHON_GESENDET = "Schon gesendet.";
 export const antwortetNoch = (ab: number) => `Der Kunde antwortet vielleicht noch. Abschluss geht ab ${discordZeit(ab)}.`;
 export const kommtZurueck = (ab: number) => `Der Kunde kommt vielleicht zurück. Schließen geht ab ${discordZeit(ab)}.`;
 
 /** Hat der Kunde nach dem Zeitpunkt `seit` geschrieben? (Nachrichten im Kanal; seine stehen mit „🗨️ **Besucher:**“.) */
 export function kundeSchriebSeit(nachrichten: { id: string; content?: string; author?: { bot?: boolean } }[], seit: number): boolean {
   return nachrichten.some((m) => m.author?.bot && (m.content ?? "").replace(/^⚠️ \*\*Beleidigung\*\* – /, "").startsWith(BESUCHER) && zeitAusId(m.id) > seit);
+}
+
+/**
+ * Zweiter Klick (Prompt 18b)? „Noch Fragen?“ ist schon gesendet, solange der Kunde seitdem nicht geschrieben hat
+ * (dann darf man noch einmal fragen); der Abschluss, sobald er nach dem letzten „Noch Fragen?“ gesendet ist.
+ */
+export function schonGesendet(art: "nachgefragt" | "abschluss", a: Ablauf, nachrichten: Parameters<typeof kundeSchriebSeit>[0]): boolean {
+  if (art === "nachgefragt") return !!a.nachgefragt && !kundeSchriebSeit(nachrichten, a.nachgefragt);
+  return !!a.abschluss && !!a.nachgefragt && a.abschluss >= a.nachgefragt;
 }
 
 /** Darf jetzt der Abschluss-Satz hinaus? Erst nach „Noch Fragen?“, und erst wenn der Kunde geantwortet hat oder 3 Stunden um sind. */

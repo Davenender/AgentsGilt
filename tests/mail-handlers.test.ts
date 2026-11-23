@@ -11,7 +11,8 @@ test("Ticket: nur wer übernommen hat, seit Prompt 18 auch nicht David (Schalter
   assert.equal(darfMailen("ticket", "111", [ticketBesitzer(karte) ?? ""], DAVID), null);
   assert.equal(darfMailen("ticket", DAVID, ["111"], DAVID), "Das Ticket hat <@111> übernommen.");
   assert.equal(darfMailen("ticket", "222", ["111"], DAVID), "Das Ticket hat <@111> übernommen.");
-  assert.equal(darfMailen("ticket", "222", [""], DAVID), "Übernimm zuerst das Ticket.");
+  // Prompt 18b: Hat noch niemand übernommen (z. B. per Mail wieder geöffnet), darf das ganze Team antworten.
+  assert.equal(darfMailen("ticket", "222", [""], DAVID), null);
   // Anfragen bleiben, wie sie sind: Dort darf David weiter alles.
   assert.equal(darfMailen("anfrage", DAVID, ["111"], DAVID), null);
   assert.equal(ticketBesitzer({ fields: [{ name: "Status", value: "Offen" }] }), null);

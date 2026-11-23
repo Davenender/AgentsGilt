@@ -102,11 +102,73 @@ export async function pruefeBeleg(
   }
 }
 
-/** Die Nachrichten des Kunden aus dem Feld „Chat davor“ der Ticket-Karte (Zeilen „Besucher: …“). */
+// ------------------------------------------------------------------ Chat davor an der Ticket-Karte
+
+/** So viel vom Chat mit dem Assistenten steht an der Ticket-Karte (Prompt 18b: 4000 statt 1000 Zeichen). */
+export const DAVOR_MAX = 4000;
+/** Discord erlaubt je Feld 1024 Zeichen und an der ganzen Karte 6000: höchstens vier Felder „Chat davor“. */
+const FELD_MAX = 1024;
+const FELDER_MAX = 4;
+/** Platz an der Karte für alles außer Name, Kontakt, Frage und Chat davor (Titel, Fußzeile, Status, Sperre, Ablauf …). */
+const KARTE_REST = 900;
+export const DAVOR_NAME = "Chat davor (mit dem Assistenten)";
+const DAVOR_WEITER = "Chat davor (Fortsetzung)";
+
+/** Wie viel Chat davor an die Karte passt, damit sie unter Discords 6000 Zeichen bleibt (lange Frage: weniger). */
+export const davorPlatz = (...andere: string[]) => Math.max(0, Math.min(DAVOR_MAX, 6000 - KARTE_REST - andere.reduce((n, t) => n + t.length, 0)));
+
+/** Zeilen zu Feldern bündeln, ohne eine Zeile zu teilen (jede Zeile ist höchstens 1024 Zeichen lang). */
+function packe(zeilen: string[]): string[] {
+  const teile: string[] = [];
+  let aktuell = "";
+  for (const z of zeilen) {
+    if (aktuell && aktuell.length + 1 + z.length <= FELD_MAX) aktuell += `\n${z}`;
+    else {
+      if (aktuell) teile.push(aktuell);
+      aktuell = z;
+    }
+  }
+  if (aktuell) teile.push(aktuell);
+  return teile;
+}
+
+/**
+ * Die Felder „Chat davor“ der Ticket-Karte: die letzten Nachrichten (die neuesten zählen; ältere fallen weg, bis
+ * höchstens `max` Zeichen übrig sind und alles in vier Felder passt), je Nachricht „Besucher: …“ bzw.
+ * „Assistent: …“, Zeilenumbrüche bleiben. Felder enden immer an einer Nachricht, nie mitten darin.
+ */
+export function chatDavorFelder(verlauf: { role: string; content: string }[], max = DAVOR_MAX): { name: string; value: string }[] {
+  const zeilen = verlauf
+    .map((m) => `${m.role === "user" ? "Besucher" : "Assistent"}: ${m.content.trim()}`)
+    .map((z) => (z.length > FELD_MAX ? `${z.slice(0, FELD_MAX - 1)}…` : z));
+  while (zeilen.length && (zeilen.join("\n").length > max || packe(zeilen).length > FELDER_MAX)) zeilen.shift();
+  return packe(zeilen).map((value, i) => ({ name: i === 0 ? DAVOR_NAME : DAVOR_WEITER, value }));
+}
+
+/** Der ganze Chat davor aus allen Feldern „Chat davor …“ der Karte (die Felder enden immer an einer Nachricht). */
+export function chatDavorText(felder: { name: string; value: string }[] | undefined): string {
+  return (felder ?? [])
+    .filter((f) => f.name.startsWith("Chat davor"))
+    .map((f) => f.value)
+    .join("\n");
+}
+
+/**
+ * Die Nachrichten des Kunden aus dem Chat davor (Zeilen „Besucher: …“). Eine Nachricht über mehrere Zeilen gehört
+ * ganz dazu, bis die nächste mit „Besucher:“ oder „Assistent:“ beginnt.
+ */
 export function kundeImChatDavor(davor: string): string[] {
-  return davor
-    .split("\n")
-    .filter((z) => z.startsWith("Besucher:"))
-    .map((z) => z.slice("Besucher:".length).trim())
-    .filter(Boolean);
+  const out: string[] = [];
+  let aktuell: string[] | null = null;
+  for (const zeile of davor.split("\n")) {
+    if (zeile.startsWith("Besucher:")) {
+      if (aktuell) out.push(aktuell.join("\n").trim());
+      aktuell = [zeile.slice("Besucher:".length).trim()];
+    } else if (zeile.startsWith("Assistent:")) {
+      if (aktuell) out.push(aktuell.join("\n").trim());
+      aktuell = null;
+    } else if (aktuell) aktuell.push(zeile);
+  }
+  if (aktuell) out.push(aktuell.join("\n").trim());
+  return out.filter(Boolean);
 }

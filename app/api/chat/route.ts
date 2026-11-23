@@ -42,17 +42,17 @@ function gesperrt(s: { rest: number; art: SpamArt; bis: number; ab: number }) {
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
-  // Je Adresse und Browser, damit ein Spammer nicht alle hinter derselben Adresse mitsperrt.
-  const schluessel = chatSchluessel(ip, request.headers.get("user-agent"));
-  const laufend = waechter.sperre(schluessel, Date.now());
-  if (laufend) return gesperrt(laufend);
-
-  let payload: { messages?: ChatMessage[]; sperre?: { art?: unknown; anzahl?: unknown }; beleidigungen?: unknown };
+  let payload: { messages?: ChatMessage[]; sperre?: { art?: unknown; anzahl?: unknown }; beleidigungen?: unknown; kennung?: unknown };
   try {
     payload = await request.json();
   } catch {
     return jsonError("Ungültige Anfrage", 400);
   }
+  // Je Browser (zufällige Kennung, Prompt 18b; sonst Adresse plus Browser), damit ein Spammer nicht alle hinter
+  // derselben Adresse mitsperrt.
+  const schluessel = chatSchluessel(ip, request.headers.get("user-agent"), typeof payload?.kennung === "string" ? payload.kennung : null);
+  const laufend = waechter.sperre(schluessel, Date.now());
+  if (laufend) return gesperrt(laufend);
 
   // Der Browser hat Spam erkannt (die auslösende Nachricht schickt er gar nicht erst): Adresse mitsperren.
   if (payload?.sperre) {

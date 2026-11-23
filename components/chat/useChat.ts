@@ -25,6 +25,7 @@ import {
   REGELN_TICKET,
   SPERRE_CHATBOT_MS,
   WIEDER_FREI_MS,
+  chatKennung,
   kuerzeLog,
   ladeSchutz,
   leererSchutz,
@@ -71,6 +72,9 @@ const lokal = (): Storage | null => {
     return null;
   }
 };
+// Zufällige Kennung dieses Browsers (Prompt 18b): Damit sperrt der Server nur diesen Browser, nicht alle hinter
+// derselben Adresse. Fehlt sie (kein localStorage), nimmt der Server Adresse plus Browser.
+const kennung = () => chatKennung(lokal());
 // Wartezeit auf Seiten OHNE Startseiten-Aufbau (Impressum, Datenschutz)
 const BUBBLE_DELAY_MS = 10_000;
 // Wartezeit, nachdem die Schreibmaschinen-Animation FERTIG getippt hat. Kurz
@@ -179,7 +183,7 @@ export function useChat() {
       let art: KundenArt = "sonstiges";
       let mitUhr = false;
       try {
-        const res = await fetch(`/api/support?t=${encodeURIComponent(t.token)}&after=${encodeURIComponent(t.after)}`, { cache: "no-store" });
+        const res = await fetch(`/api/support?t=${encodeURIComponent(t.token)}&after=${encodeURIComponent(t.after)}&k=${encodeURIComponent(kennung())}`, { cache: "no-store" });
         if (res.ok) {
           const d = (await res.json()) as { closed?: boolean; gesperrt?: boolean; sperre?: { art?: string; rest?: number } };
           geschlossen = d.closed === true;
@@ -241,7 +245,7 @@ export function useChat() {
       if (!t || t.closed) return;
       try {
         const res = await fetch(
-          `/api/support?t=${encodeURIComponent(t.token)}&after=${encodeURIComponent(t.after)}`,
+          `/api/support?t=${encodeURIComponent(t.token)}&after=${encodeURIComponent(t.after)}&k=${encodeURIComponent(kennung())}`,
           { cache: "no-store" },
         );
         if (res.ok) {
@@ -513,7 +517,8 @@ export function useChat() {
           kontakt: hKontakt,
           frage: hFrage,
           website: hHoney,
-          verlauf: aiHistory(messages).slice(-8),
+          verlauf: aiHistory(messages).slice(-12),
+          kennung: kennung(),
           // Läuft die Sperre des Assistenten noch, geht sie mit ins Ticket (Prompt 18).
           ...(sperreBisRef.current > Date.now() ? { sperre: { art: sperreArt, bis: sperreBisRef.current } } : {}),
         }),
@@ -727,7 +732,7 @@ export function useChat() {
       void fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sperre: { art: treffer.art, anzahl: treffer.anzahl } }),
+        body: JSON.stringify({ sperre: { art: treffer.art, anzahl: treffer.anzahl }, kennung: kennung() }),
       }).catch(() => {});
       return;
     }
@@ -750,6 +755,7 @@ export function useChat() {
           messages: aiHistory(next),
           // Chat-Schutz: so oft hat die KI in diesem Chat schon eine Beleidigung gemeldet.
           beleidigungen: schutzRef.current.beleidigungen,
+          kennung: kennung(),
         }),
       });
       if (!res.ok) {

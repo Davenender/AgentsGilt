@@ -62,8 +62,9 @@ test("Knöpfe nur für den Übernehmer: vorher „Übernimm zuerst das Ticket.�
 });
 
 test("alle Ticket-Knöpfe laufen durch die Prüfung (lib/ticket-handler.ts), Übernehmen kommt davor", () => {
-  const h = lies("lib/ticket-handler.ts");
-  const gate = h.indexOf("const verbot = pruefeUebernehmer(felder, userId, OWNER_ID);");
+  // Was ein Klick bewirkt, steht in entscheide() (Prompt 18b; davor nur, wie schnell Discord die Antwort bekommt).
+  const h = lies("lib/ticket-handler.ts").slice(lies("lib/ticket-handler.ts").indexOf("async function entscheide("));
+  const gate = h.indexOf("const verbot = pruefeUebernehmer(felder, userId, OWNER_ID, CHEF_DARF_ALLES, aktiv);");
   assert.ok(gate > h.indexOf('if (id === "ticket:claim")'));
   // Alles, was nach dem Übernehmen geht, steht hinter der Prüfung: auch die Fenster (Antworten, Schnellantwort, Anruf, Sonstiges).
   for (const stelle of ["leseAnrufKnopf(id)", "ANRUF_FENSTER)", "SPERR_GRUND_FENSTER)", "SCHNELL_FENSTER)", "if (i.type === 5) {", '"ticket:reply"', "TROTZDEM_BEENDEN_ID)"]) {
@@ -71,6 +72,9 @@ test("alle Ticket-Knöpfe laufen durch die Prüfung (lib/ticket-handler.ts), Üb
   }
   // Der Mail-Knopf am Ticket: dieselbe Regel (lib/mail-antwort.ts, darfMailen).
   assert.match(lies("lib/mail-antwort.ts"), /if \(ort === "ticket"\) \{\s*if \(CHEF_DARF_ALLES && userId === davidId\) return null;/);
+  // Vor der Prüfung nur: der Übernehmer ist nicht mehr aktiv im Team (Prompt 18b) → das Ticket wird frei, sonst nichts.
+  const vorher = h.slice(h.indexOf("const weg = aktiv ? uebernehmerWeg(felder, aktiv) : null;"), gate);
+  assert.match(vorher, /spaeter\(\(\) => gibTicketFrei\(token, channel, freiStatus\(weg\)\)\);\s*return privatMeldung\(nichtMehrAktiv\(weg\)\);/);
 });
 
 test("Schreiben im Ticket-Kanal: nur der Übernehmer nach dem Übernehmen; // bleibt Notiz; alles andere ist fremd", () => {
@@ -87,7 +91,8 @@ test("Schreiben im Ticket-Kanal: nur der Übernehmer nach dem Übernehmen; // bl
   const klick = T0 + 400;
   assert.equal(artDerTeamNachricht(m(JAKOB, "Moin!", klick - 20), JAKOB, uebernahmeZeit(klick)), "fremd");
   assert.equal(artDerTeamNachricht(m(JAKOB, "Hallo, ich bin da.", klick + 5000), JAKOB, uebernahmeZeit(klick)), "senden");
-  assert.match(lies("lib/ticket-handler.ts"), /mitAblauf\(felder, \{ uebernommen: uebernahmeZeit\(jetzt\) \}\)/);
+  // Seit Prompt 18b mit Kennung: mitUebernahme schreibt „Übernommen von <@…> <Zeit>“ ins Feld „Ablauf“.
+  assert.match(lies("lib/ticket-handler.ts"), /mitUebernahme\(felder, userId, jetzt\)/);
 });
 
 test("Warnung ohne den Text der Nachricht, nach 30 s weg; die gelöschte Nachricht kommt nie beim Kunden an", () => {
@@ -110,7 +115,8 @@ test("Warnung ohne den Text der Nachricht, nach 30 s weg; die gelöschte Nachric
   const relay = lies("lib/support.ts");
   const teil = relay.slice(relay.indexOf("export async function relayMessages("), relay.indexOf("export interface Fremd"));
   assert.match(teil, /if \(art === "notiz"\) continue;/);
-  assert.match(teil, /if \(art === "fremd"\) \{\s*fremd\.push\(\{ id: m\.id, autor: m\.author\.id \?\? "" \}\);\s*continue;/);
+  // Gelöscht wird nur, was neu und nie zugestellt ist (Prompt 18b: pruefbar).
+  assert.match(teil, /if \(art === "fremd"\) \{\s*if \(karte && pruefbar\(karte\.felder, zeitAusId\(m\.id\)\)\) fremd\.push\(\{ id: m\.id, autor: m\.author\.id \?\? "" \}\);\s*continue;/);
   assert.match(teil, /const last = sorted\.length \? sorted\[sorted\.length - 1\]\.id : after;/);
   // Die Warnung trägt nie den Text der fremden Nachricht.
   const loeschen = relay.slice(relay.indexOf("export async function loescheFremde("), relay.indexOf("export async function loescheNachricht("));
@@ -167,15 +173,17 @@ test("„Noch Fragen?“ und „Abschluss“: fester Satz als 💬-Nachricht im 
   const h = lies("lib/ticket-handler.ts");
   const noch = h.slice(h.indexOf("if (id === NOCH_FRAGEN_ID)"), h.indexOf("if (id === ABSCHLUSS_ID)"));
   // Sofort, ohne Fenster: im Namen des Drückenden („💬 **Name:** …“), Stand an der Karte, Hinweis ohne Knopf, „Gesendet.“ nur für ihn.
-  assert.match(noch, /await postAnKunde\(token, channel, who, SATZ_NOCH_FRAGEN\);/);
-  assert.match(noch, /await aendereAblauf\(token, channel, \{ nachgefragt: jetzt \}\);/);
-  assert.match(noch, /ersetze\(\{ content: nachgefragtText\(ownerTag, time\), components: \[\] \}\)/);
+  // Seit Prompt 18b über sendeEinmal: erst an der Karte vermerken, dann senden (der zweite Klick: „Schon gesendet.“).
+  assert.match(noch, /await sendeEinmal\("nachgefragt", SATZ_NOCH_FRAGEN\)/);
+  assert.match(noch, /ersetzeDaten\(\{ content: nachgefragtText\(ownerTag, time\), components: \[\] \}\)/);
   assert.match(noch, /followupPrivate\(i\.application_id \?\? "", i\.token \?\? "", GESENDET\)/);
-  assert.doesNotMatch(noch, /type: 9/);
+  assert.doesNotMatch(noch, /fensterDaten/);
   const ab = h.slice(h.indexOf("if (id === ABSCHLUSS_ID)"), h.indexOf("// ------------------------------------------------------------ Antworten, Schnellantwort"));
-  assert.match(ab, /await postAnKunde\(token, channel, who, SATZ_ABSCHLUSS\);/);
-  assert.match(ab, /ersetze\(\{ content: abschlussGesendetText\(ownerTag, time\), components: \[\] \}\)/);
-  assert.doesNotMatch(ab, /type: 9/);
+  assert.match(ab, /await sendeEinmal\("abschluss", SATZ_ABSCHLUSS\)/);
+  assert.match(ab, /ersetzeDaten\(\{ content: abschlussGesendetText\(ownerTag, time\), components: \[\] \}\)/);
+  assert.doesNotMatch(ab, /fensterDaten/);
+  const einmal = h.slice(h.indexOf("const sendeEinmal = async"), h.indexOf("if (id === NOCH_FRAGEN_ID)"));
+  assert.ok(einmal.indexOf("await aendereAblauf(token, channel, { [art]: jetzt })") < einmal.indexOf("await postAnKunde(token, channel, who, satz)"), "erst vermerken, dann senden");
   assert.match(lies("lib/support.ts"), /content: `\$\{FOR_CUSTOMER\} \*\*\$\{wer\}:\*\* \$\{text\}`/);
 });
 
@@ -208,7 +216,7 @@ test("zu früh „Ticket schließen“: nur für den Drückenden, mit beiden Kn�
   const h = lies("lib/ticket-handler.ts");
   const zu = h.slice(h.indexOf('if (id === "ticket:close")'));
   assert.match(zu, /schliessenErlaubt\(leseAblauf\(felder\), sperreDerKarte\(felder\)\.gesperrt, jetzt\)/);
-  assert.match(zu, /darf\.knoepfe \? NextResponse\.json\(\{ type: 4, data: \{ \.\.\.zuFruehAntwort\(\)/);
+  assert.match(zu, /darf\.knoepfe \? fertig\(nachrichtDaten\(zuFruehAntwort\(\)\)\)/);
 });
 
 test("Kunde hat den Chat verlassen: 3 Stunden kein Schließen, danach direkt (ohne Abschluss-Satz)", () => {

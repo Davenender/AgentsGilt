@@ -7,8 +7,8 @@ import { ladeTeam } from "@/lib/team-daten";
 import { pruefeTicket } from "@/lib/chat-beleidigung";
 import { chat as chatTexte } from "@/lib/inhalt-neu";
 import { REGELN_TICKET, SPERRE_CHATBOT_MS, Waechter, chatSchluessel, chatWaechter, grundText } from "@/lib/chat-schutz";
-import { istSperrArt, kundenArtAusWert, sperrNachricht, type KundenArt, type SperrStand } from "@/lib/support-sperre";
-import { uebernehmerDerKarte } from "@/lib/support-ablauf";
+import { entsperrtZeit, istSperrArt, kundenArtAusWert, sperrNachricht, type KundenArt, type SperrStand } from "@/lib/support-sperre";
+import { aufSekunde, uebernehmerDerKarte } from "@/lib/support-ablauf";
 import {
   abschlussHinweis,
   aendereAblauf,
@@ -98,14 +98,15 @@ export async function POST(request: Request) {
     const verlauf = Array.isArray(body.verlauf)
       ? (body.verlauf as { role?: unknown; content?: unknown }[])
           .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m?.content === "string")
-          .slice(-8)
-          .map((m) => ({ role: String(m.role), content: String(m.content).slice(0, 400) }))
+          // Seit Prompt 18b mehr vom Chat davor (an der Karte bis 4000 Zeichen, lib/sperr-beleg.ts chatDavorFelder).
+          .slice(-12)
+          .map((m) => ({ role: String(m.role), content: String(m.content).slice(0, 1000) }))
       : [];
 
     // Läuft im Assistenten-Chat noch eine Sperre, geht sie mit ins Ticket (Prompt 18). Der Server kennt sie selbst
     // (derselbe Zähler wie /api/chat, je Instanz), der Browser schickt sie zusätzlich mit (höchstens 5 Minuten).
     const jetzt = Date.now();
-    const vomServer = chatWaechter().sperre(chatSchluessel(ip, request.headers.get("user-agent")), jetzt);
+    const vomServer = chatWaechter().sperre(chatSchluessel(ip, request.headers.get("user-agent"), text(body.kennung, 40)), jetzt);
     const b = body.sperre as { art?: unknown; bis?: unknown } | undefined;
     const vomBrowser =
       b && istSperrArt(b.art) && typeof b.bis === "number" && b.bis > jetzt ? { art: b.art, bis: Math.min(b.bis, jetzt + SPERRE_CHATBOT_MS + 5000) } : null;
@@ -163,11 +164,10 @@ export async function POST(request: Request) {
     if (stand === null) return fehler("Das hat leider nicht geklappt. Bitte versuch es gleich nochmal.", 502);
     if (stand.closed) return NextResponse.json({ error: "Der Chat wurde beendet.", closed: true }, { status: 409 });
     // Gesperrt: Was jetzt kommt, geht nicht nach Discord. Ist die Uhr abgelaufen, vermerkt es der Server an der Karte.
-    if (stand.sperre.abgelaufen && stand.karte && stand.sperre.bis) {
-      const { karte } = stand;
+    if (stand.sperre.abgelaufen && stand.sperre.bis) {
       const bis = stand.sperre.bis;
       after(async () => {
-        await markiereAbgelaufen(bot, channelId, karte, bis);
+        await markiereAbgelaufen(bot, channelId, bis);
       });
     }
     if (stand.gesperrt) return gesperrtAntwort(stand.sperre);
@@ -270,13 +270,23 @@ export async function GET(request: Request) {
     const fremd = relay.fremd;
     later(() => loescheFremde(bot, channelId, fremd, uebernehmer));
   }
-  if (stand.sperre.abgelaufen && stand.karte && stand.sperre.bis) {
-    const { karte } = stand;
+  if (stand.sperre.abgelaufen && stand.sperre.bis) {
     const bis = stand.sperre.bis;
-    later(() => markiereAbgelaufen(bot, channelId, karte, bis));
+    later(() => markiereAbgelaufen(bot, channelId, bis));
   }
-  // Hat das Team entsperrt, gilt auch die Sperre aus dem Assistenten-Chat nicht mehr (derselbe Zähler wie /api/chat).
-  if (stand.sperre.wert.startsWith("Entsperrt")) chatWaechter().aufheben(chatSchluessel(getClientIp(request), request.headers.get("user-agent")));
+  // Was der Kunde jetzt bekommt, gilt als zugestellt: Das fasst der Bot nie mehr an (Prompt 18b, Feld „Ablauf“).
+  if (relay.zugestellt && stand.ablauf.pruefungAb && relay.zugestellt > (stand.ablauf.zugestellt ?? 0)) {
+    const zugestellt = aufSekunde(relay.zugestellt);
+    later(() => aendereAblauf(bot, channelId, { zugestellt }));
+  }
+  // Hat das Team entsperrt, gilt auch die Sperre aus dem Assistenten-Chat nicht mehr (derselbe Zähler wie /api/chat),
+  // aber nur eine, die schon vor dem Entsperren lief (Prompt 18b: eine neuere bleibt).
+  const entsperrt = entsperrtZeit(stand.sperre.wert);
+  if (entsperrt) {
+    const schluessel = chatSchluessel(getClientIp(request), request.headers.get("user-agent"), url.searchParams.get("k"));
+    const laufend = chatWaechter().sperre(schluessel, Date.now());
+    if (laufend && laufend.ab < entsperrt) chatWaechter().aufheben(schluessel);
+  }
 
   return NextResponse.json({
     messages: relay.messages,

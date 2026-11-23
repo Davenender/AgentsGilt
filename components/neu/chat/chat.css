@@ -1199,10 +1199,10 @@ html.ag-sparsam .ag-cf__fenster {
   margin: 2px 0;
   padding: 6px 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  /* Seit Prompt 18: ein feiner roter Rand, der als ruhiger Hinweis stehen bleibt (das Leuchten: unten). */
-  box-shadow: inset 0 0 0 1px rgba(255, 132, 120, 0.5);
-  color: rgba(241, 238, 230, 0.86);
+  /* Seit Prompt 18b: tiefes Rot wie im Probelauf; nach dem Vibrieren bleibt ein feiner roter Rand (unten). */
+  background: rgba(132, 32, 28, 0.17);
+  box-shadow: inset 0 0 0 1px rgba(190, 60, 52, 0.36);
+  color: rgba(246, 226, 221, 0.92);
   font-size: 12.5px;
   line-height: 1.4;
   text-align: center;
@@ -1349,117 +1349,110 @@ html.ag-sparsam .ag-cf__fenster {
   }
 }
 
-/* ── Chat-Schutz, Runde 2 (Prompt 18): Effekte ──
+/* ── Chat-Schutz, Runde 2 (Prompt 18; Prompt 18b): Effekte ──
    Alles, was sich bewegt, ändert nur transform und opacity: Schein und Ränder stehen fest auf eigenen Ebenen, nur
    deren Deckkraft oder Lage ändert sich (der Browser rechnet dabei kein Layout und keinen Schatten neu).
-   Das rote Aufleuchten ist dasselbe wie das Aufleuchten der Chat-Kugel beim Darüberfahren über „Jetzt chatten“
-   (@keyframes ag-chat-wink in seite/seite.css): 1,4 s je Aufleuchten, Höhepunkt bei 30 %, Kurve var(--weich),
-   heller Lichtrand innen, feiner Ring und zwei Schein-Stufen außen. Nur in Rot und kleiner (die Kugel ist rund,
-   der Hinweis eine schmale Zeile im Verlauf, dessen Rand den großen Schein abschneiden würde). */
+   Seit Prompt 18b weg: das rote Aufleuchten der Sperr-Zeile alle 8 s, das abklingende Rot an „Bitte bleib
+   freundlich.“ und die rote Welle beim Tippen ins gesperrte Feld. Neu: Vibration des Hinweises, Sperr-Karte mit
+   Lavalampe, roter Ring mit Lichtschweif, roter Schein von unten im Feld. Bewegung und Abläufe wie im Probelauf
+   (~/Desktop/Status/probe-sperrkarte.html), Farben und Glas eigen. */
 
-/* „Bitte bleib freundlich.“: leuchtet fünfmal rot, das erste Mal voll, dann jedes Mal schwächer; danach bleibt
-   nur der feine rote Rand (am Hinweis selbst, oben). */
+/* „Bitte bleib freundlich.“ vibriert (SperrKarte.tsx, Hinweis): Der Hinweis ruckt 2 px, dieser Schein leuchtet
+   dabei kurz auf (Probelauf: Rand 0,9 und 14 px Schein). Das Rot ist tief und bleibt klein: deutlich, nie Warnlicht. */
 .ag-cf__hinweis {
   position: relative;
   isolation: isolate;
+  transition: box-shadow 0.6s var(--weich);
 }
-.ag-cf__hinweis::before {
-  content: "";
+.ag-cf__hinweis[data-fertig] {
+  box-shadow: inset 0 0 0 1px rgba(214, 70, 60, 0.75);
+}
+.ag-cf__hinweis-schein {
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  /* Dieselben Werte wie ag-chat-wink auf dem Höhepunkt (Lichtkante innen, 1-px-Ring, Schein 26 und 74 px), in Rot.
-     Die Kugel wird dort zusätzlich 1,55-mal heller, und das verstärkt auch ihren Schein: darum hier die Stärken mal
-     1,55 (höchstens 1), dazu eine rote Tönung der Fläche. Der Rest des Unterschieds ist nur die Farbe (Rot ist bei
-     gleicher Stärke dunkler als Gold). */
-  background: rgba(255, 110, 98, 0.16);
+  background: rgba(176, 40, 34, 0.16);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    inset 0 0 14px rgba(255, 120, 108, 0.35),
-    0 0 0 1px rgba(255, 138, 126, 0.93),
-    0 0 26px rgba(255, 98, 86, 1),
-    0 0 74px rgba(232, 58, 46, 0.78);
+    inset 0 0 0 1px rgba(214, 70, 60, 0.9),
+    0 0 14px rgba(200, 50, 44, 0.55);
   opacity: 0;
   pointer-events: none;
-  animation: ag-cf-rot-abklingend 7s var(--weich) both;
-}
-@keyframes ag-cf-rot-abklingend {
-  /* Je Aufleuchten 1,4 s: Höhepunkt bei 30 % (0,42 s), bei 0,7 s schon fast aus (wie die Kugel: Schein und
-     Helligkeit klingen dort zusammen ab), danach ruhig auf null. Jedes Mal schwächer. */
-  0%,
-  20%,
-  40%,
-  60%,
-  80%,
-  100% {
-    opacity: 0;
-  }
-  6% {
-    opacity: 1;
-  }
-  10% {
-    opacity: 0.06;
-  }
-  26% {
-    opacity: 0.74;
-  }
-  30% {
-    opacity: 0.044;
-  }
-  46% {
-    opacity: 0.52;
-  }
-  50% {
-    opacity: 0.031;
-  }
-  66% {
-    opacity: 0.36;
-  }
-  70% {
-    opacity: 0.022;
-  }
-  86% {
-    opacity: 0.22;
-  }
-  90% {
-    opacity: 0.013;
-  }
 }
 
-/* Die Sperr-Zeile bleibt gold und leuchtet etwa alle 8 s einmal rot auf (dasselbe Aufleuchten). */
-.ag-cf__sperre:not(.ag-cf__sperre--frei) {
+/* Die Sperr-Karte (SperrKarte.tsx): rotes Milchglas, etwa 58 px hoch. Dahinter die Lavalampe (eine kleine Leinwand,
+   weich auf die Kartengröße gezogen); darüber eine helle, milchige Schicht mit Lichtkante oben. Text und Ziffern
+   tragen einen leichten Schatten, damit sie auf Rot und beim Venom immer gut zu lesen sind. */
+.ag-cf__sperrkarte {
   position: relative;
   isolation: isolate;
+  display: flex;
+  align-items: center;
+  min-height: 58px;
+  margin: 0 0 9px;
+  padding: 9px 14px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(40, 10, 12, 0.84), rgba(22, 6, 8, 0.9));
+  box-shadow:
+    0 0 0 1px rgba(232, 160, 116, 0.26),
+    0 12px 28px -16px rgba(170, 30, 26, 0.7);
+  color: rgba(252, 242, 238, 0.96);
+  font-size: 12.5px;
+  line-height: 1.4;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  animation: ag-cf-sperre 0.5s var(--weich) both;
 }
-.ag-cf__sperre:not(.ag-cf__sperre--frei)::after {
-  content: "";
+.ag-cf__lava {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  image-rendering: auto;
+}
+.ag-cf__milchglas {
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: rgba(255, 110, 98, 0.16);
+  background:
+    radial-gradient(130% 160% at 18% -40%, rgba(255, 238, 230, 0.13), rgba(255, 238, 230, 0) 58%),
+    linear-gradient(180deg, rgba(255, 230, 222, 0.07), rgba(255, 230, 222, 0.02) 52%, rgba(26, 4, 6, 0.12));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    inset 0 0 14px rgba(255, 120, 108, 0.35),
-    0 0 0 1px rgba(255, 138, 126, 0.93),
-    0 0 26px rgba(255, 98, 86, 1),
-    0 0 74px rgba(232, 58, 46, 0.78);
-  opacity: 0;
+    inset 0 1px 0 rgba(255, 236, 228, 0.3),
+    inset 0 0 0 1px rgba(255, 150, 134, 0.16),
+    inset 0 -12px 18px -14px rgba(0, 0, 0, 0.45);
   pointer-events: none;
-  animation: ag-cf-rot-alle-8s 8s var(--weich) 0.4s infinite;
 }
-@keyframes ag-cf-rot-alle-8s {
-  0%,
-  17.5%,
-  100% {
-    opacity: 0;
-  }
-  5.25% {
-    opacity: 1;
-  }
-  8.75% {
-    opacity: 0.06;
+.ag-cf__sperrkarte-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  text-shadow:
+    0 1px 2px rgba(24, 2, 2, 0.8),
+    0 0 10px rgba(40, 4, 4, 0.5);
+}
+.ag-cf__sperrkarte svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--gold-hell);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1.5px rgba(24, 2, 2, 0.8));
+}
+.ag-cf__sperrkarte .ag-cf__rest {
+  color: #ffdc8e;
+  font-weight: 500;
+}
+@media (max-width: 767px) {
+  .ag-cf__sperrkarte {
+    font-size: 13px;
   }
 }
 
@@ -1599,10 +1592,11 @@ html.ag-sparsam .ag-cf__fenster {
 }
 
 /* Der Ring um den Senden-Knopf leert sich mit der Restzeit (nur bei Sperren mit Uhr): zwei Halbringe, die sich
-   nacheinander aus ihrem Ausschnitt drehen. Er beginnt oben und leert sich im Uhrzeigersinn. */
+   nacheinander aus ihrem Ausschnitt drehen. Er beginnt oben und leert sich im Uhrzeigersinn. Seit Prompt 18b rot
+   und kräftiger (2,5 px), mit einem Lichtschweif etwa alle 4 s (unten). */
 .ag-cf__ring {
   position: absolute;
-  inset: -3px;
+  inset: -4px;
   pointer-events: none;
 }
 .ag-cf__ring-r,
@@ -1625,21 +1619,72 @@ html.ag-sparsam .ag-cf__fenster {
   box-sizing: border-box;
   width: 200%;
   height: 100%;
-  border: 1.5px solid transparent;
+  border: 2.5px solid transparent;
   border-radius: 50%;
   transform: rotate(45deg);
 }
 .ag-cf__ring-r i {
   left: -100%;
-  border-top-color: rgba(243, 210, 122, 0.85);
-  border-right-color: rgba(243, 210, 122, 0.85);
+  border-top-color: rgba(226, 66, 56, 0.95);
+  border-right-color: rgba(226, 66, 56, 0.95);
   animation: ag-cf-ring-r var(--dauer, 300s) linear var(--vorbei, 0s) both;
 }
 .ag-cf__ring-l i {
   left: 0;
-  border-bottom-color: rgba(243, 210, 122, 0.85);
-  border-left-color: rgba(243, 210, 122, 0.85);
+  border-bottom-color: rgba(226, 66, 56, 0.95);
+  border-left-color: rgba(226, 66, 56, 0.95);
   animation: ag-cf-ring-l var(--dauer, 300s) linear var(--vorbei, 0s) both;
+}
+/* Weniger Bewegung: Der Ring springt einmal je Sekunde weiter (ChatFenster.tsx, Ring), ohne Animation. */
+.ag-cf__ring--ruhig i {
+  animation: none;
+}
+/* Der Lichtschweif: ein Ring aus einem Kegelverlauf (vorn hell, hinten verblassend), nur über der Ringbahn sichtbar.
+   Er dreht sich in 1,2 s einmal gegen den Uhrzeigersinn (von oben zurück nach oben), dann 2,8 s Ruhe. Die Maske ist
+   rund und dreht sich mit, darum ändert sich nur transform (und die Deckkraft beim Ein- und Ausblenden). */
+.ag-cf__schweif {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* Heller als der Ring, damit man den Schweif auch über dem roten Rest sieht: vorn fast weiß, dann hellrot. */
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 236, 226, 1) 0deg,
+    rgba(255, 158, 138, 0.95) 10deg,
+    rgba(255, 104, 86, 0.7) 45deg,
+    rgba(246, 76, 62, 0.3) 100deg,
+    rgba(236, 62, 50, 0) 170deg,
+    rgba(236, 62, 50, 0) 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+  filter: drop-shadow(0 0 3px rgba(255, 96, 78, 0.9));
+  opacity: 0;
+  pointer-events: none;
+  animation:
+    ag-cf-schweif-dreh 4s 0.8s infinite,
+    ag-cf-schweif-licht 4s linear 0.8s infinite;
+}
+@keyframes ag-cf-schweif-dreh {
+  0% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.45, 0.05, 0.3, 1);
+  }
+  30%,
+  100% {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes ag-cf-schweif-licht {
+  0%,
+  31%,
+  100% {
+    opacity: 0;
+  }
+  3%,
+  24% {
+    opacity: 1;
+  }
 }
 @keyframes ag-cf-ring-r {
   0% {
@@ -1660,8 +1705,9 @@ html.ag-sparsam .ag-cf__fenster {
   }
 }
 
-/* Tippen oder Klicken ins gesperrte Feld: Eine Fläche fängt es ab, von der Stelle läuft eine rote Welle durchs
-   Feld (nur innerhalb seiner runden Form), das Schloss ruckt kurz (ChatFenster.tsx). */
+/* Gesperrtes Feld: Eine Fläche fängt Tippen und Klicken ab (das Schloss ruckt kurz, ChatFenster.tsx). Mit der Maus
+   darüber leuchtet das Feld weich von unten rot auf und verblasst beim Wegfahren; am Handy nach einem Tippen etwa
+   1 s (data-glimmt). Seit Prompt 18b statt der roten Welle. */
 .ag-cf__sperrflaeche {
   position: absolute;
   inset: 0;
@@ -1669,33 +1715,28 @@ html.ag-sparsam .ag-cf__fenster {
   border-radius: inherit;
   cursor: not-allowed;
 }
-.ag-cf__wellen {
+.ag-cf__rotschein {
   position: absolute;
   inset: 0;
   z-index: 1;
-  overflow: hidden;
   border-radius: inherit;
-  pointer-events: none;
-}
-.ag-cf__welle {
-  position: absolute;
-  width: 36px;
-  height: 36px;
-  margin: -18px 0 0 -18px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 110, 98, 0) 36%, rgba(255, 110, 98, 0.6) 55%, rgba(255, 92, 80, 0) 72%);
+  background: radial-gradient(115% 130% at 50% 138%, rgba(224, 62, 50, 0.46), rgba(224, 62, 50, 0.14) 46%, rgba(224, 62, 50, 0) 74%);
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 122, 106, 0.6),
+    inset 0 0 0 1px rgba(214, 76, 64, 0.2);
   opacity: 0;
-  animation: ag-cf-welle 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  pointer-events: none;
+  transition: opacity 0.6s var(--weich);
 }
-@keyframes ag-cf-welle {
-  0% {
-    opacity: 0.95;
-    transform: scale(0.25);
+@media (hover: hover) and (pointer: fine) {
+  .ag-cf__feld[data-gesperrt]:hover .ag-cf__rotschein {
+    opacity: 1;
+    transition-duration: 0.4s;
   }
-  100% {
-    opacity: 0;
-    transform: scale(11);
-  }
+}
+.ag-cf__feld[data-glimmt] .ag-cf__rotschein {
+  opacity: 1;
+  transition-duration: 0.3s;
 }
 
 /* Karte A: Folgefragen, wie die Startvorschläge, nur kleiner. Sie blenden ein wie die übrigen Karten (.ag-cf__angebot). */
@@ -1792,12 +1833,11 @@ html.ag-sparsam .ag-cf__fenster {
   }
 }
 
-/* Weniger Bewegung: Es wechseln nur die Farben (kein Leuchten in Wellen, kein Kippen, keine Welle, kein Ruck). */
+/* Weniger Bewegung: Es wechseln nur die Farben (kein Vibrieren, kein Kippen, kein Schweif, kein Ruck; die
+   Lavalampe steht still, SperrKarte.tsx). */
 @media (prefers-reduced-motion: reduce) {
-  .ag-cf__hinweis::before,
-  .ag-cf__sperre:not(.ag-cf__sperre--frei)::after {
-    animation: none;
-    opacity: 0;
+  .ag-cf__schweif {
+    display: none;
   }
   .ag-cf__ziffer-neu {
     animation: none;
@@ -1819,18 +1859,8 @@ html.ag-sparsam .ag-cf__fenster {
     animation: none;
   }
   /* Animationen sind hier ganz aus (Regel weiter oben): Das Feld steht gold, solange „Du kannst wieder schreiben.“
-     da ist; beim Tippen ins gesperrte Feld färbt es sich kurz rot (das Fenster nimmt die Farbe nach 0,6 s weg). */
+     da ist. Der rote Schein im gesperrten Feld blendet nur weich ein und aus (keine Bewegung). */
   .ag-cf__feld[data-schloss="auf"]::after {
     opacity: 1;
   }
-}
-.ag-cf__welle--ruhig {
-  inset: 0;
-  width: auto;
-  height: auto;
-  margin: 0;
-  border-radius: inherit;
-  background: rgba(255, 96, 84, 0.18);
-  opacity: 1;
-  animation: none;
 }

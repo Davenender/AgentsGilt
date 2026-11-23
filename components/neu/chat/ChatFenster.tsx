@@ -14,6 +14,7 @@ import { LADEN_FERTIG, LADEN_FERTIG_KLASSE, scrollZiel } from "../umgebung";
 import { enthuelleText, richteVerwuerfelnEin } from "../verwuerfeln";
 import { SELBST_MS, erstelleEndeHalter } from "./endeHalten";
 import { DAUER, KUGEL, PHASEN, SCHLIESSEN, zeitleiste, type Bild, type Masse } from "./kugel";
+import { Hinweis, SperrKarte } from "./SperrKarte";
 import "./chat.css";
 
 const t = chatTexte.fenster;
@@ -603,37 +604,29 @@ export function ChatFenster() {
     );
   };
   // Chat-Schutz (Prompt 17): Assistent 5 Minuten gesperrt (Countdown) oder Support-Chat gesperrt, bis das Team
-  // entsperrt. Seit Prompt 18 mit Grund, Schloss im Senden-Knopf, Ring (nur mit Uhr) und roter Welle beim Tippen.
+  // entsperrt. Seit Prompt 18 mit Grund, Schloss im Senden-Knopf und Ring (nur mit Uhr). Seit Prompt 18b die
+  // Sperr-Karte (SperrKarte.tsx) statt der Zeile, der rote Ring mit Lichtschweif und statt der roten Welle ein
+  // weicher roter Schein von unten im Feld (Maus darüber; am Handy ein Tippen, dann etwa 1 s).
   const sperre = chat.sperre;
   const gesperrt = !!sperre;
   const feldRef = useRef<HTMLDivElement>(null);
-  const wellen = useRef<HTMLSpanElement>(null);
   const schlossRef = useRef<SVGSVGElement>(null);
   const letzterStups = useRef(0);
-  // Tippen oder Klicken ins gesperrte Feld: Von der Stelle läuft eine rote Welle durchs Feld, das Schloss ruckt kurz
-  // (höchstens einmal je Sekunde). Bei „Bewegung reduzieren“ färbt sich nur das Feld kurz rot.
+  const glimmen = useRef(0);
+  // Tippen oder Klicken ins gesperrte Feld: Das Schloss ruckt kurz (höchstens einmal je Sekunde); am Handy leuchtet
+  // das Feld von unten rot auf (mit der Maus schon beim Darüberfahren, im Stylesheet).
   const stups = (ev: ReactPointerEvent<HTMLElement>) => {
+    const feld = feldRef.current;
+    if (!feld) return;
+    if (ev.pointerType !== "mouse") {
+      feld.dataset.glimmt = "";
+      window.clearTimeout(glimmen.current);
+      glimmen.current = window.setTimeout(() => delete feld.dataset.glimmt, 700);
+    }
     const jetzt = ev.timeStamp;
     if (jetzt - letzterStups.current < 1000 && letzterStups.current) return;
     letzterStups.current = jetzt;
-    const huelle = wellen.current;
-    const feld = feldRef.current;
-    if (!huelle || !feld) return;
-    const welle = document.createElement("i");
-    if (ruhig) {
-      // Weniger Bewegung: keine Welle, das Feld färbt sich nur kurz rot.
-      welle.className = "ag-cf__welle ag-cf__welle--ruhig";
-      huelle.append(welle);
-      window.setTimeout(() => welle.remove(), 600);
-      return;
-    }
-    const r = feld.getBoundingClientRect();
-    welle.className = "ag-cf__welle";
-    welle.style.left = `${(ev.clientX - r.left).toFixed(1)}px`;
-    welle.style.top = `${(ev.clientY - r.top).toFixed(1)}px`;
-    huelle.append(welle);
-    welle.addEventListener("animationend", () => welle.remove(), { once: true });
-    window.setTimeout(() => welle.remove(), 1400);
+    if (ruhig) return;
     schlossRef.current?.animate(
       [
         { transform: "translate3d(0, 0, 0) rotate(0deg)" },
@@ -645,6 +638,7 @@ export function ChatFenster() {
       { duration: 420, easing: "cubic-bezier(0.36, 0.07, 0.19, 0.97)" },
     );
   };
+  useEffect(() => () => window.clearTimeout(glimmen.current), []);
   // Folgefragen verschwinden, sobald der Besucher selbst tippt: Ab welcher Antwort (Stelle im Verlauf) gelten sie als weg.
   const [fragenAus, setFragenAus] = useState(-1);
   // „Mehr zu … →“: Der Chat schließt sich (am Handy das Glasblatt), die Seite scrollt weich zur Leistung.
@@ -785,10 +779,9 @@ export function ChatFenster() {
                         )}
                       </Fragment>
                     ) : m.hinweis ? (
-                      // Ein Hinweis des Chat-Schutzes („Bitte bleib freundlich.“): ruhig in der Mitte, keine Antwort.
-                      <p key={`n-${i}`} className="ag-cf__hinweis" role="status">
-                        {m.content}
-                      </p>
+                      // Ein Hinweis des Chat-Schutzes („Bitte bleib freundlich.“): in der Mitte, keine Antwort. Neu
+                      // angekommen vibriert er dreimal (Prompt 18b), danach bleibt ein feiner roter Rand.
+                      <Hinweis key={`n-${i}`} text={m.content} brummt={offen && animiert(i)} />
                     ) : (
                       <AntwortZeile
                         key={`n-${i}`}
@@ -844,7 +837,7 @@ export function ChatFenster() {
               </div>
 
               <div className="ag-cf__unten">
-                {(gesperrt || chat.wiederFrei) && <SperrZeile key={sperre ? (sperre.team ? `team-${sperre.art}` : `bis-${sperre.bis}`) : "frei"} sperre={sperre} />}
+                {(gesperrt || chat.wiederFrei) && <SperrZeile key={sperre ? (sperre.team ? `team-${sperre.art}` : `bis-${sperre.bis}`) : "frei"} sperre={sperre} ruhig={ruhig} />}
                 <div
                   ref={feldRef}
                   className="ag-cf__feld"
@@ -870,9 +863,9 @@ export function ChatFenster() {
                     disabled={gesperrt}
                   />
                   {!chat.input && !gesperrt && <Platzhalter texte={mitTeam ? [t.platzTeam] : t.platz} laeuft={offen && !ruhig} />}
-                  {/* Gesperrt: Eine Fläche über dem Feld fängt Tippen und Klicken ab (die Welle läuft von dort). */}
+                  {/* Gesperrt: Eine Fläche über dem Feld fängt Tippen und Klicken ab; darunter der rote Schein von unten. */}
+                  {gesperrt && <span className="ag-cf__rotschein" aria-hidden="true" />}
                   {gesperrt && <span className="ag-cf__sperrflaeche" aria-hidden="true" onPointerDown={stups} />}
-                  <span ref={wellen} className="ag-cf__wellen" aria-hidden="true" />
                   <button type="button" className="ag-cf__senden" aria-label={t.senden} disabled={chat.streaming || !chat.input.trim() || gesperrt} onClick={senden}>
                     <svg className="ag-cf__stern" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M12 1.5c.9 7.2 3.3 9.6 10.5 10.5-7.2.9-9.6 3.3-10.5 10.5C11.1 15.3 8.7 12.9 1.5 12 8.7 11.1 11.1 8.7 12 1.5Z" />
@@ -882,8 +875,8 @@ export function ChatFenster() {
                       <path className="ag-cf__buegel" d="M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7" />
                       <rect x="5" y="10.5" width="14" height="10" rx="2.6" />
                     </svg>
-                    {/* Der Ring leert sich mit der Restzeit (nur bei Sperren mit Uhr). */}
-                    {sperre && !sperre.team && !ruhig && <Ring key={sperre.bis} bis={sperre.bis} ab={sperre.ab} />}
+                    {/* Der Ring leert sich mit der Restzeit (nur bei Sperren mit Uhr), etwa alle 4 s läuft ein Lichtschweif herum. */}
+                    {sperre && !sperre.team && <Ring key={sperre.bis} bis={sperre.bis} ab={sperre.ab} ruhig={ruhig} />}
                     <span ref={strich} className="ag-cf__strich" aria-hidden="true" />
                   </button>
                 </div>
@@ -927,12 +920,12 @@ function Haken() {
 }
 
 /**
- * Über dem Eingabefeld (Chat-Schutz, Prompt 17; Grund seit Prompt 18): Der Assistent ist gesperrt (mit Countdown,
- * die Ziffern kippen beim Wechsel), der Support-Chat ist gesperrt, bis das Team entsperrt (ohne Uhr), oder kurz
- * „Du kannst wieder schreiben.“ (blendet nach 6 s aus). Die Zeile bleibt gold und leuchtet etwa alle 8 s einmal rot
- * auf (Stylesheet). Vorlesen: einmal beim Erscheinen, nicht jede Sekunde.
+ * Über dem Eingabefeld (Chat-Schutz, Prompt 17; Grund seit Prompt 18; Karte seit Prompt 18b): Gesperrt zeigt die
+ * Sperr-Karte (SperrKarte.tsx) Schloss, Grund und, wenn der Assistent sperrt, die Restzeit (die Ziffern kippen beim
+ * Wechsel); im Support-Chat gesperrt, bis das Team entsperrt: ohne Uhr. Danach kurz „Du kannst wieder schreiben.“
+ * (blendet nach 6 s aus). Vorlesen: einmal beim Erscheinen, nicht jede Sekunde.
  */
-function SperrZeile({ sperre }: { sperre: ChatSperre | null }) {
+function SperrZeile({ sperre, ruhig }: { sperre: ChatSperre | null; ruhig: boolean }) {
   const bis = sperre && !sperre.team ? sperre.bis : 0;
   const [rest, setRest] = useState(() => (bis ? restText(bis - Date.now()) : ""));
   const [anfang] = useState(rest);
@@ -951,21 +944,21 @@ function SperrZeile({ sperre }: { sperre: ChatSperre | null }) {
   }
   if (!bis) {
     return (
-      <div className="ag-cf__sperre" role="status">
+      <SperrKarte ruhig={ruhig}>
         <Schloss />
         <span>{schutz.team[sperre.art]}</span>
-      </div>
+      </SperrKarte>
     );
   }
   const text = schutz.sperre[sperre.art as SperrArt] ?? schutz.sperre.menge;
   return (
-    <div className="ag-cf__sperre" role="status">
+    <SperrKarte ruhig={ruhig}>
       <Schloss />
       <span aria-hidden="true">
         {text} <KippZeit text={rest} />
       </span>
       <span className="ag-cf__vorlesen">{`${text} ${anfang}`}</span>
-    </div>
+    </SperrKarte>
   );
 }
 
@@ -995,13 +988,35 @@ function Ziffer({ z }: { z: string }) {
 }
 
 /**
- * Der Ring um den Senden-Knopf: leert sich mit der Restzeit. Zwei Halbringe drehen sich nacheinander aus ihrem
- * Ausschnitt (nur transform): erst die rechte Hälfte, dann die linke. Die Zeit läuft als CSS-Animation über die
- * ganze Sperre; die schon vergangene Zeit steht als negativer Beginn darin.
+ * Der Ring um den Senden-Knopf (seit Prompt 18b rot und kräftiger): leert sich mit der Restzeit. Zwei Halbringe
+ * drehen sich nacheinander aus ihrem Ausschnitt (nur transform): erst die rechte Hälfte, dann die linke. Die Zeit
+ * läuft als CSS-Animation über die ganze Sperre; die schon vergangene Zeit steht als negativer Beginn darin.
+ * Etwa alle 4 s läuft ein roter Lichtschweif einmal herum: von oben gegen den Uhrzeigersinn zurück nach oben, 1,2 s,
+ * vorn hell, hinten verblassend. Weniger Bewegung: kein Schweif, der Ring springt einmal je Sekunde weiter.
  */
-function Ring({ bis, ab }: { bis: number; ab: number }) {
+function Ring({ bis, ab, ruhig }: { bis: number; ab: number; ruhig: boolean }) {
   const dauer = Math.max(1000, bis - ab);
-  const [vorbei] = useState(() => Math.min(dauer, Math.max(0, Date.now() - ab)));
+  const [vorbei, setVorbei] = useState(() => Math.min(dauer, Math.max(0, Date.now() - ab)));
+  useEffect(() => {
+    if (!ruhig) return;
+    const takt = window.setInterval(() => setVorbei(Math.min(dauer, Math.max(0, Date.now() - ab))), 1000);
+    return () => window.clearInterval(takt);
+  }, [ruhig, dauer, ab]);
+  if (ruhig) {
+    const anteil = vorbei / dauer;
+    const rechts = { transform: `rotate(${45 + 180 * Math.min(1, anteil * 2)}deg)` };
+    const links = { transform: `rotate(${45 + 180 * Math.max(0, anteil * 2 - 1)}deg)` };
+    return (
+      <span className="ag-cf__ring ag-cf__ring--ruhig" aria-hidden="true">
+        <span className="ag-cf__ring-r">
+          <i style={rechts} />
+        </span>
+        <span className="ag-cf__ring-l">
+          <i style={links} />
+        </span>
+      </span>
+    );
+  }
   const stil = { "--dauer": `${dauer}ms`, "--vorbei": `-${vorbei}ms` } as CSSProperties;
   return (
     <span className="ag-cf__ring" style={stil} aria-hidden="true">
@@ -1011,6 +1026,7 @@ function Ring({ bis, ab }: { bis: number; ab: number }) {
       <span className="ag-cf__ring-l">
         <i />
       </span>
+      <span className="ag-cf__schweif" />
     </span>
   );
 }

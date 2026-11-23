@@ -3,7 +3,7 @@
 //   „❌ Mail konnte nicht abgeschickt werden: <Grund>“. Davids Name und seine Änderungen sieht es nie.
 // - Die Freigabe-Karte (in #posteingang) trägt alles, was zum Senden nötig ist: Felder und Fußzeile.
 // Reine Logik ohne Netz: tests/mail-antwort.test.ts.
-import { CHEF_DARF_ALLES, NICHT_UEBERNOMMEN, andererHat } from "./support-ablauf.ts";
+import { CHEF_DARF_ALLES, andererHat, uebernehmerDerKarte, type Aktiv } from "./support-ablauf.ts";
 import type { EmbedLike } from "./discord-calls.ts";
 import { escapeHtml, shell } from "./mail.ts";
 
@@ -191,9 +191,12 @@ export function mailInhalt(text: string, frage: string): { html: string; text: s
 // ------------------------------------------------------------------ Knöpfe: wer darf, was steht drin
 
 /** Ticket: wer es übernommen hat (aus dem Feld „Status“: „Übernommen von <@id> um …“). */
-export function ticketBesitzer(karte: EmbedLike | null | undefined): string | null {
-  const s = karte?.fields?.find((f) => f.name === "Status")?.value ?? "";
-  return /^Übernommen/.test(s.trim()) ? (s.match(/<@!?(\d+)>/)?.[1] ?? null) : null;
+/**
+ * Wer das Ticket übernommen hat (Prompt 18b: aus dem Feld „Ablauf“, sonst aus dem Status; auch nach dem Schließen).
+ * Mit `aktiv`: Ist er nicht mehr aktiv im Team, gilt das Ticket als frei.
+ */
+export function ticketBesitzer(karte: EmbedLike | null | undefined, aktiv?: Aktiv): string | null {
+  return uebernehmerDerKarte(karte?.fields, aktiv);
 }
 
 /**
@@ -201,11 +204,13 @@ export function ticketBesitzer(karte: EmbedLike | null | undefined): string | nu
  * Zuständigen. David immer. null heißt erlaubt, sonst der Satz für die private Meldung.
  */
 export function darfMailen(ort: MailOrt, userId: string, berechtigt: string[], davidId: string): string | null {
-  // Support-Ticket (Prompt 18): nur wer übernommen hat, auch David erst einmal nicht (Schalter CHEF_DARF_ALLES).
+  // Support-Ticket (Prompt 18): Hat jemand übernommen, nur er, auch David erst einmal nicht (Schalter CHEF_DARF_ALLES).
+  // Hat noch niemand übernommen (z. B. per Mail wieder geöffnet), darf das ganze Team antworten, wie vor Prompt 18
+  // (Prompt 18b: vorher hieß es hier für alle „Übernimm zuerst“, auch beim Knopf „Antworten“ einer Kundenmail).
   if (ort === "ticket") {
     if (CHEF_DARF_ALLES && userId === davidId) return null;
     const wer = berechtigt.find(Boolean);
-    if (!wer) return NICHT_UEBERNOMMEN;
+    if (!wer) return null;
     return wer === userId ? null : andererHat(wer);
   }
   if (userId === davidId || berechtigt.includes(userId)) return null;
@@ -221,7 +226,8 @@ export const pruefeSenden = (e: EmbedLike | null | undefined): string | null =>
 export function ticketVerlauf(karte: EmbedLike, nachrichten: { text: string }[]): string {
   const f = (name: string) => karte.fields?.find((x) => x.name.startsWith(name))?.value ?? "";
   const zeilen = [`Frage des Kunden: ${f("Frage")}`];
-  const davor = f("Chat davor");
+  // Der Chat davor steht seit Prompt 18b in bis zu vier Feldern.
+  const davor = (karte.fields ?? []).filter((x) => x.name.startsWith("Chat davor")).map((x) => x.value).join("\n");
   if (davor) zeilen.push(`Chat davor mit dem KI-Assistenten:\n${davor}`);
   for (const n of nachrichten) {
     const kunde = n.text.match(/^🗨️ \*\*Besucher:\*\* ([\s\S]*)$/);

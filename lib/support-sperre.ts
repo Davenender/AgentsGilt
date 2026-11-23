@@ -41,7 +41,7 @@ export const ohneFeld = (felder: Feld[] | undefined, name: string): Feld[] => (f
 // ------------------------------------------------------------------ Zeitangaben
 
 /** Discord-Zeitangabe: Discord zeigt sie in der Uhrzeit des Lesers („21:40“, bei „R“ als „in 3 Minuten“). */
-export const discordZeit = (ms: number, art: "t" | "R" = "t") => `<t:${Math.floor(ms / 1000)}:${art}>`;
+export const discordZeit = (ms: number, art: "t" | "T" | "R" = "t") => `<t:${Math.floor(ms / 1000)}:${art}>`;
 
 /** Die erste Discord-Zeitangabe in einem Text, in Millisekunden. */
 export function zeitAusTag(text: string): number | null {
@@ -101,7 +101,10 @@ export function sperreDerKarte(felder: Feld[] | undefined, jetzt = Date.now()): 
 export const gesperrtWert = (grund: string) => `${GESPERRT} – ${grund}`;
 /** Von Hand gesperrt („🔒 Sperren“ an der Karte), seit Prompt 18 immer mit Grund. */
 export const gesperrtVonWert = (wer: string, zeit: string, grund?: string) => `${GESPERRT} von ${wer} um ${zeit}${grund ? ` – ${grund}` : ""}`;
-export const entsperrtWert = (wer: string, zeit: string) => `Entsperrt von ${wer} um ${zeit}`;
+/** Entsperrt: mit der Zeit als Discord-Zeitangabe (Prompt 18b), damit der Server weiß, ob eine Sperre danach kam. */
+export const entsperrtWert = (wer: string, zeit: string | number) => `Entsperrt von ${wer} um ${typeof zeit === "number" ? discordZeit(zeit) : zeit}`;
+/** Wann entsperrt wurde (ms), wenn das Feld es sagt. */
+export const entsperrtZeit = (wert: string) => (wert.startsWith("Entsperrt") ? zeitAusTag(wert) : null);
 /** Die Sperre aus dem Assistenten-Chat geht mit ins Ticket: mit Uhr. */
 export const gesperrtBisWert = (art: SperrArt, bis: number) => `${GESPERRT} bis ${discordZeit(bis)} – ${SPERR_GRUND[art]} ${AUS_ASSISTENT}`;
 /** „Dauerhaft sperren“: dieselbe Sperre ohne Uhr, bis jemand entsperrt. */
@@ -172,7 +175,7 @@ export function sperrKomponenten(mitUhr = false) {
 const ersteZeile = (inhalt: string) => (inhalt.split("\n")[0] || "🔒 **Besucher gesperrt**").replace(/, frei <t:\d+:R>\)/, ")");
 
 /** Nach „Entsperren“: Grund bleibt stehen, darunter wer und wann. Ohne Knöpfe. */
-export function entsperrtNachricht(inhalt: string, wer: string, zeit: string): string {
+export function entsperrtNachricht(inhalt: string, wer: string, zeit: string | number): string {
   return `${ersteZeile(inhalt)}\n${entsperrtWert(wer, zeit)}`;
 }
 

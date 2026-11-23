@@ -125,7 +125,8 @@ test("auch auf dem Server: derselbe Zähler für /api/chat und /api/support, der
   // Beim Eröffnen liest /api/support die Sperre selbst (nicht nur die Angabe des Browsers) und schreibt sie an die Karte.
   const support = lies("app/api/support/route.ts");
   const oeffnen = support.slice(support.indexOf('if (body.action === "open")'), support.indexOf('if (body.action === "send")'));
-  assert.match(oeffnen, /chatWaechter\(\)\.sperre\(chatSchluessel\(ip, request\.headers\.get\("user-agent"\)\), jetzt\)/);
+  // Seit Prompt 18b mit der Kennung des Browsers (ohne: Adresse plus Browser).
+  assert.match(oeffnen, /chatWaechter\(\)\.sperre\(chatSchluessel\(ip, request\.headers\.get\("user-agent"\), text\(body\.kennung, 40\)\), jetzt\)/);
   assert.match(oeffnen, /openTicket\(bot, \{ name, kontakt, frage, verlauf, sperre \}\)/);
   assert.match(oeffnen, /postSperrKarte\(bot, ticket\.channelId, sperrNachricht\(\{ assistent: sperre\.art, bis: sperre\.bis \}\), true\)/);
   // Der Browser höchstens 5 Minuten.
@@ -284,19 +285,21 @@ test("erstes Öffnen in diesem Besuch: Begrüßung und Vorschläge stehen sofort
 
 // ───────────── Teil 7: Effekte nur mit transform und opacity ─────────────
 
-test("Effekte: nur transform und opacity in den neuen Animationen, das rote Leuchten wie ag-chat-wink", () => {
+test("Effekte: nur transform und opacity in den neuen Animationen; seit Prompt 18b ohne die alten roten Effekte", () => {
   const css = lies("components/neu/chat/chat.css");
-  const neu = css.slice(css.indexOf("/* ── Chat-Schutz, Runde 2 (Prompt 18): Effekte ──"));
+  const neu = css.slice(css.indexOf("/* ── Chat-Schutz, Runde 2 (Prompt 18; Prompt 18b): Effekte ──"));
   for (const block of neu.matchAll(/@keyframes [\w-]+ \{([\s\S]*?)\n\}/g)) {
     const eigenschaften = [...block[1].matchAll(/^\s+([a-z-]+):/gm)].map((m) => m[1]);
-    for (const e of eigenschaften) assert.ok(e === "opacity" || e === "transform", `${block[0].split("{")[0]}: ${e}`);
+    for (const e of eigenschaften) assert.ok(e === "opacity" || e === "transform" || e === "animation-timing-function", `${block[0].split("{")[0]}: ${e}`);
   }
-  // 1,4 s je Aufleuchten mit Höhepunkt bei 30 % (wie ag-chat-wink): im Hinweis 5 × 1,4 s, in der Sperr-Zeile alle 8 s.
-  assert.match(neu, /animation: ag-cf-rot-abklingend 7s var\(--weich\) both;/);
-  assert.match(neu, /6% \{\s*opacity: 1;/);
-  assert.match(neu, /animation: ag-cf-rot-alle-8s 8s var\(--weich\) 0\.4s infinite;/);
-  assert.match(neu, /5\.25% \{\s*opacity: 1;/);
-  assert.match(lies("components/neu/seite/seite.css"), /animation: ag-chat-wink 1\.4s var\(--weich\) both;/);
-  // Weniger Bewegung: nur Farben.
-  assert.match(neu, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.ag-cf__hinweis::before,/);
+  // Weg (Prompt 18b): das Aufleuchten alle 8 s, das abklingende Rot am Hinweis, die rote Welle beim Tippen.
+  for (const alt of ["ag-cf-rot-alle-8s", "ag-cf-rot-abklingend", "ag-cf-welle", "ag-cf__welle"]) assert.ok(!css.includes(alt), alt);
+  assert.ok(!lies("components/neu/chat/ChatFenster.tsx").includes("ag-cf__welle"));
+  // Lichtschweif: alle 4 s einmal herum (1,2 s), gegen den Uhrzeigersinn; weniger Bewegung: kein Schweif.
+  assert.match(neu, /animation:\s*ag-cf-schweif-dreh 4s 0\.8s infinite,\s*ag-cf-schweif-licht 4s linear 0\.8s infinite;/);
+  assert.match(neu, /30%,\s*100% \{\s*transform: rotate\(-360deg\);/);
+  assert.match(neu, /@media \(prefers-reduced-motion: reduce\) \{\s*\.ag-cf__schweif \{\s*display: none;/);
+  // Ring rot und kräftiger.
+  assert.match(neu, /border: 2\.5px solid transparent;/);
+  assert.match(neu, /border-top-color: rgba\(226, 66, 56, 0\.95\);/);
 });

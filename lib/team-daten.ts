@@ -11,6 +11,9 @@ export const REGISTER = "team-register";
 const MERKEN_MS = 5 * 60_000;
 let bis = 0;
 
+/** Wurde das Register in dieser Instanz schon einmal wirklich gelesen? (Sonst steht nur die Startliste da.) */
+export const registerGeladen = () => bis > 0;
+
 export const registerKanal = (token: string) => nurDavidKanal(token, REGISTER, "Team-Register: wer im Team ist (Anwärter, Team, Pause, Ausgetreten). Schreibt nur der Bot. Nicht löschen.");
 
 /** Stand aus Discord holen (mit Zwischenspeicher). Gibt die Liste zurück, auch wenn Discord nicht antwortet. */

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { nameVon } from "@/lib/team";
+import { mitglied, nameVon } from "@/lib/team";
+import { registerGeladen } from "@/lib/team-daten";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { linkSecret } from "@/lib/termin";
 import { chat as chatTexte } from "@/lib/inhalt-neu";
@@ -26,10 +27,12 @@ import {
   sperrNachricht,
   sperreDerKarte,
   trenneHinweisZeile,
+  zustandDerKarte,
   type Feld,
   type SperrArt,
   type SperrStand,
 } from "./support-sperre.ts";
+import { zeitAusId } from "./team-takt-regeln.ts";
 import {
   hinweisKomponenten,
   hinweisNoetig,
@@ -40,21 +43,28 @@ import {
 } from "./support-anruf.ts";
 import {
   WARNUNG_WEG_MS,
+  aufSekunde,
   artDerTeamNachricht,
+  freiStatus,
   fremdWarnung,
+  ohneUebernahme,
+  pruefbar,
+  uebernehmerWeg,
+  wiederOffenFelder,
+  zumLoeschen,
   hinweisGeloest,
   hinweisKeineFragen,
   hinweisNachStand,
   hinweisOffen,
-  istFremdWarnung,
   leseAblauf,
   mitAblauf,
   uebernehmerDerKarte,
   warnungenZumLoeschen,
   type Ablauf,
+  type Aktiv,
 } from "./support-ablauf.ts";
 export { verlaufFuerKi } from "./support-ablauf.ts";
-import { kundeImChatDavor } from "./sperr-beleg.ts";
+import { chatDavorFelder, chatDavorText, davorPlatz, kundeImChatDavor } from "./sperr-beleg.ts";
 
 // Support-Chats: Ein Besucher der Website lässt sich im Chat mit einem
 // Mitarbeiter verbinden. Dafür legt der Bot in Discord unter der Kategorie
@@ -219,10 +229,10 @@ export async function openTicket(
   });
   if (!channel) return null;
 
-  const verlauf = input.verlauf
-    .slice(-8)
-    .map((m) => `${m.role === "user" ? "Besucher" : "Assistent"}: ${m.content}`)
-    .join("\n");
+  // Der Chat mit dem Assistenten davor: bis 4000 Zeichen, in bis zu vier Feldern (Prompt 18b, lib/sperr-beleg.ts),
+  // bei langer Frage weniger: Die ganze Karte darf bei Discord höchstens 6000 Zeichen haben.
+  const davor = chatDavorFelder(input.verlauf, davorPlatz(clip(input.name, 200), clip(input.kontakt, 200), clip(input.frage, 1000)));
+  const jetzt = Date.now();
 
   const roles = (await call<Role[]>(token, "GET", `/guilds/${GUILD_ID}/roles`)) ?? [];
   const team = roles.find((r) => r.name === "Team");
@@ -238,9 +248,11 @@ export async function openTicket(
           { name: "Name", value: clip(input.name, 200), inline: true },
           { name: "Kontakt", value: clip(input.kontakt, 200), inline: true },
           { name: "Frage", value: clip(input.frage, 1000) },
-          ...(verlauf ? [{ name: "Chat davor (mit dem Assistenten)", value: clip(verlauf, 1000) }] : []),
+          ...davor,
           { name: "Status", value: "Offen" },
           ...(input.sperre ? [{ name: SPERRE_FELD, value: gesperrtBisWert(input.sperre.art, input.sperre.bis) }] : []),
+          // Ab hier prüft der Bot Nachrichten im Kanal (Prompt 18b): Tickets ohne diese Zeile bereinigt er nie.
+          ...mitAblauf([], { pruefungAb: aufSekunde(jetzt) }),
         ],
         footer: {
           // Seit Prompt 18: Nur wer übernommen hat, schreibt an den Kunden; andere Nachrichten löscht der Bot.
@@ -304,7 +316,7 @@ export async function relayMessages(
   channelId: string,
   after: string,
   karte: Karte | null,
-): Promise<{ messages: Relayed[]; last: string; contentMissing: boolean; fremd: Fremd[] } | null> {
+): Promise<{ messages: Relayed[]; last: string; contentMissing: boolean; fremd: Fremd[]; zugestellt: number } | null> {
   const list = await call<DiscordMessage[]>(
     token,
     "GET",
@@ -318,6 +330,8 @@ export async function relayMessages(
   const out: Relayed[] = [];
   const fremd: Fremd[] = [];
   let contentMissing = false;
+  // Zeit der letzten Nachricht, die der Kunde mit diesem Abruf bekommt (kommt als „Zuletzt zugestellt“ an die Karte).
+  let zugestellt = 0;
   for (const m of sorted) {
     if (m.author.bot) {
       if (!m.content.startsWith(FOR_CUSTOMER)) continue;
@@ -335,9 +349,10 @@ export async function relayMessages(
       const text = m.content.trim();
       const art = artDerTeamNachricht({ id: m.id, text, autor: m.author.id ?? "" }, uebernehmer, seit);
       if (art === "notiz") continue;
-      // Nicht vom Übernehmer (oder vor dem Übernehmen): nie an den Kunden, auch ohne lesbaren Text.
+      // Nicht vom Übernehmer (oder vor dem Übernehmen): nie an den Kunden, auch ohne lesbaren Text. Gelöscht wird sie
+      // nur, wenn sie neu und nie zugestellt ist (Prompt 18b); auf einer geschlossenen Karte und in alten Tickets nie.
       if (art === "fremd") {
-        fremd.push({ id: m.id, autor: m.author.id ?? "" });
+        if (karte && pruefbar(karte.felder, zeitAusId(m.id))) fremd.push({ id: m.id, autor: m.author.id ?? "" });
         continue;
       }
       if (!text) {
@@ -351,8 +366,9 @@ export async function relayMessages(
       });
     }
   }
+  for (const r of out) zugestellt = Math.max(zugestellt, zeitAusId(r.id));
   const last = sorted.length ? sorted[sorted.length - 1].id : after;
-  return { messages: out, last, contentMissing, fremd };
+  return { messages: out, last, contentMissing, fremd, zugestellt };
 }
 
 export interface Fremd {
@@ -396,26 +412,43 @@ export async function loescheNachricht(token: string, channelId: string, id: str
   return Boolean(await call(token, "DELETE", `/channels/${channelId}/messages/${id}`));
 }
 
+/** Ist diese Person noch aktiv im Team (Team-Register: Status „team“)? */
+export const imTeam = (id: string) => mitglied(id)?.status === "team";
 /**
- * Minutentakt (/api/team/takt, Prompt 18) für ein offenes Ticket: fremde Nachrichten löschen und warnen, auch
- * wenn der Kunde gerade nicht im Chat ist (dann fragt niemand ab); Warnungen nach 30 s wegräumen; eine
- * abgelaufene Sperre aus dem Assistenten-Chat vermerken.
+ * Die Prüfung „noch aktiv im Team?“ nur, wenn das Register in dieser Instanz wirklich gelesen wurde. Sonst stünde nur
+ * die Startliste da, und ein Ausfall von Discord gäbe Tickets frei, die gar nicht frei sind: dann gilt jeder als aktiv.
+ */
+export const aktivImTeam = (): Aktiv | undefined => (registerGeladen() ? imTeam : undefined);
+
+/**
+ * Minutentakt (/api/team/takt, Prompt 18; 18b) für ein Ticket: fremde, neue, nie zugestellte Nachrichten löschen und
+ * warnen (auch ohne Kunden im Chat), höchstens 5 je Durchgang; Warnungen nach 30 s wegräumen; eine abgelaufene
+ * Sperre vermerken; ist der Übernehmer nicht mehr aktiv im Team, das Ticket freigeben. Auf einer geschlossenen Karte
+ * nichts davon (auch wenn das Umbenennen des Kanals scheiterte), in Tickets ohne „Prüfung ab“ wird nichts gelöscht.
  */
 export async function ticketPflege(token: string, channelId: string, jetzt = Date.now()): Promise<void> {
   const [liste, karte] = await Promise.all([letzteNachrichten(token, channelId, 50), leseKarte(token, channelId)]);
-  if (!liste || !karte) return;
-  const uebernehmer = uebernehmerDerKarte(karte.felder);
+  if (!liste || !karte || zustandDerKarte(karte.felder) === "closed") return;
+  const aktiv = aktivImTeam();
+  const weg = aktiv ? uebernehmerWeg(karte.felder, aktiv) : null;
+  if (weg) await gibTicketFrei(token, channelId, freiStatus(weg));
+  const uebernehmer = weg ? null : uebernehmerDerKarte(karte.felder);
   const seit = leseAblauf(karte.felder).uebernommen ?? 0;
-  const warnungen = liste.filter((m) => m.author.bot && istFremdWarnung(m.content));
-  const fremd = liste
-    .filter((m) => !m.author.bot && artDerTeamNachricht({ id: m.id, text: m.content.trim(), autor: m.author.id ?? "" }, uebernehmer, seit) === "fremd")
-    // Schon gewarnt (eine Warnung an dieselbe Person, jünger als die Nachricht): nicht noch einmal.
-    .filter((m) => !warnungen.some((w) => BigInt(w.id) > BigInt(m.id) && w.content.startsWith(`<@${m.author.id}>`)))
-    .map((m) => ({ id: m.id, autor: m.author.id ?? "" }));
   for (const id of warnungenZumLoeschen(liste, uebernehmer, seit, jetzt)) await loescheNachricht(token, channelId, id);
   const sperre = sperreDerKarte(karte.felder, jetzt);
-  if (sperre.abgelaufen && sperre.bis) await markiereAbgelaufen(token, channelId, karte, sperre.bis);
+  if (sperre.abgelaufen && sperre.bis) await markiereAbgelaufen(token, channelId, sperre.bis);
+  const fremd = weg ? [] : zumLoeschen(liste, karte.felder);
   if (fremd.length) await loescheFremde(token, channelId, fremd, uebernehmer, false);
+}
+
+/** Freigeben (Knopf „Freigeben“ oder automatisch): wieder offen mit „Übernehmen“, der Status sagt, warum. */
+export async function gibTicketFrei(token: string, channelId: string, status: string): Promise<boolean> {
+  return aendereKarte(
+    token,
+    channelId,
+    (felder) => (zustandDerKarte(felder) === "closed" ? null : { color: 0xd4a23c, fields: ohneUebernahme(felder).map((f) => (f.name === "Status" ? { ...f, value: status } : f)) }),
+    ticketComponents("open"),
+  );
 }
 
 /** Die letzten Nachrichten im Kanal (neueste zuerst), oder null bei einem Fehler. */
@@ -484,13 +517,16 @@ export async function ticketStand(
 export async function aendereKarte(
   token: string,
   channelId: string,
-  aendern: (felder: Feld[], embed: EmbedLike) => Partial<EmbedLike> & { fields: Feld[] },
+  aendern: (felder: Feld[], embed: EmbedLike) => (Partial<EmbedLike> & { fields: Feld[] }) | null,
   components?: unknown[],
 ): Promise<boolean> {
+  // Immer die Karte frisch lesen und erst dann schreiben (sonst gingen Änderungen von gerade eben verloren). null: nichts tun.
   const karte = await leseKarte(token, channelId);
   if (!karte) return false;
+  const neu = aendern(karte.felder, karte.embed);
+  if (!neu) return false;
   const res = await call(token, "PATCH", `/channels/${channelId}/messages/${karte.id}`, {
-    embeds: [{ ...karte.embed, ...aendern(karte.felder, karte.embed) }],
+    embeds: [{ ...karte.embed, ...neu }],
     ...(components ? { components } : {}),
     allowed_mentions: { parse: [] },
   });
@@ -516,14 +552,14 @@ export function sperrKarteIn(nachrichten: DiscordMessage[]): DiscordMessage | nu
 
 /**
  * Die Uhr der Sperre aus dem Assistenten-Chat ist abgelaufen: Der Kunde ist frei, Feld und Sperr-Karte sagen
- * „Sperre abgelaufen um …“, die Knöpfe verschwinden. Bemerkt beim Abruf des Kunden und im Minutentakt.
+ * „Sperre abgelaufen um …“, die Knöpfe verschwinden. Bemerkt beim Abruf des Kunden und im Minutentakt. Die Karte wird
+ * dafür frisch gelesen (Prompt 18b): Eine Übernahme zur selben Zeit geht so nicht verloren.
  */
-export async function markiereAbgelaufen(token: string, channelId: string, karte: Karte, bis: number): Promise<void> {
-  if (!sperreDerKarte(karte.felder).abgelaufen) return;
-  await call(token, "PATCH", `/channels/${channelId}/messages/${karte.id}`, {
-    embeds: [{ ...karte.embed, fields: mitFeld(karte.felder, SPERRE_FELD, abgelaufenWert(bis)) }],
-    allowed_mentions: { parse: [] },
-  });
+export async function markiereAbgelaufen(token: string, channelId: string, bis: number): Promise<void> {
+  const geaendert = await aendereKarte(token, channelId, (felder) =>
+    sperreDerKarte(felder).abgelaufen ? { fields: mitFeld(felder, SPERRE_FELD, abgelaufenWert(bis)) } : null,
+  );
+  if (!geaendert) return;
   const sk = sperrKarteIn((await letzteNachrichten(token, channelId, 50)) ?? []);
   if (sk) {
     await call(token, "PATCH", `/channels/${channelId}/messages/${sk.id}`, {
@@ -559,17 +595,19 @@ export async function sperreMitBeleg(
 export async function kundenNachrichten(token: string, channelId: string, karte: Karte): Promise<string[] | null> {
   const liste = await call<DiscordMessage[]>(token, "GET", `/channels/${channelId}/messages?limit=100`);
   if (!liste) return null;
-  const davor = karte.felder.find((f) => f.name.startsWith("Chat davor"))?.value ?? "";
+  // Seit Prompt 18b: auch die erste Frage, der ganze Chat davor (bis 4000 Zeichen, mehrere Felder) und mehrzeilige Nachrichten.
+  const davor = chatDavorText(karte.felder);
+  const frage = karte.felder.find((f) => f.name === "Frage")?.value?.trim();
   const imTicket = [...liste]
     .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1))
     .filter((m) => m.author.bot)
     .map((m) => besucherText(m.content))
     .filter((t): t is string => !!t);
-  return [...kundeImChatDavor(davor), ...imTicket];
+  return [...kundeImChatDavor(davor), ...(frage ? [frage] : []), ...imTicket];
 }
 
 /** Ändert das Feld „Ablauf“ der Ticket-Karte (übernommen, „Noch Fragen?“, Abschluss, Kunde weg). */
-export async function aendereAblauf(token: string, channelId: string, aenderung: Partial<Record<keyof Ablauf, number | null>>): Promise<boolean> {
+export async function aendereAblauf(token: string, channelId: string, aenderung: Parameters<typeof mitAblauf>[1]): Promise<boolean> {
   return aendereKarte(token, channelId, (felder) => ({ fields: mitAblauf(felder, aenderung) }));
 }
 
@@ -735,6 +773,10 @@ export async function closeTicketChannel(token: string, channelId: string): Prom
  * Holt ein geschlossenes Ticket zurück (Etappe 2, 16.11.2026): Antwortet der Kunde per Mail auf unsere Mail,
  * landet sie im Ticket. Name ohne „geschlossen-“, wieder unter SUPPORT, Rechte wie die Kategorie (dort darf
  * das Team schreiben). Offene Tickets bleiben unverändert.
+ *
+ * Seit Prompt 18b auch die Karte: Status „Wieder offen“, die Knöpfe samt „Übernehmen“ sind zurück, kein Übernehmer,
+ * „Prüfung ab“ neu (ältere Nachrichten fasst der Bot nie an). Bis dahin blieb sie „Geschlossen“, und der Bot löschte
+ * im Minutentakt alle Nachrichten des Teams; der Mail-Knopf „Antworten“ sagte allen „Übernimm zuerst das Ticket.“
  */
 export async function oeffneTicketWieder(token: string, channelId: string): Promise<boolean> {
   const ch = await call<Channel>(token, "GET", `/channels/${channelId}`);
@@ -747,7 +789,9 @@ export async function oeffneTicketWieder(token: string, channelId: string): Prom
     parent_id: parent,
     lock_permissions: true,
   });
-  return Boolean(ok);
+  if (!ok) return false;
+  await aendereKarte(token, channelId, (felder) => ({ color: 0xd4a23c, fields: wiederOffenFelder(felder, Date.now()) }), ticketComponents("open"));
+  return true;
 }
 
 // ------------------------------------------------------------ Rechtschreibung

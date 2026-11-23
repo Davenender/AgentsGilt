@@ -86,7 +86,8 @@ test("der fertige Satz: passt zur Lage, im Du, kurz, ohne Emoji, mit dem Telefon
 test("Knopf an der Karte und am Hinweis, Fenster mit dem Satz zum Ändern", () => {
   const offen = ticketComponents("open")[0].components.map((k) => k.custom_id);
   assert.deepEqual(offen, ["ticket:claim", "ticket:call", "ticket:schnell", "ticket:sperren", "ticket:close"]);
-  assert.deepEqual(ticketComponents("claimed")[0].components.map((k) => k.custom_id), ["ticket:call", "ticket:schnell", "ticket:sperren", "ticket:close"]);
+  // Prompt 18b: „Freigeben“ für den Übernehmer (fünf Knöpfe, mehr erlaubt Discord in einer Reihe nicht).
+  assert.deepEqual(ticketComponents("claimed")[0].components.map((k) => k.custom_id), ["ticket:call", "ticket:schnell", "ticket:sperren", "ticket:freigeben", "ticket:close"]);
   assert.deepEqual(ticketComponents("closed"), []);
   const knopf = ticketComponents("open")[0].components[1] as { label: string; emoji?: { name: string } };
   assert.equal(knopf.label, "Anruf anbieten");
@@ -136,7 +137,7 @@ test("die Zeile unter dem Angebot wird beim Kunden zur Anruf-Karte und nie als T
 
 test("Discord: Klick öffnet das Fenster, Absenden schickt Text mit Karte; ohne Klick erfährt der Kunde nichts", () => {
   const handler = lies("lib/ticket-handler.ts");
-  assert.match(handler, /return NextResponse\.json\(\{ type: 9, data: anrufFenster\(knopf\.quelle, knopf\.anliegen\) \}\)/);
+  assert.match(handler, /return fertig\(fensterDaten\(anrufFenster\(knopf\.quelle, knopf\.anliegen\)\)\);/);
   assert.match(handler, /schreibeInsTicket\(token, channel, `\$\{FOR_CUSTOMER\} \*\*\$\{who\}:\*\* \$\{mitAnrufZeile\(text\.slice\(0, 1000\)\)\}`\)/);
   const support = lies("app/api/support/route.ts");
   // Seit Prompt 18 nur noch bei Nachrichten des Kunden nach dem Wechsel zum Team, und nur, wenn die KI ein Anliegen meldet.

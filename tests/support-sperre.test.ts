@@ -88,18 +88,19 @@ test("nur das Team darf drücken: alle Ticket-Knöpfe laufen durch dieselbe Prü
   assert.ok(pruefung > 0 && ticket > pruefung, "darfHandeln kommt vor handleTicket");
   for (const id of ["ticket:entsperren", "ticket:beenden", "ticket:dauerhaft", SCHNELL_WAHL, SCHNELL_FENSTER]) assert.ok(id.startsWith("ticket:"), id);
   for (const k of ticketComponents("open")[0].components as { custom_id: string }[]) assert.ok(k.custom_id.startsWith("ticket:"));
-  const handle = lies("lib/ticket-handler.ts");
+  const ganz = lies("lib/ticket-handler.ts");
+  const handle = ganz.slice(ganz.indexOf("async function entscheide("));
   // Übernehmen zuerst (für alle), danach die Prüfung auf den Übernehmer, erst dann jeder andere Knopf.
   const claim = handle.indexOf('if (id === "ticket:claim")');
-  const gate = handle.indexOf("const verbot = pruefeUebernehmer(felder, userId, OWNER_ID);");
+  const gate = handle.indexOf("const verbot = pruefeUebernehmer(felder, userId, OWNER_ID, CHEF_DARF_ALLES, aktiv);");
   assert.ok(claim > 0 && gate > claim, "erst Übernehmen, dann die Prüfung");
-  for (const aktion of ['id === "ticket:sperren"', "id === ENTSPERREN_ID", "id === DAUERHAFT_ID", "id === BEENDEN_ID", 'id === "ticket:schnell"', "id === SCHNELL_WAHL", "id === SCHNELL_FENSTER", "id === NOCH_FRAGEN_ID", "id === ABSCHLUSS_ID", 'id === "ticket:close"', "id === SPERR_GRUND_WAHL", "id === TROTZDEM_BEENDEN_ID"]) {
+  for (const aktion of ["id === FREIGEBEN_ID", 'id === "ticket:sperren"', "id === ENTSPERREN_ID", "id === DAUERHAFT_ID", "id === BEENDEN_ID", 'id === "ticket:schnell"', "id === SCHNELL_WAHL", "id === SCHNELL_FENSTER", "id === NOCH_FRAGEN_ID", "id === ABSCHLUSS_ID", 'id === "ticket:close"', "id === SPERR_GRUND_WAHL", "id === TROTZDEM_BEENDEN_ID"]) {
     assert.ok(handle.indexOf(aktion) > gate, aktion);
   }
   assert.ok(handle.indexOf("const knopf = i.type === 3 ? leseAnrufKnopf(id) : null;") > gate, "auch Anruf anbieten");
   // Schon gesperrt: kein zweites Mal; geschlossen: nichts mehr.
-  assert.match(handle, /if \(sperreDerKarte\(felder\)\.gesperrt\) return ephemeral\(SCHON_GESPERRT\);/);
-  assert.match(handle, /const geschlossen = i\.channel\?\.name\?\.startsWith\("geschlossen-"\)/);
+  assert.match(handle, /if \(sperreDerKarte\(felder\)\.gesperrt\) return privatMeldung\(SCHON_GESPERRT\);/);
+  assert.match(ganz, /geschlossen: i\.channel\?\.name\?\.startsWith\("geschlossen-"\) === true/);
   // „Chat beenden“ an der Sperr-Karte schließt sofort, ohne Abschluss-Satz.
   const beenden = handle.slice(handle.indexOf("if (id === BEENDEN_ID)"), handle.indexOf("// ------------------------------------------------------------ Abschluss"));
   assert.match(beenden, /schliessen\(\);/);
