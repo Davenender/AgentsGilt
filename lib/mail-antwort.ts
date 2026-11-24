@@ -204,7 +204,7 @@ export function ticketBesitzer(karte: EmbedLike | null | undefined, aktiv?: Akti
  * Zuständigen. David immer. null heißt erlaubt, sonst der Satz für die private Meldung.
  */
 export function darfMailen(ort: MailOrt, userId: string, berechtigt: string[], davidId: string): string | null {
-  // Support-Ticket (Prompt 18): Hat jemand übernommen, nur er, auch David erst einmal nicht (Schalter CHEF_DARF_ALLES).
+  // Support-Ticket (Prompt 18): Hat jemand übernommen, nur er – und der Chef (Schalter CHEF_DARF_ALLES, seit 24.11. an).
   // Hat noch niemand übernommen (z. B. per Mail wieder geöffnet), darf das ganze Team antworten, wie vor Prompt 18
   // (Prompt 18b: vorher hieß es hier für alle „Übernimm zuerst“, auch beim Knopf „Antworten“ einer Kundenmail).
   if (ort === "ticket") {

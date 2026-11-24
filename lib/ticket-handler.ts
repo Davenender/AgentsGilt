@@ -6,7 +6,7 @@
 // - Erst übernehmen, dann handeln: Alle Knöpfe (Antworten, Anruf anbieten, Schnellantwort, Sperren, Entsperren,
 //   Dauerhaft sperren, Chat beenden, Noch Fragen?, Abschluss, Ticket schließen) gehen nur für den, der das Ticket
 //   übernommen hat. Andere sehen nur für sich „Übernimm zuerst das Ticket.“ bzw. „Das Ticket hat <@…> übernommen.“
-//   (Schalter CHEF_DARF_ALLES für eine spätere Ausnahme, zunächst aus.)
+//   Ausnahme: der Chef (Schalter CHEF_DARF_ALLES, seit 24.11. an).
 // - Sperren von Hand nur mit Beleg (Grund wählen, die KI sucht die Stelle: lib/sperr-beleg.ts).
 // - Abschluss: „Noch Fragen?“ → „Abschluss“ → „Ticket schließen“ (Ausnahmen: gesperrt, Kunde 3 Stunden weg).
 //

@@ -20,10 +20,10 @@ import { zeitAusId } from "./team-takt-regeln.ts";
 import type { TicketNachricht } from "./chat-beleidigung.ts";
 
 /**
- * Schalter für eine spätere Ausnahme: Darf der Chef (David) alles, auch ohne das Ticket übernommen zu haben?
- * Erst einmal aus (Davids Entscheidung, bis er nach seinem Test Ja sagt). Zum Einschalten nur diese Zeile auf true.
+ * Darf der Chef (David) alles, auch ohne das Ticket übernommen zu haben? Seit 24.11.2026 an (Davids Ja nach dem echten
+ * Discord-Test). Alle anderen bleiben beim Übernehmer. Zum Ausschalten nur diese Zeile auf false.
  */
-export const CHEF_DARF_ALLES = false;
+export const CHEF_DARF_ALLES = true;
 
 export const DREI_STUNDEN_MS = 3 * 60 * 60_000;
 /** So lange steht die Warnung „… Deine Nachricht wurde nicht gesendet.“ im Ticket. */

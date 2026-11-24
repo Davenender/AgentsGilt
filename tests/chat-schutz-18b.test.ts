@@ -189,9 +189,9 @@ test("3b: Übernehmer nicht mehr im Team (Pause, ausgetreten, fehlt): Ticket wir
   const s = lies("lib/support.ts");
   assert.match(s, /export const aktivImTeam = \(\): Aktiv \| undefined => \(registerGeladen\(\) \? imTeam : undefined\);/);
   assert.match(s, /const weg = aktiv \? uebernehmerWeg\(karte\.felder, aktiv\) : null;\s*if \(weg\) await gibTicketFrei\(token, channelId, freiStatus\(weg\)\);/);
-  // Der Schalter für David bleibt aus und ist eine Zeile.
-  assert.equal(ab.CHEF_DARF_ALLES, false);
-  assert.match(lies("lib/support-ablauf.ts"), /^export const CHEF_DARF_ALLES = false;$/m);
+  // Der Schalter für David ist eine Zeile – seit 24.11. an (Davids Ja nach dem Discord-Test).
+  assert.equal(ab.CHEF_DARF_ALLES, true);
+  assert.match(lies("lib/support-ablauf.ts"), /^export const CHEF_DARF_ALLES = true;$/m);
 });
 
 // ------------------------------------------------------------------ 4: kleinere Fehler

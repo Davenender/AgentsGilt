@@ -54,10 +54,10 @@ test("Knöpfe nur für den Übernehmer: vorher „Übernimm zuerst das Ticket.�
   assert.equal(NICHT_UEBERNOMMEN, "Übernimm zuerst das Ticket.");
   assert.equal(pruefeUebernehmer(uebernommen(), JAKOB, DAVID), null);
   assert.equal(pruefeUebernehmer(uebernommen(), MIJO, DAVID), `Das Ticket hat <@${JAKOB}> übernommen.`);
-  // Erst einmal auch für David (Schalter aus); mit dem Schalter dürfte er.
-  assert.equal(CHEF_DARF_ALLES, false);
-  assert.equal(pruefeUebernehmer(uebernommen(), DAVID, DAVID), `Das Ticket hat <@${JAKOB}> übernommen.`);
-  assert.equal(pruefeUebernehmer(uebernommen(), DAVID, DAVID, true), null);
+  // Seit 24.11. darf David als Chef alles (Schalter an); ohne den Schalter gälte die Regel auch für ihn.
+  assert.equal(CHEF_DARF_ALLES, true);
+  assert.equal(pruefeUebernehmer(uebernommen(), DAVID, DAVID), null);
+  assert.equal(pruefeUebernehmer(uebernommen(), DAVID, DAVID, false), `Das Ticket hat <@${JAKOB}> übernommen.`);
   assert.equal(uebernehmerDerKarte([{ name: "Status", value: "Geschlossen von <@1> um 10:00" }]), null);
 });
 
