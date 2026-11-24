@@ -1,116 +1,14 @@
 "use client";
 
-// Die Sperr-Karte über dem Eingabefeld (Prompt 18b, 23.11.2026): ersetzt die Sperr-Zeile bei jedem Grund, auch im
-// Team-Chat ohne Uhr. Rotes Milchglas, etwa 58 px hoch; darin Schloss, Grund und (mit Uhr) die Restzeit mit
-// kippenden Ziffern, immer gut lesbar (leichter Schatten). Hinter dem Glas eine Lavalampe (lava.ts): zwei rote
-// Kugeln schweben, prallen ab, verschmelzen, atmen. Darüberfahren: „Venom“ (die Kugeln wachsen mit Ranken über die
-// ganze Karte), Wegfahren: sie ziehen sich zurück; am Handy ein Tippen, dann 1,6 s. Nichts blinkt.
-//
-// Leicht: eine kleine Leinwand (ein Bildpunkt je 2 × 2 CSS-Pixel), nur solange die Karte zu sehen und der Tab offen
-// ist. Weniger Bewegung: Die Kugeln stehen still, ein ruhiger Schein, kein Venom.
+// Die Sperr-Karte über dem Eingabefeld (Prompt 18b, 23.11.2026; schlicht seit Prompt 18c, 24.11.2026): ersetzt die
+// Sperr-Zeile bei jedem Grund, auch im Team-Chat ohne Uhr. Rotes, leicht milchiges Glas, ruhig und ohne Bewegung,
+// etwa 46 px hoch; darin Schloss, Grund und (mit Uhr) die Restzeit mit kippenden Ziffern, immer gut lesbar (leichter
+// Schatten). Die Lavalampe aus Prompt 18b ist auf Davids Wunsch ganz weg.
 import { useEffect, useRef, type ReactNode } from "react";
-import { TIPP_MS, neueLava, schritt, zeichne, type Lava } from "./lava";
 
-const ZELLE = 2;
-
-export function SperrKarte({ ruhig, children }: { ruhig: boolean; children: ReactNode }) {
-  const karte = useRef<HTMLDivElement>(null);
-  const leinwand = useRef<HTMLCanvasElement>(null);
-  const lava = useRef<Lava | null>(null);
-  const tipp = useRef(0);
-
-  useEffect(() => {
-    const k = karte.current;
-    const c = leinwand.current;
-    const ctx = c?.getContext("2d");
-    if (!k || !c || !ctx) return;
-    let gw = 0;
-    let gh = 0;
-    let bild: ImageData | null = null;
-    let raf = 0;
-    let t0 = 0;
-    let sichtbar = true;
-    const male = (t: number) => {
-      if (!lava.current || !bild) return;
-      zeichne(lava.current, t / 1000, bild.data, gw, gh, ZELLE);
-      ctx.putImageData(bild, 0, 0);
-    };
-    const mess = () => {
-      const r = k.getBoundingClientRect();
-      const w = Math.max(1, r.width);
-      const h = Math.max(1, r.height);
-      const nw = Math.ceil(w / ZELLE);
-      const nh = Math.ceil(h / ZELLE);
-      if (nw !== gw || nh !== gh) {
-        gw = nw;
-        gh = nh;
-        c.width = gw;
-        c.height = gh;
-        bild = ctx.createImageData(gw, gh);
-      }
-      if (!lava.current) lava.current = neueLava(w, h);
-      else Object.assign(lava.current, { w, h });
-      if (ruhig || !raf) male(performance.now());
-    };
-    const bildchen = (t: number) => {
-      raf = 0;
-      const l = lava.current;
-      if (!l) return;
-      schritt(l, t0 ? (t - t0) / 1000 : 0);
-      t0 = t;
-      male(t);
-      plane();
-    };
-    const laeuft = () => !ruhig && sichtbar && !document.hidden;
-    const plane = () => {
-      if (!raf && laeuft()) raf = requestAnimationFrame(bildchen);
-    };
-    const halt = () => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = 0;
-      t0 = 0;
-    };
-    mess();
-    const ro = new ResizeObserver(mess);
-    ro.observe(k);
-    const io = new IntersectionObserver(([e]) => {
-      sichtbar = e?.isIntersecting ?? true;
-      if (laeuft()) plane();
-      else halt();
-    });
-    io.observe(k);
-    const tab = () => (laeuft() ? plane() : halt());
-    document.addEventListener("visibilitychange", tab);
-    plane();
-    return () => {
-      halt();
-      ro.disconnect();
-      io.disconnect();
-      document.removeEventListener("visibilitychange", tab);
-      window.clearTimeout(tipp.current);
-    };
-  }, [ruhig]);
-
-  const ziel = (z: number) => {
-    if (!ruhig && lava.current) lava.current.ziel = z;
-  };
-
+export function SperrKarte({ children }: { children: ReactNode }) {
   return (
-    <div
-      ref={karte}
-      className="ag-cf__sperrkarte"
-      role="status"
-      onPointerEnter={(e) => e.pointerType === "mouse" && ziel(1)}
-      onPointerLeave={(e) => e.pointerType === "mouse" && ziel(0)}
-      onPointerDown={(e) => {
-        // Am Handy (Finger, Stift): ein Tippen lässt das Venom 1,6 s stehen.
-        if (e.pointerType === "mouse") return;
-        ziel(1);
-        window.clearTimeout(tipp.current);
-        tipp.current = window.setTimeout(() => ziel(0), TIPP_MS);
-      }}
-    >
-      <canvas ref={leinwand} className="ag-cf__lava" aria-hidden="true" />
+    <div className="ag-cf__sperrkarte" role="status">
       <span className="ag-cf__milchglas" aria-hidden="true" />
       <div className="ag-cf__sperrkarte-text">{children}</div>
     </div>

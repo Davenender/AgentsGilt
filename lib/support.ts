@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { mitglied, nameVon } from "@/lib/team";
+import { nameVon, nochAktiv } from "@/lib/team";
+import { aendereGeprueft } from "./karte-schreiben.ts";
 import { registerGeladen } from "@/lib/team-daten";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { linkSecret } from "@/lib/termin";
@@ -44,7 +45,11 @@ import {
 import {
   WARNUNG_WEG_MS,
   aufSekunde,
-  artDerTeamNachricht,
+  artImKanal,
+  gewarnteIds,
+  kanalRegel,
+  mitUebernahme,
+  uebernommenFest,
   freiStatus,
   fremdWarnung,
   ohneUebernahme,
@@ -293,6 +298,8 @@ export interface DiscordMessage {
   author: { id?: string; bot?: boolean; global_name?: string | null; username?: string };
   components?: { components?: { custom_id?: string }[] }[];
   embeds?: EmbedLike[];
+  /** Bei einer Antwort: auf welche Nachricht (Warnungen antworten seit Prompt 18c auf die fremde Nachricht). */
+  message_reference?: { message_id?: string } | null;
 }
 
 /** Ob das Ticket geschlossen ist (der Kanal heißt dann "geschlossen-ticket-…"). */
@@ -325,8 +332,10 @@ export async function relayMessages(
   if (!list) return null;
 
   const sorted = [...list].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
-  const uebernehmer = uebernehmerDerKarte(karte?.felder);
-  const seit = leseAblauf(karte?.felder).uebernommen ?? 0;
+  // Wer schreibt an den Kunden (auch wer zuletzt freigegeben hat, für seine Nachrichten von davor), und welche fremden
+  // Nachrichten sind schon gewarnt (die Warnung antwortet auf sie, auch wenn der Minutentakt sie schrieb).
+  const regel = kanalRegel(karte?.felder);
+  const gewarnt = gewarnteIds(sorted);
   const out: Relayed[] = [];
   const fremd: Fremd[] = [];
   let contentMissing = false;
@@ -347,12 +356,13 @@ export async function relayMessages(
       out.push({ id: m.id, von, text, ...(anrufen ? { anrufen: true as const } : {}) });
     } else {
       const text = m.content.trim();
-      const art = artDerTeamNachricht({ id: m.id, text, autor: m.author.id ?? "" }, uebernehmer, seit);
+      const art = artImKanal({ id: m.id, text, autor: m.author.id ?? "" }, regel);
       if (art === "notiz") continue;
       // Nicht vom Übernehmer (oder vor dem Übernehmen): nie an den Kunden, auch ohne lesbaren Text. Gelöscht wird sie
       // nur, wenn sie neu und nie zugestellt ist (Prompt 18b); auf einer geschlossenen Karte und in alten Tickets nie.
+      // Gewarnt wird je Nachricht genau einmal (Prompt 18c).
       if (art === "fremd") {
-        if (karte && pruefbar(karte.felder, zeitAusId(m.id))) fremd.push({ id: m.id, autor: m.author.id ?? "" });
+        if (karte && !gewarnt.has(m.id) && pruefbar(karte.felder, zeitAusId(m.id))) fremd.push({ id: m.id, autor: m.author.id ?? "" });
         continue;
       }
       if (!text) {
@@ -374,8 +384,6 @@ export async function relayMessages(
 export interface Fremd {
   id: string;
   autor: string;
-  /** Steht nach ihr schon eine Warnung (Minutentakt)? Dann bei gescheitertem Löschen nicht noch einmal warnen. */
-  gewarnt?: boolean;
 }
 
 // Schon gelöschte oder gewarnte fremde Nachrichten (je Instanz, für alle Schnittstellen dieses Prozesses):
@@ -396,19 +404,20 @@ export async function loescheFremde(token: string, channelId: string, fremd: Fre
   for (const f of neu) bearbeitet.set(f.id, jetzt);
   const warnungen: string[] = [];
   for (const f of neu) {
-    const weg = await loescheNachricht(token, channelId, f.id);
-    if (!weg) {
-      // Schon weg (ein anderer Abruf war schneller): keine zweite Warnung. Steht sie noch da, fehlt das Recht
-      // „Nachrichten verwalten“: einmal warnen, nicht jede Minute neu.
-      const noch = await call<{ id: string }>(token, "GET", `/channels/${channelId}/messages/${f.id}`);
-      if (!noch || f.gewarnt) continue;
-      console.error(`[support] Fremde Nachricht nicht gelöscht (Recht „Nachrichten verwalten“?)`);
-    }
+    // Erst warnen, und zwar als Antwort auf die fremde Nachricht (Prompt 18c): So steht in Discord, dass sie gewarnt
+    // ist, für den Abruf und den Minutentakt gleich. Ist sie schon weg (ein anderer war schneller), lehnt Discord die
+    // Antwort ab (fail_if_not_exists), und es gibt keine zweite Warnung.
     const w = await call<{ id: string }>(token, "POST", `/channels/${channelId}/messages`, {
       content: fremdWarnung(f.autor, uebernehmer),
-      allowed_mentions: { parse: [], users: f.autor ? [f.autor] : [] },
+      allowed_mentions: { parse: [], users: f.autor ? [f.autor] : [], replied_user: false },
+      message_reference: { message_id: f.id, fail_if_not_exists: true },
     });
-    if (w && weg) warnungen.push(w.id);
+    if (!w) continue;
+    const weg = await loescheNachricht(token, channelId, f.id);
+    // Fehlt das Recht „Nachrichten verwalten“, bleibt die Nachricht stehen; die Warnung auch (sie merkt sich, dass
+    // gewarnt ist, und sagt, warum die Nachricht nicht ankam).
+    if (weg) warnungen.push(w.id);
+    else console.error(`[support] Fremde Nachricht nicht gelöscht (Recht „Nachrichten verwalten“?)`);
   }
   // Im Minutentakt wartet niemand 30 s: Dort räumt der nächste Durchgang die Warnung weg (ticketPflege).
   if (warnungen.length === 0 || !warten) return;
@@ -420,8 +429,11 @@ export async function loescheNachricht(token: string, channelId: string, id: str
   return Boolean(await call(token, "DELETE", `/channels/${channelId}/messages/${id}`));
 }
 
-/** Ist diese Person noch aktiv im Team (Team-Register: Status „team“)? */
-export const imTeam = (id: string) => mitglied(id)?.status === "team";
+/**
+ * Ist diese Person noch aktiv im Team? Seit Prompt 18c nur „nein“, wenn sie im Register ausdrücklich pausiert oder
+ * ausgetreten ist (lib/team.ts, nochAktiv); wer fehlt oder bei einem Lesefehler: aktiv.
+ */
+export const imTeam = nochAktiv;
 /**
  * Die Prüfung „noch aktiv im Team?“ nur, wenn das Register in dieser Instanz wirklich gelesen wurde. Sonst stünde nur
  * die Startliste da, und ein Ausfall von Discord gäbe Tickets frei, die gar nicht frei sind: dann gilt jeder als aktiv.
@@ -441,22 +453,102 @@ export async function ticketPflege(token: string, channelId: string, jetzt = Dat
   const weg = aktiv ? uebernehmerWeg(karte.felder, aktiv) : null;
   if (weg) await gibTicketFrei(token, channelId, freiStatus(weg));
   const uebernehmer = weg ? null : uebernehmerDerKarte(karte.felder);
-  const seit = leseAblauf(karte.felder).uebernommen ?? 0;
-  for (const id of warnungenZumLoeschen(liste, uebernehmer, seit, jetzt)) await loescheNachricht(token, channelId, id);
+  for (const id of warnungenZumLoeschen(liste, jetzt)) await loescheNachricht(token, channelId, id);
   const sperre = sperreDerKarte(karte.felder, jetzt);
   if (sperre.abgelaufen && sperre.bis) await markiereAbgelaufen(token, channelId, sperre.bis);
   const fremd = weg ? [] : zumLoeschen(liste, karte.felder);
   if (fremd.length) await loescheFremde(token, channelId, fremd, uebernehmer, false);
 }
 
+/**
+ * Die Karte ändern und nachsehen, ob die Änderung steht (Prompt 18c, lib/karte-schreiben.ts): frisch lesen, nur die
+ * eigenen Felder ändern, kurz danach prüfen, sonst noch einmal. Für Übernehmen, Freigeben und Schließen, die sonst
+ * eine ältere Karte zurückschreiben könnten (gleichzeitig schreibt der Abruf des Kunden „Zuletzt zugestellt“).
+ */
+async function aendereKarteGeprueft(
+  token: string,
+  channelId: string,
+  aendern: (felder: Feld[]) => (Partial<EmbedLike> & { fields: Feld[] }) | null,
+  steht: (felder: Feld[]) => boolean,
+  components: unknown[],
+): Promise<"ok" | "nichts" | "fehler"> {
+  return aendereGeprueft<Karte>(
+    {
+      lese: () => leseKarte(token, channelId),
+      schreibe: async (k) =>
+        Boolean(
+          await call(token, "PATCH", `/channels/${channelId}/messages/${k.id}`, {
+            embeds: [k.embed],
+            components,
+            allowed_mentions: { parse: [] },
+          }),
+        ),
+      warte: async (ms) => {
+        await warte(ms);
+      },
+    },
+    (k) => {
+      const neu = aendern(k.felder);
+      return neu ? { ...k, embed: { ...k.embed, ...neu }, felder: neu.fields } : null;
+    },
+    (k) => steht(k.felder),
+  );
+}
+
+const mitStatus = (felder: Feld[], status: string) => felder.map((f) => (f.name === "Status" ? { ...f, value: status } : f));
+
 /** Freigeben (Knopf „Freigeben“ oder automatisch): wieder offen mit „Übernehmen“, der Status sagt, warum. */
-export async function gibTicketFrei(token: string, channelId: string, status: string): Promise<boolean> {
-  return aendereKarte(
+export async function gibTicketFrei(token: string, channelId: string, status: string, jetzt = Date.now()): Promise<boolean> {
+  const r = await aendereKarteGeprueft(
     token,
     channelId,
-    (felder) => (zustandDerKarte(felder) === "closed" ? null : { color: 0xd4a23c, fields: ohneUebernahme(felder).map((f) => (f.name === "Status" ? { ...f, value: status } : f)) }),
+    (felder) => (zustandDerKarte(felder) === "closed" ? null : { color: 0xd4a23c, fields: mitStatus(ohneUebernahme(felder, jetzt), status) }),
+    (felder) => felder.find((f) => f.name === "Status")?.value === status && !leseAblauf(felder).von,
     ticketComponents("open"),
   );
+  return r === "ok";
+}
+
+/**
+ * Übernehmen (Prompt 18c): frisch gelesen. Hat inzwischen ein anderer (aktives Teammitglied) übernommen, nichts
+ * ändern („anderer“). Sonst Kennung und Zeit ins Feld „Ablauf“, Status „Übernommen von …“, Knöpfe ohne „Übernehmen“.
+ */
+export async function uebernimmTicket(
+  token: string,
+  channelId: string,
+  wer: { id: string; tag: string; zeit: string },
+  jetzt: number,
+  aktiv?: Aktiv,
+): Promise<{ ok: true } | { ok: false; anderer: string | null }> {
+  let anderer: string | null = null;
+  const r = await aendereKarteGeprueft(
+    token,
+    channelId,
+    (felder) => {
+      if (zustandDerKarte(felder) === "closed") return null;
+      const da = uebernehmerDerKarte(felder, aktiv);
+      if (da && da !== wer.id) {
+        anderer = da;
+        return null;
+      }
+      return { color: 0x3b82f6, fields: mitStatus(mitUebernahme(felder, wer.id, jetzt), `Übernommen von ${wer.tag} um ${wer.zeit}`) };
+    },
+    (felder) => leseAblauf(felder).von === wer.id,
+    ticketComponents("claimed"),
+  );
+  return r === "ok" ? { ok: true } : { ok: false, anderer };
+}
+
+/** Schließen an der Karte (Prompt 18c): frisch gelesen, der Übernehmer bleibt im Feld „Ablauf“ (uebernommenFest). */
+export async function schliesseKarte(token: string, channelId: string, status: string): Promise<boolean> {
+  const r = await aendereKarteGeprueft(
+    token,
+    channelId,
+    (felder) => ({ color: 0x6b7280, fields: mitStatus(uebernommenFest(felder), status) }),
+    (felder) => zustandDerKarte(felder) === "closed",
+    ticketComponents("closed"),
+  );
+  return r === "ok";
 }
 
 /** Die letzten Nachrichten im Kanal (neueste zuerst), oder null bei einem Fehler. */

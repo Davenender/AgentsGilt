@@ -139,10 +139,9 @@ test("2: Ticket ohne „Prüfung ab“ (von vor Prompt 18): nichts wird gelösch
   assert.equal(ab.MAX_LOESCHEN, 5);
   // Im nächsten Durchgang die übrigen drei, obwohl jetzt fünf Warnungen an dieselbe Person jünger sind (gefunden im
   // Ablauftest mit nachgestelltem Discord: vorher blieben sie für immer stehen).
-  const warnungen = fremd.slice(0, 5).map((_, n) => ({ id: idZu(T0 + 70_000, n), content: ab.fremdWarnung(MIJO, JAKOB), author: { bot: true } }));
+  const warnungen = fremd.slice(0, 5).map((m, n) => ({ id: idZu(T0 + 70_000, n), content: ab.fremdWarnung(MIJO, JAKOB), author: { bot: true }, message_reference: { message_id: m.id } }));
   const rest = await loeschtDerTakt([...fremd.slice(5), ...warnungen], neu);
   assert.deepEqual(rest, fremd.slice(5).map((m) => m.id));
-  assert.ok(ab.zumLoeschen([...fremd.slice(5), ...warnungen], neu).every((x: { gewarnt: boolean }) => x.gewarnt), "schon gewarnt: bei gescheitertem Löschen keine neue Warnung");
 });
 
 // ------------------------------------------------------------------ 3: Freigeben, Übernehmer nicht mehr im Team
@@ -164,7 +163,9 @@ test("3a: „Freigeben“ nur für den Übernehmer: danach wieder offen mit „�
   const h = lies("lib/ticket-handler.ts").slice(lies("lib/ticket-handler.ts").indexOf("async function entscheide("));
   const teil = h.slice(h.indexOf("if (id === FREIGEBEN_ID)"));
   assert.ok(h.indexOf("if (id === FREIGEBEN_ID)") > h.indexOf("const verbot = pruefeUebernehmer("));
-  assert.match(teil, /setStatus\(status, 0xd4a23c, ohneUebernahme\(felder\)\)\], components: ticketComponents\("open"\)/);
+  // Seit Prompt 18c frisch gelesen und geprüft (gibTicketFrei), sofort „Moment“ an Discord.
+  assert.match(teil, /if \(!\(await gibTicketFrei\(token, channel, status, jetzt\)\)\)/);
+  assert.match(lies("lib/support.ts"), /fields: mitStatus\(ohneUebernahme\(felder, jetzt\), status\)/);
   // In der Anleitung in #willkommen steht es auch (lib/willkommen.ts).
   const w: any = await import("../lib/willkommen.ts");
   const support = w.ANLEITUNGEN.find((x: { titel: string }) => x.titel.includes("Support-Chat"));

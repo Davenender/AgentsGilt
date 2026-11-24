@@ -33,6 +33,16 @@ export const START: Mitglied[] = [
 export const zeileTeam = (m: Omit<Mitglied, "telefon"> & { telefon?: string }) =>
   ["team", m.discord, m.name, m.status, m.notion, m.figur, m.seit, m.telefon ?? ""].join(SEP);
 
+/**
+ * Wie viele Register-Zeilen („team · …“ oder „einstellung · …“) in den Nachrichten stehen (Prompt 18c). Ein Lesefehler
+ * liefert eine leere Liste: Dann wurde nichts gelesen, und der alte Stand bleibt (lib/team-daten.ts, ladeTeam).
+ */
+export const registerZeilen = (nachrichten: { content: string }[]) =>
+  nachrichten.filter((n) => {
+    const t = n.content.split(SEP).map((x) => x.trim());
+    return (t[0] === "team" && /^\d{5,25}$/.test(t[1] ?? "")) || (t[0] === "einstellung" && !!t[1]);
+  }).length;
+
 /** Das Register aus den Nachrichten (älteste zuerst). David bleibt immer im Team. */
 export function leseRegister(nachrichten: { content: string }[]): Mitglied[] {
   const liste = START.map((m) => ({ ...m }));
@@ -62,6 +72,15 @@ export const aktive = () => stand.filter((m) => m.status === "team");
 /** Wer einen Akademie-Bereich hat (alle außer Ausgetretenen). */
 export const mitAkademie = () => stand.filter((m) => m.status !== "ausgetreten");
 export const mitglied = (discord: string) => stand.find((m) => m.discord === discord) ?? null;
+/**
+ * Noch aktiv im Team (für Support-Tickets, Prompt 18c)? Nicht aktiv ist nur, wer im Register ausdrücklich pausiert
+ * oder ausgetreten ist. Wer dort fehlt (neu, noch nicht eingetragen) oder wenn das Register nicht lesbar ist, gilt als
+ * aktiv: Ein Lesefehler darf nie Tickets freigeben.
+ */
+export const nochAktiv = (discord: string) => {
+  const s = mitglied(discord)?.status;
+  return s !== "pause" && s !== "ausgetreten";
+};
 export const nameVon = (discord: string) => mitglied(discord)?.name ?? null;
 /** Discord-Kennung → Name (für Anzeigen, z. B. im Support-Chat). */
 export const namen = (): Record<string, string> => Object.fromEntries(stand.map((m) => [m.discord, m.name]));

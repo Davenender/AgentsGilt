@@ -1353,9 +1353,10 @@ html.ag-sparsam .ag-cf__fenster {
    Alles, was sich bewegt, ändert nur transform und opacity: Schein und Ränder stehen fest auf eigenen Ebenen, nur
    deren Deckkraft oder Lage ändert sich (der Browser rechnet dabei kein Layout und keinen Schatten neu).
    Seit Prompt 18b weg: das rote Aufleuchten der Sperr-Zeile alle 8 s, das abklingende Rot an „Bitte bleib
-   freundlich.“ und die rote Welle beim Tippen ins gesperrte Feld. Neu: Vibration des Hinweises, Sperr-Karte mit
-   Lavalampe, roter Ring mit Lichtschweif, roter Schein von unten im Feld. Bewegung und Abläufe wie im Probelauf
-   (~/Desktop/Status/probe-sperrkarte.html), Farben und Glas eigen. */
+   freundlich.“ und die rote Welle beim Tippen ins gesperrte Feld. Neu: Vibration des Hinweises (wie im Probelauf
+   ~/Desktop/Status/probe-sperrkarte.html), Sperr-Karte, roter Ring, roter Schein von unten im Feld. Seit Prompt 18c
+   (Davids Wunsch nach der Vorschau) ist die Sperr-Karte schlicht rot und ruhig (keine Lavalampe) und der Ring ein
+   schlichter Kreis ohne Lichtschweif. */
 
 /* „Bitte bleib freundlich.“ vibriert (SperrKarte.tsx, Hinweis): Der Hinweis ruckt 2 px, dieser Schein leuchtet
    dabei kurz auf (Probelauf: Rand 0,9 und 14 px Schein). Das Rot ist tief und bleibt klein: deutlich, nie Warnlicht. */
@@ -1380,37 +1381,28 @@ html.ag-sparsam .ag-cf__fenster {
   pointer-events: none;
 }
 
-/* Die Sperr-Karte (SperrKarte.tsx): rotes Milchglas, etwa 58 px hoch. Dahinter die Lavalampe (eine kleine Leinwand,
-   weich auf die Kartengröße gezogen); darüber eine helle, milchige Schicht mit Lichtkante oben. Text und Ziffern
-   tragen einen leichten Schatten, damit sie auf Rot und beim Venom immer gut zu lesen sind. */
+/* Die Sperr-Karte (SperrKarte.tsx): rotes, leicht milchiges Glas, ruhig, etwa 46 px hoch. Darüber eine helle, milchige
+   Schicht mit Lichtkante oben. Text und Ziffern tragen einen leichten Schatten, damit sie auf Rot gut zu lesen sind. */
 .ag-cf__sperrkarte {
   position: relative;
   isolation: isolate;
   display: flex;
   align-items: center;
-  min-height: 58px;
+  min-height: 46px;
   margin: 0 0 9px;
-  padding: 9px 14px;
+  padding: 7px 12px;
   overflow: hidden;
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(40, 10, 12, 0.84), rgba(22, 6, 8, 0.9));
+  border-radius: 13px;
+  background:
+    radial-gradient(120% 180% at 0% 0%, rgba(214, 64, 56, 0.34), rgba(214, 64, 56, 0) 62%),
+    linear-gradient(180deg, rgba(150, 34, 32, 0.5), rgba(98, 20, 22, 0.58));
   box-shadow:
-    0 0 0 1px rgba(232, 160, 116, 0.26),
-    0 12px 28px -16px rgba(170, 30, 26, 0.7);
-  color: rgba(252, 242, 238, 0.96);
+    0 0 0 1px rgba(255, 140, 124, 0.3),
+    0 10px 24px -16px rgba(170, 30, 26, 0.75);
+  color: rgba(252, 242, 238, 0.97);
   font-size: 12.5px;
   line-height: 1.4;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
   animation: ag-cf-sperre 0.5s var(--weich) both;
-}
-.ag-cf__lava {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  width: 100%;
-  height: 100%;
-  image-rendering: auto;
 }
 .ag-cf__milchglas {
   position: absolute;
@@ -1418,8 +1410,8 @@ html.ag-sparsam .ag-cf__fenster {
   z-index: -1;
   border-radius: inherit;
   background:
-    radial-gradient(130% 160% at 18% -40%, rgba(255, 238, 230, 0.13), rgba(255, 238, 230, 0) 58%),
-    linear-gradient(180deg, rgba(255, 230, 222, 0.07), rgba(255, 230, 222, 0.02) 52%, rgba(26, 4, 6, 0.12));
+    radial-gradient(130% 160% at 18% -40%, rgba(255, 238, 230, 0.16), rgba(255, 238, 230, 0) 58%),
+    linear-gradient(180deg, rgba(255, 230, 222, 0.09), rgba(255, 230, 222, 0.03) 52%, rgba(26, 4, 6, 0.1));
   box-shadow:
     inset 0 1px 0 rgba(255, 236, 228, 0.3),
     inset 0 0 0 1px rgba(255, 150, 134, 0.16),
@@ -1592,12 +1584,16 @@ html.ag-sparsam .ag-cf__fenster {
 }
 
 /* Der Ring um den Senden-Knopf leert sich mit der Restzeit (nur bei Sperren mit Uhr): zwei Halbringe, die sich
-   nacheinander aus ihrem Ausschnitt drehen. Er beginnt oben und leert sich im Uhrzeigersinn. Seit Prompt 18b rot
-   und kräftiger (2,5 px), mit einem Lichtschweif etwa alle 4 s (unten). */
+   nacheinander aus ihrem Ausschnitt drehen. Er beginnt oben und leert sich gleichmäßig im Uhrzeigersinn. Seit Prompt 18b
+   rot und kräftiger (2,5 px), seit 18c ohne Lichtschweif: ein schlichter Kreis, der abläuft, nichts dreht sich. */
 .ag-cf__ring {
   position: absolute;
-  inset: -4px;
+  inset: -3px;
   pointer-events: none;
+}
+/* Gesperrt: etwas mehr Rand im Feld, damit der Ring nicht an die Feldkante stößt (rechts 5 px, unten 3 px Luft). */
+.ag-cf__feld[data-gesperrt] {
+  padding: 6px 8px 6px 15px;
 }
 .ag-cf__ring-r,
 .ag-cf__ring-l {
@@ -1638,53 +1634,6 @@ html.ag-sparsam .ag-cf__fenster {
 /* Weniger Bewegung: Der Ring springt einmal je Sekunde weiter (ChatFenster.tsx, Ring), ohne Animation. */
 .ag-cf__ring--ruhig i {
   animation: none;
-}
-/* Der Lichtschweif: ein Ring aus einem Kegelverlauf (vorn hell, hinten verblassend), nur über der Ringbahn sichtbar.
-   Er dreht sich in 1,2 s einmal gegen den Uhrzeigersinn (von oben zurück nach oben), dann 2,8 s Ruhe. Die Maske ist
-   rund und dreht sich mit, darum ändert sich nur transform (und die Deckkraft beim Ein- und Ausblenden). */
-.ag-cf__schweif {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  /* Heller als der Ring, damit man den Schweif auch über dem roten Rest sieht: vorn fast weiß, dann hellrot. */
-  background: conic-gradient(
-    from 0deg,
-    rgba(255, 236, 226, 1) 0deg,
-    rgba(255, 158, 138, 0.95) 10deg,
-    rgba(255, 104, 86, 0.7) 45deg,
-    rgba(246, 76, 62, 0.3) 100deg,
-    rgba(236, 62, 50, 0) 170deg,
-    rgba(236, 62, 50, 0) 360deg
-  );
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
-  filter: drop-shadow(0 0 3px rgba(255, 96, 78, 0.9));
-  opacity: 0;
-  pointer-events: none;
-  animation:
-    ag-cf-schweif-dreh 4s 0.8s infinite,
-    ag-cf-schweif-licht 4s linear 0.8s infinite;
-}
-@keyframes ag-cf-schweif-dreh {
-  0% {
-    transform: rotate(0deg);
-    animation-timing-function: cubic-bezier(0.45, 0.05, 0.3, 1);
-  }
-  30%,
-  100% {
-    transform: rotate(-360deg);
-  }
-}
-@keyframes ag-cf-schweif-licht {
-  0%,
-  31%,
-  100% {
-    opacity: 0;
-  }
-  3%,
-  24% {
-    opacity: 1;
-  }
 }
 @keyframes ag-cf-ring-r {
   0% {
@@ -1833,12 +1782,8 @@ html.ag-sparsam .ag-cf__fenster {
   }
 }
 
-/* Weniger Bewegung: Es wechseln nur die Farben (kein Vibrieren, kein Kippen, kein Schweif, kein Ruck; die
-   Lavalampe steht still, SperrKarte.tsx). */
+/* Weniger Bewegung: Es wechseln nur die Farben (kein Vibrieren, kein Kippen, kein Ruck). */
 @media (prefers-reduced-motion: reduce) {
-  .ag-cf__schweif {
-    display: none;
-  }
   .ag-cf__ziffer-neu {
     animation: none;
   }

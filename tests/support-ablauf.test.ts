@@ -91,8 +91,9 @@ test("Schreiben im Ticket-Kanal: nur der Übernehmer nach dem Übernehmen; // bl
   const klick = T0 + 400;
   assert.equal(artDerTeamNachricht(m(JAKOB, "Moin!", klick - 20), JAKOB, uebernahmeZeit(klick)), "fremd");
   assert.equal(artDerTeamNachricht(m(JAKOB, "Hallo, ich bin da.", klick + 5000), JAKOB, uebernahmeZeit(klick)), "senden");
-  // Seit Prompt 18b mit Kennung: mitUebernahme schreibt „Übernommen von <@…> <Zeit>“ ins Feld „Ablauf“.
-  assert.match(lies("lib/ticket-handler.ts"), /mitUebernahme\(felder, userId, jetzt\)/);
+  // Seit Prompt 18b mit Kennung: mitUebernahme schreibt „Übernommen von <@…> <Zeit>“ ins Feld „Ablauf“; seit 18c in
+  // uebernimmTicket (lib/support.ts), frisch gelesen.
+  assert.match(lies("lib/support.ts"), /mitUebernahme\(felder, wer\.id, jetzt\)/);
 });
 
 test("Warnung ohne den Text der Nachricht, nach 30 s weg; die gelöschte Nachricht kommt nie beim Kunden an", () => {
@@ -103,20 +104,21 @@ test("Warnung ohne den Text der Nachricht, nach 30 s weg; die gelöschte Nachric
   assert.ok(istFremdWarnung(fremdWarnung(MIJO, JAKOB)));
   assert.ok(!istFremdWarnung("Deine Nachricht wurde nicht gesendet."));
   assert.equal(WARNUNG_WEG_MS, 30_000);
-  // Aufräumen im Minutentakt: Warnungen älter als 30 s, wenn die fremde Nachricht weg ist.
+  // Aufräumen im Minutentakt: Warnungen älter als 30 s, wenn die fremde Nachricht weg ist. Seit Prompt 18c antwortet
+  // jede Warnung auf die fremde Nachricht (message_reference).
   const jetzt = T0 + 120_000;
-  const warnung = { id: idZu(T0 + 61_000), content: fremdWarnung(MIJO, JAKOB), author: { bot: true } };
-  const frisch = { id: idZu(jetzt - 5_000), content: fremdWarnung(MIJO, JAKOB), author: { bot: true } };
-  assert.deepEqual(warnungenZumLoeschen([warnung, frisch], JAKOB, T0, jetzt), [warnung.id]);
-  // Klappte das Löschen der fremden Nachricht nicht (Recht fehlt), bleibt die Warnung stehen.
   const nochDa = { id: idZu(T0 + 60_000), content: "Ich kann auch helfen", author: { id: MIJO, bot: false } };
-  assert.deepEqual(warnungenZumLoeschen([nochDa, warnung], JAKOB, T0, jetzt), []);
+  const warnung = { id: idZu(T0 + 61_000), content: fremdWarnung(MIJO, JAKOB), author: { bot: true }, message_reference: { message_id: nochDa.id } };
+  const frisch = { id: idZu(jetzt - 5_000), content: fremdWarnung(MIJO, JAKOB), author: { bot: true }, message_reference: { message_id: idZu(jetzt - 6_000) } };
+  assert.deepEqual(warnungenZumLoeschen([warnung, frisch], jetzt), [warnung.id]);
+  // Klappte das Löschen der fremden Nachricht nicht (Recht fehlt), bleibt die Warnung stehen.
+  assert.deepEqual(warnungenZumLoeschen([nochDa, warnung], jetzt), []);
   // Weitergabe an die Website: Fremdes geht nie an den Kunden, der Zeiger läuft darüber hinweg (lib/support.ts).
   const relay = lies("lib/support.ts");
   const teil = relay.slice(relay.indexOf("export async function relayMessages("), relay.indexOf("export interface Fremd"));
   assert.match(teil, /if \(art === "notiz"\) continue;/);
-  // Gelöscht wird nur, was neu und nie zugestellt ist (Prompt 18b: pruefbar).
-  assert.match(teil, /if \(art === "fremd"\) \{\s*if \(karte && pruefbar\(karte\.felder, zeitAusId\(m\.id\)\)\) fremd\.push\(\{ id: m\.id, autor: m\.author\.id \?\? "" \}\);\s*continue;/);
+  // Gelöscht wird nur, was neu und nie zugestellt ist (Prompt 18b: pruefbar), gewarnt je Nachricht einmal (18c).
+  assert.match(teil, /if \(art === "fremd"\) \{\s*if \(karte && !gewarnt\.has\(m\.id\) && pruefbar\(karte\.felder, zeitAusId\(m\.id\)\)\) fremd\.push\(\{ id: m\.id, autor: m\.author\.id \?\? "" \}\);\s*continue;/);
   assert.match(teil, /const last = sorted\.length \? sorted\[sorted\.length - 1\]\.id : after;/);
   // Die Warnung trägt nie den Text der fremden Nachricht.
   const loeschen = relay.slice(relay.indexOf("export async function loescheFremde("), relay.indexOf("export async function loescheNachricht("));

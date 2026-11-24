@@ -295,11 +295,15 @@ test("Effekte: nur transform und opacity in den neuen Animationen; seit Prompt 1
   // Weg (Prompt 18b): das Aufleuchten alle 8 s, das abklingende Rot am Hinweis, die rote Welle beim Tippen.
   for (const alt of ["ag-cf-rot-alle-8s", "ag-cf-rot-abklingend", "ag-cf-welle", "ag-cf__welle"]) assert.ok(!css.includes(alt), alt);
   assert.ok(!lies("components/neu/chat/ChatFenster.tsx").includes("ag-cf__welle"));
-  // Lichtschweif: alle 4 s einmal herum (1,2 s), gegen den Uhrzeigersinn; weniger Bewegung: kein Schweif.
-  assert.match(neu, /animation:\s*ag-cf-schweif-dreh 4s 0\.8s infinite,\s*ag-cf-schweif-licht 4s linear 0\.8s infinite;/);
-  assert.match(neu, /30%,\s*100% \{\s*transform: rotate\(-360deg\);/);
-  assert.match(neu, /@media \(prefers-reduced-motion: reduce\) \{\s*\.ag-cf__schweif \{\s*display: none;/);
-  // Ring rot und kräftiger.
+  // Seit Prompt 18c: keine Lavalampe, kein Lichtschweif (Davids Wunsch); die Karte ruhig rot, etwa 46 px hoch.
+  for (const alt of ["ag-cf-schweif", "ag-cf__schweif", "ag-cf__lava"]) assert.ok(!css.includes(alt), alt);
+  assert.ok(!lies("components/neu/chat/ChatFenster.tsx").includes("ag-cf__schweif"));
+  assert.ok(!lies("components/neu/chat/SperrKarte.tsx").includes("canvas"));
+  assert.match(neu, /\.ag-cf__sperrkarte \{[^}]*min-height: 46px;/);
+  assert.doesNotMatch(neu.slice(neu.indexOf(".ag-cf__sperrkarte {"), neu.indexOf(".ag-cf__milchglas {")), /animation: (?!ag-cf-sperre 0\.5s)/);
+  // Ring rot und kräftiger, schlicht, mit Luft zur Feldkante (Ring 3 px außen, Feld rechts 8 px Rand).
   assert.match(neu, /border: 2\.5px solid transparent;/);
   assert.match(neu, /border-top-color: rgba\(226, 66, 56, 0\.95\);/);
+  assert.match(neu, /\.ag-cf__ring \{\s*position: absolute;\s*inset: -3px;/);
+  assert.match(neu, /\.ag-cf__feld\[data-gesperrt\] \{\s*padding: 6px 8px 6px 15px;/);
 });

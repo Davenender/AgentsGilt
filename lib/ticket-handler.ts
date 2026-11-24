@@ -31,6 +31,8 @@ import {
   aendereKarte,
   aktivImTeam,
   closeTicketChannel,
+  schliesseKarte,
+  uebernimmTicket,
   gibTicketFrei,
   kundenNachrichten,
   leseKarte,
@@ -93,10 +95,8 @@ import {
   freigegebenStatus,
   kundeSchriebSeit,
   leseAblauf,
-  mitUebernahme,
   nachgefragtText,
   nichtMehrAktiv,
-  ohneUebernahme,
   pruefeUebernehmer,
   schliessenErlaubt,
   schonGesendet,
@@ -128,8 +128,14 @@ export const FENSTER_FRIST_MS = 1500;
 const KARTE_WEG = "Die Ticket-Karte ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 const NICHT_GEKLAPPT = "Das hat gerade nicht geklappt. Bitte gleich nochmal versuchen.";
 
-/** Was Discord als Antwort bekommt: 4 = neue Nachricht (privat mit Flag 64), 7 = geklickte Nachricht ersetzen, 9 = Fenster. */
-export type Antwort = { type: 4 | 7 | 9; data: Record<string, unknown> };
+/**
+ * Was Discord als Antwort bekommt: 4 = neue Nachricht (privat mit Flag 64), 6 = „Moment“ (die Nachricht ändert der Bot
+ * danach selbst), 7 = geklickte Nachricht ersetzen, 9 = Fenster.
+ */
+type MitDaten = { type: 4 | 7 | 9; data: Record<string, unknown> };
+export type Antwort = MitDaten | { type: 6 };
+/** Übernehmen, Freigeben, Schließen an der Karte (Prompt 18c): sofort „Moment“, die Karte schreibt der Bot frisch gelesen. */
+const MOMENT: Antwort = { type: 6 };
 type Arbeit = () => Promise<unknown>;
 interface Entscheid {
   antwort: Antwort;
@@ -137,7 +143,7 @@ interface Entscheid {
 }
 
 /** Flag 64 = nur für den sehen, der geklickt hat. */
-const privatDaten = (content: string, components?: unknown[]): Antwort => ({
+const privatDaten = (content: string, components?: unknown[]): MitDaten => ({
   type: 4,
   data: { content, flags: 64, ...(components ? { components } : {}), allowed_mentions: { parse: [] } },
 });
@@ -155,7 +161,7 @@ function ephemeral(content: string) {
  * alles andere kommt als neue Meldung (privat, wenn Flag 64 gesetzt ist).
  */
 export async function liefere(appId: string | undefined, itoken: string | undefined, a: Antwort): Promise<void> {
-  if (!appId || !itoken) return;
+  if (!appId || !itoken || a.type === 6) return;
   const daten = a.type === 9 ? privatDaten("Bitte klick den Knopf gleich nochmal.").data : a.data;
   try {
     await fetch(a.type === 7 ? `${API}/webhooks/${appId}/${itoken}/messages/@original` : `${API}/webhooks/${appId}/${itoken}`, {
@@ -287,12 +293,6 @@ async function entscheide(f: Fall, karte: Karte): Promise<Entscheid> {
   const schonZu = () => privatMeldung("Das Ticket ist schon geschlossen. Der Kunde bekommt keine Nachrichten mehr.");
 
   const felder = karte.felder;
-  const embed = karte.embed;
-  const setStatus = (status: string, color: number, fl: Feld[] = felder): EmbedLike => ({
-    ...embed,
-    color,
-    fields: fl.map((x) => (x.name === "Status" ? { ...x, value: status } : x)),
-  });
   // „Noch aktiv im Team?“ nur, wenn das Register geladen ist, und nicht mehr nach dem Schließen.
   const aktiv = geschlossen ? undefined : aktivImTeam();
 
@@ -302,11 +302,15 @@ async function entscheide(f: Fall, karte: Karte): Promise<Entscheid> {
     if (aktiv && !aktiv(userId)) return privatMeldung(NICHT_IM_TEAM);
     const wer = uebernehmerDerKarte(felder, aktiv);
     if (wer) return privatMeldung(wer === userId ? "Du hast das Ticket schon übernommen." : andererHat(wer));
-    spaeter(() => schreibeInsTicket(token, channel, `${FOR_CUSTOMER} **${who}** Du bist jetzt mit einem Mitarbeiter verbunden und kannst direkt schreiben.`));
     // Wer und wann übernommen hat, steht genau im Feld „Ablauf“: Was der Übernehmer davor schrieb, geht nicht an den Kunden.
-    return fertig(
-      ersetzeDaten({ embeds: [setStatus(`Übernommen von ${ownerTag} um ${time}`, 0x3b82f6, mitUebernahme(felder, userId, jetzt))], components: ticketComponents("claimed") }),
-    );
+    // Seit Prompt 18c schreibt der Bot die Karte frisch gelesen (nicht den Stand der angeklickten Nachricht) und sieht
+    // nach, ob die Übernahme steht; erst dann bekommt der Kunde „Du bist jetzt … verbunden“.
+    spaeter(async () => {
+      const r = await uebernimmTicket(token, channel, { id: userId, tag: ownerTag, zeit: time }, jetzt, aktiv);
+      if (r.ok) await schreibeInsTicket(token, channel, `${FOR_CUSTOMER} **${who}** Du bist jetzt mit einem Mitarbeiter verbunden und kannst direkt schreiben.`);
+      else await followupPrivate(i.application_id ?? "", i.token ?? "", r.anderer ? andererHat(r.anderer) : NICHT_GEKLAPPT);
+    });
+    return fertig(MOMENT);
   }
 
   // ------------------------------------------------------------ alles andere: nur der Übernehmer
@@ -323,9 +327,12 @@ async function entscheide(f: Fall, karte: Karte): Promise<Entscheid> {
   if (id === FREIGEBEN_ID) {
     if (geschlossen) return schonZu();
     const status = freigegebenStatus(ownerTag, time);
-    if (f.anKarte) return fertig(ersetzeDaten({ embeds: [setStatus(status, 0xd4a23c, ohneUebernahme(felder))], components: ticketComponents("open") }));
-    spaeter(() => gibTicketFrei(token, channel, status));
-    return privatMeldung("Freigegeben. Jetzt kann jemand anderes das Ticket übernehmen.");
+    // Frisch gelesen und geprüft (Prompt 18c). Seine Nachrichten von vor dem Freigeben kommen noch an (Feld „Ablauf“).
+    spaeter(async () => {
+      if (!(await gibTicketFrei(token, channel, status, jetzt))) await followupPrivate(i.application_id ?? "", i.token ?? "", NICHT_GEKLAPPT);
+      else if (!f.anKarte) await followupPrivate(i.application_id ?? "", i.token ?? "", "Freigegeben. Jetzt kann jemand anderes das Ticket übernehmen.");
+    });
+    return fertig(f.anKarte ? MOMENT : privatDaten("Einen Moment …"));
   }
 
   // „Anruf anbieten“ (an der Karte oder am Hinweis nur fürs Team): Fenster mit einem fertigen Satz. An der Karte
@@ -516,7 +523,9 @@ async function entscheide(f: Fall, karte: Karte): Promise<Entscheid> {
     const darf = schliessenErlaubt(leseAblauf(felder), sperreDerKarte(felder).gesperrt, jetzt);
     if (!darf.ok) return darf.knoepfe ? fertig(nachrichtDaten(zuFruehAntwort())) : privatMeldung(darf.meldung);
     schliessen();
-    return fertig(ersetzeDaten({ embeds: [setStatus(`Geschlossen von ${ownerTag} um ${time}`, 0x6b7280, uebernommenFest(felder))], components: ticketComponents("closed") }));
+    // Frisch gelesen und geprüft (Prompt 18c); der Übernehmer bleibt im Feld „Ablauf“ (uebernommenFest).
+    spaeter(() => schliesseKarte(token, channel, `Geschlossen von ${ownerTag} um ${time}`));
+    return fertig(MOMENT);
   }
 
   return privatMeldung("Unbekannter Knopf.");

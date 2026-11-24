@@ -10,6 +10,10 @@
 // dahin galt dann jede Nachricht als fremd, auch die des Übernehmers). Gelöscht wird nur, was neu ist und nie
 // zugestellt wurde: nach „Prüfung ab“ (Ticket angelegt oder wieder geöffnet) und nach „Zuletzt zugestellt“. Auf einer
 // geschlossenen Karte und in Tickets von vor Prompt 18 (ohne „Prüfung ab“) wird nichts gelöscht.
+//
+// Prompt 18c: Beim Freigeben (Knopf, automatisch, per Mail wieder geöffnet) bleibt „Freigegeben <Zeit> von <@…>“ im
+// Feld „Ablauf“: Was der bisherige Übernehmer davor schrieb, kommt noch an. Jede Warnung antwortet auf die fremde
+// Nachricht (Discord-Antwort): So steht dauerhaft fest, welche schon gewarnt ist, im Abruf wie im Minutentakt.
 import { BESUCHER, besucherText, discordZeit, mitFeld, ohneFeld, trenneHinweisZeile, zeitAusTag, zustandDerKarte, type Feld } from "./support-sperre.ts";
 import { leseKundenNachricht } from "./support-anruf.ts";
 import { zeitAusId } from "./team-takt-regeln.ts";
@@ -44,8 +48,12 @@ export interface Ablauf {
   nachgefragt?: number;
   abschluss?: number;
   weg?: number;
+  /** Zuletzt freigegeben (Prompt 18c): wann, von wem, und seit wann er es hatte. Seine Nachrichten davor kommen an. */
+  freigegeben?: number;
+  freiVon?: string;
+  freiAb?: number;
 }
-type Zeitwert = Exclude<keyof Ablauf, "von">;
+type Zeitwert = "uebernommen" | "pruefungAb" | "zugestellt" | "nachgefragt" | "abschluss" | "weg";
 const ZEILEN: Record<Zeitwert, string> = {
   uebernommen: "Übernommen",
   pruefungAb: "Prüfung ab",
@@ -60,6 +68,13 @@ export function leseAblauf(felder: Feld[] | undefined): Ablauf {
   const wert = felder?.find((f) => f.name === ABLAUF_FELD)?.value ?? "";
   const a: Ablauf = {};
   for (const zeile of wert.split("\n")) {
+    const frei = zeile.match(/^Freigegeben <t:(\d+):[tTR]> von <@!?(\d+)>(?: \(übernommen <t:(\d+):[tTR]>\))?/);
+    if (frei) {
+      a.freigegeben = Number(frei[1]) * 1000;
+      a.freiVon = frei[2];
+      if (frei[3]) a.freiAb = Number(frei[3]) * 1000;
+      continue;
+    }
     const schluessel = REIHE.find((k) => zeile.startsWith(ZEILEN[k]));
     if (!schluessel) continue;
     // „Übernommen von <@…>“ geht auch ohne Zeit (alte Tickets, beim Schließen festgehalten: übernommenFest).
@@ -80,6 +95,11 @@ export function ablaufWert(a: Ablauf): string {
       return `${ZEILEN[k]} ${discordZeit(a[k]!, k === "zugestellt" ? "T" : "t")}`;
     })
     .concat(a.von && !a.uebernommen ? [`Übernommen von <@${a.von}>`] : [])
+    .concat(
+      a.freigegeben && a.freiVon
+        ? [`Freigegeben ${discordZeit(a.freigegeben, "T")} von <@${a.freiVon}>${a.freiAb ? ` (übernommen ${discordZeit(a.freiAb, "T")})` : ""}`]
+        : [],
+    )
     .join("\n");
 }
 
@@ -162,9 +182,20 @@ export const freigegebenStatus = (wer: string, zeit: string) => `Freigegeben von
 export const freiStatus = (id: string) => `Frei: <@${id}> ist nicht mehr aktiv im Team. Wer übernimmt?`;
 export const WIEDER_OFFEN = "Wieder offen";
 
+/**
+ * Wer bisher übernommen hatte, als „Freigegeben <Zeit> von <@…>“ (Prompt 18c): Seine Nachrichten von davor kommen
+ * noch beim Kunden an, erst danach geschriebene gelten als fremd. Ohne Übernehmer bleibt der alte Eintrag.
+ */
+function freigabeEintrag(felder: Feld[] | undefined, jetzt: number): Partial<Ablauf> {
+  const wer = uebernehmerDerKarte(felder);
+  if (!wer) return {};
+  const ab = leseAblauf(felder).uebernommen;
+  return { freiVon: wer, freigegeben: aufSekunde(jetzt), ...(ab ? { freiAb: ab } : { freiAb: undefined }) };
+}
+
 /** Freigeben (Knopf oder automatisch): Übernehmer weg, „Noch Fragen?“ und Abschluss beginnen neu. */
-export function ohneUebernahme(felder: Feld[] | undefined): Feld[] {
-  return mitAblauf(felder, { von: null, uebernommen: null, nachgefragt: null, abschluss: null });
+export function ohneUebernahme(felder: Feld[] | undefined, jetzt = Date.now()): Feld[] {
+  return mitAblauf(felder, { von: null, uebernommen: null, nachgefragt: null, abschluss: null, ...freigabeEintrag(felder, jetzt) });
 }
 
 /**
@@ -172,7 +203,7 @@ export function ohneUebernahme(felder: Feld[] | undefined): Feld[] {
  * unberührt), und „Noch Fragen?“, Abschluss und „Kunde weg“ beginnen neu.
  */
 export function wiederOffenFelder(felder: Feld[] | undefined, jetzt: number): Feld[] {
-  const f = mitAblauf(felder, { von: null, uebernommen: null, nachgefragt: null, abschluss: null, weg: null, pruefungAb: aufSekunde(jetzt) });
+  const f = mitAblauf(felder, { von: null, uebernommen: null, nachgefragt: null, abschluss: null, weg: null, pruefungAb: aufSekunde(jetzt), ...freigabeEintrag(felder, jetzt) });
   return f.map((x) => (x.name === "Status" ? { ...x, value: WIEDER_OFFEN } : x));
 }
 
@@ -193,18 +224,42 @@ export const istFremdWarnung = (text: string | undefined) => !!text && /^<@\d+>,
  * - „senden“: von dem, der übernommen hat, und nach dem Übernehmen geschrieben,
  * - „fremd“: von jemand anderem oder vor dem Übernehmen: geht nie an den Kunden (gelöscht wird sie nur, wenn
  *   `pruefbar`).
- * `seit`: wann übernommen wurde (aus dem Feld „Ablauf“; 0, wenn es fehlt).
+ * `seit`: wann übernommen wurde (aus dem Feld „Ablauf“; 0, wenn es fehlt). `frueher` (Prompt 18c): wer zuletzt
+ * freigegeben hat; seine Nachrichten aus der Zeit, in der er das Ticket hatte, gehen noch an den Kunden.
  */
 export function artDerTeamNachricht(
   m: { id: string; text: string; autor: string },
   uebernehmer: string | null,
   seit: number,
+  frueher: Frueher | null = null,
 ): "notiz" | "senden" | "fremd" {
   if (m.text.trim().startsWith("//")) return "notiz";
-  if (!uebernehmer || m.autor !== uebernehmer) return "fremd";
   const zeit = zeitAusId(m.id);
-  return seit && zeit && zeit < seit ? "fremd" : "senden";
+  if (uebernehmer && m.autor === uebernehmer && !(seit && zeit && zeit < seit)) return "senden";
+  if (frueher && m.autor === frueher.von && zeit && zeit < frueher.bis && !(frueher.ab && zeit < frueher.ab)) return "senden";
+  return "fremd";
 }
+
+export interface Frueher {
+  von: string;
+  ab: number;
+  bis: number;
+}
+/** Alles, was für Nachrichten im Kanal zählt: Übernehmer, seit wann, und wer zuletzt freigegeben hat. */
+export interface KanalRegel {
+  uebernehmer: string | null;
+  seit: number;
+  frueher: Frueher | null;
+}
+export function kanalRegel(felder: Feld[] | undefined): KanalRegel {
+  const a = leseAblauf(felder);
+  return {
+    uebernehmer: uebernehmerDerKarte(felder),
+    seit: a.uebernommen ?? 0,
+    frueher: a.freiVon && a.freigegeben ? { von: a.freiVon, ab: a.freiAb ?? 0, bis: a.freigegeben } : null,
+  };
+}
+export const artImKanal = (m: { id: string; text: string; autor: string }, regel: KanalRegel) => artDerTeamNachricht(m, regel.uebernehmer, regel.seit, regel.frueher);
 
 /**
  * Darf eine Nachricht (ihre Zeit) noch geprüft und, wenn fremd, gelöscht werden? Nur neue, nie zugestellte: nach
@@ -217,30 +272,46 @@ export function pruefbar(felder: Feld[] | undefined, zeit: number): boolean {
   return zeit >= a.pruefungAb && (!a.zugestellt || zeit > a.zugestellt);
 }
 
-/**
- * Was der Minutentakt löscht: fremde, neue, nie zugestellte Nachrichten (pruefbar), die noch im Kanal stehen,
- * älteste zuerst, höchstens 5 je Durchgang (die übrigen im nächsten). `gewarnt`: Nach ihr steht schon eine Warnung an
- * dieselbe Person. Das zählt nur, wenn das Löschen scheitert (fehlendes Recht): dann nicht jede Minute neu warnen.
- * Löschen hindert es nicht (sonst blieben nach fünf gelöschten die übrigen stehen, weil deren Warnungen jünger sind).
- */
-export function zumLoeschen(
-  nachrichten: { id: string; content?: string; author: { id?: string; bot?: boolean } }[],
-  felder: Feld[] | undefined,
-): { id: string; autor: string; gewarnt: boolean }[] {
-  const uebernehmer = uebernehmerDerKarte(felder);
-  const seit = leseAblauf(felder).uebernommen ?? 0;
-  const warnungen = nachrichten.filter((m) => m.author.bot && istFremdWarnung(m.content));
-  return nachrichten
-    .filter((m) => !m.author.bot && pruefbar(felder, zeitAusId(m.id)))
-    .filter((m) => artDerTeamNachricht({ id: m.id, text: (m.content ?? "").trim(), autor: m.author.id ?? "" }, uebernehmer, seit) === "fremd")
-    .sort((a, b) => zeitAusId(a.id) - zeitAusId(b.id))
-    .slice(0, MAX_LOESCHEN)
-    .map((m) => ({
-      id: m.id,
-      autor: m.author.id ?? "",
-      gewarnt: warnungen.some((w) => zeitAusId(w.id) >= zeitAusId(m.id) && (w.content ?? "").startsWith(`<@${m.author.id}>`)),
-    }));
+/** Eine Nachricht im Kanal, wie Discord sie liefert (eine Antwort trägt `message_reference`). */
+export interface KanalNachricht {
+  id: string;
+  content?: string;
+  author: { id?: string; bot?: boolean };
+  message_reference?: { message_id?: string } | null;
 }
+
+/**
+ * Welche Nachrichten schon gewarnt sind (Prompt 18c): Jede Warnung des Bots antwortet auf die fremde Nachricht. Das
+ * steht in Discord selbst, gilt also für den Abruf des Kunden und den Minutentakt in jeder Instanz gleich.
+ */
+export function gewarnteIds(nachrichten: KanalNachricht[]): Set<string> {
+  const ids = new Set<string>();
+  for (const m of nachrichten) {
+    const ref = m.message_reference?.message_id;
+    if (ref && m.author.bot && istFremdWarnung(m.content)) ids.add(ref);
+  }
+  return ids;
+}
+
+/**
+ * Fremde, neue, nie zugestellte Nachrichten (pruefbar), die noch nicht gewarnt sind, älteste zuerst, höchstens `max`.
+ * Schon gewarnte zählen nicht mit: Bleibt eine stehen (fehlt das Recht zum Löschen), nimmt sie keinen Platz weg, und
+ * jede weitere bekommt ihre Warnung.
+ */
+export function fremdeZuWarnen(nachrichten: KanalNachricht[], felder: Feld[] | undefined, max = Number.POSITIVE_INFINITY): { id: string; autor: string }[] {
+  const regel = kanalRegel(felder);
+  const gewarnt = gewarnteIds(nachrichten);
+  return nachrichten
+    .filter((m) => !m.author.bot && !gewarnt.has(m.id) && pruefbar(felder, zeitAusId(m.id)))
+    .filter((m) => artImKanal({ id: m.id, text: (m.content ?? "").trim(), autor: m.author.id ?? "" }, regel) === "fremd")
+    // Nach der vollen Discord-Kennung (sie ist genauer als die Millisekunde darin): älteste wirklich zuerst.
+    .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0))
+    .slice(0, max)
+    .map((m) => ({ id: m.id, autor: m.author.id ?? "" }));
+}
+
+/** Was der Minutentakt warnt und löscht: höchstens 5 je Ticket und Durchgang (die übrigen im nächsten). */
+export const zumLoeschen = (nachrichten: KanalNachricht[], felder: Feld[] | undefined) => fremdeZuWarnen(nachrichten, felder, MAX_LOESCHEN);
 
 // ------------------------------------------------------------------ Abschluss
 
@@ -343,17 +414,19 @@ export function hinweisOffen(letzte: { content?: string; author?: { bot?: boolea
   return letzte.some((m) => m.author?.bot && m.content?.startsWith(anfang) && (m.components?.length ?? 0) > 0);
 }
 
-/** Warnungen im Kanal, die weg dürfen: älter als 30 s, und die fremde Nachricht davor ist gelöscht. */
-export function warnungenZumLoeschen(
-  nachrichten: { id: string; content?: string; author: { id?: string; bot?: boolean } }[],
-  uebernehmer: string | null,
-  seit: number,
-  jetzt: number,
-): string[] {
-  const fremd = nachrichten.filter((m) => !m.author.bot && artDerTeamNachricht({ id: m.id, text: m.content ?? "", autor: m.author.id ?? "" }, uebernehmer, seit) === "fremd");
+/**
+ * Warnungen im Kanal, die weg dürfen: älter als 30 s, und die Nachricht, auf die sie antworten, ist gelöscht. Steht
+ * sie noch da (das Recht zum Löschen fehlt), bleibt die Warnung: Sie sagt, warum die Nachricht nicht ankam, und
+ * merkt sich, dass schon gewarnt wurde.
+ */
+export function warnungenZumLoeschen(nachrichten: KanalNachricht[], jetzt: number): string[] {
+  const da = new Set(nachrichten.map((m) => m.id));
   return nachrichten
     .filter((m) => m.author.bot && istFremdWarnung(m.content) && jetzt - zeitAusId(m.id) >= WARNUNG_WEG_MS)
-    .filter((w) => !fremd.some((f) => zeitAusId(f.id) <= zeitAusId(w.id) && (w.content ?? "").startsWith(`<@${f.author.id}>`)))
+    .filter((w) => {
+      const ref = w.message_reference?.message_id;
+      return !ref || !da.has(ref);
+    })
     .map((w) => w.id);
 }
 

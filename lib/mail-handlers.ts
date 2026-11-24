@@ -51,7 +51,7 @@ import {
 import { schreibeEntwurf } from "@/lib/mail-entwurf";
 import { merkeFaden } from "@/lib/mail-faeden-speicher";
 import { pusheDavid } from "@/lib/ntfy";
-import { DAVID_ID, mitglied, nameVon } from "@/lib/team";
+import { DAVID_ID, nameVon, nochAktiv } from "@/lib/team";
 import { ausKarte } from "@/lib/zustaendige";
 
 const ORTE: MailOrt[] = ["ticket", "anfrage", "kundenmail", "kunde"];
@@ -93,8 +93,8 @@ async function kontext(token: string, ort: MailOrt, kanal: string, quelle: Msg |
       frage: feldWert(e, "Frage"),
       verlauf: ticketVerlauf(e, nachrichten.map((m) => ({ text: m.content ?? "" }))),
       betreff: "Deine Frage im Chat bei Agents Gilt",
-      // Ist der Übernehmer nicht mehr aktiv im Team, gilt das Ticket als frei (Prompt 18b).
-      berechtigt: [ticketBesitzer(e, (id) => mitglied(id)?.status === "team") ?? ""],
+      // Ist der Übernehmer im Register ausdrücklich pausiert oder ausgetreten, gilt das Ticket als frei (Prompt 18b, 18c).
+      berechtigt: [ticketBesitzer(e, nochAktiv) ?? ""],
       quelleId: karte.id,
     };
   }

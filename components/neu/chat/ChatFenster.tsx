@@ -605,7 +605,7 @@ export function ChatFenster() {
   };
   // Chat-Schutz (Prompt 17): Assistent 5 Minuten gesperrt (Countdown) oder Support-Chat gesperrt, bis das Team
   // entsperrt. Seit Prompt 18 mit Grund, Schloss im Senden-Knopf und Ring (nur mit Uhr). Seit Prompt 18b die
-  // Sperr-Karte (SperrKarte.tsx) statt der Zeile, der rote Ring mit Lichtschweif und statt der roten Welle ein
+  // Sperr-Karte (SperrKarte.tsx) statt der Zeile, der rote Ring (seit 18c schlicht, ohne Schweif) und statt der roten Welle ein
   // weicher roter Schein von unten im Feld (Maus darüber; am Handy ein Tippen, dann etwa 1 s).
   const sperre = chat.sperre;
   const gesperrt = !!sperre;
@@ -837,7 +837,7 @@ export function ChatFenster() {
               </div>
 
               <div className="ag-cf__unten">
-                {(gesperrt || chat.wiederFrei) && <SperrZeile key={sperre ? (sperre.team ? `team-${sperre.art}` : `bis-${sperre.bis}`) : "frei"} sperre={sperre} ruhig={ruhig} />}
+                {(gesperrt || chat.wiederFrei) && <SperrZeile key={sperre ? (sperre.team ? `team-${sperre.art}` : `bis-${sperre.bis}`) : "frei"} sperre={sperre} />}
                 <div
                   ref={feldRef}
                   className="ag-cf__feld"
@@ -875,7 +875,7 @@ export function ChatFenster() {
                       <path className="ag-cf__buegel" d="M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7" />
                       <rect x="5" y="10.5" width="14" height="10" rx="2.6" />
                     </svg>
-                    {/* Der Ring leert sich mit der Restzeit (nur bei Sperren mit Uhr), etwa alle 4 s läuft ein Lichtschweif herum. */}
+                    {/* Der Ring leert sich gleichmäßig mit der Restzeit (nur bei Sperren mit Uhr). */}
                     {sperre && !sperre.team && <Ring key={sperre.bis} bis={sperre.bis} ab={sperre.ab} ruhig={ruhig} />}
                     <span ref={strich} className="ag-cf__strich" aria-hidden="true" />
                   </button>
@@ -925,7 +925,7 @@ function Haken() {
  * Wechsel); im Support-Chat gesperrt, bis das Team entsperrt: ohne Uhr. Danach kurz „Du kannst wieder schreiben.“
  * (blendet nach 6 s aus). Vorlesen: einmal beim Erscheinen, nicht jede Sekunde.
  */
-function SperrZeile({ sperre, ruhig }: { sperre: ChatSperre | null; ruhig: boolean }) {
+function SperrZeile({ sperre }: { sperre: ChatSperre | null }) {
   const bis = sperre && !sperre.team ? sperre.bis : 0;
   const [rest, setRest] = useState(() => (bis ? restText(bis - Date.now()) : ""));
   const [anfang] = useState(rest);
@@ -944,7 +944,7 @@ function SperrZeile({ sperre, ruhig }: { sperre: ChatSperre | null; ruhig: boole
   }
   if (!bis) {
     return (
-      <SperrKarte ruhig={ruhig}>
+      <SperrKarte>
         <Schloss />
         <span>{schutz.team[sperre.art]}</span>
       </SperrKarte>
@@ -952,7 +952,7 @@ function SperrZeile({ sperre, ruhig }: { sperre: ChatSperre | null; ruhig: boole
   }
   const text = schutz.sperre[sperre.art as SperrArt] ?? schutz.sperre.menge;
   return (
-    <SperrKarte ruhig={ruhig}>
+    <SperrKarte>
       <Schloss />
       <span aria-hidden="true">
         {text} <KippZeit text={rest} />
@@ -988,11 +988,10 @@ function Ziffer({ z }: { z: string }) {
 }
 
 /**
- * Der Ring um den Senden-Knopf (seit Prompt 18b rot und kräftiger): leert sich mit der Restzeit. Zwei Halbringe
- * drehen sich nacheinander aus ihrem Ausschnitt (nur transform): erst die rechte Hälfte, dann die linke. Die Zeit
- * läuft als CSS-Animation über die ganze Sperre; die schon vergangene Zeit steht als negativer Beginn darin.
- * Etwa alle 4 s läuft ein roter Lichtschweif einmal herum: von oben gegen den Uhrzeigersinn zurück nach oben, 1,2 s,
- * vorn hell, hinten verblassend. Weniger Bewegung: kein Schweif, der Ring springt einmal je Sekunde weiter.
+ * Der Ring um den Senden-Knopf (seit Prompt 18b rot und kräftiger, seit 18c ein schlichter Kreis ohne Lichtschweif):
+ * leert sich gleichmäßig mit der Restzeit. Zwei Halbringe drehen sich nacheinander aus ihrem Ausschnitt (nur
+ * transform): erst die rechte Hälfte, dann die linke. Die Zeit läuft als CSS-Animation über die ganze Sperre; die schon
+ * vergangene Zeit steht als negativer Beginn darin. Weniger Bewegung: Der Ring springt einmal je Sekunde weiter.
  */
 function Ring({ bis, ab, ruhig }: { bis: number; ab: number; ruhig: boolean }) {
   const dauer = Math.max(1000, bis - ab);
@@ -1026,7 +1025,6 @@ function Ring({ bis, ab, ruhig }: { bis: number; ab: number; ruhig: boolean }) {
       <span className="ag-cf__ring-l">
         <i />
       </span>
-      <span className="ag-cf__schweif" />
     </span>
   );
 }

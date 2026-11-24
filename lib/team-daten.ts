@@ -1,7 +1,7 @@
 import { alleNachrichten, call } from "@/lib/leads";
 import { nurDavidKanal } from "@/lib/akademie-daten";
 import { teamEintraege } from "@/lib/luca-logik";
-import { leseEinstellungen, leseRegister, setzeEinstellungen, setzeTeam, START, team, teamKarte, zeileEinstellung, zeileTeam, type Mitglied } from "@/lib/team";
+import { leseEinstellungen, leseRegister, registerZeilen, setzeEinstellungen, setzeTeam, START, team, teamKarte, zeileEinstellung, zeileTeam, type Mitglied } from "@/lib/team";
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 // Team-Register laden und ändern (Plan 4). Der Kanal #team-register sieht nur David; der Bot schreibt dort je Änderung
@@ -10,6 +10,8 @@ const GUILD_ID = process.env.DISCORD_GUILD_ID || "1564355422222159975";
 export const REGISTER = "team-register";
 const MERKEN_MS = 5 * 60_000;
 let bis = 0;
+/** Nach einem Lesefehler nicht bei jedem Aufruf neu lesen, aber bald wieder versuchen. */
+let fehlerBis = 0;
 
 /** Wurde das Register in dieser Instanz schon einmal wirklich gelesen? (Sonst steht nur die Startliste da.) */
 export const registerGeladen = () => bis > 0;
@@ -18,14 +20,21 @@ export const registerKanal = (token: string) => nurDavidKanal(token, REGISTER, "
 
 /** Stand aus Discord holen (mit Zwischenspeicher). Gibt die Liste zurück, auch wenn Discord nicht antwortet. */
 export async function ladeTeam(token: string | undefined, neu = false): Promise<readonly Mitglied[]> {
-  if (!token || (!neu && Date.now() < bis)) return team();
+  if (!token || (!neu && (Date.now() < bis || Date.now() < fehlerBis))) return team();
   try {
     const kanal = await registerKanal(token);
     if (kanal) {
       const msgs = (await alleNachrichten(token, kanal, 500)).slice().reverse();
-      setzeTeam(leseRegister(msgs));
-      setzeEinstellungen(leseEinstellungen(msgs));
-      bis = Date.now() + MERKEN_MS;
+      // Prompt 18c: Nur wenn wirklich Register-Zeilen gelesen wurden, gilt das Register als geladen. Scheitert das Lesen
+      // (Ratenlimit, Zeitüberschreitung: alleNachrichten liefert dann eine leere Liste), bleibt der alte Stand.
+      if (registerZeilen(msgs) > 0) {
+        setzeTeam(leseRegister(msgs));
+        setzeEinstellungen(leseEinstellungen(msgs));
+        bis = Date.now() + MERKEN_MS;
+      } else {
+        fehlerBis = Date.now() + 30_000;
+        console.error("[team] Register leer oder nicht lesbar: alter Stand bleibt");
+      }
     }
   } catch (err) {
     console.error("[team] Register nicht lesbar:", err);
