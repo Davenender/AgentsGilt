@@ -192,5 +192,6 @@ test("D: Übernahme bleibt, auch wenn gleichzeitig „Zuletzt zugestellt“ an d
   for (const f of ["uebernimmTicket", "gibTicketFrei", "schliesseKarte"]) assert.match(s, new RegExp(`export async function ${f}\\([\\s\\S]*?aendereKarteGeprueft\\(`), f);
   const h = lies("lib/ticket-handler.ts");
   assert.match(h, /uebernimmTicket\(token, channel, \{ id: userId, tag: ownerTag, zeit: time \}, jetzt, aktiv\)/);
-  assert.match(h, /spaeter\(\(\) => schliesseKarte\(token, channel, `Geschlossen von \$\{ownerTag\} um \$\{time\}`\)\);/);
+  // Seit 18d wird das Ergebnis ausgewertet (karteSchliessen).
+  assert.match(h, /if \(!\(await schliesseKarte\(token, channel, `Geschlossen von \$\{ownerTag\} um \$\{time\}`\)\)\)/);
 });

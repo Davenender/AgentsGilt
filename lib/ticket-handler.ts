@@ -41,7 +41,6 @@ import {
   schliesseHinweise,
   schreibeInsTicket,
   sperreMitBeleg,
-  ticketComponents,
   type Karte,
 } from "@/lib/support";
 import {
@@ -102,7 +101,9 @@ import {
   schonGesendet,
   uebernehmerDerKarte,
   uebernehmerWeg,
-  uebernommenFest,
+  KARTE_NICHT_ZU,
+  SCHON_UEBERNOMMEN,
+  schliessenSchritt,
   zuFruehAntwort,
 } from "@/lib/support-ablauf";
 import { ANRUF_FENSTER, anrufFenster, leseAnrufKnopf, mitAnrufZeile } from "@/lib/support-anruf";
@@ -301,14 +302,23 @@ async function entscheide(f: Fall, karte: Karte): Promise<Entscheid> {
     if (geschlossen) return schonZu();
     if (aktiv && !aktiv(userId)) return privatMeldung(NICHT_IM_TEAM);
     const wer = uebernehmerDerKarte(felder, aktiv);
-    if (wer) return privatMeldung(wer === userId ? "Du hast das Ticket schon übernommen." : andererHat(wer));
+    if (wer) return privatMeldung(wer === userId ? SCHON_UEBERNOMMEN : andererHat(wer));
+    // Doppelklick (Prompt 18d): Der Knopf verschwindet erst, wenn der Bot die Karte geschrieben hat. Ein zweiter Klick
+    // derselben Person, solange der erste noch läuft, sieht nur „Du hast das Ticket schon übernommen.“
+    const schluessel = `${channel}:uebernehmen:${userId}`;
+    if (!beginne(schluessel, jetzt)) return privatMeldung(SCHON_UEBERNOMMEN);
     // Wer und wann übernommen hat, steht genau im Feld „Ablauf“: Was der Übernehmer davor schrieb, geht nicht an den Kunden.
     // Seit Prompt 18c schreibt der Bot die Karte frisch gelesen (nicht den Stand der angeklickten Nachricht) und sieht
-    // nach, ob die Übernahme steht; erst dann bekommt der Kunde „Du bist jetzt … verbunden“.
+    // nach, ob die Übernahme steht; erst dann bekommt der Kunde „Du bist jetzt … verbunden“. Steht dieselbe Person schon
+    // drin (18d), schreibt und postet er nichts.
     spaeter(async () => {
-      const r = await uebernimmTicket(token, channel, { id: userId, tag: ownerTag, zeit: time }, jetzt, aktiv);
-      if (r.ok) await schreibeInsTicket(token, channel, `${FOR_CUSTOMER} **${who}** Du bist jetzt mit einem Mitarbeiter verbunden und kannst direkt schreiben.`);
-      else await followupPrivate(i.application_id ?? "", i.token ?? "", r.anderer ? andererHat(r.anderer) : NICHT_GEKLAPPT);
+      try {
+        const r = await uebernimmTicket(token, channel, { id: userId, tag: ownerTag, zeit: time }, jetzt, aktiv);
+        if (r.ok) await schreibeInsTicket(token, channel, `${FOR_CUSTOMER} **${who}** Du bist jetzt mit einem Mitarbeiter verbunden und kannst direkt schreiben.`);
+        else await followupPrivate(i.application_id ?? "", i.token ?? "", r.schon ? SCHON_UEBERNOMMEN : r.anderer ? andererHat(r.anderer) : NICHT_GEKLAPPT);
+      } finally {
+        laeuft.delete(schluessel);
+      }
     });
     return fertig(MOMENT);
   }
@@ -395,13 +405,18 @@ async function entscheide(f: Fall, karte: Karte): Promise<Entscheid> {
       await schreibeInsTicket(token, channel, `🔒 Ticket geschlossen von ${who}.`);
     });
   };
-  // Der Übernehmer bleibt im Feld „Ablauf“ stehen (auch bei alten Tickets): Seine letzten Nachrichten kommen noch an.
-  const karteZu = (fl: Feld[]) => ({ color: 0x6b7280, fields: uebernommenFest(fl).map((x) => (x.name === "Status" ? { ...x, value: `Geschlossen von ${ownerTag} um ${time}` } : x)) });
+  // Die Karte schließen (frisch gelesen und geprüft, Prompt 18c; der Übernehmer bleibt im Feld „Ablauf“, damit seine
+  // letzten Nachrichten noch ankommen). Scheitert es (Prompt 18d), sieht der Klickende es: Ein zweiter Klick auf
+  // „Ticket schließen“ schließt dann nur noch die Karte.
+  const karteSchliessen = () =>
+    spaeter(async () => {
+      if (!(await schliesseKarte(token, channel, `Geschlossen von ${ownerTag} um ${time}`))) await followupPrivate(i.application_id ?? "", i.token ?? "", KARTE_NICHT_ZU);
+    });
 
   if (id === TROTZDEM_BEENDEN_ID) {
     if (geschlossen) return schonZu();
     schliessen();
-    spaeter(() => aendereKarte(token, channel, karteZu, ticketComponents("closed")));
+    karteSchliessen();
     return fertig(ersetzeDaten({ content: `Chat beendet von ${ownerTag} um ${time}. Das Ticket ist geschlossen.`, components: [] }));
   }
 
@@ -430,7 +445,7 @@ async function entscheide(f: Fall, karte: Karte): Promise<Entscheid> {
   if (id === BEENDEN_ID) {
     if (geschlossen) return schonZu();
     schliessen();
-    spaeter(() => aendereKarte(token, channel, karteZu, ticketComponents("closed")));
+    karteSchliessen();
     return fertig(ersetzeDaten({ content: beendetNachricht(i.message?.content ?? "", ownerTag, time), components: [] }));
   }
 
@@ -519,12 +534,15 @@ async function entscheide(f: Fall, karte: Karte): Promise<Entscheid> {
 
   // ------------------------------------------------------------ Ticket schließen (an der Karte)
   if (id === "ticket:close") {
-    if (geschlossen) return schonZu();
-    const darf = schliessenErlaubt(leseAblauf(felder), sperreDerKarte(felder).gesperrt, jetzt);
-    if (!darf.ok) return darf.knoepfe ? fertig(nachrichtDaten(zuFruehAntwort())) : privatMeldung(darf.meldung);
-    schliessen();
-    // Frisch gelesen und geprüft (Prompt 18c); der Übernehmer bleibt im Feld „Ablauf“ (uebernommenFest).
-    spaeter(() => schliesseKarte(token, channel, `Geschlossen von ${ownerTag} um ${time}`));
+    // Kanal schon umbenannt, Karte aber noch offen (das Schließen der Karte scheiterte): nur noch die Karte (18d).
+    const schritt = schliessenSchritt(geschlossen, felder);
+    if (schritt === "schon-zu") return schonZu();
+    if (schritt === "alles") {
+      const darf = schliessenErlaubt(leseAblauf(felder), sperreDerKarte(felder).gesperrt, jetzt);
+      if (!darf.ok) return darf.knoepfe ? fertig(nachrichtDaten(zuFruehAntwort())) : privatMeldung(darf.meldung);
+      schliessen();
+    }
+    karteSchliessen();
     return fertig(MOMENT);
   }
 

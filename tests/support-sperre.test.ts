@@ -104,7 +104,9 @@ test("nur das Team darf drücken: alle Ticket-Knöpfe laufen durch dieselbe Prü
   // „Chat beenden“ an der Sperr-Karte schließt sofort, ohne Abschluss-Satz.
   const beenden = handle.slice(handle.indexOf("if (id === BEENDEN_ID)"), handle.indexOf("// ------------------------------------------------------------ Abschluss"));
   assert.match(beenden, /schliessen\(\);/);
-  assert.match(beenden, /ticketComponents\("closed"\)/);
+  // Die Karte schließt karteSchliessen (seit 18d mit Meldung, wenn es scheitert) über schliesseKarte (lib/support.ts).
+  assert.match(beenden, /karteSchliessen\(\);/);
+  assert.match(lies("lib/support.ts"), /\(felder\) => zustandDerKarte\(felder\) === "closed",\s*ticketComponents\("closed"\),/);
   assert.match(handle, /🔒 Ticket geschlossen von \$\{who\}\./);
 });
 

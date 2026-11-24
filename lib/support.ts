@@ -46,13 +46,15 @@ import {
   WARNUNG_WEG_MS,
   aufSekunde,
   artImKanal,
+  freigabeFelder,
+  freigabeSteht,
   gewarnteIds,
+  mitStatus,
+  uebernahmeSchritt,
   kanalRegel,
-  mitUebernahme,
   uebernommenFest,
   freiStatus,
   fremdWarnung,
-  ohneUebernahme,
   pruefbar,
   uebernehmerWeg,
   wiederOffenFelder,
@@ -495,15 +497,22 @@ async function aendereKarteGeprueft(
   );
 }
 
-const mitStatus = (felder: Feld[], status: string) => felder.map((f) => (f.name === "Status" ? { ...f, value: status } : f));
-
-/** Freigeben (Knopf „Freigeben“ oder automatisch): wieder offen mit „Übernehmen“, der Status sagt, warum. */
+/**
+ * Freigeben (Knopf „Freigeben“ oder automatisch): wieder offen mit „Übernehmen“, der Status sagt, warum. Übernimmt
+ * gleich danach jemand anderes, gilt das beim Nachsehen als geklappt (Prompt 18d, freigabeSteht).
+ */
 export async function gibTicketFrei(token: string, channelId: string, status: string, jetzt = Date.now()): Promise<boolean> {
+  let bisher: string | null = null;
   const r = await aendereKarteGeprueft(
     token,
     channelId,
-    (felder) => (zustandDerKarte(felder) === "closed" ? null : { color: 0xd4a23c, fields: mitStatus(ohneUebernahme(felder, jetzt), status) }),
-    (felder) => felder.find((f) => f.name === "Status")?.value === status && !leseAblauf(felder).von,
+    (felder) => {
+      const neu = freigabeFelder(felder, status, jetzt);
+      if (!neu) return null;
+      bisher ??= uebernehmerDerKarte(felder);
+      return { color: 0xd4a23c, fields: neu };
+    },
+    (felder) => freigabeSteht(felder, status, bisher),
     ticketComponents("open"),
   );
   return r === "ok";
@@ -511,7 +520,9 @@ export async function gibTicketFrei(token: string, channelId: string, status: st
 
 /**
  * Übernehmen (Prompt 18c): frisch gelesen. Hat inzwischen ein anderer (aktives Teammitglied) übernommen, nichts
- * ändern („anderer“). Sonst Kennung und Zeit ins Feld „Ablauf“, Status „Übernommen von …“, Knöpfe ohne „Übernehmen“.
+ * ändern („anderer“). Steht dieselbe Person schon drin (Doppelklick, Prompt 18d), auch nichts („schon“): kein zweites
+ * „Du bist jetzt … verbunden“. Sonst Kennung und Zeit ins Feld „Ablauf“, Status „Übernommen von …“, Knöpfe ohne
+ * „Übernehmen“ (uebernahmeSchritt in lib/support-ablauf.ts).
  */
 export async function uebernimmTicket(
   token: string,
@@ -519,24 +530,23 @@ export async function uebernimmTicket(
   wer: { id: string; tag: string; zeit: string },
   jetzt: number,
   aktiv?: Aktiv,
-): Promise<{ ok: true } | { ok: false; anderer: string | null }> {
+): Promise<{ ok: true } | { ok: false; anderer: string | null; schon: boolean }> {
   let anderer: string | null = null;
+  let schon = false;
   const r = await aendereKarteGeprueft(
     token,
     channelId,
     (felder) => {
-      if (zustandDerKarte(felder) === "closed") return null;
-      const da = uebernehmerDerKarte(felder, aktiv);
-      if (da && da !== wer.id) {
-        anderer = da;
-        return null;
-      }
-      return { color: 0x3b82f6, fields: mitStatus(mitUebernahme(felder, wer.id, jetzt), `Übernommen von ${wer.tag} um ${wer.zeit}`) };
+      const schritt = uebernahmeSchritt(felder, wer, jetzt, aktiv);
+      if (schritt.art === "schreiben") return { color: 0x3b82f6, fields: schritt.fields };
+      if (schritt.art === "anderer") anderer = schritt.id;
+      if (schritt.art === "schon") schon = true;
+      return null;
     },
     (felder) => leseAblauf(felder).von === wer.id,
     ticketComponents("claimed"),
   );
-  return r === "ok" ? { ok: true } : { ok: false, anderer };
+  return r === "ok" ? { ok: true } : { ok: false, anderer, schon };
 }
 
 /** Schließen an der Karte (Prompt 18c): frisch gelesen, der Übernehmer bleibt im Feld „Ablauf“ (uebernommenFest). */

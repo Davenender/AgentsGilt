@@ -93,7 +93,9 @@ test("Schreiben im Ticket-Kanal: nur der Übernehmer nach dem Übernehmen; // bl
   assert.equal(artDerTeamNachricht(m(JAKOB, "Hallo, ich bin da.", klick + 5000), JAKOB, uebernahmeZeit(klick)), "senden");
   // Seit Prompt 18b mit Kennung: mitUebernahme schreibt „Übernommen von <@…> <Zeit>“ ins Feld „Ablauf“; seit 18c in
   // uebernimmTicket (lib/support.ts), frisch gelesen.
-  assert.match(lies("lib/support.ts"), /mitUebernahme\(felder, wer\.id, jetzt\)/);
+  // seit 18d als reine Regel uebernahmeSchritt (lib/support-ablauf.ts), die uebernimmTicket benutzt.
+  assert.match(lies("lib/support-ablauf.ts"), /mitUebernahme\(felder, wer\.id, jetzt\)/);
+  assert.match(lies("lib/support.ts"), /const schritt = uebernahmeSchritt\(felder, wer, jetzt, aktiv\);/);
 });
 
 test("Warnung ohne den Text der Nachricht, nach 30 s weg; die gelöschte Nachricht kommt nie beim Kunden an", () => {

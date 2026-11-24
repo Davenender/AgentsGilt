@@ -165,7 +165,8 @@ test("3a: „Freigeben“ nur für den Übernehmer: danach wieder offen mit „�
   assert.ok(h.indexOf("if (id === FREIGEBEN_ID)") > h.indexOf("const verbot = pruefeUebernehmer("));
   // Seit Prompt 18c frisch gelesen und geprüft (gibTicketFrei), sofort „Moment“ an Discord.
   assert.match(teil, /if \(!\(await gibTicketFrei\(token, channel, status, jetzt\)\)\)/);
-  assert.match(lies("lib/support.ts"), /fields: mitStatus\(ohneUebernahme\(felder, jetzt\), status\)/);
+  // Seit 18d als reine Regel: freigabeFelder in lib/support-ablauf.ts.
+  assert.match(lies("lib/support-ablauf.ts"), /return zustandDerKarte\(felder\) === "closed" \? null : mitStatus\(ohneUebernahme\(felder, jetzt\), status\);/);
   // In der Anleitung in #willkommen steht es auch (lib/willkommen.ts).
   const w: any = await import("../lib/willkommen.ts");
   const support = w.ANLEITUNGEN.find((x: { titel: string }) => x.titel.includes("Support-Chat"));

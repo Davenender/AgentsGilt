@@ -207,6 +207,53 @@ export function wiederOffenFelder(felder: Feld[] | undefined, jetzt: number): Fe
   return f.map((x) => (x.name === "Status" ? { ...x, value: WIEDER_OFFEN } : x));
 }
 
+// ------------------------------------------------------------------ Übernehmen, Freigeben, Schließen an der Karte
+
+/** Status-Feld setzen. */
+export const mitStatus = (felder: Feld[], status: string) => felder.map((f) => (f.name === "Status" ? { ...f, value: status } : f));
+
+export const SCHON_UEBERNOMMEN = "Du hast das Ticket schon übernommen.";
+/** Das Schließen der Karte scheiterte (Prompt 18d): Der Kanal ist vielleicht schon umbenannt, die Karte noch nicht. */
+export const KARTE_NICHT_ZU = "Die Karte ließ sich nicht schließen – drück bitte noch einmal ‚Ticket schließen‘.";
+
+export type UebernahmeSchritt = { art: "schreiben"; fields: Feld[] } | { art: "schon" } | { art: "anderer"; id: string } | { art: "zu" };
+/**
+ * Was Übernehmen mit der frisch gelesenen Karte tut (lib/support.ts, uebernimmTicket). Steht schon dieselbe Person
+ * drin (Doppelklick, Prompt 18d): nichts schreiben, nichts posten („schon“). Hat ein anderer übernommen: „anderer“.
+ */
+export function uebernahmeSchritt(felder: Feld[], wer: { id: string; tag: string; zeit: string }, jetzt: number, aktiv?: Aktiv): UebernahmeSchritt {
+  if (zustandDerKarte(felder) === "closed") return { art: "zu" };
+  const da = uebernehmerDerKarte(felder, aktiv);
+  if (da === wer.id) return { art: "schon" };
+  if (da) return { art: "anderer", id: da };
+  return { art: "schreiben", fields: mitStatus(mitUebernahme(felder, wer.id, jetzt), `Übernommen von ${wer.tag} um ${wer.zeit}`) };
+}
+
+/** Freigeben: die neuen Felder (null auf einer geschlossenen Karte). */
+export function freigabeFelder(felder: Feld[], status: string, jetzt: number): Feld[] | null {
+  return zustandDerKarte(felder) === "closed" ? null : mitStatus(ohneUebernahme(felder, jetzt), status);
+}
+/**
+ * Steht das Freigeben (Nachsehen nach dem Schreiben)? Ja, wenn niemand mehr übernommen hat und der Status stimmt,
+ * oder (Prompt 18d) wenn inzwischen jemand anderes als der Freigebende übernommen hat: Dann hat das Freigeben
+ * geklappt, und es wird nicht noch einmal geschrieben. Nur wenn der Freigebende wieder drinsteht (eine ältere Karte
+ * wurde zurückgeschrieben), ist die Änderung weg.
+ */
+export function freigabeSteht(felder: Feld[], status: string, bisher: string | null): boolean {
+  const von = leseAblauf(felder).von ?? uebernehmerDerKarte(felder);
+  if (von) return von !== bisher;
+  return felder.find((f) => f.name === "Status")?.value === status;
+}
+
+/**
+ * „Ticket schließen“ an der Karte (Prompt 18d): Ist der Kanal schon umbenannt, die Karte aber nicht geschlossen
+ * (das Schließen der Karte scheiterte), schließt ein zweiter Klick nur noch die Karte.
+ */
+export function schliessenSchritt(kanalGeschlossen: boolean, felder: Feld[]): "schon-zu" | "nur-karte" | "alles" {
+  if (!kanalGeschlossen) return "alles";
+  return zustandDerKarte(felder) === "closed" ? "schon-zu" : "nur-karte";
+}
+
 // ------------------------------------------------------------------ Nachrichten im Kanal
 
 /** Die Warnung im Kanal, wenn jemand schreibt, der das Ticket nicht übernommen hat (ohne den Text der Nachricht). */
