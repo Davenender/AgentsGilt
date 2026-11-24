@@ -137,6 +137,12 @@ test("2: Ticket ohne „Prüfung ab“ (von vor Prompt 18): nichts wird gelösch
   assert.deepEqual(weg, fremd.slice(0, 5).map((m) => m.id));
   const ab = await ablauf();
   assert.equal(ab.MAX_LOESCHEN, 5);
+  // Im nächsten Durchgang die übrigen drei, obwohl jetzt fünf Warnungen an dieselbe Person jünger sind (gefunden im
+  // Ablauftest mit nachgestelltem Discord: vorher blieben sie für immer stehen).
+  const warnungen = fremd.slice(0, 5).map((_, n) => ({ id: idZu(T0 + 70_000, n), content: ab.fremdWarnung(MIJO, JAKOB), author: { bot: true } }));
+  const rest = await loeschtDerTakt([...fremd.slice(5), ...warnungen], neu);
+  assert.deepEqual(rest, fremd.slice(5).map((m) => m.id));
+  assert.ok(ab.zumLoeschen([...fremd.slice(5), ...warnungen], neu).every((x: { gewarnt: boolean }) => x.gewarnt), "schon gewarnt: bei gescheitertem Löschen keine neue Warnung");
 });
 
 // ------------------------------------------------------------------ 3: Freigeben, Übernehmer nicht mehr im Team
@@ -197,11 +203,14 @@ test("4a: Doppelklick auf „Noch Fragen?“ oder „Abschluss“: der zweite si
   assert.equal(ab.schonGesendet("nachgefragt", nachgefragt, [kunde("Ja, eine noch", T0 + 20_000)]), false, "nach einer Antwort darf man wieder fragen");
   assert.equal(ab.schonGesendet("abschluss", { nachgefragt: T0, abschluss: T0 + 60_000 }, []), true);
   assert.equal(ab.schonGesendet("abschluss", { nachgefragt: T0 }, []), false);
+  // Der Kunde schrieb in derselben Sekunde kurz vor dem Klick (gefunden im Ablauftest): zählt nicht als Antwort.
+  const klick = T0 + 400;
+  assert.equal(ab.schonGesendet("nachgefragt", { nachgefragt: ab.aufSekunde(klick) }, [kunde("Danke, das hilft mir!", klick - 200)]), true);
   // Erst an der Karte vermerken, dann senden; zwei Klicks in derselben Instanz: der zweite wartet nicht.
   const h = lies("lib/ticket-handler.ts");
   const einmal = h.slice(h.indexOf("const sendeEinmal = async"), h.indexOf("if (id === NOCH_FRAGEN_ID)"));
   assert.ok(einmal.indexOf("if (!beginne(schluessel, jetzt)) return SCHON_GESENDET;") >= 0);
-  assert.ok(einmal.indexOf("await aendereAblauf(token, channel, { [art]: jetzt })") < einmal.indexOf("await postAnKunde(token, channel, who, satz)"));
+  assert.ok(einmal.indexOf("await aendereAblauf(token, channel, { [art]: aufSekunde(jetzt) })") < einmal.indexOf("await postAnKunde(token, channel, who, satz)"));
   assert.match(h, /const IMMER_SPAETER = new Set\(\[NOCH_FRAGEN_ID, ABSCHLUSS_ID\]\);/);
 });
 

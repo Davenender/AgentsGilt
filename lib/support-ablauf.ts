@@ -218,23 +218,28 @@ export function pruefbar(felder: Feld[] | undefined, zeit: number): boolean {
 }
 
 /**
- * Was der Minutentakt löscht: fremde, neue, nie zugestellte Nachrichten (pruefbar), die noch keine Warnung haben,
- * älteste zuerst, höchstens 5 je Durchgang.
+ * Was der Minutentakt löscht: fremde, neue, nie zugestellte Nachrichten (pruefbar), die noch im Kanal stehen,
+ * älteste zuerst, höchstens 5 je Durchgang (die übrigen im nächsten). `gewarnt`: Nach ihr steht schon eine Warnung an
+ * dieselbe Person. Das zählt nur, wenn das Löschen scheitert (fehlendes Recht): dann nicht jede Minute neu warnen.
+ * Löschen hindert es nicht (sonst blieben nach fünf gelöschten die übrigen stehen, weil deren Warnungen jünger sind).
  */
 export function zumLoeschen(
   nachrichten: { id: string; content?: string; author: { id?: string; bot?: boolean } }[],
   felder: Feld[] | undefined,
-): { id: string; autor: string }[] {
+): { id: string; autor: string; gewarnt: boolean }[] {
   const uebernehmer = uebernehmerDerKarte(felder);
   const seit = leseAblauf(felder).uebernommen ?? 0;
   const warnungen = nachrichten.filter((m) => m.author.bot && istFremdWarnung(m.content));
   return nachrichten
     .filter((m) => !m.author.bot && pruefbar(felder, zeitAusId(m.id)))
     .filter((m) => artDerTeamNachricht({ id: m.id, text: (m.content ?? "").trim(), autor: m.author.id ?? "" }, uebernehmer, seit) === "fremd")
-    .filter((m) => !warnungen.some((w) => zeitAusId(w.id) >= zeitAusId(m.id) && (w.content ?? "").startsWith(`<@${m.author.id}>`)))
     .sort((a, b) => zeitAusId(a.id) - zeitAusId(b.id))
     .slice(0, MAX_LOESCHEN)
-    .map((m) => ({ id: m.id, autor: m.author.id ?? "" }));
+    .map((m) => ({
+      id: m.id,
+      autor: m.author.id ?? "",
+      gewarnt: warnungen.some((w) => zeitAusId(w.id) >= zeitAusId(m.id) && (w.content ?? "").startsWith(`<@${m.author.id}>`)),
+    }));
 }
 
 // ------------------------------------------------------------------ Abschluss

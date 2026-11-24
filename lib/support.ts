@@ -374,6 +374,8 @@ export async function relayMessages(
 export interface Fremd {
   id: string;
   autor: string;
+  /** Steht nach ihr schon eine Warnung (Minutentakt)? Dann bei gescheitertem Löschen nicht noch einmal warnen. */
+  gewarnt?: boolean;
 }
 
 // Schon gelöschte oder gewarnte fremde Nachrichten (je Instanz, für alle Schnittstellen dieses Prozesses):
@@ -395,7 +397,13 @@ export async function loescheFremde(token: string, channelId: string, fremd: Fre
   const warnungen: string[] = [];
   for (const f of neu) {
     const weg = await loescheNachricht(token, channelId, f.id);
-    if (!weg) console.error(`[support] Fremde Nachricht nicht gelöscht (Recht „Nachrichten verwalten“?)`);
+    if (!weg) {
+      // Schon weg (ein anderer Abruf war schneller): keine zweite Warnung. Steht sie noch da, fehlt das Recht
+      // „Nachrichten verwalten“: einmal warnen, nicht jede Minute neu.
+      const noch = await call<{ id: string }>(token, "GET", `/channels/${channelId}/messages/${f.id}`);
+      if (!noch || f.gewarnt) continue;
+      console.error(`[support] Fremde Nachricht nicht gelöscht (Recht „Nachrichten verwalten“?)`);
+    }
     const w = await call<{ id: string }>(token, "POST", `/channels/${channelId}/messages`, {
       content: fremdWarnung(f.autor, uebernehmer),
       allowed_mentions: { parse: [], users: f.autor ? [f.autor] : [] },

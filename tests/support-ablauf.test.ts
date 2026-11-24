@@ -183,7 +183,7 @@ test("„Noch Fragen?“ und „Abschluss“: fester Satz als 💬-Nachricht im 
   assert.match(ab, /ersetzeDaten\(\{ content: abschlussGesendetText\(ownerTag, time\), components: \[\] \}\)/);
   assert.doesNotMatch(ab, /fensterDaten/);
   const einmal = h.slice(h.indexOf("const sendeEinmal = async"), h.indexOf("if (id === NOCH_FRAGEN_ID)"));
-  assert.ok(einmal.indexOf("await aendereAblauf(token, channel, { [art]: jetzt })") < einmal.indexOf("await postAnKunde(token, channel, who, satz)"), "erst vermerken, dann senden");
+  assert.ok(einmal.indexOf("await aendereAblauf(token, channel, { [art]: aufSekunde(jetzt) })") < einmal.indexOf("await postAnKunde(token, channel, who, satz)"), "erst vermerken, dann senden");
   assert.match(lies("lib/support.ts"), /content: `\$\{FOR_CUSTOMER\} \*\*\$\{wer\}:\*\* \$\{text\}`/);
 });
 

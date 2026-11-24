@@ -88,6 +88,7 @@ import {
   abschlussErlaubt,
   abschlussGesendetText,
   andererHat,
+  aufSekunde,
   freiStatus,
   freigegebenStatus,
   kundeSchriebSeit,
@@ -441,7 +442,9 @@ async function entscheide(f: Fall, karte: Karte): Promise<Entscheid> {
         const darf = abschlussErlaubt(a, kundeSchriebSeit(nachrichten, a.nachgefragt ?? 0), jetzt);
         if (!darf.ok) return darf.meldung;
       }
-      if (!(await aendereAblauf(token, channel, { [art]: jetzt }))) return NICHT_GEKLAPPT;
+      // Auf die volle Sekunde aufgerundet (die Karte speichert Sekunden): Was der Kunde in derselben Sekunde kurz vor
+      // dem Klick schrieb, zählt nicht als „seitdem geschrieben“ (sonst ginge „Noch Fragen?“ ein zweites Mal hinaus).
+      if (!(await aendereAblauf(token, channel, { [art]: aufSekunde(jetzt) }))) return NICHT_GEKLAPPT;
       if (!(await postAnKunde(token, channel, who, satz))) {
         await aendereAblauf(token, channel, { [art]: a[art] ?? null });
         return "Die Nachricht ging nicht hinaus. Bitte gleich nochmal versuchen.";
