@@ -219,3 +219,30 @@ test("person_merken: Name plus wer, offen oder erledigt", async () => {
   const w = (LUCA_WERKZEUGE as unknown as { function?: { name?: string; description?: string } }[]).find((x) => x.function?.name === "person_merken");
   assert.match(w?.function?.description ?? "", /nur Davids eigene Angaben/);
 });
+
+// Telefon-Luca (26.11.2026, Davids „kannst du machen“): Termine verschieben (auch auf einen anderen Tag) und löschen –
+// bei Serien wie Gym nur an diesem Tag; immer erst nach Davids Ja.
+test("privattermin_aendern: verschieben (auch anderer Tag) und löschen, nur mit Ja", async () => {
+  const { briefAus, LUCA_WERKZEUGE } = await import("../lib/luca-logik.ts");
+  assert.deepEqual(
+    briefAus("privattermin_aendern", { aktion: "verschieben", titel: "Gym", datum: "2026-11-26", uhrzeit: "19:00", bestaetigt: true }, ""),
+    { typ: "alltag", was: "verschieben", titel: "Gym", datum: "2026-11-26", uhrzeit: "19:00" },
+  );
+  assert.deepEqual(
+    briefAus("privattermin_aendern", { aktion: "verschieben", titel: "Biologie Klausur", datum: "2026-11-26", uhrzeit: "15:30", bis: "17:00", neuer_tag: "2026-11-27", bestaetigt: true }, ""),
+    { typ: "alltag", was: "verschieben", titel: "Biologie Klausur", datum: "2026-11-26", uhrzeit: "15:30", bis: "17:00", neuerTag: "2026-11-27" },
+  );
+  assert.deepEqual(
+    briefAus("privattermin_aendern", { aktion: "loeschen", titel: "Kino mit Lukas", datum: "2026-11-28", bestaetigt: true }, ""),
+    { typ: "alltag", was: "loeschen", titel: "Kino mit Lukas", datum: "2026-11-28" },
+  );
+  assert.deepEqual(
+    briefAus("privattermin_aendern", { aktion: "loeschen", titel: "Mathe", datum: "2026-11-27", uhrzeit: "13:55", bestaetigt: true }, ""),
+    { typ: "alltag", was: "loeschen", titel: "Mathe", datum: "2026-11-27", uhrzeit: "13:55" },
+  );
+  assert.equal(briefAus("privattermin_aendern", { aktion: "loeschen", titel: "Kino", datum: "2026-11-28" }, ""), null); // ohne Ja nichts
+  assert.equal(briefAus("privattermin_aendern", { aktion: "verschieben", titel: "Gym", datum: "heute", bestaetigt: true }, ""), null); // ohne neue Uhrzeit nichts
+  assert.equal(briefAus("privattermin_aendern", { aktion: "umbenennen", titel: "Gym", datum: "heute", bestaetigt: true }, ""), null);
+  const w = LUCA_WERKZEUGE.find((x) => x.function.name === "privattermin_aendern");
+  assert.ok(w && /nur an diesem (einen )?Tag/.test(w.function.description) && /Ja/.test(w.function.description));
+});
