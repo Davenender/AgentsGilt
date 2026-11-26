@@ -34,5 +34,5 @@ export async function GET(req: Request) {
   await fetch(`${API}/applications/${app.id}/role-connections/metadata`, { method: "PUT", headers: { authorization: `Bot ${token}`, "content-type": "application/json" }, body: JSON.stringify(METADATEN) }).catch(() => null);
   const gesetzt = await fetch(`${API}/users/@me/applications/${app.id}/role-connection`, { method: "PUT", headers: { ...bearer, "content-type": "application/json" }, body: JSON.stringify(verbindung) }).catch(() => null);
   if (!gesetzt?.ok) return html("Nicht geklappt", `Discord hat die Verbindung nicht angenommen (${gesetzt?.status ?? "keine Antwort"}).`, 502);
-  return html("Verknüpft ✓", "In Discord steht jetzt unter Profil → Verknüpfungen „Agents Gilt · Founder“. Das kann ein paar Sekunden dauern.");
+  return html("Verknüpft ✓", "In Discord steht jetzt unter Profil → Verknüpfungen „Agents Gilt · Founder & CEO“. Das kann ein paar Sekunden dauern.");
 }

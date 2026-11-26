@@ -9,7 +9,7 @@ export const RUECKRUF = "https://agentsgilt.com/api/discord/verknuepfen/rueckruf
 export const STATE_COOKIE = "ag_dc_verknuepfen";
 
 /** Was im Profil steht (Titel und Zeile neben dem Logo) */
-export const VERKNUEPFUNG = { platform_name: "Agents Gilt", platform_username: "Agents Gilt · Founder" };
+export const VERKNUEPFUNG = { platform_name: "Agents Gilt", platform_username: "Agents Gilt · Founder & CEO" };
 /** Ein Merkmal, damit Discord die App als Verbindung mit verknüpfter Rolle führt (7 = Ja/Nein „ist gleich“) */
 export const METADATEN = [{ type: 7, key: "founder", name: "Founder", description: "Gründer von Agents Gilt" }];
 

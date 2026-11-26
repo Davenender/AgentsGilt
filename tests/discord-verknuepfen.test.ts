@@ -13,8 +13,8 @@ test("Anmelde-Adresse: richtige Rechte, Rückruf und state", () => {
   assert.equal(u.searchParams.get("response_type"), "code");
 });
 
-test("nur David bekommt die Verbindung „Agents Gilt · Founder“", () => {
-  assert.deepEqual(rollenVerbindung(DAVID_DISCORD_ID), { platform_name: "Agents Gilt", platform_username: "Agents Gilt · Founder", metadata: { founder: "1" } });
+test("nur David bekommt die Verbindung „Agents Gilt · Founder & CEO“", () => {
+  assert.deepEqual(rollenVerbindung(DAVID_DISCORD_ID), { platform_name: "Agents Gilt", platform_username: "Agents Gilt · Founder & CEO", metadata: { founder: "1" } });
   assert.equal(rollenVerbindung("123"), null);
 });
 
