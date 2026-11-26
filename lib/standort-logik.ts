@@ -84,6 +84,11 @@ export function neuerStand(alt: StandortSpeicher, n: OwnTracks): StandortSpeiche
   return s;
 }
 
+/** 26.11.: Nur schreiben, wenn sich etwas ändert – jedes Schreiben zählt bei Discord gegen die Bremse. */
+export function schreibenNoetig(alt: StandortSpeicher, neu: StandortSpeicher): boolean {
+  return Boolean(alt.orteNeu) || JSON.stringify(neu) !== JSON.stringify(alt);
+}
+
 const SEKUNDEN_FRISCH = 2 * 3600;
 export function standortText(s: Standort | null, jetzt: Date): string {
   if (!s) return "Davids Standort ist nicht bekannt.";
@@ -91,7 +96,7 @@ export function standortText(s: Standort | null, jetzt: Date): string {
   const min = Math.round(alter / 60);
   const wann = min < 2 ? "gerade eben" : min < 90 ? `vor ${min} Minuten` : `vor ${Math.round(min / 60)} Stunden`;
   const wo = s.ort ?? `bei ${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`;
-  return alter > SEKUNDEN_FRISCH ? `Davids letzter bekannter Standort: ${wo} (${wann}). Das ist schon älter, frag ihn im Zweifel.` : `David ist gerade hier: ${wo} (gemeldet ${wann}).`;
+  return alter > SEKUNDEN_FRISCH ? `Davids letzter bekannter Standort: ${wo} (${wann}). Sein iPhone meldet sich nur, wenn er sich bewegt – er ist also sehr wahrscheinlich noch dort. Zweifle das nicht an und frag nicht nach, wo er ist.` : `David ist gerade hier: ${wo} (gemeldet ${wann}).`;
 }
 
 const schluessel = (geheim: string) => createHash("sha256").update(`standort:${geheim}`).digest();

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { gleich, holeStandortSpeicher, schreibeStandortSpeicher, STANDORT_BENUTZER, standortPasswort } from "@/lib/luca";
 import { ortsname } from "@/lib/luca-unterwegs";
-import { abstandM, leseOwnTracks, neuerStand, wegpunkteBefehl } from "@/lib/standort-logik";
+import { abstandM, leseOwnTracks, neuerStand, schreibenNoetig, wegpunkteBefehl } from "@/lib/standort-logik";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +33,8 @@ export async function POST(req: Request) {
   const alt = await holeStandortSpeicher();
   if (n.art === "ort" && alt.standort && !alt.orteNeu && n.standort.tst - alt.standort.tst < SELTEN_S && abstandM(alt.standort, n.standort) < SELTEN_M) return NextResponse.json([]);
   let neu = neuerStand(alt, n);
+  // 26.11.: nachgereichte ältere Meldung oder doppelter Übergang – nichts zu schreiben, die App bekommt trotzdem ihr OK
+  if (!schreibenNoetig(alt, neu)) return NextResponse.json([]);
   if (neu.standort && !neu.standort.ort && neu.standort !== alt.standort) {
     const name = await ortsname(neu.standort.lat, neu.standort.lon);
     if (name) neu = { ...neu, standort: { ...neu.standort, ort: name } };

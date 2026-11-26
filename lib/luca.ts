@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { findChannelId } from "@/lib/discord";
+import { mitWarten } from "@/lib/discord-warten";
 import { listeKunden } from "@/lib/notion-api";
 import { entschluessele, LEERER_SPEICHER, packe, passendKlein, setzeOrteNoetig, standortText, wegNeu, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
 import {
@@ -113,14 +114,8 @@ export async function lucaKanal(): Promise<string | null> {
 }
 
 async function nachrichten(kanal: string, limit = 100): Promise<Nachricht[]> {
-  const hole = () => fetch(`${DISCORD}/channels/${kanal}/messages?limit=${limit}`, { headers: kopf(), cache: "no-store", signal: AbortSignal.timeout(6000) });
-  let res = await hole();
-  // Discord bremst: kurz warten und einmal neu versuchen, statt mitten im Gespräch aufzugeben
-  if (res.status === 429) {
-    const warte = Number(((await res.json().catch(() => ({}))) as { retry_after?: number }).retry_after) || 1;
-    await new Promise((r) => setTimeout(r, Math.min(3, warte) * 1000 + 100));
-    res = await hole();
-  }
+  // Discord bremst: warten und neu versuchen, statt mitten im Gespräch aufzugeben
+  const res = await mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages?limit=${limit}`, { headers: kopf(), cache: "no-store", signal: AbortSignal.timeout(6000) }));
   if (!res.ok) throw new Error(`Discord HTTP ${res.status}`);
   return (await res.json()) as Nachricht[];
 }
@@ -364,8 +359,21 @@ const geheimnis = () => process.env.HELFER_SECRET?.trim() ?? "";
 export const standortPasswort = () => abgeleitet("luca-standort", 32);
 export const STANDORT_BENUTZER = "david";
 
+// 26.11.: Die Standort-Nachricht merken – dann holt jede Meldung nur diese eine Nachricht statt der letzten 100
+const sn = globalThis as unknown as { __standortNachricht?: string };
 async function standortNachricht(kanal: string): Promise<Nachricht | null> {
-  return (await nachrichten(kanal)).find((m) => istUnsere(m) && m.content.startsWith(STANDORT_MARKE)) ?? null;
+  const id = sn.__standortNachricht;
+  if (id) {
+    const res = await mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages/${id}`, { headers: kopf(), cache: "no-store", signal: AbortSignal.timeout(6000) }));
+    if (res.ok) {
+      const m = (await res.json()) as Nachricht;
+      if (istUnsere(m) && m.content.startsWith(STANDORT_MARKE)) return m;
+    } else if (res.status !== 404) throw new Error(`Discord HTTP ${res.status}`);
+    sn.__standortNachricht = undefined;
+  }
+  const m = (await nachrichten(kanal)).find((x) => istUnsere(x) && x.content.startsWith(STANDORT_MARKE)) ?? null;
+  if (m) sn.__standortNachricht = m.id;
+  return m;
 }
 
 /** Eine einzige Bot-Nachricht in #luca, verschlüsselt: nur der letzte Stand, Discord sieht keine Koordinaten. */
@@ -392,7 +400,8 @@ export async function schreibeStandortSpeicher(s: StandortSpeicher): Promise<boo
   const content = text(klein);
   const alt = await standortNachricht(kanal);
   if (alt) {
-    const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, { method: "PATCH", headers: kopf(), body: JSON.stringify({ content, allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(6000) });
+    // 26.11.: bremst Discord, warten und erneut versuchen (vorher gleich 503 → das iPhone hielt alles Weitere zurück)
+    const res = await mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, { method: "PATCH", headers: kopf(), body: JSON.stringify({ content, allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(6000) }));
     return res.ok;
   }
   return Boolean(await poste(kanal, content));
