@@ -47,6 +47,7 @@ test("Tipp-Antwort der KI streng lesen: nur feststeckend und nur eine Lektion au
   assert.equal(pruefeTipp({ fest: true, lektion: "9.9", tipp: "x" }, erlaubt), null);
   assert.equal(pruefeTipp(null, erlaubt), null);
   assert.match(TIPP_PROMPT, /im Kreis/);
+  assert.match(TIPP_PROMPT, /verabschiedet.*kein Tipp mehr/s);
   assert.match(TIPP_PROMPT, /\{LEKTIONEN\}/);
 });
 

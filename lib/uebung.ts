@@ -183,7 +183,7 @@ export function tippFaellig(msgs: Nachricht[], start: string): boolean {
   return seit >= TIPP_ABSTAND;
 }
 
-export const TIPP_PROMPT = `Du bist Verkaufstrainer bei Agents Gilt und schaust bei einer Übung zu: Jemand aus dem Team führt ein Gespräch mit einem gespielten Kunden. Entscheide, ob die Person gerade feststeckt: Sie dreht sich im Kreis, wiederholt dasselbe Argument, kommt bei einem Einwand nicht weiter, oder der Kunde wird immer abweisender. Läuft es ordentlich, steckt sie nicht fest.
+export const TIPP_PROMPT = `Du bist Verkaufstrainer bei Agents Gilt und schaust bei einer Übung zu: Jemand aus dem Team führt ein Gespräch mit einem gespielten Kunden. Entscheide, ob die Person gerade feststeckt: Sie dreht sich im Kreis, wiederholt dasselbe Argument, kommt bei einem Einwand nicht weiter, oder der Kunde wird immer abweisender. Läuft es ordentlich, steckt sie nicht fest. Hat sich der Kunde schon verabschiedet oder ist ein nächster Schritt vereinbart, ist das Gespräch vorbei: dann kein Tipp mehr ("fest": false) – ein Tipp hilft nur, solange die Person noch etwas ändern kann.
 
 Steckt sie fest, wähle genau EINE Lektion aus <lektionen>, die ihr jetzt am meisten hilft, und schreib einen kurzen Satz auf Deutsch, was jetzt helfen würde – ein Denkanstoß, nicht die fertige Antwort.
 
