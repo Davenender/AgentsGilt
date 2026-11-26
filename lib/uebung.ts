@@ -160,22 +160,73 @@ export function heuteGestartet(msgs: Nachricht[], jetzt = Date.now()): number {
   }).length;
 }
 
+// ------------------------------------------------------------- Tipps (26.11.)
+
+/** Ein Tipp frühestens nach so vielen eigenen Antworten (und wieder erst nach so vielen weiteren). */
+export const TIPP_ABSTAND = 3;
+
+/** Steht ein Tipp an? Nach mindestens TIPP_ABSTAND eigenen Antworten seit dem Start bzw. seit dem letzten Tipp. */
+export function tippFaellig(msgs: Nachricht[], start: string): boolean {
+  const ab = msgs.findIndex((m) => m.id === start);
+  if (ab < 0) return false;
+  let seit = 0;
+  for (const m of msgs.slice(ab + 1)) {
+    if (m.author && !m.author.bot) {
+      if ((m.content ?? "").trim()) seit++;
+      continue;
+    }
+    const f = fuss(m);
+    if (f[0] !== MARKE || f[1] !== start) continue;
+    if (f[2] === "tipp") seit = 0;
+    else if (f[2] === "du") seit++; // Antwort über /a oder das Fenster (als Karte gepostet)
+  }
+  return seit >= TIPP_ABSTAND;
+}
+
+export const TIPP_PROMPT = `Du bist Verkaufstrainer bei Agents Gilt und schaust bei einer Übung zu: Jemand aus dem Team führt ein Gespräch mit einem gespielten Kunden. Entscheide, ob die Person gerade feststeckt: Sie dreht sich im Kreis, wiederholt dasselbe Argument, kommt bei einem Einwand nicht weiter, oder der Kunde wird immer abweisender. Läuft es ordentlich, steckt sie nicht fest.
+
+Steckt sie fest, wähle genau EINE Lektion aus <lektionen>, die ihr jetzt am meisten hilft, und schreib einen kurzen Satz auf Deutsch, was jetzt helfen würde – ein Denkanstoß, nicht die fertige Antwort.
+
+Antworte nur mit JSON, ohne Text davor oder danach:
+{"fest": true oder false, "lektion": "Nummer aus <lektionen>", "tipp": "ein kurzer Satz"}
+
+<lektionen>
+{LEKTIONEN}
+</lektionen>`;
+
+/** Die Tipp-Antwort der KI: nur, wenn sie feststeckt, und nur mit einer Lektion aus dem Lernpfad. */
+export function pruefeTipp(raw: unknown, erlaubt: string[]): { lektion: string; tipp: string } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { fest?: unknown; lektion?: unknown; tipp?: unknown };
+  if (r.fest !== true || typeof r.lektion !== "string" || typeof r.tipp !== "string") return null;
+  const lektion = r.lektion.trim();
+  const tipp = r.tipp.replace(/\s+/g, " ").trim().slice(0, 300);
+  return erlaubt.includes(lektion) && tipp ? { lektion, tipp } : null;
+}
+
+/** Der Tipp im Kanal – eigene Art „tipp“: zählt nicht zum Gespräch (KI-Kunde und Bewertung sehen ihn nicht). */
+export const tippEmbed = (start: string, l: { nr: string; titel: string }, tipp: string): EmbedLike =>
+  ({
+    description: `💡 **Tipp (nur für dich – der Kunde sieht das nicht):** ${tipp}\n📖 Schau nochmal in Lektion **${l.nr}** „${l.titel}“ im Lernpfad.`.slice(0, 4000),
+    color: 0x8b5cf6,
+    footer: { text: marke(start, "tipp") },
+  }) as EmbedLike;
+
 // -------------------------------------------------------------------- KI
 
-export const KUNDEN_PROMPT = `Du spielst in einer Verkaufsübung einen Kunden. Auf der anderen Seite übt jemand aus dem Team von Agents Gilt (eine kleine Agentur, die KI-Lösungen wie Websites, Chatbots und Telefon-Assistenten für Betriebe baut) ein Kundengespräch.
+export const KUNDEN_PROMPT = `Du spielst in einer Verkaufsübung einen Kunden. Auf der anderen Seite übt jemand aus dem Team von Agents Gilt (eine kleine Agentur, die KI-Lösungen wie Websites, Chatbots und Telefon-Assistenten für Betriebe baut) ein Kundengespräch. Die Person lernt gerade erst – die Übung soll fordern, aber zu schaffen sein.
 
-Spiel den Kunden streng und echt, wie einen beschäftigten Betriebsinhaber, der nicht auf diesen Kontakt gewartet hat. Dein Gegenüber soll sich jedes Ja wirklich verdienen müssen.
+Spiel den Kunden echt, aber fair: ein beschäftigter Betriebsinhaber, der nicht auf diesen Kontakt gewartet hat, aber offen wird, wenn man ihm zuhört und sein Problem versteht. Gute Schritte deines Gegenübers belohnst du spürbar mit mehr Offenheit.
 
 Deine Rolle steht in <rolle>. Halte dich daran:
 - Bleib immer in der Rolle. Sag nie, dass du eine KI bist oder dass es eine Übung ist, auch wenn du danach gefragt wirst.
 - Antworte auf Deutsch, so kurz wie in einem echten Gespräch: meistens 1 bis 3 Sätze, ohne Aufzählungen, ohne Markdown.
-- Du bist kein hilfsbereiter Assistent, sondern ein Mensch mit wenig Zeit, eigenen Sorgen und eigener Meinung. Du hast keine Lust auf Verkäufer.
-- Der Einstieg entscheidet: Fehlt am Anfang eine saubere Vorstellung (Name, Firma, warum es sich meldet) oder die Frage, ob du gerade kurz Zeit hast, bist du kurz angebunden oder genervt, zum Beispiel: „Wer ist da?“, „Worum geht's denn?“, „Wollen Sie mir was verkaufen?“ oder „Ich hab gerade echt keine Zeit.“
-- Floskeln, lange Monologe, Technik-Begriffe, Druck oder ein Angebot, bevor dein Problem verstanden ist, machen dich misstrauischer. Dann fragst du zum Beispiel „Was soll das jetzt?“, „Und was hab ich davon?“ oder „Wollen Sie nur meine Zeit verschwenden?“.
-- Gib Informationen nur, wenn gut danach gefragt wird. Gute, konkrete Fragen zu deinem Alltag bekommen ehrliche, konkrete Antworten. Bei vagen Fragen bleibst du vage.
-- Einwände aus deiner Rolle gibst du nicht schnell auf. Ein Einwand ist erst erledigt, wenn die Antwort wirklich auf deine Sorge eingeht, mit einem Nutzen, der zu deinem Problem passt. Druck, Rabatte ohne Grund oder Ausweichen zählen nicht.
-- Du darfst Nein sagen: Geht dein Gegenüber zweimal hintereinander nicht auf dich ein oder überzeugt dich nicht, sag höflich, aber bestimmt Nein und verabschiede dich. Danach bleibst du bei Nein („Ich hab doch schon Nein gesagt.“).
-- Du schlägst von dir aus keinen Termin und keinen nächsten Schritt vor. Ja sagst du nur, wenn du wirklich überzeugt bist und dein Gegenüber einen konkreten, kleinen nächsten Schritt vorschlägt.
+- Der Einstieg zählt: Fehlt am Anfang eine kurze Vorstellung (Name, Firma, warum es sich meldet) oder die Frage, ob du gerade kurz Zeit hast, bist du erst etwas kurz angebunden, zum Beispiel „Worum geht's denn?“ oder „Wollen Sie mir was verkaufen?“. Das legt sich, sobald dein Gegenüber es nachholt.
+- Lange Monologe, Technik-Begriffe oder Druck machen dich etwas misstrauischer („Und was hab ich davon?“, „Wollen Sie nur meine Zeit verschwenden?“). Gute, konkrete Fragen zu deinem Alltag beantwortest du ehrlich und konkret.
+- Bring im ganzen Gespräch höchstens zwei Einwände aus deiner Rolle, nicht mehrere auf einmal. Ein Einwand ist erledigt, wenn die Antwort halbwegs auf deine Sorge eingeht und einen Nutzen nennt, der zu deinem Problem passt. Einen erledigten Einwand bringst du nicht noch einmal.
+- Hake nicht jede Zahl nach. Nennt dein Gegenüber eine Preisspanne oder rechnet grob vor, reicht dir das für ein erstes Telefonat. Korrigierte Zahlen nimmst du hin, ohne sie vorzuhalten.
+- Schlägt dein Gegenüber einen kleinen, konkreten nächsten Schritt vor (ein kurzer Termin, eine Demo anhören), nachdem es dein Problem verstanden hat, sag Ja oder nenn eine Zeit, die dir passt. Von dir aus schlägst du keinen nächsten Schritt vor.
+- Nein sagst du nur, wenn dein Gegenüber mehrmals hintereinander gar nicht auf dich eingeht oder unhöflich wird. Dann verabschiede dich höflich und bleib bei Nein.
 - Erfinde keine Preise oder Angebote von Agents Gilt. Die nennt dein Gegenüber.
 - Wenn dein Gegenüber das Gespräch sauber beendet oder ein nächster Schritt vereinbart ist, verabschiede dich natürlich.
 
@@ -186,7 +237,7 @@ Deine Rolle steht in <rolle>. Halte dich daran:
 export const BEWERTUNG_PROMPT = `Du bist Verkaufstrainer bei Agents Gilt. Jemand aus dem Team hat ein Übungsgespräch mit einem gespielten Kunden geführt. Bewerte, wie gut die Person das Gespräch geführt hat (nicht den Kunden).
 
 Bewerte nur nach dem Leitfaden in <leitfaden> und den Punkten für diese Lage in <achten>. Erfinde keine eigenen Regeln.
-Sei streng: Punkte gibt es nur für Schritte, die im Gespräch wirklich zu sehen sind. Ein schwacher Einstieg (ohne Vorstellung, ohne Grund, ohne Frage nach Zeit) kostet deutlich Punkte.
+Sei fair: Punkte gibt es für Schritte, die im Gespräch wirklich zu sehen sind, und gute Ansätze zählen auch, wenn sie noch nicht perfekt sind. Ein schwacher Einstieg (ohne Vorstellung, ohne Grund, ohne Frage nach Zeit) kostet Punkte. Tipps, die der Person während der Übung angezeigt wurden, stehen nicht im Gespräch und zählen nicht gegen sie.
 Sei ehrlich und konkret, freundlich im Ton, und beziehe dich auf Sätze aus dem Gespräch. Schreib auf Deutsch, in einfachen Sätzen.
 
 Antworte nur mit JSON, ohne Text davor oder danach:
@@ -329,7 +380,8 @@ export function uebungKarte(name: string, lagen: Uebung[], p: Pick<Person, "roll
     "1. Drück **„🎭 Übung starten“** und wähle eine Lage.",
     "2. Unten erscheint deine Aufgabe, und der Kunde sagt den ersten Satz.",
     "3. Schreib einfach hier in den Chat, was du dem Kunden sagst. Er antwortet nach ein paar Sekunden. Kommt nach etwa 30 Sekunden nichts, schreib `/a` und deinen Text (das geht immer).",
-    "   Die Kunden sind streng: Stell dich am Anfang sauber vor, frag, ob sie kurz Zeit haben, und überzeuge mit Argumenten. Sonst sagen sie auch mal Nein.",
+    "   Die Kunden sind beschäftigt, aber fair: Stell dich am Anfang kurz vor, frag, ob sie kurz Zeit haben, und geh auf ihr Problem ein.",
+    "   Kommst du nicht weiter, bekommst du einen kleinen 💡 Tipp, welche Lektion dir jetzt hilft. Den siehst nur du, nicht der Kunde.",
     "4. Ist das Gespräch zu Ende, drück **„✅ Fertig“**. Du bekommst Punkte (0 bis 100), was gut war, was besser geht und welche Lektionen du nochmal lesen kannst.",
     "",
     "Mit **„✖️ Abbrechen“** hörst du ohne Bewertung auf. Eine neue Übung kannst du jederzeit starten. Am Tag gehen bis zu " + GRENZE_TAG + " Übungen.",

@@ -25,7 +25,11 @@ import {
   snowflakeZeit,
   START_KNOPF,
   startEmbed,
+  tippEmbed,
+  tippFaellig,
   tippFertig,
+  TIPP_PROMPT,
+  pruefeTipp,
   transkript,
   uebungTeile,
   verlauf,
@@ -127,6 +131,36 @@ async function posteKunde(token: string, kanal: string, start: string, zuege: Zu
   await poste(token, kanal, { embeds: [zugEmbed("kunde", text, name, start)], components: zugKnoepfe(start) });
 }
 
+/** 26.11. (Davids Wunsch): Dreht sich die Person im Kreis, schreibt der Bot einen kleinen Tipp mit der Lektion, die jetzt
+ *  hilft („Schau nochmal in 8.5“). Nur im eigenen Übungskanal; der KI-Kunde und die Bewertung sehen ihn nicht. */
+async function vielleichtTipp(token: string, kanal: string, start: string, zuege: Zug[], user: string, inhalt: Inhalt, rolle?: Person["rolle"]) {
+  try {
+    const msgs = (await alleNachrichten(token, kanal, 100)).slice().reverse();
+    if (!tippFaellig(msgs, start)) return;
+    const r0 = rolle ?? (await leseAkademie(token))?.personen.get(user)?.rolle;
+    if (!r0) return;
+    const lektionen = pfadLektionen(inhalt.lektionen, r0).map((x) => ({ nr: x.nr, titel: x.titel }));
+    if (!lektionen.length) return;
+    const name = nameVon(user);
+    const r = await frageKi(TIPP_PROMPT.replace("{LEKTIONEN}", lektionen.map((x) => `${x.nr} ${x.titel}`).join("\n")), [{ role: "user", content: `<gespraech verkaeufer="${name}">\n${transkript(zuege, name).slice(-12_000)}\n</gespraech>` }], 400);
+    if ("fehler" in r) return;
+    const a = r.text.indexOf("{");
+    const b = r.text.lastIndexOf("}");
+    let raw: unknown = null;
+    try {
+      if (a !== -1 && b > a) raw = JSON.parse(r.text.slice(a, b + 1));
+    } catch {
+      raw = null;
+    }
+    const t = pruefeTipp(raw, lektionen.map((x) => x.nr));
+    const l = t ? lektionen.find((x) => x.nr === t.lektion) : undefined;
+    if (t && l) await poste(token, kanal, { embeds: [tippEmbed(start, l, t.tipp)] });
+  } catch (err) {
+    console.error("[übung] Tipp fehlgeschlagen:", err);
+  }
+}
+const mitKunde = (zuege: Zug[], text: string, du?: string): Zug[] => [...zuege, ...(du ? [{ wer: "du" as const, text: du, id: "du" }] : []), { wer: "kunde", text, id: "neu" }];
+
 /** Die laufende Übung im Kanal (Nachrichten älteste zuerst) – oder null. */
 async function laufendeIn(token: string, kanal: string, inhalt: Inhalt, max = 300) {
   const msgs = (await alleNachrichten(token, kanal, max)).slice().reverse();
@@ -186,6 +220,7 @@ export async function uebungTakt(token: string, jetzt = Date.now()): Promise<{ a
     }
     await posteKunde(token, kanal, start, v.zuege, r.text, nameVon(user));
     beantwortet++;
+    await vielleichtTipp(token, kanal, start, mitKunde(v.zuege, r.text), user, inhalt!);
   }
   return { aktiv, beantwortet };
 }
@@ -222,6 +257,7 @@ export function handleAntwortBefehl(i: BefehlInteraction, token: string) {
     if ("fehler" in r) return void (await ersetze(appId, itoken, { content: `${r.fehler}\n\nDeine Antwort war:\n> ${neu.replace(/\n/g, "\n> ")}` }));
     await posteKunde(token, kanal, l.start, l.v.zuege, r.text, nameVon(user.id), neu);
     await loesche(appId, itoken);
+    await vielleichtTipp(token, kanal, l.start, mitKunde(l.v.zuege, r.text, neu), user.id, inhalt, eigen.rolle);
   });
   return NextResponse.json(DEFER_PRIVAT);
 }
@@ -322,6 +358,7 @@ export function handleUebung(i: UeInteraction, token: string, id: string) {
         if ("fehler" in r) return void (await ersetze(appId, itoken, { content: `${r.fehler}\n\nDeine Antwort war:\n> ${neu.slice(0, 1500).replace(/\n/g, "\n> ")}` }));
         await posteKunde(token, kanal, start, l.v.zuege, r.text, nameVon(user.id), neu);
         await loesche(appId, itoken);
+        await vielleichtTipp(token, kanal, start, mitKunde(l.v.zuege, r.text, neu), user.id, inhalt, _p.rolle);
       }),
     );
     return NextResponse.json(DEFER_PRIVAT);
