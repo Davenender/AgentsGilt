@@ -10,10 +10,11 @@ const bot = (id: string, footer: string, description = "") => ({ id, content: ""
 const start = bot("10", "🎭 Übung · start · Ü1", "Aufgabe");
 const kunde = (id: string) => bot(id, "🎭 Übung · 10 · kunde", "Ja?");
 
-test("der KI-Kunde ist fair statt streng – Einstieg zählt weiter, aber kein Zerpflücken jeder Zahl", () => {
+test("der KI-Kunde ist fair statt streng – ruhig mehrere Einwände, aber überzeugbar; kein Zerpflücken jeder Zahl", () => {
   assert.doesNotMatch(KUNDEN_PROMPT, /jedes Ja wirklich verdienen/);
   assert.match(KUNDEN_PROMPT, /fair/);
-  assert.match(KUNDEN_PROMPT, /höchstens zwei Einwände/);
+  assert.match(KUNDEN_PROMPT, /immer nur einen auf einmal/);
+  assert.match(KUNDEN_PROMPT, /überzeugbar/);
   assert.match(KUNDEN_PROMPT, /nicht jede Zahl/i);
   assert.match(KUNDEN_PROMPT, /vorstell/i);
   assert.match(KUNDEN_PROMPT, /Nein/);
