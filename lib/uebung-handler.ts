@@ -1,22 +1,21 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { after, NextResponse } from "next/server";
 import { alleNachrichten, call } from "@/lib/leads";
-import { lektionText, pfadLektionen, zeileUebung, type Person } from "@/lib/akademie";
-import { holeInhalt, leseAkademie, merke, nameVon, zeichneUebung, zeichneVerwaltung, type Inhalt } from "@/lib/akademie-daten";
+import { aufnahmeStand, lektionText, pfadLektionen, zeileUebung, type Person } from "@/lib/akademie";
+import { holeInhalt, leseAkademie, merke, nameVon, schritteVon, zeichneUebung, zeichneVerwaltung, type Inhalt } from "@/lib/akademie-daten";
 import { zuFragendeUebKanaele, type Uebung, type Zug } from "@/lib/uebung";
 import { guthabenLeer } from "@/lib/gespraech";
 import { leseBloecke } from "@/lib/notion-api";
 import {
   abbruchEmbed,
+  bestandenEmbed,
   ANTWORT_MODAL,
   apiNachrichten,
   aktuelleUebung,
   BEWERTUNG_PROMPT,
   darfUeben,
   ergebnisEmbed,
-  GRENZE_TAG,
   GRENZE_ZUEGE,
-  heuteGestartet,
   hinweisEmbed,
   KUNDEN_PROMPT,
   lagenAuswahl,
@@ -323,10 +322,8 @@ export function handleUebung(i: UeInteraction, token: string, id: string) {
       imKanal(async (p, inhalt) => {
         const lage = sichtbareUebungen(inhalt.uebungen, p.rolle).find((u) => u.id === lageId);
         if (!lage || !darfUeben(lage, p)) return void (await ersetze(appId, itoken, { content: "Diese Lage ist für dich (noch) nicht frei." }));
+        // Davids Wunsch 26.11.: kein Tageslimit mehr
         const msgs = await alleNachrichten(token, kanal, 300);
-        if (p.rolle !== "david" && heuteGestartet(msgs) >= GRENZE_TAG) {
-          return void (await ersetze(appId, itoken, { content: `Für heute sind die ${GRENZE_TAG} Übungen geschafft. Morgen geht es weiter.` }));
-        }
         const text = await seitenText(lage.id);
         const teile = text === null ? null : uebungTeile(text);
         if (!teile?.rolle || !teile.ersterSatz) return void (await ersetze(appId, itoken, { content: "Diese Lage ist in Notion noch nicht fertig (Rolle oder erster Satz fehlt). Bitte David Bescheid sagen." }));
@@ -432,4 +429,46 @@ export function handleUebung(i: UeInteraction, token: string, id: string) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+// ------------------------------------------------------------ /team bestanden (Davids Wunsch 26.11.)
+
+export type BestandenErgebnis =
+  | { ok: false; grund: string }
+  | { ok: true; titel: string; lief: boolean; team: boolean; stand: ReturnType<typeof aufnahmeStand> };
+
+/** David zählt eine Übung als bestanden (100 Punkte, egal wie sie lief). Läuft gerade eine, endet sie damit. */
+export async function markiereBestanden(token: string, userId: string): Promise<BestandenErgebnis> {
+  const [ak, inhalt] = await Promise.all([leseAkademie(token), holeInhalt()]);
+  if (!ak || !inhalt) return { ok: false, grund: "Die Akademie ist gerade nicht erreichbar." };
+  const p = ak.personen.get(userId);
+  if (!p?.uebKanal) return { ok: false, grund: "Diese Person hat noch keinen Übungskanal." };
+  const kanal = p.uebKanal.kanal;
+  const l = await laufendeIn(token, kanal, inhalt);
+  let nr = "–";
+  let titel = "Übung";
+  if (l) {
+    nr = l.lage.nr;
+    titel = l.lage.titel;
+    const letzte = l.v.zuege.filter((z) => z.wer === "kunde").at(-1);
+    if (letzte) await ohneKnoepfe(token, kanal, letzte.id);
+  } else {
+    // Keine läuft: die zuletzt gemachte Lage zählt
+    const msgs = (await alleNachrichten(token, kanal, 300)).slice().reverse();
+    const s = aktuelleUebung(msgs);
+    const v = s ? verlauf(msgs, s) : null;
+    const lage = v ? inhalt.uebungen.find((u) => u.nr === v.nr && !u.leitfaden) : null;
+    if (lage) {
+      nr = lage.nr;
+      titel = lage.titel;
+    }
+  }
+  await poste(token, kanal, { embeds: [bestandenEmbed(l?.start ?? null, titel)], components: [{ type: 1, components: [{ ...START_KNOPF, label: "Neue Übung" }] }] });
+  const zeit = new Date().toISOString();
+  await merke(token, ak.speicher, zeileUebung(userId, nr, titel, 100, zeit));
+  (p.uebungen ??= []).push({ nr, titel, punkte: 100, zeit });
+  await zeichneUebung(token, userId, p, inhalt);
+  await zeichneVerwaltung(token, ak.personen, inhalt);
+  const team = await pruefeAufnahme(token, userId, { p, inhalt });
+  return { ok: true, titel, lief: !!l, team, stand: aufnahmeStand(schritteVon(p, inhalt), p.bestanden, p.uebungen) };
 }

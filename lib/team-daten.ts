@@ -122,6 +122,7 @@ export async function meldeTeamBefehlAn(token: string): Promise<boolean> {
         ],
       },
       { type: 1, name: "aufnahmetest", description: "Aufnahmetest an: Wer noch nicht bestanden hat, wird Anwärter", options: [{ type: 3, name: "zustand", description: "an oder aus", required: true, choices: [{ name: "an", value: "an" }, { name: "aus", value: "aus" }] }] },
+      { type: 1, name: "bestanden", description: "Übung als bestanden zählen (Punkte egal); eine laufende Übung endet damit", options: [person] },
       { type: 1, name: "liste", description: "Übersicht in #team-register neu zeichnen" },
     ],
   };

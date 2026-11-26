@@ -20,7 +20,6 @@ const FARBE_DU = 0x3b82f6;
 const FARBE_ENDE = 0x22c55e;
 
 /** Höchstens so viele neue Übungen am Tag (Team). */
-export const GRENZE_TAG = 5;
 /** Höchstens so viele eigene Antworten in einer Übung. */
 export const GRENZE_ZUEGE = 30;
 
@@ -237,13 +236,13 @@ Deine Rolle steht in <rolle>. Halte dich daran:
 export const BEWERTUNG_PROMPT = `Du bist Verkaufstrainer bei Agents Gilt. Jemand aus dem Team hat ein Übungsgespräch mit einem gespielten Kunden geführt. Bewerte, wie gut die Person das Gespräch geführt hat (nicht den Kunden).
 
 Bewerte nur nach dem Leitfaden in <leitfaden> und den Punkten für diese Lage in <achten>. Erfinde keine eigenen Regeln.
-Sei fair: Punkte gibt es für Schritte, die im Gespräch wirklich zu sehen sind, und gute Ansätze zählen auch, wenn sie noch nicht perfekt sind. Ein schwacher Einstieg (ohne Vorstellung, ohne Grund, ohne Frage nach Zeit) kostet Punkte. Tipps, die der Person während der Übung angezeigt wurden, stehen nicht im Gespräch und zählen nicht gegen sie.
+Sei großzügig und ermutigend: Punkte gibt es für jeden Schritt, der im Gespräch zu sehen ist, und gute Ansätze zählen voll, auch wenn sie noch nicht perfekt sind. Zieh nur für wirklich fehlende Schritte etwas ab, nicht für Kleinigkeiten oder Formulierungen. Im Zweifel gib die höhere Punktzahl. Wer sich vorstellt, nach dem Bedarf fragt, auf Einwände eingeht und einen nächsten Schritt anspricht, hat mindestens 75 Punkte. Tipps, die der Person während der Übung angezeigt wurden, stehen nicht im Gespräch und zählen nicht gegen sie.
 Sei ehrlich und konkret, freundlich im Ton, und beziehe dich auf Sätze aus dem Gespräch. Schreib auf Deutsch, in einfachen Sätzen.
 
 Antworte nur mit JSON, ohne Text davor oder danach:
 {"punkte": 0-100, "gut": ["bis zu 3 Dinge, die gut waren"], "besser": ["bis zu 3 Dinge, die besser gehen"], "tipp": "ein Satz, was die Person beim nächsten Mal zuerst anders machen soll", "lektionen": ["bis zu 3 Nummern aus <lektionen>, die die Person nochmal lesen sollte"]}
 
-Punkte: 90 und mehr = sehr sicher und nach Leitfaden; 70 bis 89 = gut mit Lücken; 50 bis 69 = Grundlagen da, wichtige Schritte fehlen; unter 50 = Leitfaden kaum befolgt.
+Punkte: 85 und mehr = sicher und nach Leitfaden; 70 bis 84 = solide, die Grundschritte sind da; 50 bis 69 = mehrere wichtige Schritte fehlen; unter 50 = nur, wenn der Leitfaden kaum befolgt wurde.
 
 <leitfaden>
 {LEITFADEN}
@@ -363,6 +362,15 @@ export function ergebnisEmbed(b: Bewertung, titel: string, start: string, lektio
   } as EmbedLike;
 }
 
+/** Davids Wunsch 26.11.: /team bestanden – die Übung zählt als bestanden, egal wie viele Punkte (ohne Start nur als Hinweis). */
+export const bestandenEmbed = (start: string | null, titel: string): EmbedLike =>
+  ({
+    title: `✅ Bestanden: ${titel}`,
+    description: "David hat diese Übung als bestanden markiert. Sie zählt mit **100 von 100 Punkten**.",
+    color: FARBE_ENDE,
+    ...(start ? { footer: { text: marke(start, "ende") } } : {}),
+  }) as EmbedLike;
+
 export const abbruchEmbed = (start: string): EmbedLike => ({ description: "✖️ Übung abgebrochen. Sie wird nicht bewertet.", color: 0x6b7280, footer: { text: marke(start, "ende") } }) as EmbedLike;
 
 const balken = (punkte: number) => "🟩".repeat(Math.round(punkte / 10)) + "⬜".repeat(10 - Math.round(punkte / 10));
@@ -384,7 +392,7 @@ export function uebungKarte(name: string, lagen: Uebung[], p: Pick<Person, "roll
     "   Kommst du nicht weiter, bekommst du einen kleinen 💡 Tipp, welche Lektion dir jetzt hilft. Den siehst nur du, nicht der Kunde.",
     "4. Ist das Gespräch zu Ende, drück **„✅ Fertig“**. Du bekommst Punkte (0 bis 100), was gut war, was besser geht und welche Lektionen du nochmal lesen kannst.",
     "",
-    "Mit **„✖️ Abbrechen“** hörst du ohne Bewertung auf. Eine neue Übung kannst du jederzeit starten. Am Tag gehen bis zu " + GRENZE_TAG + " Übungen.",
+    "Mit **„✖️ Abbrechen“** hörst du ohne Bewertung auf. Eine neue Übung kannst du jederzeit starten, so oft du willst.",
     "",
     "**Lagen**",
     zeilen.join("\n") || "Noch keine Lagen da.",

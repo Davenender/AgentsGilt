@@ -7,8 +7,10 @@ import { setzeRolle, sichtbarkeitFuerAnwaerter } from "@/lib/team-rollen";
 import { hatBestanden, zielStatus } from "@/lib/aufnahme-daten";
 import { holeInhalt, leseAkademie, zeichne } from "@/lib/akademie-daten";
 import { fuehreAustrittAus, sammleFaelle, uebergib } from "@/lib/team-austritt";
+import { markiereBestanden } from "@/lib/uebung-handler";
+import { bestandenAntwort } from "@/lib/team";
 
-// Befehl /team (Plan 4), nur für David: aufnehmen, daten, pause, zurueck, austritt, aufnahmetest, liste.
+// Befehl /team (Plan 4), nur für David: aufnehmen, daten, pause, zurueck, austritt, aufnahmetest, bestanden, liste.
 // Jede Änderung ist eine neue Zeile in #team-register; alles andere (Zuständig, Rufgruppe, Statistik, Akademie, Zentrale)
 // liest von dort. Die Antwort sieht nur David.
 
@@ -120,6 +122,11 @@ export function handleTeamBefehl(i: TeamInteraction, token: string) {
     if (!m && b.aktion === "austritt")
       return void (await antworte(appId, itoken, "Wen meinst du? Wähle bei **person** jemanden aus oder trag bei **kennung** die Discord-Nummer oder den Namen aus #team-register ein."));
     if (!m) return void (await antworte(appId, itoken, "Diese Person steht nicht im Register. Neue Leute mit `/team aufnehmen`."));
+
+    if (b.aktion === "bestanden") {
+      const r = await markiereBestanden(token, b.person);
+      return void (await antworte(appId, itoken, r.ok ? bestandenAntwort(m.name, r) : `⚠️ ${r.grund}`));
+    }
 
     if (b.aktion === "daten") {
       const aenderung: Partial<Mitglied> = {};

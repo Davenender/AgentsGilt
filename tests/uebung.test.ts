@@ -4,7 +4,6 @@ import { test } from "node:test";
 import { fortschritt, kanalNamen, lektionAusNotion, leseSpeicher, personDetail, zeileFrei, zeileUebKanal, zeileUebung, type Person } from "../lib/akademie.ts";
 import {
   ANTWORT_MODAL,
-  GRENZE_TAG,
   apiNachrichten,
   aktuelleUebung,
   darfUeben,
@@ -145,7 +144,6 @@ test("Tagesgrenze: gezählt werden nur heute gestartete Übungen (Berliner Zeit)
     msg(snow(Date.parse("2026-11-09T10:01:00Z")), "🎭 Übung · x · kunde"),
   ];
   assert.equal(heuteGestartet(msgs, jetzt), 2);
-  assert.ok(GRENZE_TAG >= 3);
 });
 
 test("für die KI: beginnt mit dem Nutzer, wechselt sauber ab und endet mit der neuen Antwort", () => {

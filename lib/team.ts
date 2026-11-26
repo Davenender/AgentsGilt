@@ -248,3 +248,21 @@ export function knopfAus(id: string): { aktion: string; aus: string; art?: Fall[
   if (["aus", "ausja", "ausnein"].includes(t[1])) return { aktion: t[1], aus: t[2] };
   return null;
 }
+
+/** Antwort an David auf /team bestanden (Davids Wunsch 26.11.). */
+export function bestandenAntwort(
+  name: string,
+  r: { titel: string; lief: boolean; team: boolean; stand: { tests: number; testsGesamt: number; uebungen: number; uebungenGesamt: number } },
+): string {
+  const s = r.stand;
+  const zeilen = [`✅ **${name}:** „${r.titel}“ zählt als bestanden (100 Punkte).${r.lief ? " Die laufende Übung ist damit beendet." : ""}`];
+  if (r.team) zeilen.push(`🎉 Damit hat ${name} den Aufnahmetest geschafft und ist jetzt im Team (Rolle Team vergeben).`);
+  else {
+    const fehltU = Math.max(0, s.uebungenGesamt - s.uebungen);
+    const fehltT = Math.max(0, s.testsGesamt - s.tests);
+    zeilen.push(`🎓 Aufnahmetest: ${s.tests} von ${s.testsGesamt} Tests · ${s.uebungen} von ${s.uebungenGesamt} Übungen.`);
+    const fehlt = [fehltT ? `${fehltT} ${fehltT === 1 ? "Test" : "Tests"}` : "", fehltU ? `${fehltU} ${fehltU === 1 ? "Übung" : "Übungen"}` : ""].filter(Boolean);
+    if (fehlt.length) zeilen.push(`Es fehlen noch ${fehlt.join(" und ")}${fehltU ? ` (nochmal \`/team bestanden\` zählt die nächste)` : ""}.`);
+  }
+  return zeilen.join("\n");
+}
