@@ -218,6 +218,11 @@ export async function uebungTakt(token: string, jetzt = Date.now()): Promise<{ a
       await poste(token, kanal, { embeds: [hinweisEmbed(start, `${r.fehler}\nSchreib deine letzte Nachricht danach einfach nochmal.`)] });
       continue;
     }
+    // 26.11.: Fragt ein zweiter Takt gleichzeitig (z. B. eine zweite Zentrale), hat er vielleicht schon geantwortet –
+    // dann nicht doppelt antworten (Oskars Übung: zwei Kunden-Antworten auf eine Nachricht)
+    const nochmal = (await alleNachrichten(token, kanal, 100)).slice().reverse();
+    const v2 = verlauf(nochmal, start);
+    if (!v2?.offen || v2.zuege.at(-1)?.id !== letzte.id) continue;
     await posteKunde(token, kanal, start, v.zuege, r.text, nameVon(user));
     beantwortet++;
     await vielleichtTipp(token, kanal, start, mitKunde(v.zuege, r.text), user, inhalt!);
