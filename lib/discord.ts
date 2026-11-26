@@ -1,4 +1,5 @@
 import { kanalliste } from "@/lib/kanalliste";
+import { mitWarten } from "@/lib/discord-warten";
 import { createPublicKey, verify } from "node:crypto";
 import type { EmbedLike } from "@/lib/discord-calls";
 
@@ -267,12 +268,15 @@ export async function postText(
 ): Promise<boolean> {
   if (!token) return false;
   try {
-    const res = await fetch(`${API}/channels/${channelId}/messages`, {
-      method: "POST",
-      headers: botHeaders(token),
-      body: JSON.stringify({ content, allowed_mentions: { parse: [], users: pingUserIds } }),
-      signal: AbortSignal.timeout(5000),
-    });
+    // 26.11.: bremst Discord (429), warten und erneut versuchen – vorher ging die Team-Antwort verloren
+    const res = await mitWarten(() =>
+      fetch(`${API}/channels/${channelId}/messages`, {
+        method: "POST",
+        headers: botHeaders(token),
+        body: JSON.stringify({ content, allowed_mentions: { parse: [], users: pingUserIds } }),
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
     if (!res.ok) console.error(`[discord] Nachricht senden fehlgeschlagen: HTTP ${res.status}`);
     return res.ok;
   } catch (err) {
