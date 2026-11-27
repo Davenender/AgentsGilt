@@ -658,8 +658,8 @@ export function lageTeile(text: string): { schule: string; termine: string; rest
 // Discord-Nachricht (höchstens 2.000 Zeichen). Er wird auf mehrere Nachrichten verteilt (Teil 1/3, 2/3 …) und beim Anruf
 // wieder zusammengesetzt. Eine alte einzelne Nachricht ohne Teil-Angabe gilt als Teil 1 von 1.
 export type LageTeil = Lage & { teil?: number; teile?: number };
-/** So viele Teile höchstens (Schutz) – 6 × ~1.700 Zeichen reichen für jeden Lagebericht. */
-export const LAGE_TEILE_MAX = 6;
+/** So viele Teile höchstens (Schutz). 28.11.: der erste echte Bericht brauchte schon 6 – darum Luft bis 10. */
+export const LAGE_TEILE_MAX = 10;
 const LAGE_NACHRICHT_MAX = 1990;
 
 /** Den Lagebericht in Teile schneiden: an Zeilengrenzen, jede fertige Nachricht unter 2.000 Zeichen. */

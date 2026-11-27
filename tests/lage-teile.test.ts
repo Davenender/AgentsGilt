@@ -23,7 +23,7 @@ test("langer Bericht: mehrere Teile, jede Nachricht unter 2.000 Zeichen, zusamme
   assert.deepEqual(lageZusammen(gelesen.reverse()), { stand: STAND, text, stimme: "abc1234567" });
 });
 
-test("eine einzelne Riesen-Zeile wird an Wortgrenzen geteilt; höchstens 6 Teile", () => {
+test("eine einzelne Riesen-Zeile wird an Wortgrenzen geteilt; höchstens 10 Teile", () => {
   const s = lageStuecke({ stand: STAND, text: "wort ".repeat(1500).trim() });
   for (const t of s) assert.ok(lageNachricht(t).length <= 2000);
   assert.equal(lageZusammen(s)!.text.replace(/\n/g, " "), "wort ".repeat(1500).trim());
