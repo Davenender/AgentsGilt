@@ -40,6 +40,8 @@ import {
   laeuftKlassisch,
   lageLesen,
   lageNachricht,
+  lageStuecke,
+  lageZusammen,
   lageText,
   LUCA_NAME,
   LUCA_PROMPT,
@@ -189,9 +191,6 @@ export async function markiereAbgeholt(ids: string[]): Promise<number> {
   return n;
 }
 
-async function lageNachrichtFinden(kanal: string): Promise<Nachricht | null> {
-  return (await nachrichten(kanal)).find((m) => istUnsere(m) && m.content.startsWith(LAGE_MARKE)) ?? null;
-}
 
 /** Stufe 6: Läuft gerade ein Gespräch mit Luca? Eine feste Bot-Nachricht, die geändert wird (nie eine neue je Anruf). */
 export async function setzeGespraech(laeuft: boolean): Promise<boolean> {
@@ -234,35 +233,55 @@ async function festeNachrichtenHalten(kanal: string, alle: Nachricht[]) {
   for (const m of zuAlt.slice(0, 3)) if (!(await nachVorn(kanal, m.id, m.content))) return;
 }
 
-/** Die Zentrale schickt jede Minute ihren Lagebericht: eine einzige Bot-Nachricht, die immer wieder geändert wird. */
+/** Die Zentrale schickt jede Minute ihren Lagebericht. 28.11.: in Teilen (je eine Bot-Nachricht, die immer wieder geändert
+ *  wird) – eine Discord-Nachricht fasst höchstens 2.000 Zeichen. Überzählige alte Teile werden gelöscht. */
 export async function setzeLage(l: Lage): Promise<boolean> {
   const kanal = await lucaKanal();
   if (!kanal) return false;
   const alle = await nachrichten(kanal);
-  const stelle = alle.findIndex((m) => istUnsere(m) && m.content.startsWith(LAGE_MARKE));
-  const alt = stelle >= 0 ? alle[stelle] : null;
-  const content = lageNachricht(l);
-  if (content.length > 2000) return false;
+  const stuecke = lageStuecke(l);
   await festeNachrichtenHalten(kanal, alle).catch((err) => console.error("[luca] feste Nachrichten:", err));
-  // Der Stand selbst rückt mit seinem neuen Inhalt nach vorn
-  if (alt && stelle >= NACH_VORN_AB && (await nachVorn(kanal, alt.id, content))) return true;
-  if (alt) {
-    const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, {
-      method: "PATCH",
-      headers: kopf(),
-      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
-      signal: AbortSignal.timeout(6000),
-    });
-    return res.ok;
+  // vorhandene Teile: Nummer → Nachricht (eine alte einzelne Nachricht ohne Nummer ist Teil 1)
+  const vorhanden = new Map<number, { id: string; content: string; stelle: number }>();
+  alle.forEach((m, stelle) => {
+    if (!istUnsere(m) || !m.content.startsWith(LAGE_MARKE)) return;
+    const t = lageLesen(m.content);
+    const nr = t?.teil ?? 1;
+    if (!vorhanden.has(nr)) vorhanden.set(nr, { id: m.id, content: m.content, stelle });
+    else void fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) }).catch(() => null); // doppelt
+  });
+  let ok = true;
+  for (const s of stuecke) {
+    const content = lageNachricht(s);
+    if (content.length > 2000) return false;
+    const alt = vorhanden.get(s.teil ?? 1);
+    // Der Stand selbst rückt mit seinem neuen Inhalt nach vorn
+    if (alt && alt.stelle >= NACH_VORN_AB && (await nachVorn(kanal, alt.id, content))) continue;
+    if (alt) {
+      if (alt.content === content) continue;
+      const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, {
+        method: "PATCH",
+        headers: kopf(),
+        body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+        signal: AbortSignal.timeout(6000),
+      });
+      ok &&= res.ok;
+      continue;
+    }
+    ok &&= Boolean(await poste(kanal, content));
   }
-  return Boolean(await poste(kanal, content));
+  // Teile, die es nicht mehr gibt (der Bericht ist kürzer geworden), löschen
+  for (const [nr, m] of vorhanden) if (nr > stuecke.length) await fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) }).catch(() => null);
+  return ok;
 }
 
 export async function holeLage(): Promise<Lage | null> {
   try {
     const kanal = await lucaKanal();
-    const m = kanal ? await lageNachrichtFinden(kanal) : null;
-    return m ? lageLesen(m.content) : null;
+    if (!kanal) return null;
+    // 28.11.: alle Teile lesen und zusammensetzen
+    const teile = (await nachrichten(kanal)).filter((m) => istUnsere(m) && m.content.startsWith(LAGE_MARKE)).map((m) => lageLesen(m.content)).filter((t): t is NonNullable<typeof t> => !!t);
+    return lageZusammen(teile);
   } catch {
     return null;
   }

@@ -654,15 +654,64 @@ export function lageTeile(text: string): { schule: string; termine: string; rest
   return { schule, termine, rest: rest.join("\n\n") };
 }
 
-export function lageNachricht(l: Lage): string {
+// 28.11.2026 (Davids Wunsch „am Telefon soll nichts mehr gekürzt werden“): Der Lagebericht passt nicht mehr in eine
+// Discord-Nachricht (höchstens 2.000 Zeichen). Er wird auf mehrere Nachrichten verteilt (Teil 1/3, 2/3 …) und beim Anruf
+// wieder zusammengesetzt. Eine alte einzelne Nachricht ohne Teil-Angabe gilt als Teil 1 von 1.
+export type LageTeil = Lage & { teil?: number; teile?: number };
+/** So viele Teile höchstens (Schutz) – 6 × ~1.700 Zeichen reichen für jeden Lagebericht. */
+export const LAGE_TEILE_MAX = 6;
+const LAGE_NACHRICHT_MAX = 1990;
+
+/** Den Lagebericht in Teile schneiden: an Zeilengrenzen, jede fertige Nachricht unter 2.000 Zeichen. */
+export function lageStuecke(l: Lage): LageTeil[] {
+  const passt = (text: string) => lageNachricht({ ...l, text, teil: 9, teile: 9 }).length <= LAGE_NACHRICHT_MAX;
+  const stuecke: string[] = [];
+  let jetzt = "";
+  const dazu = (z: string) => {
+    const neu = jetzt ? `${jetzt}\n${z}` : z;
+    if (passt(neu)) jetzt = neu;
+    else {
+      if (jetzt) stuecke.push(jetzt);
+      jetzt = z;
+    }
+  };
+  for (const zeile of l.text.split("\n")) {
+    let rest = zeile;
+    // eine einzelne zu lange Zeile an Wortgrenzen teilen
+    while (!passt(rest)) {
+      let n = Math.min(rest.length, 1500);
+      while (n > 50 && !passt(rest.slice(0, n))) n -= 100;
+      const schnitt = rest.lastIndexOf(" ", n);
+      const bei = schnitt > n / 2 ? schnitt : n;
+      dazu(rest.slice(0, bei));
+      rest = rest.slice(bei).replace(/^ /, "");
+    }
+    dazu(rest);
+  }
+  if (jetzt || !stuecke.length) stuecke.push(jetzt);
+  const genommen = stuecke.slice(0, LAGE_TEILE_MAX);
+  return genommen.map((text, i) => ({ stand: l.stand, text, ...(i === 0 && l.stimme ? { stimme: l.stimme } : {}), teil: i + 1, teile: genommen.length }));
+}
+
+/** Die Teile wieder zu einem Lagebericht: Teil 1 bestimmt den Stand; Teile anderer Stände (mitten im Ändern) zählen nicht. */
+export function lageZusammen(teile: LageTeil[]): Lage | null {
+  if (!teile.length) return null;
+  const nr = (t: LageTeil) => t.teil ?? 1;
+  const erster = teile.filter((t) => nr(t) === 1).sort((a, b) => b.stand.localeCompare(a.stand))[0] ?? teile[0];
+  const gleich = teile.filter((t) => t.stand === erster.stand && nr(t) <= (erster.teile ?? 1)).sort((a, b) => nr(a) - nr(b));
+  const ohneDoppelte = gleich.filter((t, i) => i === 0 || nr(t) !== nr(gleich[i - 1]));
+  return { stand: erster.stand, text: ohneDoppelte.map((t) => t.text).join("\n"), ...(erster.stimme ? { stimme: erster.stimme } : {}) };
+}
+
+export function lageNachricht(l: LageTeil): string {
   return `${LAGE_MARKE} (nur für Luca am Telefon, wird automatisch aktualisiert)\n\`\`\`json\n${JSON.stringify(l).replace(/`/g, "'")}\n\`\`\``;
 }
 
-export function lageLesen(inhalt: string): Lage | null {
+export function lageLesen(inhalt: string): LageTeil | null {
   if (!inhalt.startsWith(LAGE_MARKE)) return null;
   const m = inhalt.match(/```json\n([\s\S]*?)\n```/);
   try {
-    const j = m ? (JSON.parse(m[1]) as Lage) : null;
+    const j = m ? (JSON.parse(m[1]) as LageTeil) : null;
     return j && typeof j.stand === "string" && typeof j.text === "string" ? j : null;
   } catch {
     return null;

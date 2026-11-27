@@ -244,7 +244,7 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       return NextResponse.json({ markiert: await markiereAbgeholt(ids) });
     }
     if (aktion === "lagebericht") {
-      const text = typeof body.text === "string" ? body.text.slice(0, 1700) : "";
+      const text = typeof body.text === "string" ? body.text.slice(0, 12_000) : ""; // 28.11.: wird in Teilen gespeichert (vorher 1.700)
       const stand = typeof body.stand === "string" && !Number.isNaN(Date.parse(body.stand)) ? body.stand : new Date().toISOString();
       const stimme = typeof body.stimme === "string" && /^[A-Za-z0-9]{10,40}$/.test(body.stimme) ? body.stimme : undefined;
       if (!text) return NextResponse.json({ error: "text fehlt" }, { status: 400 });
