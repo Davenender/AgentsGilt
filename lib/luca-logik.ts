@@ -714,6 +714,14 @@ export function lageZusammen(teile: LageTeil[]): Lage | null {
   return { stand: erster.stand, text: ohneDoppelte.map((t) => t.text).join("\n"), ...(erster.stimme ? { stimme: erster.stimme } : {}) };
 }
 
+/** 28.11.: Muss dieser Teil geändert werden? Teil 1 immer (er trägt Stand, Teilezahl, Stimme), die anderen nur, wenn ihr Text
+ *  oder die Teilezahl anders ist – Luca liest einen unveränderten Teil dann aus dem älteren Stand (lageZusammen). */
+export function teilAendern(altInhalt: string, neu: LageTeil): boolean {
+  if ((neu.teil ?? 1) === 1) return true;
+  const alt = lageLesen(altInhalt);
+  return !alt || alt.text !== neu.text || (alt.teile ?? 1) !== (neu.teile ?? 1) || (alt.teil ?? 1) !== (neu.teil ?? 1);
+}
+
 export function lageNachricht(l: LageTeil): string {
   return `${LAGE_MARKE} (nur für Luca am Telefon, wird automatisch aktualisiert)\n\`\`\`json\n${JSON.stringify(l).replace(/`/g, "'")}\n\`\`\``;
 }

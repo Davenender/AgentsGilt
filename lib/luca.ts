@@ -49,6 +49,7 @@ import {
   type BriefMitZeit,
   type Lage,
   transcriberMitWoertern,
+  teilAendern,
 } from "@/lib/luca-logik";
 
 // Luca am Telefon – die Teile, die mit Vapi und Discord reden. Logik und Texte: lib/luca-logik.ts.
@@ -278,7 +279,7 @@ export async function setzeLage(l: Lage): Promise<boolean> {
       if (await nachVorn(kanal, alt.id, content, bis)) continue;
     }
     if (alt) {
-      if (alt.content === content) continue;
+      if (alt.content === content || !teilAendern(alt.content, s)) continue; // 28.11.: unveränderte Teile nicht anfassen
       // 28.11.: auch beim Ändern auf Discords Bremse warten (mehrere Teile hintereinander)
       const res = await mitWarten(() =>
         fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, {

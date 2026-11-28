@@ -54,3 +54,18 @@ test("28.11.: fehlt ein Teil des neuesten Stands, kommt der neueste ältere dies
   assert.ok(z.text.includes(neu[0].text) && z.text.includes(alt[1].text) && z.text.includes(neu[2].text));
   assert.ok(teile.length > 0);
 });
+
+test("28.11.: nur Teil 1 und geänderte Teile werden geändert; Luca liest unveränderte aus dem älteren Stand", async () => {
+  const { teilAendern } = await import("../lib/luca-logik.ts");
+  const alt = lageStuecke({ stand: "2026-11-28T09:00:00.000Z", text: zeilen(60) });
+  const neuText = zeilen(60).replace("Zeile 59:", "Zeile 59 neu:");
+  const neu = lageStuecke({ stand: STAND, text: neuText });
+  assert.equal(neu.length, alt.length);
+  const aendern = neu.map((s, i) => teilAendern(lageNachricht(alt[i]), s));
+  assert.equal(aendern[0], true); // Teil 1 immer
+  assert.equal(aendern.at(-1), true); // der letzte hat sich geändert
+  assert.ok(aendern.slice(1, -1).every((x) => !x)); // die mittleren nicht
+  // So liegt es danach in Discord: Teil 1 und der letzte neu, die mittleren alt – zusammen genau der neue Text
+  const inDiscord = neu.map((s, i) => (aendern[i] ? s : alt[i]));
+  assert.deepEqual(lageZusammen(inDiscord), { stand: STAND, text: neuText });
+});
