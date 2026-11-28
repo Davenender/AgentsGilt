@@ -218,20 +218,29 @@ export function gespraechAus(nachr: Nachricht[], jetzt = new Date()): boolean {
 }
 
 /** Eine feste Nachricht nach vorn holen. Klappt das Löschen der alten nicht, fliegt die neue Kopie wieder raus: Sonst würde je Runde eine mehr, und gelesen würde die falsche. */
-async function nachVorn(kanal: string, altId: string, content: string): Promise<boolean> {
+/** 28.11. (zweite Korrektur): Vercel bricht nach 30 s ab. Alles in setzeLage hat zusammen höchstens so viel Zeit;
+ *  danach wird nicht mehr gewartet, und was nicht mehr geht, kommt beim nächsten Bericht (jede Minute). */
+const LAGE_ZEIT_MS = 20_000;
+const rest = (bis?: number) => (bis === undefined ? 6000 : Math.max(500, Math.min(6000, bis - Date.now())));
+const loescheNachricht = (kanal: string, id: string, bis?: number) =>
+  mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages/${id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(rest(bis)) }), { bis }).catch(() => null);
+
+async function nachVorn(kanal: string, altId: string, content: string, bis?: number): Promise<boolean> {
   const neu = await poste(kanal, content);
   if (!neu) return false;
-  // 28.11.: Discord bremst Löschen stark – warten und neu versuchen (vorher gab es bei 6 Teilen 502)
-  const loesche = (id: string) => mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages/${id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) })).catch(() => null);
-  const weg = await loesche(altId);
+  // 28.11.: Discord bremst Löschen stark – warten und neu versuchen (vorher gab es bei 6 Teilen 502), aber nur bis „bis“
+  const weg = await loescheNachricht(kanal, altId, bis);
   if (weg?.ok) return true;
-  await loesche(neu);
+  await loescheNachricht(kanal, neu, bis);
   return false;
 }
 
-async function festeNachrichtenHalten(kanal: string, alle: Nachricht[]) {
+async function festeNachrichtenHalten(kanal: string, alle: Nachricht[], bis?: number) {
   const zuAlt = festeNachVorn(alle.map((m) => ({ id: m.id, content: m.content, istUnsere: istUnsere(m) })), [STANDORT_MARKE, NOTIZ_MARKE, GESPRAECH_STATUS]);
-  for (const m of zuAlt.slice(0, 3)) if (!(await nachVorn(kanal, m.id, m.content))) return;
+  for (const m of zuAlt.slice(0, 3)) {
+    if (bis !== undefined && bis - Date.now() < 12_000) return; // der Lagebericht selbst geht vor
+    if (!(await nachVorn(kanal, m.id, m.content, bis))) return;
+  }
 }
 
 /** Die Zentrale schickt jede Minute ihren Lagebericht. 28.11.: in Teilen (je eine Bot-Nachricht, die immer wieder geändert
@@ -239,9 +248,11 @@ async function festeNachrichtenHalten(kanal: string, alle: Nachricht[]) {
 export async function setzeLage(l: Lage): Promise<boolean> {
   const kanal = await lucaKanal();
   if (!kanal) return false;
+  const bis = Date.now() + LAGE_ZEIT_MS;
   const alle = await nachrichten(kanal);
   const stuecke = lageStuecke(l);
-  await festeNachrichtenHalten(kanal, alle).catch((err) => console.error("[luca] feste Nachrichten:", err));
+  await festeNachrichtenHalten(kanal, alle, bis).catch((err) => console.error("[luca] feste Nachrichten:", err));
+  const doppelte: string[] = [];
   // vorhandene Teile: Nummer → Nachricht (eine alte einzelne Nachricht ohne Nummer ist Teil 1)
   const vorhanden = new Map<number, { id: string; content: string; stelle: number }>();
   alle.forEach((m, stelle) => {
@@ -249,15 +260,20 @@ export async function setzeLage(l: Lage): Promise<boolean> {
     const t = lageLesen(m.content);
     const nr = t?.teil ?? 1;
     if (!vorhanden.has(nr)) vorhanden.set(nr, { id: m.id, content: m.content, stelle });
-    else void mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) })).catch(() => null); // doppelt
+    else doppelte.push(m.id); // doppelt – wird am Ende gelöscht, wenn noch Zeit ist
   });
   let ok = true;
+  // Höchstens 2 Teile je Bericht nach vorn holen (je 1 Posten + 1 Löschen); die übrigen sind noch weit genug vorn (unter 100)
+  let nachVornFrei = 2;
   for (const s of stuecke) {
     const content = lageNachricht(s);
     if (content.length > 2000) return false;
     const alt = vorhanden.get(s.teil ?? 1);
     // Der Stand selbst rückt mit seinem neuen Inhalt nach vorn
-    if (alt && alt.stelle >= NACH_VORN_AB && (await nachVorn(kanal, alt.id, content))) continue;
+    if (alt && alt.stelle >= NACH_VORN_AB && nachVornFrei > 0 && bis - Date.now() > 8000) {
+      nachVornFrei--;
+      if (await nachVorn(kanal, alt.id, content, bis)) continue;
+    }
     if (alt) {
       if (alt.content === content) continue;
       // 28.11.: auch beim Ändern auf Discords Bremse warten (mehrere Teile hintereinander)
@@ -266,16 +282,21 @@ export async function setzeLage(l: Lage): Promise<boolean> {
           method: "PATCH",
           headers: kopf(),
           body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
-          signal: AbortSignal.timeout(6000),
+          signal: AbortSignal.timeout(rest(bis)),
         }),
-      );
-      ok &&= res.ok;
+        { bis },
+      ).catch(() => null);
+      ok &&= !!res?.ok;
       continue;
     }
     ok &&= Boolean(await poste(kanal, content));
   }
-  // Teile, die es nicht mehr gibt (der Bericht ist kürzer geworden), löschen
-  for (const [nr, m] of vorhanden) if (nr > stuecke.length) await mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) })).catch(() => null);
+  // Teile, die es nicht mehr gibt, und Doppelte löschen – nur solange Zeit ist (sonst beim nächsten Bericht)
+  const weg = [...[...vorhanden].filter(([nr]) => nr > stuecke.length).map(([, m]) => m.id), ...doppelte];
+  for (const id of weg) {
+    if (bis - Date.now() < 3000) break;
+    await loescheNachricht(kanal, id, bis);
+  }
   return ok;
 }
 

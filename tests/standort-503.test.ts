@@ -47,3 +47,20 @@ test("Luca am Telefon zweifelt einen älteren Standort nicht an", () => {
   assert.doesNotMatch(t, /frag ihn/i);
   assert.match(t, /meldet sich nur, wenn er sich bewegt/);
 });
+
+test("28.11.: mit Zeitgrenze (bis) wird nicht mehr gewartet, wenn die Zeit nicht reicht – Vercel bricht nach 30 s ab", async () => {
+  let uhr = 1_000_000;
+  let aufrufe = 0;
+  const gewartet: number[] = [];
+  // 5 s Rest: einmal 4,1 s warten geht nicht (4,1 + 1 s Puffer > 5 s) – gleich zurück
+  const res = await mitWarten(async () => (aufrufe++, antwort(429, { retry_after: 30 })), { bis: uhr + 5000, jetzt: () => uhr, warte: async (ms) => void ((uhr += ms), gewartet.push(ms)) });
+  assert.equal(res.status, 429);
+  assert.equal(aufrufe, 1);
+  assert.deepEqual(gewartet, []);
+  // genug Zeit für einen, nicht für zwei Versuche
+  aufrufe = 0;
+  const r2 = await mitWarten(async () => (aufrufe++, antwort(429, { retry_after: 2 })), { bis: uhr + 4000, jetzt: () => uhr, warte: async (ms) => void ((uhr += ms), gewartet.push(ms)) });
+  assert.equal(r2.status, 429);
+  assert.equal(aufrufe, 2);
+  assert.deepEqual(gewartet, [2100]);
+});
