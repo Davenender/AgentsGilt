@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mitWarten } from "../lib/discord-warten.ts";
-import { LEERER_SPEICHER, neuerStand, schreibenNoetig, standortText, type StandortSpeicher } from "../lib/standort-logik.ts";
+import { LEERER_SPEICHER, neuerStand, orteTauschen, schreibenNoetig, standortText, type StandortSpeicher } from "../lib/standort-logik.ts";
 
 const antwort = (status: number, body: object = {}) => new Response(JSON.stringify(body), { status });
 
@@ -63,4 +63,28 @@ test("28.11.: mit Zeitgrenze (bis) wird nicht mehr gewartet, wenn die Zeit nicht
   assert.equal(r2.status, 429);
   assert.equal(aufrufe, 2);
   assert.deepEqual(gewartet, [2100]);
+});
+
+test("28.11.: genauer Modus – neuer Standort höchstens einmal pro Minute schreiben, Ankunft/Verlassen sofort", () => {
+  const Z = { name: "Zuhause", lat: 50.1, lon: 8.8, rad: 120 };
+  const alt: StandortSpeicher = { ...LEERER_SPEICHER, standort: { lat: 50.1, lon: 8.8, tst: 2000 }, orte: [Z], drin: ["Zuhause"], ereignisse: [] };
+  // 30 s später, 50 m weiter, noch drin: nicht schreiben
+  assert.equal(schreibenNoetig(alt, neuerStand(alt, { art: "ort", standort: { lat: 50.1004, lon: 8.8, tst: 2030 } })), false);
+  // 60 s später: schreiben
+  assert.equal(schreibenNoetig(alt, neuerStand(alt, { art: "ort", standort: { lat: 50.1004, lon: 8.8, tst: 2060 } })), true);
+  // 10 s später, aber weit weg (Verlassen): sofort
+  const weg = neuerStand(alt, { art: "ort", standort: { lat: 50.11, lon: 8.8, tst: 2010, acc: 10 } });
+  assert.deepEqual(weg.drin, []);
+  assert.equal(schreibenNoetig(alt, weg), true);
+});
+
+test("28.11.: Ort fällt aus der iPhone-Liste, während David drin ist → Verlassen statt still verschwinden", () => {
+  const A = { name: "Alinas Haus", lat: 50.1, lon: 8.8, rad: 100 };
+  const B = { name: "Tanzschule", lat: 50.2, lon: 8.9, rad: 100 };
+  const s: StandortSpeicher = { ...LEERER_SPEICHER, standort: { lat: 50.15, lon: 8.85, tst: 3000 }, orte: [A], drin: ["Alinas Haus"], ereignisse: [{ art: "ankunft", ort: "Alinas Haus", tst: 2000 }] };
+  const n = orteTauschen(s, [B], 9999);
+  assert.deepEqual(n.drin, []);
+  assert.deepEqual(n.ereignisse.at(-1), { art: "abfahrt", ort: "Alinas Haus", tst: 3000 });
+  assert.equal(n.orteNeu, true);
+  assert.deepEqual(n.weg, ["Alinas Haus"]);
 });

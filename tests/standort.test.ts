@@ -87,12 +87,15 @@ test("Verschlüsselt: ohne Schlüssel unlesbar, mit Schlüssel wieder da, kaputt
   assert.equal(entschluessele("kaputt", "geheim"), null);
 });
 
-test("App-Einrichtung per Link: HTTP-Modus, Passwort, sparsame Ortung, Orte als Regionen", () => {
+test("App-Einrichtung per Link: HTTP-Modus, Passwort, genaue Ortung (28.11.), Orte als Regionen", () => {
   const k = owntracksKonfig({ url: "https://agentsgilt.com/api/standort", benutzer: "david", passwort: "pw", orte: [ZUHAUSE] }, TST);
   assert.equal(k._type, "configuration");
   assert.equal(k.mode, 3);
   assert.equal(k.auth, true);
-  assert.equal(k.monitoring, 1);
+  assert.equal(k.monitoring, 2); // Move: GPS, 100 m oder 2 Min.
+  assert.equal(k.locatorDisplacement, 100);
+  assert.equal(k.locatorInterval, 120);
+  assert.equal(k.downgrade, 20);
   assert.equal(k.tid, "DH");
   assert.equal(k.cmd, true);
   assert.deepEqual(k.waypoints, [{ _type: "waypoint", desc: "Zuhause", lat: 50.12, lon: 8.83, rad: 120, tst: wegpunktKennung("Zuhause") }]);

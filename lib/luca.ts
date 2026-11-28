@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { findChannelId } from "@/lib/discord";
 import { mitWarten } from "@/lib/discord-warten";
 import { listeKunden } from "@/lib/notion-api";
-import { entschluessele, LEERER_SPEICHER, packe, passendKlein, setzeOrteNoetig, standortText, wegNeu, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
+import { entschluessele, LEERER_SPEICHER, orteTauschen, packe, passendKlein, setzeOrteNoetig, standortText, type OrtMarke, type StandortSpeicher } from "@/lib/standort-logik";
 import {
   anrufErlaubt,
   anrufNachricht,
@@ -462,7 +462,7 @@ export async function schreibeStandortSpeicher(s: StandortSpeicher): Promise<boo
 export async function setzeOrte(orte: OrtMarke[], erneut = false): Promise<boolean> {
   const s = await holeStandortSpeicher();
   if (!setzeOrteNoetig(s.orte, orte, erneut)) return true;
-  return schreibeStandortSpeicher({ ...s, orte, orteNeu: true, weg: wegNeu(s.orte, orte, s.weg ?? []), drin: s.drin.filter((n) => orte.some((o) => o.name === n)) });
+  return schreibeStandortSpeicher(orteTauschen(s, orte));
 }
 
 /** Ein Ergebnis mitten ins laufende Gespräch geben: Die Stimme sagt es in eigenen Worten (GPT Live). Klassisch: kein Weg, dann steht es nur im Stand. */

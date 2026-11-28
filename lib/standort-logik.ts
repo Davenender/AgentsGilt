@@ -84,9 +84,25 @@ export function neuerStand(alt: StandortSpeicher, n: OwnTracks): StandortSpeiche
   return s;
 }
 
-/** 26.11.: Nur schreiben, wenn sich etwas ändert – jedes Schreiben zählt bei Discord gegen die Bremse. */
+/** 26.11.: Nur schreiben, wenn sich etwas ändert – jedes Schreiben zählt bei Discord gegen die Bremse.
+ *  28.11. (genauer Modus, Meldung alle 100 m): Ankunft, Verlassen und Orte sofort; ein bloß neuer Standort höchstens
+ *  einmal pro Minute – sonst käme beim Fahren alle paar Sekunden ein Discord-Schreiben. */
+export const STANDORT_ALLE_S = 60;
 export function schreibenNoetig(alt: StandortSpeicher, neu: StandortSpeicher): boolean {
-  return Boolean(alt.orteNeu) || JSON.stringify(neu) !== JSON.stringify(alt);
+  if (alt.orteNeu) return true;
+  if (JSON.stringify(neu) === JSON.stringify(alt)) return false;
+  const ohneStandort = (s: StandortSpeicher) => JSON.stringify({ ...s, standort: null });
+  if (ohneStandort(neu) !== ohneStandort(alt)) return true; // Ankunft/Verlassen/Orte
+  if (!alt.standort || !neu.standort) return true;
+  return neu.standort.tst - alt.standort.tst >= STANDORT_ALLE_S;
+}
+
+/** 28.11.: Neue Orte fürs iPhone. Fällt ein Ort weg, in dem David gerade „drin“ ist, gilt das als Verlassen (vorher fiel er
+ *  still aus „drin“, und die Zentrale bekam nie ein Verlassen). Zeit: der letzte Standort, sonst jetzt. */
+export function orteTauschen(s: StandortSpeicher, orte: OrtMarke[], jetztS = Math.floor(Date.now() / 1000)): StandortSpeicher {
+  let n: StandortSpeicher = { ...s, orte, orteNeu: true, weg: wegNeu(s.orte, orte, s.weg ?? []) };
+  for (const name of s.drin) if (!orte.some((o) => o.name === name)) n = merke(n, { art: "abfahrt", ort: name, tst: Math.max(s.standort?.tst ?? 0, 0) || jetztS });
+  return n;
 }
 
 const SEKUNDEN_FRISCH = 2 * 3600;
@@ -140,7 +156,9 @@ export function wegpunktKennung(name: string): number {
 }
 const wegpunkte = (orte: OrtMarke[], _tst?: number) => orte.slice(0, 20).map((o) => ({ _type: "waypoint" as const, desc: o.name, lat: o.lat, lon: o.lon, rad: o.rad, tst: wegpunktKennung(o.name) }));
 
-/** Einrichtung der App: HTTP an unseren Server, sparsame Ortung („Significant“: etwa alle 5 Minuten oder 500 Meter). */
+/** Einrichtung der App: HTTP an unseren Server. 28.11. (Davids Wunsch, Akku reicht): genauer Modus „Move“ mit GPS – eine
+ *  Meldung nach 100 m Bewegung oder spätestens alle 2 Minuten, was zuerst kommt; unter 20 % Akku wieder sparsam.
+ *  Vorher „Significant“ (etwa 500 m / 5 Min., oft nur WLAN/Funkmast): Ankunft kam schon beim Vorbeifahren, Verlassen oft nie. */
 export function owntracksKonfig(o: { url: string; benutzer: string; passwort: string; orte: OrtMarke[] }, tst = Math.floor(Date.now() / 1000)) {
   return {
     _type: "configuration" as const,
@@ -151,7 +169,10 @@ export function owntracksKonfig(o: { url: string; benutzer: string; passwort: st
     password: o.passwort,
     deviceId: "iphone",
     tid: "DH",
-    monitoring: 1,
+    monitoring: 2,
+    locatorDisplacement: 100,
+    locatorInterval: 120,
+    downgrade: 20,
     cmd: true,
     remoteConfiguration: false,
     allowRemoteLocation: false,
