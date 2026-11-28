@@ -33,8 +33,24 @@ test("eine einzelne Riesen-Zeile wird an Wortgrenzen geteilt; höchstens 10 Teil
 test("mitten im Ändern: Teile eines anderen Stands zählen nicht; alte einzelne Nachricht gilt als Teil 1", () => {
   const neu = lageStuecke({ stand: STAND, text: zeilen(60) });
   const altTeil2 = { ...neu[1], stand: "2026-11-28T09:59:00.000Z", text: "ALT" };
+  // gibt es den neuen Teil 2, zählt der alte nicht
+  assert.ok(!lageZusammen([neu[0], altTeil2, ...neu.slice(1)])!.text.includes("ALT"));
+  // fehlt er (Ändern mittendrin gescheitert), kommt seit 28.11. der alte dazu – besser als eine Lücke
   const z = lageZusammen([neu[0], altTeil2, ...neu.slice(2)])!;
-  assert.ok(!z.text.includes("ALT"));
+  assert.ok(z.text.includes("ALT"));
+  assert.equal(z.stand, STAND);
   assert.deepEqual(lageZusammen([{ stand: STAND, text: "nur eins" }]), { stand: STAND, text: "nur eins" });
   assert.equal(lageZusammen([]), null);
+});
+
+test("28.11.: fehlt ein Teil des neuesten Stands, kommt der neueste ältere dieses Teils dazu", () => {
+  const neu = lageStuecke({ stand: STAND, text: zeilen(60) });
+  const alt = lageStuecke({ stand: "2026-11-28T09:00:00.000Z", text: zeilen(60).replace(/Zeile/g, "Alt") });
+  assert.ok(neu.length >= 3);
+  // Teil 2 des neuen Stands fehlt
+  const z = lageZusammen([...neu.filter((t) => t.teil !== 2), ...alt])!;
+  assert.equal(z.stand, STAND);
+  const teile = z.text.split("\n");
+  assert.ok(z.text.includes(neu[0].text) && z.text.includes(alt[1].text) && z.text.includes(neu[2].text));
+  assert.ok(teile.length > 0);
 });

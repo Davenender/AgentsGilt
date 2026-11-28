@@ -700,6 +700,17 @@ export function lageZusammen(teile: LageTeil[]): Lage | null {
   const erster = teile.filter((t) => nr(t) === 1).sort((a, b) => b.stand.localeCompare(a.stand))[0] ?? teile[0];
   const gleich = teile.filter((t) => t.stand === erster.stand && nr(t) <= (erster.teile ?? 1)).sort((a, b) => nr(a) - nr(b));
   const ohneDoppelte = gleich.filter((t, i) => i === 0 || nr(t) !== nr(gleich[i - 1]));
+  // 28.11.: Fehlt ein Teil des neuesten Stands (Ändern ist mittendrin gescheitert), lieber den neuesten älteren dieses Teils als gar keinen
+  const n = erster.teile ?? 1;
+  if (ohneDoppelte.length < n) {
+    const da = new Set(ohneDoppelte.map(nr));
+    for (let i = 1; i <= n; i++) {
+      if (da.has(i)) continue;
+      const ersatz = teile.filter((t) => nr(t) === i).sort((a, b) => b.stand.localeCompare(a.stand))[0];
+      if (ersatz) ohneDoppelte.push(ersatz);
+    }
+    ohneDoppelte.sort((a, b) => nr(a) - nr(b));
+  }
   return { stand: erster.stand, text: ohneDoppelte.map((t) => t.text).join("\n"), ...(erster.stimme ? { stimme: erster.stimme } : {}) };
 }
 

@@ -267,7 +267,10 @@ export async function setzeLage(l: Lage): Promise<boolean> {
   let nachVornFrei = 2;
   for (const s of stuecke) {
     const content = lageNachricht(s);
-    if (content.length > 2000) return false;
+    if (content.length > 2000) {
+      console.error(`[luca] Lagebericht Teil ${s.teil ?? 1}/${stuecke.length}: zu lang (${content.length} Zeichen)`);
+      return false;
+    }
     const alt = vorhanden.get(s.teil ?? 1);
     // Der Stand selbst rückt mit seinem neuen Inhalt nach vorn
     if (alt && alt.stelle >= NACH_VORN_AB && nachVornFrei > 0 && bis - Date.now() > 8000) {
@@ -286,10 +289,13 @@ export async function setzeLage(l: Lage): Promise<boolean> {
         }),
         { bis },
       ).catch(() => null);
+      if (!res?.ok) console.error(`[luca] Lagebericht Teil ${s.teil ?? 1}/${stuecke.length}: Ändern HTTP ${res?.status ?? "keine Antwort"}, Stelle ${alt.stelle}, noch ${Math.round((bis - Date.now()) / 1000)} s`);
       ok &&= !!res?.ok;
       continue;
     }
-    ok &&= Boolean(await poste(kanal, content));
+    const gepostet = await poste(kanal, content);
+    if (!gepostet) console.error(`[luca] Lagebericht Teil ${s.teil ?? 1}/${stuecke.length}: neu posten fehlgeschlagen`);
+    ok &&= Boolean(gepostet);
   }
   // Teile, die es nicht mehr gibt, und Doppelte löschen – nur solange Zeit ist (sonst beim nächsten Bericht)
   const weg = [...[...vorhanden].filter(([nr]) => nr > stuecke.length).map(([, m]) => m.id), ...doppelte];
