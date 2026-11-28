@@ -221,7 +221,8 @@ export function gespraechAus(nachr: Nachricht[], jetzt = new Date()): boolean {
 async function nachVorn(kanal: string, altId: string, content: string): Promise<boolean> {
   const neu = await poste(kanal, content);
   if (!neu) return false;
-  const loesche = (id: string) => fetch(`${DISCORD}/channels/${kanal}/messages/${id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) }).catch(() => null);
+  // 28.11.: Discord bremst Löschen stark – warten und neu versuchen (vorher gab es bei 6 Teilen 502)
+  const loesche = (id: string) => mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages/${id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) })).catch(() => null);
   const weg = await loesche(altId);
   if (weg?.ok) return true;
   await loesche(neu);
@@ -248,7 +249,7 @@ export async function setzeLage(l: Lage): Promise<boolean> {
     const t = lageLesen(m.content);
     const nr = t?.teil ?? 1;
     if (!vorhanden.has(nr)) vorhanden.set(nr, { id: m.id, content: m.content, stelle });
-    else void fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) }).catch(() => null); // doppelt
+    else void mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) })).catch(() => null); // doppelt
   });
   let ok = true;
   for (const s of stuecke) {
@@ -259,19 +260,22 @@ export async function setzeLage(l: Lage): Promise<boolean> {
     if (alt && alt.stelle >= NACH_VORN_AB && (await nachVorn(kanal, alt.id, content))) continue;
     if (alt) {
       if (alt.content === content) continue;
-      const res = await fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, {
-        method: "PATCH",
-        headers: kopf(),
-        body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
-        signal: AbortSignal.timeout(6000),
-      });
+      // 28.11.: auch beim Ändern auf Discords Bremse warten (mehrere Teile hintereinander)
+      const res = await mitWarten(() =>
+        fetch(`${DISCORD}/channels/${kanal}/messages/${alt.id}`, {
+          method: "PATCH",
+          headers: kopf(),
+          body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+          signal: AbortSignal.timeout(6000),
+        }),
+      );
       ok &&= res.ok;
       continue;
     }
     ok &&= Boolean(await poste(kanal, content));
   }
   // Teile, die es nicht mehr gibt (der Bericht ist kürzer geworden), löschen
-  for (const [nr, m] of vorhanden) if (nr > stuecke.length) await fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) }).catch(() => null);
+  for (const [nr, m] of vorhanden) if (nr > stuecke.length) await mitWarten(() => fetch(`${DISCORD}/channels/${kanal}/messages/${m.id}`, { method: "DELETE", headers: kopf(), signal: AbortSignal.timeout(6000) })).catch(() => null);
   return ok;
 }
 
