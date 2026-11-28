@@ -171,3 +171,12 @@ test("F2: abgewählte Orte werden mit ungültigen Koordinaten mitgeschickt – s
   assert.equal(w[2].lon, -1000000);
   assert.equal(w[2].tst, wegpunktKennung("Quirins Haus"));
 });
+
+test("28.11.: Link für den QR-Code ohne Orte – passt in einen QR-Code (höchstens 2.953 Zeichen)", () => {
+  const orte = Array.from({ length: 20 }, (_, i) => ({ name: `Lidijas Haus (mit Mehran, Sherko, Tara) ${i}`, lat: 50.1234567 + i / 1000, lon: 8.8765432, rad: 100 }));
+  const mit = owntracksLink(owntracksKonfig({ url: "https://agentsgilt.com/api/standort", benutzer: "david", passwort: "x".repeat(64), orte }, TST));
+  const ohne = owntracksLink(owntracksKonfig({ url: "https://agentsgilt.com/api/standort", benutzer: "david", passwort: "x".repeat(64), orte, ohneOrte: true }, TST));
+  assert.ok(mit.length > 2953); // so war es: zu lang
+  assert.ok(ohne.length < 1500, `${ohne.length}`);
+  assert.equal("waypoints" in owntracksKonfig({ url: "u", benutzer: "b", passwort: "p", orte, ohneOrte: true }, TST), false);
+});

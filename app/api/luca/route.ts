@@ -220,7 +220,9 @@ async function vonDerZentrale(req: Request, aktion: string | null) {
       if (!passwort) return NextResponse.json({ error: "HELFER_SECRET fehlt" }, { status: 503 });
       const s = await holeStandortSpeicher();
       const url = `${new URL(LUCA_ADRESSE).origin}/api/standort`;
-      return NextResponse.json({ link: owntracksLink(owntracksKonfig({ url, benutzer: STANDORT_BENUTZER, passwort, orte: s.orte })), orte: s.orte.map((o) => o.name) });
+      // 28.11.: Link ohne Orte (passt sonst in keinen QR-Code); die Orte gehen mit der nächsten Standortmeldung ans iPhone
+      if (s.orte.length) await setzeOrte(s.orte, true).catch(() => false);
+      return NextResponse.json({ link: owntracksLink(owntracksKonfig({ url, benutzer: STANDORT_BENUTZER, passwort, orte: s.orte, ohneOrte: true })), orte: s.orte.map((o) => o.name) });
     }
     if (req.method === "GET" && aktion === "status") {
       const lage = await holeLage();

@@ -159,7 +159,9 @@ const wegpunkte = (orte: OrtMarke[], _tst?: number) => orte.slice(0, 20).map((o)
 /** Einrichtung der App: HTTP an unseren Server. 28.11. (Davids Wunsch, Akku reicht): genauer Modus „Move“ mit GPS – eine
  *  Meldung nach 100 m Bewegung oder spätestens alle 2 Minuten, was zuerst kommt; unter 20 % Akku wieder sparsam.
  *  Vorher „Significant“ (etwa 500 m / 5 Min., oft nur WLAN/Funkmast): Ankunft kam schon beim Vorbeifahren, Verlassen oft nie. */
-export function owntracksKonfig(o: { url: string; benutzer: string; passwort: string; orte: OrtMarke[] }, tst = Math.floor(Date.now() / 1000)) {
+/** 28.11.: Für den QR-Code ohne Orte (`ohneOrte`) – mit 20 Orten wurde der Link über 3.000 Zeichen lang und passte in keinen
+ *  QR-Code mehr (höchstens 2.953). Die Orte bekommt die App danach mit der ersten Standortmeldung (orteNeu → setWaypoints). */
+export function owntracksKonfig(o: { url: string; benutzer: string; passwort: string; orte: OrtMarke[]; ohneOrte?: boolean }, tst = Math.floor(Date.now() / 1000)) {
   return {
     _type: "configuration" as const,
     mode: 3,
@@ -176,7 +178,7 @@ export function owntracksKonfig(o: { url: string; benutzer: string; passwort: st
     cmd: true,
     remoteConfiguration: false,
     allowRemoteLocation: false,
-    waypoints: wegpunkte(o.orte, tst),
+    ...(o.ohneOrte ? {} : { waypoints: wegpunkte(o.orte, tst) }),
   };
 }
 
